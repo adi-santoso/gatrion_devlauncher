@@ -3,6 +3,7 @@ import useAppStore from '../../store/appStore'
 import AddProjectModal from '../Project/AddProjectModal'
 import ProjectCard from '../Project/ProjectCard'
 import TerminalViewer from '../Terminal/TerminalViewer'
+import Button from '../Common/Button'
 
 function ProjectsPage() {
   const {
@@ -146,38 +147,40 @@ function ProjectsPage() {
 
   return (
     <div className="h-full flex flex-col">
-      <div className="flex items-center justify-between mb-6">
-        <h2 className="text-2xl font-bold">Projects</h2>
-        <button
-          onClick={() => setAddProjectModalOpen(true)}
-          className="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded text-sm font-medium transition-colors"
-        >
-          ➕ Add Project
-        </button>
-      </div>
-
       {projects.length === 0 ? (
         /* Empty State */
         <div className="flex items-center justify-center flex-1">
-          <div className="text-center">
-            <div className="text-6xl mb-4">📁</div>
-            <h3 className="text-xl font-semibold mb-2">No projects yet</h3>
-            <p className="text-gray-400 mb-4">
-              Click "Add Project" to get started
+          <div className="text-center max-w-md">
+            <div className="relative mb-8">
+              <div className="w-32 h-32 mx-auto rounded-full bg-gradient-to-br from-blue-600/20 to-purple-600/20 flex items-center justify-center border-4 border-gray-800 shadow-2xl">
+                <span className="text-6xl">📁</span>
+              </div>
+              <div className="absolute -bottom-2 -right-2 w-16 h-16 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center shadow-xl">
+                <span className="text-2xl">➕</span>
+              </div>
+            </div>
+            <h3 className="text-3xl font-bold mb-3 bg-gradient-to-r from-gray-100 to-gray-300 bg-clip-text text-transparent">
+              No Projects Yet
+            </h3>
+            <p className="text-gray-400 mb-8 text-lg">
+              Start by adding your first development project to manage and monitor it from here
             </p>
-            <button
+            <Button
+              variant="primary"
+              size="lg"
+              icon="✨"
               onClick={() => setAddProjectModalOpen(true)}
-              className="px-6 py-3 bg-blue-600 hover:bg-blue-700 rounded text-sm font-medium transition-colors"
+              className="shadow-2xl"
             >
-              ➕ Add Your First Project
-            </button>
+              Add Your First Project
+            </Button>
           </div>
         </div>
       ) : (
         <div className="flex-1 flex gap-6 overflow-hidden">
           {/* Project Grid */}
           <div className="flex-1 overflow-auto">
-            <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 lg:grid-cols-2 2xl:grid-cols-3 gap-6 pb-4">
               {projects.map((project) => (
                 <ProjectCard
                   key={project.id}
@@ -193,7 +196,7 @@ function ProjectsPage() {
 
           {/* Terminal Viewer (if project selected) */}
           {selectedProject && (
-            <div className="w-1/3 min-w-[400px] border-l border-gray-700">
+            <div className="w-1/3 min-w-[400px] border-l border-gray-800">
               <TerminalViewer
                 logs={processStatuses[selectedProject.id]?.logs || []}
                 projectName={selectedProject.name}
