@@ -23,6 +23,7 @@
   "author": "Gatrion Dev",
   "license": "MIT",
   "dependencies": {
+    "@tailwindcss/vite": "^4.3.3",
     "electron": "^43.1.1",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
@@ -31,12 +32,9 @@
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^6.0.3",
-    "autoprefixer": "^10.5.4",
     "concurrently": "^10.0.3",
     "cross-env": "^10.1.0",
     "electron-builder": "^26.15.3",
-    "postcss": "^8.5.19",
-    "tailwindcss": "^4.3.3",
     "vite": "^8.1.5",
     "wait-on": "^9.0.10"
   }
