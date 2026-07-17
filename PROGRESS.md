@@ -11,12 +11,12 @@
 
 | Phase | Status | Progress | Duration | Completed |
 |-------|--------|----------|----------|-----------|
-| Phase 1: Foundation (MVP) | 🔄 In Progress | 12% | 1.5h / 12h | - |
+| Phase 1: Foundation (MVP) | 🔄 In Progress | 25% | 3h / 12h | - |
 | Phase 2: Core Features | ⏳ Pending | 0% | 0h / 8h | - |
 | Phase 3: Polish | ⏳ Pending | 0% | 0h / 6h | - |
 | Phase 4: Build & Distribution | ⏳ Pending | 0% | 0h / 3h | - |
 
-**Total Progress**: 5% (1.5/29 hours estimated)
+**Total Progress**: 10% (3/29 hours estimated)
 
 ---
 
@@ -26,7 +26,7 @@
 **Status**: 🔄 In Progress  
 **Started**: 2024-07-17  
 **Completed**: -  
-**Duration**: 1.5h / 12h estimated
+**Duration**: 3h / 12h estimated
 
 ### Tasks Checklist
 
@@ -39,12 +39,12 @@
   - [x] Setup React entry point
   - [x] Test dev server running
 
-- [ ] 2. Basic layout (Sidebar + TopBar + Content)
-  - [ ] Create MainLayout component
-  - [ ] Create Sidebar component
-  - [ ] Create TopBar component
-  - [ ] Implement basic routing/navigation
-  - [ ] Add basic styling
+- [x] 2. Basic layout (Sidebar + TopBar + Content)
+  - [x] Create MainLayout component
+  - [x] Create Sidebar component
+  - [x] Create TopBar component
+  - [x] Implement basic routing/navigation
+  - [x] Add basic styling
 
 - [ ] 3. ProcessManager implementation
   - [ ] Create ProcessManager class
@@ -112,6 +112,24 @@
 - Dev command works: `npm run dev` launches Vite + Electron
 - Used concurrently for running multiple commands
 - Set up electron-builder.json for future Windows builds
+
+**Task 2 - Basic Layout** (Completed):
+- Created MainLayout.jsx with flex layout (sidebar + main content area)
+- Created Sidebar.jsx with:
+  - Collapsible sidebar (220px expanded, 60px collapsed)
+  - Navigation menu (Dashboard, Projects, Settings)
+  - Active page highlighting
+  - Running projects section (empty state for now)
+- Created TopBar.jsx with:
+  - Dynamic page title based on current route
+  - Action buttons (Add Project, Start All, Stop All)
+- Created three page components:
+  - DashboardPage.jsx with stats cards
+  - ProjectsPage.jsx with empty state
+  - SettingsPage.jsx placeholder
+- Implemented simple routing using useState (no react-router needed for MVP)
+- All components styled with Tailwind CSS
+- Navigation works: clicking sidebar items changes page content
 
 ---
 
