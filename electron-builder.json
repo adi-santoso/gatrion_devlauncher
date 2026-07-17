@@ -1,0 +1,32 @@
+{
+  "appId": "com.devlauncher.app",
+  "productName": "DevLauncher",
+  "directories": {
+    "output": "dist",
+    "buildResources": "build"
+  },
+  "win": {
+    "target": [
+      {
+        "target": "nsis",
+        "arch": ["x64"]
+      },
+      {
+        "target": "portable",
+        "arch": ["x64"]
+      }
+    ],
+    "icon": "build/icon.ico"
+  },
+  "nsis": {
+    "oneClick": false,
+    "allowToChangeInstallationDirectory": true,
+    "createDesktopShortcut": true,
+    "createStartMenuShortcut": true
+  },
+  "files": [
+    "electron/**/*",
+    "dist-react/**/*",
+    "package.json"
+  ]
+}
