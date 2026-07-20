@@ -1,0 +1,98 @@
+import { useState, useEffect, useCallback } from 'react';
+import * as ipc from '../utils/ipcRenderer';
+
+/**
+ * useElectronConfig Hook
+ * Manages application configuration with Electron persistence
+ */
+export const useElectronConfig = () => {
+  const [config, setConfig] = useState({
+    theme: 'dark',
+    sidebarExpanded: true,
+    startOnBoot: false,
+    minimizeToTray: true,
+    notifyOnStart: false,
+    notifyOnCrash: true,
+    notificationSound: false,
+    terminalFontSize: 14,
+    terminalMaxLines: 1000,
+    terminalAutoScroll: true
+  });
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  // Load config from Electron
+  const loadConfig = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const response = await ipc.getConfig();
+
+      if (response.success) {
+        setConfig(response.config);
+      } else {
+        setError(response.error || 'Failed to load config');
+      }
+    } catch (err) {
+      console.error('Error loading config:', err);
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  // Update config in Electron
+  const updateConfig = useCallback(async (updates) => {
+    try {
+      const response = await ipc.updateConfig(updates);
+
+      if (response.success) {
+        setConfig(prev => ({ ...prev, ...updates }));
+
+        // Apply theme changes to DOM
+        if (updates.theme) {
+          document.documentElement.setAttribute('data-theme', updates.theme);
+        }
+
+        return { success: true, config: response.config };
+      } else {
+        return { success: false, error: response.error || 'Failed to update config' };
+      }
+    } catch (err) {
+      console.error('Error updating config:', err);
+      return { success: false, error: err.message };
+    }
+  }, []);
+
+  // Batch update multiple config values
+  const updateMultiple = useCallback(async (updates) => {
+    return updateConfig(updates);
+  }, [updateConfig]);
+
+  // Update single config value
+  const updateSingle = useCallback(async (key, value) => {
+    return updateConfig({ [key]: value });
+  }, [updateConfig]);
+
+  // Load config on mount
+  useEffect(() => {
+    loadConfig();
+  }, [loadConfig]);
+
+  // Apply theme on config change
+  useEffect(() => {
+    if (config.theme) {
+      document.documentElement.setAttribute('data-theme', config.theme);
+    }
+  }, [config.theme]);
+
+  return {
+    config,
+    loading,
+    error,
+    updateConfig,
+    updateMultiple,
+    updateSingle,
+    loadConfig
+  };
+};

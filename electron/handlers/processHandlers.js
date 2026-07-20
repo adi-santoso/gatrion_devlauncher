@@ -57,15 +57,7 @@ function setupProcessHandlers(processManager, mainWindow) {
   // Restart a project
   ipcMain.handle('restart-project', async (event, projectId, projectPath, command, env = {}) => {
     try {
-      // Stop first
-      if (processManager.getProcessStatus(projectId).status === 'RUNNING') {
-        await processManager.stopProcess(projectId, false)
-        // Wait a bit before restarting
-        await new Promise((resolve) => setTimeout(resolve, 1000))
-      }
-
-      // Start again
-      const result = processManager.startProcess(
+      const result = await processManager.restartProcess(
         projectId,
         projectPath,
         command,

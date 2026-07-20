@@ -177,13 +177,32 @@ class StorageManager {
   async updateConfig(updates) {
     try {
       const current = await this.loadConfig()
-      const merged = { ...current, ...updates }
+      // Deep merge for nested objects like notifications and terminal
+      const merged = this.deepMerge(current, updates)
       await this.saveConfig(merged)
       return merged
     } catch (error) {
       console.error('[StorageManager] Error updating config:', error)
       throw error
     }
+  }
+
+  /**
+   * Deep merge two objects
+   * @param {Object} target - Target object
+   * @param {Object} source - Source object
+   * @returns {Object} Merged object
+   */
+  deepMerge(target, source) {
+    const result = { ...target }
+    for (const key in source) {
+      if (source[key] instanceof Object && !Array.isArray(source[key])) {
+        result[key] = this.deepMerge(target[key] || {}, source[key])
+      } else {
+        result[key] = source[key]
+      }
+    }
+    return result
   }
 
   /**

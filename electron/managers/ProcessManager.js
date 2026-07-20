@@ -244,6 +244,51 @@ class ProcessManager {
   }
 
   /**
+   * Restart a project process
+   * @param {string} projectId - Project ID
+   * @param {string} projectPath - Project directory path
+   * @param {string} command - Command to execute
+   * @param {object} env - Environment variables
+   * @param {function} onLog - Callback for log lines
+   * @param {function} onExit - Callback for process exit
+   * @param {function} onError - Callback for errors
+   */
+  async restartProcess(
+    projectId,
+    projectPath,
+    command,
+    env = {},
+    onLog,
+    onExit,
+    onError
+  ) {
+    try {
+      // Stop if running
+      if (this.processes.has(projectId)) {
+        const processData = this.processes.get(projectId)
+        if (processData.status === this.STATUS.RUNNING) {
+          await this.stopProcess(projectId, false)
+          // Wait a bit for cleanup
+          await new Promise((resolve) => setTimeout(resolve, 1000))
+        }
+      }
+
+      // Start again
+      return this.startProcess(
+        projectId,
+        projectPath,
+        command,
+        env,
+        onLog,
+        onExit,
+        onError
+      )
+    } catch (error) {
+      throw error
+    }
+  }
+
+  /**
    * Stop all running processes
    */
   async stopAllProcesses() {

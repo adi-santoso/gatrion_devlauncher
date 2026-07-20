@@ -14,116 +14,10 @@ import {
   ToastContainer
 } from './components/Modals';
 import { TrayIcon, TrayPopup, DemoPanel } from './components/Demo';
+import { useProjects, useProcesses, useElectronConfig } from './hooks';
+import { isElectronAvailable } from './utils/ipcRenderer';
 
-// Mock data
-const MOCK_PROJECTS = [
-  {
-    id: 1,
-    name: 'storefront-web',
-    path: 'C:/projects/storefront-web',
-    status: 'running',
-    port: 5173,
-    framework: 'React',
-    type: 'React',
-    stack: 'React (Vite)',
-    emoji: '⚛️',
-    color: '#61DAFB',
-    cpu: '3.1%',
-    memory: '182MB',
-    uptime: '2h 14m',
-    pid: '18420',
-    sparklinePoints: '0,18 14,14 28,16 42,8 56,11 70,4 84,7 100,2',
-    lastRun: '2 minutes ago',
-    health: 'healthy',
-    buildTime: '1.2s',
-    memoryUsage: '145 MB',
-    dependencies: 42,
-    issues: 0
-  },
-  {
-    id: 2,
-    name: 'payment-api',
-    path: 'C:/projects/payment-api',
-    status: 'running',
-    port: 3000,
-    framework: 'Express',
-    type: 'Node.js',
-    stack: 'Node.js',
-    emoji: '🟩',
-    color: '#339933',
-    cpu: '1.8%',
-    memory: '140MB',
-    uptime: '41m',
-    pid: '18391',
-    sparklinePoints: '0,10 14,13 28,9 42,15 56,10 70,12 84,6 100,9',
-    lastRun: '5 minutes ago',
-    health: 'healthy',
-    buildTime: '0.8s',
-    memoryUsage: '89 MB',
-    dependencies: 28,
-    issues: 1
-  },
-  {
-    id: 3,
-    name: 'analytics-dashboard',
-    path: 'C:/projects/analytics-dashboard',
-    status: 'stopped',
-    port: 8080,
-    framework: 'Vue',
-    type: 'Vue.js',
-    stack: 'Vue.js',
-    emoji: '🟢',
-    color: '#42B883',
-    uptime: '2d',
-    idleTime: '2d',
-    lastRun: '2 hours ago',
-    health: 'unknown',
-    buildTime: '2.1s',
-    memoryUsage: null,
-    dependencies: 56,
-    issues: 3
-  },
-  {
-    id: 4,
-    name: 'mobile-app',
-    path: 'C:/projects/mobile-app',
-    status: 'stopped',
-    port: 8081,
-    framework: 'React Native',
-    type: 'React Native',
-    stack: 'React Native',
-    emoji: '📱',
-    color: '#61DAFB',
-    uptime: '1d',
-    idleTime: '1d',
-    lastRun: '1 day ago',
-    health: 'unknown',
-    buildTime: '3.4s',
-    memoryUsage: null,
-    dependencies: 67,
-    issues: 0
-  },
-  {
-    id: 5,
-    name: 'legacy-monolith',
-    path: 'C:/projects/legacy-monolith',
-    status: 'error',
-    port: 4200,
-    framework: 'Angular',
-    type: 'Angular',
-    stack: 'Angular',
-    emoji: '🅰️',
-    color: '#DD0031',
-    errorMessage: 'exit code 1 · 14 min ago',
-    lastRun: '10 minutes ago',
-    health: 'error',
-    buildTime: null,
-    memoryUsage: null,
-    dependencies: 134,
-    issues: 12
-  }
-];
-
+// Mock data for activities and logs (will be replaced with real data later)
 const MOCK_ACTIVITIES = [
   { type: 'success', project: 'gateway-service', message: 'started', time: '2 min ago · port 8080' },
   { type: 'danger', project: 'admin-dashboard', message: 'crashed', time: '14 min ago · exit code 1' },
@@ -142,13 +36,11 @@ const MOCK_LOGS = [
   { id: 8, type: 'info', message: 'WebSocket connected', timestamp: '14:23:30' }
 ];
 
-const MOCK_TRAY_PROJECTS = [
-  { name: 'storefront-web', port: 3000, status: 'running', health: 'healthy' },
-  { name: 'payment-api', port: 8080, status: 'running', health: 'healthy' },
-  { name: 'analytics-dashboard', port: 5173, status: 'running', health: 'warning' }
-];
-
 function App() {
+  // Initialize hooks
+  const { projects, loading: projectsLoading, addProject: addProjectToStore, updateProject: updateProjectInStore, deleteProject: deleteProjectFromStore } = useProjects();
+  const { config, updateConfig: updateElectronConfig } = useElectronConfig();
+
   // View state
   const [currentView, setCurrentView] = useState('dashboard');
   const [selectedProject, setSelectedProject] = useState(null);
@@ -160,28 +52,39 @@ function App() {
   const [confirmTarget, setConfirmTarget] = useState(null);
   const [showTray, setShowTray] = useState(false);
 
-  // Settings state
-  const [settings, setSettings] = useState({
-    theme: 'dark',
-    sidebarExpanded: true,
-    startOnBoot: false,
-    minimizeToTray: true,
-    notifyOnStart: false,
-    notifyOnCrash: true,
-    notificationSound: false,
-    terminalFontSize: 14,
-    terminalMaxLines: 1000,
-    terminalAutoScroll: true
-  });
-
-  // Project state
-  const [projects, setProjects] = useState(MOCK_PROJECTS);
+  // Activities state (mock for now)
   const [activities] = useState(MOCK_ACTIVITIES);
 
-  // Initialize theme
+  // Handle project updates from process events
+  const handleProjectUpdate = (projectId, updates) => {
+    updateProjectInStore(projectId, updates);
+  };
+
+  // Initialize process manager with project update callback
+  const {
+    startProject: startProjectProcess,
+    stopProject: stopProjectProcess,
+    restartProject: restartProjectProcess,
+    startAll,
+    stopAll,
+    getLogs,
+    clearLogs
+  } = useProcesses(projects, handleProjectUpdate);
+
+  // Check Electron availability on mount
   useEffect(() => {
-    document.documentElement.setAttribute('data-theme', settings.theme);
-  }, [settings.theme]);
+    if (!isElectronAvailable()) {
+      console.warn('⚠️ Running in browser mode - Electron APIs not available');
+      showToast('warning', 'Running in browser mode with mock data');
+    }
+  }, []);
+
+  // Initialize theme from config
+  useEffect(() => {
+    if (config.theme) {
+      document.documentElement.setAttribute('data-theme', config.theme);
+    }
+  }, [config.theme]);
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -246,46 +149,51 @@ function App() {
   };
 
   // Project actions
-  const handleStartProject = (project) => {
-    setProjects(prev => prev.map(p =>
-      p.id === project.id
-        ? { ...p, status: 'running', health: 'healthy', port: 3000 + p.id }
-        : p
-    ));
-    showToast('success', `${project.name} started successfully`);
+  const handleStartProject = async (project) => {
+    const result = await startProjectProcess(project.id);
+    if (result.success) {
+      showToast('success', `${project.name} started successfully`);
+    } else {
+      showToast('error', result.error || `Failed to start ${project.name}`);
+    }
   };
 
-  const handleStopProject = (project) => {
-    setProjects(prev => prev.map(p =>
-      p.id === project.id
-        ? { ...p, status: 'stopped', health: 'unknown', port: null }
-        : p
-    ));
-    showToast('info', `${project.name} stopped`);
+  const handleStopProject = async (project) => {
+    const result = await stopProjectProcess(project.id);
+    if (result.success) {
+      showToast('info', `${project.name} stopped`);
+    } else {
+      showToast('error', result.error || `Failed to stop ${project.name}`);
+    }
   };
 
-  const handleRestartProject = (project) => {
+  const handleRestartProject = async (project) => {
     showToast('info', `Restarting ${project.name}...`);
-    setTimeout(() => {
-      setProjects(prev => prev.map(p =>
-        p.id === project.id
-          ? { ...p, status: 'running', health: 'healthy' }
-          : p
-      ));
+    const result = await restartProjectProcess(project.id);
+    if (result.success) {
       showToast('success', `${project.name} restarted successfully`);
-    }, 1500);
+    } else {
+      showToast('error', result.error || `Failed to restart ${project.name}`);
+    }
   };
 
   const handleDeleteProject = (project) => {
     openModalHandler('confirm', project.name);
   };
 
-  const confirmDelete = () => {
-    setProjects(prev => prev.filter(p => p.name !== confirmTarget));
-    showToast('success', `${confirmTarget} removed from projects`);
-    closeModalHandler();
-    if (currentView === 'project-detail' && selectedProject?.name === confirmTarget) {
-      showView('projects');
+  const confirmDelete = async () => {
+    const projectToDelete = projects.find(p => p.name === confirmTarget);
+    if (projectToDelete) {
+      const result = await deleteProjectFromStore(projectToDelete.id);
+      if (result.success) {
+        showToast('success', `${confirmTarget} removed from projects`);
+        closeModalHandler();
+        if (currentView === 'project-detail' && selectedProject?.name === confirmTarget) {
+          showView('projects');
+        }
+      } else {
+        showToast('error', result.error || 'Failed to delete project');
+      }
     }
   };
 
@@ -310,40 +218,33 @@ function App() {
     }, 2000);
   };
 
-  const handleCreateProject = (projectData) => {
-    const newProject = {
-      id: projects.length + 1,
-      name: projectData.name,
-      path: projectData.path,
-      status: 'stopped',
-      port: null,
-      framework: projectData.template || 'React',
-      lastRun: 'Never',
-      health: 'unknown',
-      buildTime: null,
-      memoryUsage: null,
-      dependencies: 0,
-      issues: 0
-    };
-
-    setProjects(prev => [...prev, newProject]);
-    showToast('success', `Project ${projectData.name} created successfully`);
-    closeModalHandler();
+  const handleCreateProject = async (projectData) => {
+    const result = await addProjectToStore(projectData);
+    if (result.success) {
+      showToast('success', `Project ${projectData.name} created successfully`);
+      closeModalHandler();
+    } else {
+      showToast('error', result.error || 'Failed to create project');
+    }
   };
 
   // Theme handler
-  const setThemeHandler = (newTheme) => {
-    setSettings(prev => ({ ...prev, theme: newTheme }));
-    document.documentElement.setAttribute('data-theme', newTheme);
-    showToast('success', `Theme changed to ${newTheme}`);
+  const setThemeHandler = async (newTheme) => {
+    const result = await updateElectronConfig({ theme: newTheme });
+    if (result.success) {
+      showToast('success', `Theme changed to ${newTheme}`);
+    } else {
+      showToast('error', result.error || 'Failed to update theme');
+    }
   };
 
   // Settings handlers
   const handleSettingsChange = (newSettings) => {
-    setSettings(newSettings);
+    // Update local state immediately for responsive UI
+    // The hook will sync to Electron
   };
 
-  const handleSaveSettings = () => {
+  const handleSaveSettings = async () => {
     showToast('success', 'Settings saved');
   };
 
@@ -370,7 +271,7 @@ function App() {
         showView('settings');
         break;
       case 'toggle-theme':
-        setThemeHandler(settings.theme === 'dark' ? 'light' : 'dark');
+        setThemeHandler(config.theme === 'dark' ? 'light' : 'dark');
         break;
       case 'shortcuts':
         openModalHandler('shortcuts');
@@ -397,20 +298,24 @@ function App() {
 
   return (
     <>
-      <MainLayout
-        currentView={currentView}
-        showUpdateBanner={showUpdateBanner}
-        onUpdateDismiss={() => setShowUpdateBanner(false)}
-        onViewChange={showView}
-        runningProjects={projects
-          .filter(p => p.status === 'running')
-          .map(p => ({
-            name: p.name,
-            color: p.color,
-            onClick: () => showView('project-detail', p)
-          }))}
-        theme={settings.theme}
-      >
+      {projectsLoading ? (
+        <LoadingSkeleton />
+      ) : (
+        <>
+          <MainLayout
+            currentView={currentView}
+            showUpdateBanner={showUpdateBanner}
+            onUpdateDismiss={() => setShowUpdateBanner(false)}
+            onViewChange={showView}
+            runningProjects={projects
+              .filter(p => p.status === 'running')
+              .map(p => ({
+                name: p.name,
+                color: p.color,
+                onClick: () => showView('project-detail', p)
+              }))}
+            theme={config.theme}
+          >
         {/* Dashboard View */}
         {currentView === 'dashboard' && (
           <DashboardView
@@ -467,11 +372,7 @@ function App() {
 
         {/* Settings View */}
         {currentView === 'settings' && (
-          <SettingsView
-            settings={settings}
-            onSave={handleSaveSettings}
-            onSettingsChange={handleSettingsChange}
-          />
+          <SettingsView onSave={handleSaveSettings} />
         )}
 
         {/* Empty State */}
@@ -483,9 +384,6 @@ function App() {
             onAction={() => openModalHandler('project')}
           />
         )}
-
-        {/* Loading State */}
-        {currentView === 'loading' && <LoadingSkeleton />}
       </MainLayout>
 
       {/* Project Modal */}
@@ -570,8 +468,10 @@ function App() {
         onOpenModal={openModalHandler}
         onShowToast={showToast}
         currentView={currentView}
-        currentTheme={settings.theme}
+        currentTheme={config.theme}
       />
+    </>
+      )}
     </>
   );
 }
