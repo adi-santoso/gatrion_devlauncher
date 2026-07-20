@@ -52,6 +52,11 @@ function App() {
   const [confirmTarget, setConfirmTarget] = useState(null);
   const [showTray, setShowTray] = useState(false);
 
+  // Debug: Log toasts changes
+  useEffect(() => {
+    console.log('[Toast] Current toasts:', toasts);
+  }, [toasts]);
+
   // Activities state (mock for now)
   const [activities] = useState(MOCK_ACTIVITIES);
 
@@ -136,6 +141,7 @@ function App() {
   // Toast notifications
   const showToast = (type, message) => {
     const id = Date.now();
+    console.log('[Toast] Showing toast:', { id, type, message });
     setToasts(prev => [...prev, { id, type, message }]);
 
     // Auto-dismiss after 5 seconds
@@ -219,7 +225,10 @@ function App() {
   };
 
   const handleCreateProject = async (projectData) => {
+    console.log('[App] Creating project:', projectData);
     const result = await addProjectToStore(projectData);
+    console.log('[App] Add project result:', result);
+
     if (result.success) {
       showToast('success', `Project ${projectData.name} created successfully`);
       closeModalHandler();
