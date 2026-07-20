@@ -307,6 +307,7 @@ function App() {
             showUpdateBanner={showUpdateBanner}
             onUpdateDismiss={() => setShowUpdateBanner(false)}
             onViewChange={showView}
+            onOpenModal={openModalHandler}
             runningProjects={projects
               .filter(p => p.status === 'running')
               .map(p => ({

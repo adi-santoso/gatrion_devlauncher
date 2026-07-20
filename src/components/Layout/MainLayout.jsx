@@ -12,6 +12,7 @@ const MainLayout = ({
   onUpdateRestart,
   onUpdateDismiss,
   onViewChange,
+  onOpenModal,
   runningProjects = []
 }) => {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -21,13 +22,11 @@ const MainLayout = ({
   };
 
   const handleCommandPalette = () => {
-    // Implement command palette logic
-    console.log('Open command palette');
+    onOpenModal?.('command');
   };
 
   const handleAddProject = () => {
-    // Implement add project logic
-    console.log('Open add project modal');
+    onOpenModal?.('project');
   };
 
   const handleSettings = () => {
