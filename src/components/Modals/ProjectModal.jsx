@@ -1,10 +1,13 @@
 import React, { useState, useEffect } from 'react';
+import { useProjects } from '../../hooks';
 
 /**
  * ProjectModal - Add/edit project modal with form fields
  * Lines 920-970 from template
  */
 const ProjectModal = ({ isOpen, onClose, onSave, project = null }) => {
+  const { browseFolder, detectProjectType } = useProjects();
+
   const [formData, setFormData] = useState({
     name: '',
     path: '',
@@ -13,9 +16,13 @@ const ProjectModal = ({ isOpen, onClose, onSave, project = null }) => {
     startCommand: 'npm run dev',
     envVars: [{ key: 'NODE_ENV', value: 'development' }],
     autoStart: false,
+    emoji: '⚛️',
+    color: '#61DAFB',
   });
 
   const [detectedType, setDetectedType] = useState(null);
+  const [isDetecting, setIsDetecting] = useState(false);
+  const [detectedMetadata, setDetectedMetadata] = useState(null);
 
   useEffect(() => {
     if (project) {
@@ -27,6 +34,8 @@ const ProjectModal = ({ isOpen, onClose, onSave, project = null }) => {
         startCommand: project.startCommand || 'npm run dev',
         envVars: project.envVars || [{ key: 'NODE_ENV', value: 'development' }],
         autoStart: project.autoStart || false,
+        emoji: project.emoji || '⚛️',
+        color: project.color || '#61DAFB',
       });
     } else {
       setFormData({
@@ -37,12 +46,39 @@ const ProjectModal = ({ isOpen, onClose, onSave, project = null }) => {
         startCommand: 'npm run dev',
         envVars: [{ key: 'NODE_ENV', value: 'development' }],
         autoStart: false,
+        emoji: '⚛️',
+        color: '#61DAFB',
       });
+      setDetectedType(null);
+      setDetectedMetadata(null);
     }
   }, [project, isOpen]);
 
   const handleChange = (field, value) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
+
+    // Update emoji and color when type changes manually
+    if (field === 'type') {
+      const typeToMetadata = {
+        '⚛️ React (Vite)': { emoji: '⚛️', color: '#61DAFB' },
+        '⚡ Next.js': { emoji: '⚡', color: '#000000' },
+        '🟢 Vue.js': { emoji: '🟢', color: '#42B883' },
+        '🔴 Laravel': { emoji: '🔴', color: '#FF2D20' },
+        '🐹 Go': { emoji: '🐹', color: '#00ADD8' },
+        '🟩 Node.js': { emoji: '🟩', color: '#339933' },
+        '⚙️ Custom': { emoji: '⚙️', color: '#6B7280' },
+      };
+
+      const metadata = typeToMetadata[value];
+      if (metadata) {
+        setFormData((prev) => ({
+          ...prev,
+          [field]: value,
+          emoji: metadata.emoji,
+          color: metadata.color,
+        }));
+      }
+    }
   };
 
   const handleEnvVarChange = (index, field, value) => {
@@ -63,14 +99,85 @@ const ProjectModal = ({ isOpen, onClose, onSave, project = null }) => {
     setFormData((prev) => ({ ...prev, envVars: newEnvVars }));
   };
 
-  const handleBrowse = () => {
-    // In real app, this would open a file dialog
-    // For now, simulate detection
-    setDetectedType('React (Vite)');
+  const handleBrowse = async () => {
+    try {
+      const response = await browseFolder();
+
+      if (response.success && response.path) {
+        // Update path in form
+        handleChange('path', response.path);
+
+        // Extract project name from path (last folder name)
+        const pathParts = response.path.replace(/\\/g, '/').split('/');
+        const folderName = pathParts[pathParts.length - 1];
+        if (!formData.name) {
+          handleChange('name', folderName);
+        }
+
+        // Auto-detect project type
+        setIsDetecting(true);
+        const detectionResult = await detectProjectType(response.path);
+        setIsDetecting(false);
+
+        if (detectionResult.success && detectionResult.type) {
+          setDetectedType(detectionResult.name);
+
+          // Store detection metadata for emoji and color
+          setDetectedMetadata({
+            emoji: detectionResult.icon,
+            color: detectionResult.color,
+          });
+
+          // Map detected type key to form type options (backend returns NEXTJS, REACT_VITE, etc.)
+          const typeMap = {
+            'NEXTJS': '⚡ Next.js',
+            'REACT_VITE': '⚛️ React (Vite)',
+            'VUE': '🟢 Vue.js',
+            'LARAVEL': '🔴 Laravel',
+            'GOLANG': '🐹 Go',
+            'NODEJS': '🟩 Node.js',
+            'CUSTOM': '⚙️ Custom',
+          };
+
+          if (typeMap[detectionResult.type]) {
+            handleChange('type', typeMap[detectionResult.type]);
+          }
+
+          // Update emoji and color from detection
+          handleChange('emoji', detectionResult.icon);
+          handleChange('color', detectionResult.color);
+
+          // Set default port based on detection result
+          if (detectionResult.defaultPort) {
+            handleChange('port', String(detectionResult.defaultPort));
+          }
+
+          // Set default start command based on detection result
+          if (detectionResult.defaultCommand) {
+            handleChange('startCommand', detectionResult.defaultCommand);
+          }
+        } else {
+          setDetectedType(null);
+          setDetectedMetadata(null);
+        }
+      }
+    } catch (err) {
+      console.error('Error browsing folder:', err);
+      setDetectedType(null);
+      setIsDetecting(false);
+    }
   };
 
   const handleSubmit = () => {
-    onSave(formData);
+    // Add required fields for project
+    const projectData = {
+      ...formData,
+      status: 'stopped',
+      uptime: '0s',
+      idleTime: '0s',
+    };
+
+    onSave(projectData);
     onClose();
   };
 
@@ -120,9 +227,10 @@ const ProjectModal = ({ isOpen, onClose, onSave, project = null }) => {
                 />
                 <button
                   onClick={handleBrowse}
-                  className="px-3 py-2 rounded-lg bg-surface-3 border border-border text-xs font-medium text-ink-soft hover:text-ink hover:bg-surface-2 transition-colors shrink-0"
+                  disabled={isDetecting}
+                  className="px-3 py-2 rounded-lg bg-surface-3 border border-border text-xs font-medium text-ink-soft hover:text-ink hover:bg-surface-2 transition-colors shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  Browse…
+                  {isDetecting ? 'Detecting...' : 'Browse…'}
                 </button>
               </div>
               {detectedType && (
