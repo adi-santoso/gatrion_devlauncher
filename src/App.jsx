@@ -390,7 +390,7 @@ function App() {
       <ProjectModal
         isOpen={openModal === 'project'}
         onClose={closeModalHandler}
-        onSubmit={handleCreateProject}
+        onSave={handleCreateProject}
       />
 
       {/* Confirm Dialog */}
@@ -447,7 +447,12 @@ function App() {
       {/* Tray Popup */}
       <TrayPopup
         isOpen={showTray}
-        projects={MOCK_TRAY_PROJECTS}
+        projects={projects.filter(p => p.status === 'running').map(p => ({
+          name: p.name,
+          type: p.type,
+          port: p.port,
+          color: p.color
+        }))}
         onClose={() => setShowTray(false)}
         onOpenProject={(projectName) => {
           const project = projects.find(p => p.name === projectName);
