@@ -4,6 +4,30 @@ const path = require('path')
 class ProjectDetector {
   constructor() {
     this.projectTypes = {
+      // Check Laravel FIRST before React/Vue (Laravel Inertia has vite.config.js too)
+      LARAVEL: {
+        name: 'Laravel',
+        detector: async (projectPath) => {
+          // Check for artisan file and composer.json with laravel/framework
+          try {
+            const artisanExists = await this.fileExists(path.join(projectPath, 'artisan'))
+            if (!artisanExists) return false
+
+            const composerPath = path.join(projectPath, 'composer.json')
+            const composerJson = await this.readJson(composerPath)
+            if (composerJson.require?.['laravel/framework']) {
+              return true
+            }
+          } catch {
+            // Ignore
+          }
+          return false
+        },
+        defaultCommand: 'php artisan serve',
+        defaultPort: 8000,
+        icon: '🔴',
+        color: '#FF2D20',
+      },
       NEXTJS: {
         name: 'Next.js',
         detector: async (projectPath) => {
@@ -67,29 +91,6 @@ class ProjectDetector {
         defaultPort: 5173,
         icon: '🟢',
         color: '#42B883',
-      },
-      LARAVEL: {
-        name: 'Laravel',
-        detector: async (projectPath) => {
-          // Check for artisan file and composer.json with laravel/framework
-          try {
-            const artisanExists = await this.fileExists(path.join(projectPath, 'artisan'))
-            if (!artisanExists) return false
-
-            const composerPath = path.join(projectPath, 'composer.json')
-            const composerJson = await this.readJson(composerPath)
-            if (composerJson.require?.['laravel/framework']) {
-              return true
-            }
-          } catch {
-            // Ignore
-          }
-          return false
-        },
-        defaultCommand: 'php artisan serve',
-        defaultPort: 8000,
-        icon: '🔴',
-        color: '#FF2D20',
       },
       GOLANG: {
         name: 'Go',
