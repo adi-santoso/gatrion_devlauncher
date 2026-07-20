@@ -20,6 +20,35 @@ function setupProjectHandlers(storageManager, mainWindow) {
   // Add a project
   ipcMain.handle('add-project', async (event, projectData) => {
     try {
+      // Validate required fields
+      if (!projectData.name || !projectData.name.trim()) {
+        throw new Error('Project name is required')
+      }
+      if (!projectData.path || !projectData.path.trim()) {
+        throw new Error('Project path is required')
+      }
+      if (!projectData.port) {
+        throw new Error('Port is required')
+      }
+      if (!projectData.startCommand || !projectData.startCommand.trim()) {
+        throw new Error('Start command is required')
+      }
+
+      // Load existing projects
+      const projects = await storageManager.loadProjects()
+
+      // Check for duplicate name
+      const duplicateName = projects.find(p => p.name.toLowerCase() === projectData.name.toLowerCase())
+      if (duplicateName) {
+        throw new Error(`Project with name "${projectData.name}" already exists`)
+      }
+
+      // Check for duplicate path
+      const duplicatePath = projects.find(p => p.path === projectData.path)
+      if (duplicatePath) {
+        throw new Error(`Project at path "${projectData.path}" already exists`)
+      }
+
       // Generate ID if not provided
       if (!projectData.id) {
         projectData.id = uuidv4()
@@ -30,7 +59,6 @@ function setupProjectHandlers(storageManager, mainWindow) {
       projectData.lastRun = null
 
       // Save to storage
-      const projects = await storageManager.loadProjects()
       projects.push(projectData)
       await storageManager.saveProjects(projects)
 
@@ -39,6 +67,7 @@ function setupProjectHandlers(storageManager, mainWindow) {
 
       return { success: true, project: projectData }
     } catch (error) {
+      console.error('[projectHandlers] Error adding project:', error)
       return { success: false, error: error.message }
     }
   })
@@ -62,6 +91,7 @@ function setupProjectHandlers(storageManager, mainWindow) {
 
       return { success: true, project: projects[index] }
     } catch (error) {
+      console.error('[projectHandlers] Error updating project:', error)
       return { success: false, error: error.message }
     }
   })
@@ -83,6 +113,7 @@ function setupProjectHandlers(storageManager, mainWindow) {
 
       return { success: true }
     } catch (error) {
+      console.error('[projectHandlers] Error deleting project:', error)
       return { success: false, error: error.message }
     }
   })

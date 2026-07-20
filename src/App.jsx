@@ -372,7 +372,7 @@ function App() {
             onStart={() => handleStartProject(selectedProject)}
             onStop={() => handleStopProject(selectedProject)}
             onRestart={() => handleRestartProject(selectedProject)}
-            onDelete={() => handleDeleteProject(selectedProject)}
+            onRemove={() => handleDeleteProject(selectedProject)}
             onOpenInEditor={() => handleOpenInEditor(selectedProject)}
             onOpenInFinder={() => handleOpenInFinder(selectedProject)}
             onOpenBrowser={() => handleOpenBrowser(selectedProject)}

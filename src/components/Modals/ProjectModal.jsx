@@ -23,6 +23,7 @@ const ProjectModal = ({ isOpen, onClose, onSave, project = null }) => {
   const [detectedType, setDetectedType] = useState(null);
   const [isDetecting, setIsDetecting] = useState(false);
   const [detectedMetadata, setDetectedMetadata] = useState(null);
+  const [errors, setErrors] = useState({});
 
   useEffect(() => {
     if (project) {
@@ -56,6 +57,15 @@ const ProjectModal = ({ isOpen, onClose, onSave, project = null }) => {
 
   const handleChange = (field, value) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
+
+    // Clear error for this field when user starts typing
+    if (errors[field]) {
+      setErrors((prev) => {
+        const newErrors = { ...prev };
+        delete newErrors[field];
+        return newErrors;
+      });
+    }
 
     // Update emoji and color when type changes manually
     if (field === 'type') {
@@ -168,7 +178,38 @@ const ProjectModal = ({ isOpen, onClose, onSave, project = null }) => {
     }
   };
 
+  const validateForm = () => {
+    const newErrors = {};
+
+    // Required fields
+    if (!formData.name.trim()) {
+      newErrors.name = 'Project name is required';
+    }
+
+    if (!formData.path.trim()) {
+      newErrors.path = 'Project path is required';
+    }
+
+    if (!formData.port.trim()) {
+      newErrors.port = 'Port is required';
+    } else if (isNaN(formData.port) || parseInt(formData.port) < 1 || parseInt(formData.port) > 65535) {
+      newErrors.port = 'Port must be between 1-65535';
+    }
+
+    if (!formData.startCommand.trim()) {
+      newErrors.startCommand = 'Start command is required';
+    }
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
   const handleSubmit = () => {
+    // Validate form first
+    if (!validateForm()) {
+      return;
+    }
+
     // Add required fields for project
     const projectData = {
       ...formData,
@@ -206,24 +247,35 @@ const ProjectModal = ({ isOpen, onClose, onSave, project = null }) => {
           </div>
           <div className="px-5 py-4 space-y-4 overflow-y-auto">
             <div>
-              <label className="text-xs text-ink-soft mb-1.5 block">Project name</label>
+              <label className="text-xs text-ink-soft mb-1.5 block">
+                Project name <span className="text-danger">*</span>
+              </label>
               <input
                 type="text"
                 placeholder="e.g. storefront-web"
                 value={formData.name}
                 onChange={(e) => handleChange('name', e.target.value)}
-                className="w-full bg-surface-3 border border-border rounded-lg px-3 py-2 text-sm text-ink placeholder:text-ink-faint focus:outline-none focus:ring-2 focus:ring-accent/40"
+                className={`w-full bg-surface-3 border rounded-lg px-3 py-2 text-sm text-ink placeholder:text-ink-faint focus:outline-none focus:ring-2 focus:ring-accent/40 ${
+                  errors.name ? 'border-danger' : 'border-border'
+                }`}
               />
+              {errors.name && (
+                <p className="text-[11px] text-danger mt-1">{errors.name}</p>
+              )}
             </div>
             <div>
-              <label className="text-xs text-ink-soft mb-1.5 block">Project path</label>
+              <label className="text-xs text-ink-soft mb-1.5 block">
+                Project path <span className="text-danger">*</span>
+              </label>
               <div className="flex gap-2">
                 <input
                   type="text"
                   placeholder="C:/projects/storefront-web"
                   value={formData.path}
                   onChange={(e) => handleChange('path', e.target.value)}
-                  className="flex-1 bg-surface-3 border border-border rounded-lg px-3 py-2 text-sm font-mono text-ink placeholder:text-ink-faint focus:outline-none focus:ring-2 focus:ring-accent/40"
+                  className={`flex-1 bg-surface-3 border rounded-lg px-3 py-2 text-sm font-mono text-ink placeholder:text-ink-faint focus:outline-none focus:ring-2 focus:ring-accent/40 ${
+                    errors.path ? 'border-danger' : 'border-border'
+                  }`}
                 />
                 <button
                   onClick={handleBrowse}
@@ -233,6 +285,9 @@ const ProjectModal = ({ isOpen, onClose, onSave, project = null }) => {
                   {isDetecting ? 'Detecting...' : 'Browse…'}
                 </button>
               </div>
+              {errors.path && (
+                <p className="text-[11px] text-danger mt-1">{errors.path}</p>
+              )}
               {detectedType && (
                 <p className="text-[11px] text-success mt-1.5">✓ Detected: {detectedType} project</p>
               )}
@@ -255,24 +310,38 @@ const ProjectModal = ({ isOpen, onClose, onSave, project = null }) => {
                 </select>
               </div>
               <div>
-                <label className="text-xs text-ink-soft mb-1.5 block">Port</label>
+                <label className="text-xs text-ink-soft mb-1.5 block">
+                  Port <span className="text-danger">*</span>
+                </label>
                 <input
                   type="text"
                   placeholder="5173"
                   value={formData.port}
                   onChange={(e) => handleChange('port', e.target.value)}
-                  className="w-full bg-surface-3 border border-border rounded-lg px-3 py-2 text-sm font-mono text-ink placeholder:text-ink-faint focus:outline-none focus:ring-2 focus:ring-accent/40"
+                  className={`w-full bg-surface-3 border rounded-lg px-3 py-2 text-sm font-mono text-ink placeholder:text-ink-faint focus:outline-none focus:ring-2 focus:ring-accent/40 ${
+                    errors.port ? 'border-danger' : 'border-border'
+                  }`}
                 />
+                {errors.port && (
+                  <p className="text-[11px] text-danger mt-1">{errors.port}</p>
+                )}
               </div>
             </div>
             <div>
-              <label className="text-xs text-ink-soft mb-1.5 block">Start command</label>
+              <label className="text-xs text-ink-soft mb-1.5 block">
+                Start command <span className="text-danger">*</span>
+              </label>
               <input
                 type="text"
                 value={formData.startCommand}
                 onChange={(e) => handleChange('startCommand', e.target.value)}
-                className="w-full bg-surface-3 border border-border rounded-lg px-3 py-2 text-sm font-mono text-ink focus:outline-none focus:ring-2 focus:ring-accent/40"
+                className={`w-full bg-surface-3 border rounded-lg px-3 py-2 text-sm font-mono text-ink focus:outline-none focus:ring-2 focus:ring-accent/40 ${
+                  errors.startCommand ? 'border-danger' : 'border-border'
+                }`}
               />
+              {errors.startCommand && (
+                <p className="text-[11px] text-danger mt-1">{errors.startCommand}</p>
+              )}
             </div>
             <div>
               <div className="flex items-center justify-between mb-1.5">
