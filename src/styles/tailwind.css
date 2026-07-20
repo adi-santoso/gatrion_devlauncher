@@ -1,1 +1,151 @@
 @import "tailwindcss";
+
+/* Tailwind v4 Configuration */
+@theme {
+  --color-base: #0A0C10;
+  --color-surface: #12151A;
+  --color-surface-2: #191D24;
+  --color-surface-3: #20242C;
+  --color-border: #232830;
+  --color-border-hover: #323947;
+  --color-ink: #EDEFF2;
+  --color-ink-soft: #9199A6;
+  --color-ink-faint: #5C6472;
+  --color-accent: #6D5EF5;
+  --color-accent-soft: #221E3B;
+  --color-accent-hover: #7D6FFF;
+  --color-success: #22C55E;
+  --color-success-soft: #132A1E;
+  --color-warning: #F5A623;
+  --color-warning-soft: #2E2413;
+  --color-danger: #EF4444;
+  --color-danger-soft: #2E1717;
+
+  --color-stack-next: #F5F5F7;
+  --color-stack-react: #61DAFB;
+  --color-stack-vue: #42B883;
+  --color-stack-laravel: #FF6B57;
+  --color-stack-go: #00ADD8;
+  --color-stack-node: #339933;
+  --color-stack-custom: #8B92A0;
+
+  --font-display: 'Manrope', sans-serif;
+  --font-sans: 'Inter', sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+
+  --shadow-glow: 0 0 0 3px rgba(109,94,245,0.15), 0 0 20px rgba(109,94,245,0.25);
+  --shadow-card: 0 1px 0 rgba(255,255,255,0.02) inset, 0 8px 24px -12px rgba(0,0,0,0.6);
+
+  --radius-xl2: 1.1rem;
+}
+
+/* Custom scrollbar styling */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #232830;
+  border-radius: 8px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #323947;
+}
+
+/* Pulse dot animation */
+.pulse-dot::before {
+  content: '';
+  position: absolute;
+  inset: -4px;
+  border-radius: 999px;
+  background: currentColor;
+  opacity: 0.35;
+  animation: pulse-ring 1.8s cubic-bezier(0.4,0,0.6,1) infinite;
+}
+@keyframes pulse-ring {
+  0% { transform: scale(0.6); opacity: 0.45; }
+  70% { transform: scale(1.6); opacity: 0; }
+  100% { transform: scale(1.6); opacity: 0; }
+}
+
+/* Scan-line effect for terminal */
+.scan-line {
+  background-image: repeating-linear-gradient(180deg, rgba(255,255,255,0.015) 0px, rgba(255,255,255,0.015) 1px, transparent 1px, transparent 3px);
+}
+
+/* View fade-in animation */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.view {
+  animation: fadeIn 0.15s ease-out;
+}
+
+/* Sidebar collapsed state */
+#sidebar.collapsed {
+  width: 68px;
+}
+#sidebar.collapsed .sidebar-label {
+  display: none;
+}
+#sidebar.collapsed .nav-item {
+  justify-content: center;
+  padding-left: 0;
+  padding-right: 0;
+}
+#sidebar.collapsed .running-row {
+  justify-content: center;
+  padding-left: 0;
+  padding-right: 0;
+}
+#sidebar.collapsed #collapseBtn {
+  padding-left: 0;
+  padding-right: 0;
+}
+#sidebar.collapsed #collapseIcon {
+  transform: rotate(180deg);
+}
+
+/* Kbd element styling */
+kbd {
+  font-family: 'JetBrains Mono', monospace;
+}
+
+/* Light theme overrides */
+[data-theme="light"] {
+  color-scheme: light;
+}
+[data-theme="light"] .bg-base {
+  background: #F3F4F6 !important;
+}
+[data-theme="light"] .bg-surface {
+  background: #FFFFFF !important;
+}
+[data-theme="light"] .bg-surface-2 {
+  background: #F8F9FB !important;
+}
+[data-theme="light"] .bg-surface-3 {
+  background: #EEF0F3 !important;
+}
+[data-theme="light"] .border-border {
+  border-color: #E3E6EB !important;
+}
+[data-theme="light"] .text-ink {
+  color: #14171C !important;
+}
+[data-theme="light"] .text-ink-soft {
+  color: #5B6472 !important;
+}
+[data-theme="light"] .text-ink-faint {
+  color: #8B92A0 !important;
+}
+[data-theme="light"] .shadow-card {
+  box-shadow: 0 1px 0 rgba(0,0,0,0.02) inset, 0 8px 20px -14px rgba(0,0,0,0.18) !important;
+}
+[data-theme="light"] ::-webkit-scrollbar-thumb {
+  background: #D7DBE1;
+}

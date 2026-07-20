@@ -1,32 +1,45 @@
-import React from 'react'
+import PulseDot from './PulseDot';
 
-function Badge({ children, variant = 'default', size = 'md', className = '' }) {
-  const baseClasses = 'inline-flex items-center justify-center font-semibold rounded-full'
+export default function Badge({ children, status, dot, uptime, className = '' }) {
+  const statusVariants = {
+    running: 'inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full bg-success/10 text-success border border-success/20',
+    starting: 'inline-flex items-center gap-1.5 text-xs font-semibold px-1.5 py-0.5 rounded bg-warning/15 text-warning uppercase tracking-wide',
+    error: 'inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full bg-danger/10 text-danger border border-danger/20',
+    stopped: 'inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full bg-surface-3 text-ink-faint border border-border',
+  };
 
-  const variants = {
-    default: 'bg-gray-700 text-gray-300 border border-gray-600',
-    success: 'bg-green-900/30 text-green-400 border border-green-800/50 ring-1 ring-green-500/20',
-    warning: 'bg-yellow-900/30 text-yellow-400 border border-yellow-800/50 ring-1 ring-yellow-500/20',
-    error: 'bg-red-900/30 text-red-400 border border-red-800/50 ring-1 ring-red-500/20',
-    info: 'bg-blue-900/30 text-blue-400 border border-blue-800/50 ring-1 ring-blue-500/20',
-    primary: 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg shadow-blue-900/50',
-    count: 'bg-gradient-to-br from-blue-500 to-blue-600 text-white text-xs font-bold shadow-lg',
+  if (status) {
+    const colors = {
+      running: '#22C55E',
+      starting: '#F5A623',
+      error: '#EF4444',
+      stopped: '#5C6472',
+    };
+
+    return (
+      <span className={statusVariants[status] || statusVariants.stopped}>
+        {(status === 'running' || status === 'starting') && (
+          <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: colors[status] }}></span>
+        )}
+        {status === 'error' && <span className="w-1.5 h-1.5 rounded-full bg-danger"></span>}
+        {status === 'stopped' && <span className="w-1.5 h-1.5 rounded-full bg-ink-faint"></span>}
+        {children || status.charAt(0).toUpperCase() + status.slice(1)}
+      </span>
+    );
   }
 
-  const sizes = {
-    sm: 'px-2 py-0.5 text-xs',
-    md: 'px-2.5 py-1 text-xs',
-    lg: 'px-3 py-1.5 text-sm',
+  if (uptime) {
+    return (
+      <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded bg-success/10 text-success ${className}`}>
+        {children}
+      </span>
+    );
   }
 
-  const variantClasses = variants[variant] || variants.default
-  const sizeClasses = sizes[size]
-
+  // Default badge
   return (
-    <span className={`${baseClasses} ${variantClasses} ${sizeClasses} ${className}`}>
+    <span className={`inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded ${className}`}>
       {children}
     </span>
-  )
+  );
 }
-
-export default Badge

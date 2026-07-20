@@ -1,29 +1,92 @@
-import React, { useState } from 'react'
-import Sidebar from './Sidebar'
-import TopBar from './TopBar'
+import React, { useState } from 'react';
+import UpdateBanner from './UpdateBanner';
+import TitleBar from './TitleBar';
+import Sidebar from './Sidebar';
+import TopBar from './TopBar';
 
-function MainLayout({ children, currentPage, setCurrentPage, runningProjects = [] }) {
+const MainLayout = ({
+  children,
+  currentView = 'dashboard',
+  showUpdateBanner = false,
+  updateVersion = 'v1.1.0',
+  onUpdateRestart,
+  onUpdateDismiss,
+  onViewChange,
+  runningProjects = []
+}) => {
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+
+  const handleToggleCollapse = () => {
+    setSidebarCollapsed(!sidebarCollapsed);
+  };
+
+  const handleCommandPalette = () => {
+    // Implement command palette logic
+    console.log('Open command palette');
+  };
+
+  const handleAddProject = () => {
+    // Implement add project logic
+    console.log('Open add project modal');
+  };
+
+  const handleSettings = () => {
+    onViewChange?.('settings');
+  };
+
+  // Get title based on active view
+  const getTitle = () => {
+    switch (currentView) {
+      case 'dashboard':
+        return 'Dashboard';
+      case 'projects':
+        return 'Projects';
+      case 'settings':
+        return 'Settings';
+      case 'project-detail':
+        return 'Project Detail';
+      default:
+        return 'Dashboard';
+    }
+  };
+
   return (
-    <div className="flex h-screen bg-gradient-to-br from-gray-950 via-gray-900 to-gray-950 text-white overflow-hidden">
-      {/* Sidebar */}
-      <Sidebar
-        currentPage={currentPage}
-        setCurrentPage={setCurrentPage}
-        runningProjects={runningProjects}
-      />
+    <div className="h-screen flex flex-col bg-base text-ink font-sans antialiased">
+      {showUpdateBanner && (
+        <UpdateBanner
+          version={updateVersion}
+          onRestart={onUpdateRestart}
+          onDismiss={onUpdateDismiss}
+        />
+      )}
 
-      {/* Main Content Area */}
-      <div className="flex-1 flex flex-col overflow-hidden">
-        {/* Top Bar */}
-        <TopBar currentPage={currentPage} />
+      <TitleBar version="v1.0.0" />
 
-        {/* Content */}
-        <main className="flex-1 overflow-auto p-8 bg-gradient-to-br from-gray-900/50 to-gray-950/50">
-          {children}
-        </main>
+      <div className="flex flex-1 overflow-hidden">
+        <Sidebar
+          collapsed={sidebarCollapsed}
+          onToggleCollapse={handleToggleCollapse}
+          activeView={currentView}
+          onViewChange={onViewChange}
+          runningProjects={runningProjects}
+        />
+
+        <div className="flex-1 flex flex-col min-w-0">
+          <TopBar
+            title={getTitle()}
+            subtitle="DevLauncher"
+            onCommandPalette={handleCommandPalette}
+            onAddProject={handleAddProject}
+            onSettings={handleSettings}
+          />
+
+          <main className="flex-1 overflow-y-auto px-6 py-6">
+            {children}
+          </main>
+        </div>
       </div>
     </div>
-  )
-}
+  );
+};
 
-export default MainLayout
+export default MainLayout;

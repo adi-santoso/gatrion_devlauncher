@@ -1,0 +1,1312 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DevLauncher — UI Template</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = {
+    theme: {
+      extend: {
+        colors: {
+          base: { DEFAULT: '#0A0C10' },
+          surface: { DEFAULT: '#12151A', 2: '#191D24', 3: '#20242C' },
+          border: { DEFAULT: '#232830', hover: '#323947' },
+          ink: { DEFAULT: '#EDEFF2', soft: '#9199A6', faint: '#5C6472' },
+          accent: { DEFAULT: '#6D5EF5', soft: '#221E3B', hover: '#7D6FFF' },
+          success: { DEFAULT: '#22C55E', soft: '#132A1E' },
+          warning: { DEFAULT: '#F5A623', soft: '#2E2413' },
+          danger:  { DEFAULT: '#EF4444', soft: '#2E1717' },
+          stack: { next: '#F5F5F7', react: '#61DAFB', vue: '#42B883', laravel: '#FF6B57', go: '#00ADD8', node: '#339933', custom: '#8B92A0' }
+        },
+        fontFamily: {
+          display: ['Manrope', 'sans-serif'],
+          sans: ['Inter', 'sans-serif'],
+          mono: ['JetBrains Mono', 'monospace'],
+        },
+        boxShadow: {
+          glow: '0 0 0 3px rgba(109,94,245,0.15), 0 0 20px rgba(109,94,245,0.25)',
+          card: '0 1px 0 rgba(255,255,255,0.02) inset, 0 8px 24px -12px rgba(0,0,0,0.6)',
+        },
+        borderRadius: { xl2: '1.1rem' }
+      }
+    }
+  }
+</script>
+<style>
+  ::-webkit-scrollbar { width: 8px; height: 8px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: #232830; border-radius: 8px; }
+  ::-webkit-scrollbar-thumb:hover { background: #323947; }
+
+  .pulse-dot::before {
+    content: '';
+    position: absolute;
+    inset: -4px;
+    border-radius: 999px;
+    background: currentColor;
+    opacity: 0.35;
+    animation: pulse-ring 1.8s cubic-bezier(0.4,0,0.6,1) infinite;
+  }
+  @keyframes pulse-ring {
+    0% { transform: scale(0.6); opacity: 0.45; }
+    70% { transform: scale(1.6); opacity: 0; }
+    100% { transform: scale(1.6); opacity: 0; }
+  }
+  .scan-line {
+    background-image: repeating-linear-gradient(180deg, rgba(255,255,255,0.015) 0px, rgba(255,255,255,0.015) 1px, transparent 1px, transparent 3px);
+  }
+  @keyframes fadeIn { from { opacity:0; transform:translateY(6px);} to { opacity:1; transform:translateY(0);} }
+  .view { animation: fadeIn .15s ease-out; }
+
+  /* Sidebar collapsed state */
+  #sidebar.collapsed { width: 68px; }
+  #sidebar.collapsed .sidebar-label { display: none; }
+  #sidebar.collapsed .nav-item { justify-content: center; padding-left: 0; padding-right: 0; }
+  #sidebar.collapsed .running-row { justify-content: center; padding-left: 0; padding-right: 0; }
+  #sidebar.collapsed #collapseBtn { padding-left: 0; padding-right: 0; }
+  #sidebar.collapsed #collapseIcon { transform: rotate(180deg); }
+
+  kbd { font-family: 'JetBrains Mono', monospace; }
+
+  /* ---------- Light theme overrides ---------- */
+  [data-theme="light"] { color-scheme: light; }
+  [data-theme="light"] .bg-base       { background:#F3F4F6 !important; }
+  [data-theme="light"] .bg-surface    { background:#FFFFFF !important; }
+  [data-theme="light"] .bg-surface-2  { background:#F8F9FB !important; }
+  [data-theme="light"] .bg-surface-3  { background:#EEF0F3 !important; }
+  [data-theme="light"] .border-border { border-color:#E3E6EB !important; }
+  [data-theme="light"] .text-ink      { color:#14171C !important; }
+  [data-theme="light"] .text-ink-soft { color:#5B6472 !important; }
+  [data-theme="light"] .text-ink-faint{ color:#8B92A0 !important; }
+  [data-theme="light"] .shadow-card   { box-shadow: 0 1px 0 rgba(0,0,0,0.02) inset, 0 8px 20px -14px rgba(0,0,0,0.18) !important; }
+  [data-theme="light"] ::-webkit-scrollbar-thumb { background:#D7DBE1; }
+</style>
+</head>
+<body class="bg-base text-ink font-sans antialiased selection:bg-accent/30">
+
+<!-- ============================================================ -->
+<!-- UPDATE BANNER -->
+<!-- ============================================================ -->
+<div id="updateBanner" class="bg-accent/15 border-b border-accent/30 text-accent text-xs px-4 py-2 flex items-center justify-center gap-2.5">
+  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 2v13M6 9l6 6 6-6"/><path d="M5 19h14"/></svg>
+  <span>DevLauncher v1.1.0 is available.</span>
+  <button onclick="showToast('success','Restarting to install update…')" class="underline font-semibold">Restart to update</button>
+  <button onclick="document.getElementById('updateBanner').classList.add('hidden')" class="ml-2 text-accent/70 hover:text-accent">
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 6L6 18M6 6l12 12"/></svg>
+  </button>
+</div>
+
+<!-- ============================================================ -->
+<!-- CUSTOM TITLEBAR -->
+<!-- ============================================================ -->
+<div class="h-9 flex items-center justify-between px-3 bg-base border-b border-border select-none" style="-webkit-app-region: drag;">
+  <div class="flex items-center gap-2">
+    <div class="flex gap-1.5" style="-webkit-app-region: no-drag;">
+      <span class="w-3 h-3 rounded-full bg-[#2A2F38] hover:bg-danger transition-colors cursor-pointer"></span>
+      <span class="w-3 h-3 rounded-full bg-[#2A2F38] hover:bg-warning transition-colors cursor-pointer"></span>
+      <span class="w-3 h-3 rounded-full bg-[#2A2F38] hover:bg-success transition-colors cursor-pointer"></span>
+    </div>
+  </div>
+  <p class="text-xs font-mono text-ink-faint tracking-wide">DevLauncher — v1.0.0</p>
+  <div class="w-14" style="-webkit-app-region: no-drag;"></div>
+</div>
+
+<div class="flex h-[calc(100vh-2.25rem-1.75rem)]">
+
+  <!-- ============================================================ -->
+  <!-- SIDEBAR -->
+  <!-- ============================================================ -->
+  <aside id="sidebar" class="w-[220px] shrink-0 bg-surface border-r border-border flex flex-col transition-all duration-200 ease-out">
+    <div class="h-16 flex items-center gap-2.5 px-5 border-b border-border overflow-hidden">
+      <div class="w-8 h-8 rounded-lg bg-accent flex items-center justify-center shadow-glow shrink-0">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M5 3l14 9-14 9V3z" fill="white"/></svg>
+      </div>
+      <span class="sidebar-label font-display font-extrabold text-[15px] tracking-tight whitespace-nowrap">DevLauncher</span>
+    </div>
+
+    <nav class="px-3 pt-4 space-y-0.5">
+      <a href="#" id="nav-dashboard" onclick="showView('dashboard');return false;" title="Dashboard" class="nav-link nav-item flex items-center gap-3 px-3 py-2 rounded-lg bg-accent/10 text-accent font-medium text-sm border border-accent/20">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="shrink-0"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg>
+        <span class="sidebar-label whitespace-nowrap">Dashboard</span>
+      </a>
+      <a href="#" id="nav-projects" onclick="showView('projects');return false;" title="Projects" class="nav-link nav-item flex items-center gap-3 px-3 py-2 rounded-lg text-ink-soft hover:text-ink hover:bg-surface-3 font-medium text-sm transition-colors">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="shrink-0"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
+        <span class="sidebar-label whitespace-nowrap">Projects</span>
+      </a>
+      <a href="#" id="nav-settings" onclick="showView('settings');return false;" title="Settings" class="nav-link nav-item flex items-center gap-3 px-3 py-2 rounded-lg text-ink-soft hover:text-ink hover:bg-surface-3 font-medium text-sm transition-colors">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="shrink-0"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 11-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06A1.65 1.65 0 004.6 15a1.65 1.65 0 00-1.51-1H3a2 2 0 110-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06A1.65 1.65 0 009 4.6a1.65 1.65 0 001-1.51V3a2 2 0 114 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06A1.65 1.65 0 0019.4 9c.14.32.4.6.73.79.24.14.5.21.78.21H21a2 2 0 110 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+        <span class="sidebar-label whitespace-nowrap">Settings</span>
+      </a>
+    </nav>
+
+    <div class="h-px bg-border mx-4 my-4"></div>
+
+    <div class="sidebar-label px-4 flex items-center justify-between whitespace-nowrap">
+      <span class="text-[11px] font-semibold tracking-wider text-ink-faint uppercase">Running</span>
+      <span class="text-[11px] font-mono text-ink-faint">3</span>
+    </div>
+    <div class="flex-1 overflow-y-auto px-3 mt-2 space-y-0.5 pb-3">
+      <a href="#" onclick="showView('project-detail');return false;" title="storefront-web" class="running-row flex items-center gap-2.5 px-3 py-2 rounded-lg hover:bg-surface-3 group transition-colors">
+        <span class="relative flex items-center justify-center w-2 h-2 shrink-0" style="color:#61DAFB">
+          <span class="pulse-dot"></span><span class="relative w-2 h-2 rounded-full bg-[#61DAFB]"></span>
+        </span>
+        <span class="sidebar-label text-sm text-ink-soft group-hover:text-ink truncate whitespace-nowrap">storefront-web</span>
+      </a>
+      <a href="#" onclick="return false;" title="payment-api" class="running-row flex items-center gap-2.5 px-3 py-2 rounded-lg hover:bg-surface-3 group transition-colors">
+        <span class="relative flex items-center justify-center w-2 h-2 shrink-0" style="color:#339933">
+          <span class="pulse-dot"></span><span class="relative w-2 h-2 rounded-full bg-[#339933]"></span>
+        </span>
+        <span class="sidebar-label text-sm text-ink-soft group-hover:text-ink truncate whitespace-nowrap">payment-api</span>
+      </a>
+      <a href="#" onclick="return false;" title="gateway-service" class="running-row flex items-center gap-2.5 px-3 py-2 rounded-lg bg-surface-3 group transition-colors">
+        <span class="relative flex items-center justify-center w-2 h-2 shrink-0" style="color:#00ADD8">
+          <span class="pulse-dot"></span><span class="relative w-2 h-2 rounded-full bg-[#00ADD8]"></span>
+        </span>
+        <span class="sidebar-label text-sm text-ink truncate whitespace-nowrap">gateway-service</span>
+      </a>
+    </div>
+
+    <button id="collapseBtn" onclick="toggleSidebar()" class="m-3 flex items-center justify-center gap-2 py-2 rounded-lg text-ink-faint hover:text-ink hover:bg-surface-3 text-xs font-medium transition-colors border border-border">
+      <svg id="collapseIcon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="shrink-0 transition-transform duration-200"><path d="M11 19l-7-7 7-7M18 19l-7-7 7-7"/></svg>
+      <span id="collapseLabel" class="sidebar-label whitespace-nowrap">Collapse</span>
+    </button>
+  </aside>
+
+  <!-- ============================================================ -->
+  <!-- MAIN -->
+  <!-- ============================================================ -->
+  <div class="flex-1 flex flex-col min-w-0">
+
+    <!-- TOPBAR -->
+    <header class="h-16 shrink-0 border-b border-border flex items-center justify-between px-6 bg-base/80 backdrop-blur">
+      <div>
+        <p id="pageSubtitle" class="text-[11px] text-ink-faint font-medium">DevLauncher</p>
+        <h1 id="pageTitle" class="font-display font-bold text-lg leading-tight">Dashboard</h1>
+      </div>
+      <div class="flex items-center gap-2">
+        <button onclick="openModal('commandPalette'); setTimeout(()=>document.getElementById('paletteInput').focus(),50)" class="hidden sm:flex items-center gap-2 px-3 py-2 rounded-lg bg-surface-3 hover:bg-surface-2 border border-border text-ink-faint text-xs transition-colors">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+          Search or run command
+          <kbd class="ml-2 text-[10px] border border-border rounded px-1.5 py-0.5">Ctrl K</kbd>
+        </button>
+        <button class="flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-success/10 text-success border border-success/20 hover:bg-success/15 text-sm font-medium transition-colors">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+          Start All
+        </button>
+        <button class="flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-danger/10 text-danger border border-danger/20 hover:bg-danger/15 text-sm font-medium transition-colors">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="1"/></svg>
+          Stop All
+        </button>
+        <div class="w-px h-6 bg-border mx-1"></div>
+        <button onclick="openModal('projectModal')" class="flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-accent hover:bg-accent-hover text-white text-sm font-semibold shadow-glow transition-colors">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>
+          Add Project
+        </button>
+        <button onclick="showView('settings')" class="w-9 h-9 flex items-center justify-center rounded-lg text-ink-faint hover:text-ink hover:bg-surface-3 transition-colors">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 11-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06A1.65 1.65 0 004.6 15a1.65 1.65 0 00-1.51-1H3a2 2 0 110-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06A1.65 1.65 0 009 4.6a1.65 1.65 0 001-1.51V3a2 2 0 114 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06A1.65 1.65 0 0019.4 9c.14.32.4.6.73.79.24.14.5.21.78.21H21a2 2 0 110 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+        </button>
+      </div>
+    </header>
+
+    <main id="mainScroll" class="flex-1 overflow-y-auto px-6 py-6">
+
+      <!-- ============================================================ -->
+      <!-- VIEW: DASHBOARD -->
+      <!-- ============================================================ -->
+      <div id="view-dashboard" class="view space-y-8">
+
+        <section class="grid grid-cols-4 gap-4">
+          <div class="bg-surface border border-border rounded-xl2 p-4 shadow-card">
+            <div class="flex items-center justify-between mb-3">
+              <span class="text-[11px] font-semibold uppercase tracking-wider text-ink-faint">Total Projects</span>
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-ink-faint"><rect x="3" y="3" width="18" height="18" rx="2"/></svg>
+            </div>
+            <p class="font-mono text-2xl font-semibold">12</p>
+            <p class="text-xs text-ink-faint mt-1">across 6 stacks</p>
+          </div>
+          <div class="bg-surface border border-border rounded-xl2 p-4 shadow-card">
+            <div class="flex items-center justify-between mb-3">
+              <span class="text-[11px] font-semibold uppercase tracking-wider text-ink-faint">Running Now</span>
+              <span class="relative flex w-2 h-2"><span class="pulse-dot text-success"></span><span class="relative w-2 h-2 rounded-full bg-success"></span></span>
+            </div>
+            <p class="font-mono text-2xl font-semibold text-success">3</p>
+            <p class="text-xs text-ink-faint mt-1">1 starting, 0 error</p>
+          </div>
+          <div class="bg-surface border border-border rounded-xl2 p-4 shadow-card">
+            <div class="flex items-center justify-between mb-3">
+              <span class="text-[11px] font-semibold uppercase tracking-wider text-ink-faint">CPU Usage</span>
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-ink-faint"><path d="M3 12h4l3 8 4-16 3 8h4"/></svg>
+            </div>
+            <p class="font-mono text-2xl font-semibold">7.4<span class="text-sm text-ink-faint">%</span></p>
+            <p class="text-xs text-success mt-1">▾ 1.2% vs last hour</p>
+          </div>
+          <div class="bg-surface border border-border rounded-xl2 p-4 shadow-card">
+            <div class="flex items-center justify-between mb-3">
+              <span class="text-[11px] font-semibold uppercase tracking-wider text-ink-faint">Memory</span>
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-ink-faint"><rect x="4" y="6" width="16" height="12" rx="1"/><path d="M8 10v4M12 10v4M16 10v4"/></svg>
+            </div>
+            <p class="font-mono text-2xl font-semibold">612<span class="text-sm text-ink-faint">MB</span></p>
+            <p class="text-xs text-warning mt-1">▴ 40MB vs last hour</p>
+          </div>
+        </section>
+
+        <section class="grid grid-cols-3 gap-4">
+          <div class="col-span-2 bg-surface border border-border rounded-xl2 p-5 shadow-card">
+            <div class="flex items-center justify-between mb-4">
+              <div>
+                <h3 class="font-display font-bold text-sm">Resource Usage</h3>
+                <p class="text-xs text-ink-faint mt-0.5">Last 60 minutes</p>
+              </div>
+              <div class="flex gap-1 bg-surface-3 rounded-lg p-0.5">
+                <button class="px-2.5 py-1 text-xs font-medium rounded-md bg-surface text-ink shadow-sm">1H</button>
+                <button class="px-2.5 py-1 text-xs font-medium rounded-md text-ink-faint hover:text-ink">6H</button>
+                <button class="px-2.5 py-1 text-xs font-medium rounded-md text-ink-faint hover:text-ink">24H</button>
+              </div>
+            </div>
+            <svg viewBox="0 0 480 160" class="w-full h-40">
+              <defs>
+                <linearGradient id="cpuGrad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stop-color="#6D5EF5" stop-opacity="0.35"/><stop offset="100%" stop-color="#6D5EF5" stop-opacity="0"/>
+                </linearGradient>
+                <linearGradient id="memGrad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stop-color="#22C55E" stop-opacity="0.25"/><stop offset="100%" stop-color="#22C55E" stop-opacity="0"/>
+                </linearGradient>
+              </defs>
+              <g stroke="#232830" stroke-width="1">
+                <line x1="0" y1="20" x2="480" y2="20"/><line x1="0" y1="60" x2="480" y2="60"/>
+                <line x1="0" y1="100" x2="480" y2="100"/><line x1="0" y1="140" x2="480" y2="140"/>
+              </g>
+              <path d="M0,110 L40,100 L80,105 L120,80 L160,90 L200,60 L240,75 L280,55 L320,68 L360,45 L400,58 L440,40 L480,48 L480,160 L0,160 Z" fill="url(#memGrad)"/>
+              <path d="M0,110 L40,100 L80,105 L120,80 L160,90 L200,60 L240,75 L280,55 L320,68 L360,45 L400,58 L440,40 L480,48" fill="none" stroke="#22C55E" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="M0,140 L40,130 L80,135 L120,120 L160,128 L200,110 L240,118 L280,100 L320,112 L360,95 L400,105 L440,88 L480,96 L480,160 L0,160 Z" fill="url(#cpuGrad)"/>
+              <path d="M0,140 L40,130 L80,135 L120,120 L160,128 L200,110 L240,118 L280,100 L320,112 L360,95 L400,105 L440,88 L480,96" fill="none" stroke="#6D5EF5" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            <div class="flex items-center gap-4 mt-2">
+              <span class="flex items-center gap-1.5 text-xs text-ink-soft"><span class="w-2 h-2 rounded-full bg-accent inline-block"></span>CPU</span>
+              <span class="flex items-center gap-1.5 text-xs text-ink-soft"><span class="w-2 h-2 rounded-full bg-success inline-block"></span>Memory</span>
+            </div>
+          </div>
+
+          <div class="bg-surface border border-border rounded-xl2 p-5 shadow-card">
+            <h3 class="font-display font-bold text-sm mb-4">Recent Activity</h3>
+            <div class="space-y-4">
+              <div class="flex gap-3"><span class="w-1.5 h-1.5 rounded-full bg-success mt-1.5 shrink-0"></span><div class="min-w-0"><p class="text-sm text-ink"><span class="font-medium">gateway-service</span> started</p><p class="text-xs text-ink-faint font-mono">2 min ago · port 8080</p></div></div>
+              <div class="flex gap-3"><span class="w-1.5 h-1.5 rounded-full bg-danger mt-1.5 shrink-0"></span><div class="min-w-0"><p class="text-sm text-ink"><span class="font-medium">admin-dashboard</span> crashed</p><p class="text-xs text-ink-faint font-mono">14 min ago · exit code 1</p></div></div>
+              <div class="flex gap-3"><span class="w-1.5 h-1.5 rounded-full bg-ink-faint mt-1.5 shrink-0"></span><div class="min-w-0"><p class="text-sm text-ink"><span class="font-medium">payment-api</span> stopped</p><p class="text-xs text-ink-faint font-mono">32 min ago</p></div></div>
+              <div class="flex gap-3"><span class="w-1.5 h-1.5 rounded-full bg-accent mt-1.5 shrink-0"></span><div class="min-w-0"><p class="text-sm text-ink"><span class="font-medium">storefront-web</span> added</p><p class="text-xs text-ink-faint font-mono">1 hour ago · Next.js</p></div></div>
+            </div>
+          </div>
+        </section>
+
+        <section>
+          <div class="flex items-center justify-between mb-3">
+            <h2 class="font-display font-bold text-base">Projects</h2>
+            <a href="#" onclick="showView('projects');return false;" class="text-xs font-medium text-accent hover:text-accent-hover">View all →</a>
+          </div>
+          <div class="grid grid-cols-3 gap-4">
+
+            <div class="relative bg-surface border border-border rounded-xl2 pl-4 pr-4 py-4 shadow-card overflow-hidden hover:border-border-hover transition-colors">
+              <span class="absolute left-0 top-0 bottom-0 w-1" style="background:#61DAFB"></span>
+              <div class="flex items-start justify-between">
+                <div class="flex items-center gap-2.5 cursor-pointer" onclick="showView('project-detail')">
+                  <div class="w-9 h-9 rounded-lg bg-surface-3 flex items-center justify-center text-base">⚛️</div>
+                  <div>
+                    <p class="font-medium text-sm hover:text-accent transition-colors">storefront-web</p>
+                    <p class="text-xs text-ink-faint font-mono">React (Vite)</p>
+                  </div>
+                </div>
+                <span class="relative flex w-2 h-2 mt-1.5" style="color:#61DAFB"><span class="pulse-dot"></span><span class="relative w-2 h-2 rounded-full bg-[#61DAFB]"></span></span>
+              </div>
+              <p class="text-xs font-mono text-ink-faint mt-3 truncate">C:/projects/storefront-web</p>
+              <div class="flex items-center gap-3 mt-3">
+                <span class="text-[11px] font-mono px-2 py-0.5 rounded bg-surface-3 text-ink-soft">:5173</span>
+                <span class="text-[11px] font-mono text-ink-faint">CPU 3.1%</span>
+                <span class="text-[11px] font-mono text-ink-faint">182MB</span>
+              </div>
+              <div class="flex items-center gap-2 mt-4 pt-3 border-t border-border">
+                <button class="flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg bg-surface-3 hover:bg-danger/15 hover:text-danger text-xs font-medium transition-colors">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="1"/></svg> Stop
+                </button>
+                <button onclick="showToast('success', 'storefront-web restarted')" class="w-8 h-8 flex items-center justify-center rounded-lg bg-surface-3 hover:bg-accent/15 hover:text-accent transition-colors">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>
+                </button>
+                <button onclick="toggleDropdown(event, 'card1Menu')" class="w-8 h-8 flex items-center justify-center rounded-lg bg-surface-3 hover:bg-surface-2 text-ink-faint hover:text-ink transition-colors relative">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg>
+                </button>
+                <div id="card1Menu" class="dropdown-menu hidden absolute right-4 bottom-14 w-44 bg-surface-2 border border-border rounded-lg shadow-card py-1 z-20">
+                  <a href="#" class="flex items-center gap-2.5 px-3 py-2 text-xs text-ink-soft hover:text-ink hover:bg-surface-3 transition-colors">Edit Project</a>
+                  <a href="#" class="flex items-center gap-2.5 px-3 py-2 text-xs text-ink-soft hover:text-ink hover:bg-surface-3 transition-colors">Duplicate</a>
+                  <a href="#" class="flex items-center gap-2.5 px-3 py-2 text-xs text-ink-soft hover:text-ink hover:bg-surface-3 transition-colors">Open in Explorer</a>
+                  <div class="h-px bg-border my-1"></div>
+                  <button onclick="closeAllDropdowns(); openConfirm('storefront-web')" class="w-full flex items-center gap-2.5 px-3 py-2 text-xs text-danger hover:bg-danger/10 transition-colors text-left">Remove Project</button>
+                </div>
+              </div>
+            </div>
+
+            <div class="relative bg-surface border border-border rounded-xl2 pl-4 pr-4 py-4 shadow-card overflow-hidden hover:border-border-hover transition-colors">
+              <span class="absolute left-0 top-0 bottom-0 w-1" style="background:#42B883"></span>
+              <div class="flex items-start justify-between">
+                <div class="flex items-center gap-2.5">
+                  <div class="w-9 h-9 rounded-lg bg-surface-3 flex items-center justify-center text-base">🟢</div>
+                  <div><p class="font-medium text-sm">internal-crm</p><p class="text-xs text-ink-faint font-mono">Vue.js</p></div>
+                </div>
+                <span class="flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded bg-warning/15 text-warning uppercase tracking-wide">Starting</span>
+              </div>
+              <p class="text-xs font-mono text-ink-faint mt-3 truncate">C:/projects/internal-crm</p>
+              <div class="flex items-center gap-3 mt-3">
+                <span class="text-[11px] font-mono px-2 py-0.5 rounded bg-surface-3 text-ink-soft">:5174</span>
+                <span class="text-[11px] font-mono text-ink-faint">CPU —</span>
+                <span class="text-[11px] font-mono text-ink-faint">—</span>
+              </div>
+              <div class="flex items-center gap-2 mt-4 pt-3 border-t border-border">
+                <button class="flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg bg-surface-3 text-ink-faint text-xs font-medium cursor-wait">
+                  <svg width="12" height="12" class="animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 11-6.219-8.56"/></svg> Booting
+                </button>
+                <button class="w-8 h-8 flex items-center justify-center rounded-lg bg-surface-3 text-ink-faint" disabled>
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6M1 20v-6h6"/></svg>
+                </button>
+                <button class="w-8 h-8 flex items-center justify-center rounded-lg bg-surface-3 hover:bg-surface-2 text-ink-faint hover:text-ink transition-colors">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg>
+                </button>
+              </div>
+            </div>
+
+            <div class="relative bg-surface border border-border rounded-xl2 pl-4 pr-4 py-4 shadow-card overflow-hidden hover:border-border-hover transition-colors">
+              <span class="absolute left-0 top-0 bottom-0 w-1 bg-stack-laravel"></span>
+              <div class="flex items-start justify-between">
+                <div class="flex items-center gap-2.5">
+                  <div class="w-9 h-9 rounded-lg bg-surface-3 flex items-center justify-center text-base">🔴</div>
+                  <div><p class="font-medium text-sm">billing-service</p><p class="text-xs text-ink-faint font-mono">Laravel</p></div>
+                </div>
+                <span class="w-2 h-2 rounded-full bg-ink-faint mt-1.5"></span>
+              </div>
+              <p class="text-xs font-mono text-ink-faint mt-3 truncate">C:/projects/billing-service</p>
+              <div class="flex items-center gap-3 mt-3">
+                <span class="text-[11px] font-mono px-2 py-0.5 rounded bg-surface-3 text-ink-soft">:8000</span>
+                <span class="text-[11px] font-mono text-ink-faint">idle 2d</span>
+              </div>
+              <div class="flex items-center gap-2 mt-4 pt-3 border-t border-border">
+                <button class="flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg bg-success/10 hover:bg-success/20 text-success text-xs font-medium transition-colors">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg> Start
+                </button>
+                <button class="w-8 h-8 flex items-center justify-center rounded-lg bg-surface-3 text-ink-faint" disabled>
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6M1 20v-6h6"/></svg>
+                </button>
+                <button onclick="openConfirm('billing-service')" class="w-8 h-8 flex items-center justify-center rounded-lg bg-surface-3 hover:bg-surface-2 text-ink-faint hover:text-ink transition-colors">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg>
+                </button>
+              </div>
+            </div>
+
+          </div>
+        </section>
+
+        <section class="bg-surface border border-border rounded-xl2 shadow-card overflow-hidden">
+          <div class="flex items-center justify-between px-5 py-4 border-b border-border">
+            <h3 class="font-display font-bold text-sm">All Projects</h3>
+            <div class="relative">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="absolute left-3 top-1/2 -translate-y-1/2 text-ink-faint"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+              <input type="text" placeholder="Search projects…" class="bg-surface-3 border border-border rounded-lg pl-8 pr-3 py-1.5 text-xs text-ink placeholder:text-ink-faint focus:outline-none focus:ring-2 focus:ring-accent/40 focus:border-accent w-56">
+            </div>
+          </div>
+          <table class="w-full text-sm">
+            <thead>
+              <tr class="text-left text-[11px] uppercase tracking-wider text-ink-faint border-b border-border">
+                <th class="font-medium px-5 py-2.5">Project</th><th class="font-medium px-3 py-2.5">Type</th><th class="font-medium px-3 py-2.5">Status</th>
+                <th class="font-medium px-3 py-2.5">Port</th><th class="font-medium px-3 py-2.5">PID</th><th class="font-medium px-3 py-2.5">CPU</th>
+                <th class="font-medium px-3 py-2.5">Memory</th><th class="font-medium px-5 py-2.5 text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-border">
+              <tr class="hover:bg-surface-3/60 transition-colors">
+                <td class="px-5 py-3 font-medium">storefront-web</td><td class="px-3 py-3"><span class="inline-flex items-center gap-1.5 text-xs text-ink-soft">⚛️ React</span></td>
+                <td class="px-3 py-3"><span class="inline-flex items-center gap-1.5 text-xs font-medium text-success"><span class="w-1.5 h-1.5 rounded-full bg-success"></span>Running</span></td>
+                <td class="px-3 py-3 font-mono text-xs text-ink-soft">5173</td><td class="px-3 py-3 font-mono text-xs text-ink-soft">18420</td>
+                <td class="px-3 py-3 font-mono text-xs text-ink-soft">3.1%</td><td class="px-3 py-3 font-mono text-xs text-ink-soft">182MB</td>
+                <td class="px-5 py-3 text-right"><button class="text-xs font-medium text-danger hover:underline">Stop</button></td>
+              </tr>
+              <tr class="hover:bg-surface-3/60 transition-colors">
+                <td class="px-5 py-3 font-medium">payment-api</td><td class="px-3 py-3"><span class="inline-flex items-center gap-1.5 text-xs text-ink-soft">🟩 Node.js</span></td>
+                <td class="px-3 py-3"><span class="inline-flex items-center gap-1.5 text-xs font-medium text-success"><span class="w-1.5 h-1.5 rounded-full bg-success"></span>Running</span></td>
+                <td class="px-3 py-3 font-mono text-xs text-ink-soft">3000</td><td class="px-3 py-3 font-mono text-xs text-ink-soft">18391</td>
+                <td class="px-3 py-3 font-mono text-xs text-ink-soft">1.8%</td><td class="px-3 py-3 font-mono text-xs text-ink-soft">140MB</td>
+                <td class="px-5 py-3 text-right"><button class="text-xs font-medium text-danger hover:underline">Stop</button></td>
+              </tr>
+              <tr class="hover:bg-surface-3/60 transition-colors">
+                <td class="px-5 py-3 font-medium">admin-dashboard</td><td class="px-3 py-3"><span class="inline-flex items-center gap-1.5 text-xs text-ink-soft">⚡ Next.js</span></td>
+                <td class="px-3 py-3"><span class="inline-flex items-center gap-1.5 text-xs font-medium text-danger"><span class="w-1.5 h-1.5 rounded-full bg-danger"></span>Error</span></td>
+                <td class="px-3 py-3 font-mono text-xs text-ink-soft">3001</td><td class="px-3 py-3 font-mono text-xs text-ink-faint">—</td>
+                <td class="px-3 py-3 font-mono text-xs text-ink-faint">—</td><td class="px-3 py-3 font-mono text-xs text-ink-faint">—</td>
+                <td class="px-5 py-3 text-right"><button class="text-xs font-medium text-accent hover:underline">Restart</button></td>
+              </tr>
+              <tr class="hover:bg-surface-3/60 transition-colors">
+                <td class="px-5 py-3 font-medium">billing-service</td><td class="px-3 py-3"><span class="inline-flex items-center gap-1.5 text-xs text-ink-soft">🔴 Laravel</span></td>
+                <td class="px-3 py-3"><span class="inline-flex items-center gap-1.5 text-xs font-medium text-ink-faint"><span class="w-1.5 h-1.5 rounded-full bg-ink-faint"></span>Stopped</span></td>
+                <td class="px-3 py-3 font-mono text-xs text-ink-soft">8000</td><td class="px-3 py-3 font-mono text-xs text-ink-faint">—</td>
+                <td class="px-3 py-3 font-mono text-xs text-ink-faint">—</td><td class="px-3 py-3 font-mono text-xs text-ink-faint">—</td>
+                <td class="px-5 py-3 text-right"><button class="text-xs font-medium text-success hover:underline">Start</button></td>
+              </tr>
+            </tbody>
+          </table>
+        </section>
+
+        <section class="bg-surface border border-border rounded-xl2 shadow-card overflow-hidden">
+          <div class="flex items-center justify-between px-5 py-3 border-b border-border bg-surface-2">
+            <div class="flex items-center gap-2.5">
+              <span class="relative flex w-2 h-2" style="color:#00ADD8"><span class="pulse-dot"></span><span class="relative w-2 h-2 rounded-full bg-[#00ADD8]"></span></span>
+              <span class="text-sm font-medium">gateway-service</span>
+              <span class="text-xs font-mono text-ink-faint">:8080 · pid 19042</span>
+            </div>
+            <div class="flex items-center gap-1">
+              <button class="w-7 h-7 flex items-center justify-center rounded-md text-ink-faint hover:text-ink hover:bg-surface-3 transition-colors" title="Copy">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+              </button>
+              <button class="w-7 h-7 flex items-center justify-center rounded-md text-ink-faint hover:text-ink hover:bg-surface-3 transition-colors" title="Clear">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m3 0v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6"/></svg>
+              </button>
+            </div>
+          </div>
+          <div class="scan-line bg-[#08090C] px-5 py-4 font-mono text-[12.5px] leading-relaxed h-52 overflow-y-auto">
+            <p><span class="text-ink-faint">14:22:01</span> <span class="text-ink-soft">[info]</span> starting dev server…</p>
+            <p><span class="text-ink-faint">14:22:03</span> <span class="text-success">[ready]</span> listening on http://localhost:8080</p>
+            <p><span class="text-ink-faint">14:22:18</span> <span class="text-warning">[warn]</span> upstream latency 842ms for /api/orders</p>
+            <p><span class="text-ink-faint">14:22:25</span> <span class="text-danger">[error]</span> ECONNREFUSED 127.0.0.1:5432</p>
+            <p><span class="text-ink-faint">14:22:27</span> <span class="text-success">[ready]</span> database connection restored</p>
+            <p class="text-accent">▍</p>
+          </div>
+        </section>
+
+        <section class="space-y-4">
+          <h2 class="font-display font-bold text-base">Components</h2>
+          <div class="bg-surface border border-border rounded-xl2 p-5 shadow-card grid grid-cols-2 gap-8">
+            <div>
+              <p class="text-[11px] font-semibold uppercase tracking-wider text-ink-faint mb-3">Buttons</p>
+              <div class="flex flex-wrap items-center gap-2">
+                <button class="px-3.5 py-2 rounded-lg bg-accent hover:bg-accent-hover text-white text-sm font-semibold shadow-glow transition-colors">Primary</button>
+                <button class="px-3.5 py-2 rounded-lg bg-surface-3 hover:bg-surface-2 text-ink text-sm font-medium border border-border transition-colors">Secondary</button>
+                <button class="px-3.5 py-2 rounded-lg text-ink-soft hover:text-ink hover:bg-surface-3 text-sm font-medium transition-colors">Ghost</button>
+                <button class="px-3.5 py-2 rounded-lg bg-danger/10 hover:bg-danger/20 text-danger text-sm font-medium border border-danger/20 transition-colors">Destructive</button>
+              </div>
+            </div>
+            <div>
+              <p class="text-[11px] font-semibold uppercase tracking-wider text-ink-faint mb-3">Status Badges</p>
+              <div class="flex flex-wrap items-center gap-2">
+                <span class="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full bg-success/10 text-success border border-success/20"><span class="w-1.5 h-1.5 rounded-full bg-success"></span>Running</span>
+                <span class="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full bg-warning/10 text-warning border border-warning/20"><span class="w-1.5 h-1.5 rounded-full bg-warning"></span>Starting</span>
+                <span class="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full bg-danger/10 text-danger border border-danger/20"><span class="w-1.5 h-1.5 rounded-full bg-danger"></span>Error</span>
+                <span class="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full bg-surface-3 text-ink-faint border border-border"><span class="w-1.5 h-1.5 rounded-full bg-ink-faint"></span>Stopped</span>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="bg-surface border border-border rounded-xl2 p-5 shadow-card">
+          <p class="text-[11px] font-semibold uppercase tracking-wider text-ink-faint mb-3">Overlays (click to preview)</p>
+          <div class="flex flex-wrap items-center gap-2">
+            <button onclick="openModal('projectModal')" class="px-3.5 py-2 rounded-lg bg-accent hover:bg-accent-hover text-white text-sm font-semibold shadow-glow transition-colors">Add Project Modal</button>
+            <button onclick="openConfirm('billing-service')" class="px-3.5 py-2 rounded-lg bg-danger/10 hover:bg-danger/20 text-danger text-sm font-medium border border-danger/20 transition-colors">Confirm Delete</button>
+            <button onclick="showToast('success', 'gateway-service started on :8080')" class="px-3.5 py-2 rounded-lg bg-surface-3 hover:bg-surface-2 text-ink text-sm font-medium border border-border transition-colors">Success Toast</button>
+            <button onclick="showToast('error', 'Port 3000 is already in use')" class="px-3.5 py-2 rounded-lg bg-surface-3 hover:bg-surface-2 text-ink text-sm font-medium border border-border transition-colors">Error Toast</button>
+            <button onclick="openModal('commandPalette'); setTimeout(()=>document.getElementById('paletteInput').focus(),50)" class="px-3.5 py-2 rounded-lg bg-surface-3 hover:bg-surface-2 text-ink text-sm font-medium border border-border transition-colors">Command Palette</button>
+            <button onclick="openModal('shortcutsModal')" class="px-3.5 py-2 rounded-lg bg-surface-3 hover:bg-surface-2 text-ink text-sm font-medium border border-border transition-colors">Shortcuts Sheet</button>
+            <button onclick="openModal('portConflictModal')" class="px-3.5 py-2 rounded-lg bg-surface-3 hover:bg-surface-2 text-ink text-sm font-medium border border-border transition-colors">Port Conflict</button>
+          </div>
+        </section>
+      </div>
+
+      <!-- ============================================================ -->
+      <!-- VIEW: PROJECTS (grid+filter, bulk select) -->
+      <!-- ============================================================ -->
+      <div id="view-projects" class="view hidden space-y-4">
+        <div class="flex items-center justify-between flex-wrap gap-3">
+          <div class="flex items-center gap-2 flex-wrap">
+            <div class="relative">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="absolute left-3 top-1/2 -translate-y-1/2 text-ink-faint"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+              <input type="text" placeholder="Search projects…" class="bg-surface-3 border border-border rounded-lg pl-8 pr-3 py-2 text-xs text-ink placeholder:text-ink-faint focus:outline-none focus:ring-2 focus:ring-accent/40 focus:border-accent w-56">
+            </div>
+            <select class="bg-surface-3 border border-border rounded-lg px-3 py-2 text-xs text-ink-soft focus:outline-none">
+              <option>All types</option><option>React</option><option>Next.js</option><option>Vue</option><option>Laravel</option><option>Go</option><option>Node.js</option>
+            </select>
+            <select class="bg-surface-3 border border-border rounded-lg px-3 py-2 text-xs text-ink-soft focus:outline-none">
+              <option>All statuses</option><option>Running</option><option>Stopped</option><option>Error</option>
+            </select>
+          </div>
+          <div class="flex items-center gap-2">
+            <select class="bg-surface-3 border border-border rounded-lg px-3 py-2 text-xs text-ink-soft focus:outline-none">
+              <option>Sort: Recently used</option><option>Sort: Name A–Z</option><option>Sort: Status</option>
+            </select>
+            <div class="flex bg-surface-3 rounded-lg p-0.5">
+              <button onclick="setProjectsView('grid')" id="viewGridBtn" class="p-1.5 rounded-md bg-surface text-ink shadow-sm">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+              </button>
+              <button onclick="setProjectsView('list')" id="viewListBtn" class="p-1.5 rounded-md text-ink-faint hover:text-ink">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="4" rx="1"/><rect x="3" y="10" width="18" height="4" rx="1"/><rect x="3" y="16" width="18" height="4" rx="1"/></svg>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div id="bulkToolbar" class="hidden sticky top-0 z-10 flex items-center justify-between bg-accent/10 border border-accent/30 rounded-lg px-4 py-2.5">
+          <span class="text-xs font-medium text-accent"><span id="bulkCount">0</span> selected</span>
+          <div class="flex items-center gap-2">
+            <button onclick="showToast('success','Selected projects started')" class="px-3 py-1.5 rounded-lg bg-success/15 text-success text-xs font-medium hover:bg-success/25 transition-colors">Start</button>
+            <button onclick="showToast('error','Selected projects stopped')" class="px-3 py-1.5 rounded-lg bg-surface-3 text-ink-soft text-xs font-medium hover:bg-surface-2 transition-colors">Stop</button>
+            <button onclick="openConfirm('the selected projects')" class="px-3 py-1.5 rounded-lg bg-danger/15 text-danger text-xs font-medium hover:bg-danger/25 transition-colors">Delete</button>
+            <button onclick="clearSelection()" class="text-xs text-ink-faint hover:text-ink">Clear</button>
+          </div>
+        </div>
+
+        <!-- Grid view -->
+        <div id="projectsGridView" class="grid grid-cols-3 gap-4">
+          <!-- reusable card generator markup x6 -->
+          <div class="relative bg-surface border border-border rounded-xl2 p-4 shadow-card hover:border-border-hover transition-colors">
+            <span class="absolute left-0 top-0 bottom-0 w-1 rounded-l-xl2" style="background:#61DAFB"></span>
+            <div class="flex items-start justify-between pl-2">
+              <input type="checkbox" onclick="event.stopPropagation()" onchange="updateBulkToolbar()" class="project-select mt-1 w-3.5 h-3.5 rounded border-border bg-surface-3 accent-accent">
+              <span class="text-[10px] font-mono px-1.5 py-0.5 rounded bg-success/10 text-success">↑ 2h 14m</span>
+            </div>
+            <div class="pl-2 mt-1 cursor-pointer" onclick="showView('project-detail')">
+              <div class="flex items-center gap-2.5">
+                <div class="w-8 h-8 rounded-lg bg-surface-3 flex items-center justify-center text-sm">⚛️</div>
+                <div class="min-w-0"><p class="font-medium text-sm truncate hover:text-accent">storefront-web</p><p class="text-xs text-ink-faint font-mono">React · :5173</p></div>
+              </div>
+              <svg viewBox="0 0 100 24" class="w-full h-6 mt-2"><polyline points="0,18 14,14 28,16 42,8 56,11 70,4 84,7 100,2" fill="none" stroke="#61DAFB" stroke-width="1.5"/></svg>
+            </div>
+            <div class="flex items-center gap-2 mt-2 pt-3 border-t border-border pl-2">
+              <button onclick="event.stopPropagation()" class="flex-1 py-1.5 rounded-lg bg-surface-3 hover:bg-danger/15 hover:text-danger text-xs font-medium transition-colors">Stop</button>
+              <button onclick="event.stopPropagation(); toggleDropdown(event,'pcardMenu1')" class="w-7 h-7 flex items-center justify-center rounded-lg bg-surface-3 text-ink-faint hover:text-ink relative">⋮</button>
+              <div id="pcardMenu1" class="dropdown-menu hidden absolute right-3 bottom-12 w-40 bg-surface-2 border border-border rounded-lg shadow-card py-1 z-20 text-xs">
+                <a href="#" class="block px-3 py-1.5 text-ink-soft hover:text-ink hover:bg-surface-3">Edit</a>
+                <a href="#" class="block px-3 py-1.5 text-ink-soft hover:text-ink hover:bg-surface-3">Duplicate</a>
+                <button onclick="closeAllDropdowns(); openConfirm('storefront-web')" class="w-full text-left px-3 py-1.5 text-danger hover:bg-danger/10">Remove</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="relative bg-surface border border-border rounded-xl2 p-4 shadow-card hover:border-border-hover transition-colors">
+            <span class="absolute left-0 top-0 bottom-0 w-1 rounded-l-xl2" style="background:#339933"></span>
+            <div class="flex items-start justify-between pl-2">
+              <input type="checkbox" onclick="event.stopPropagation()" onchange="updateBulkToolbar()" class="project-select mt-1 w-3.5 h-3.5 rounded border-border bg-surface-3 accent-accent">
+              <span class="text-[10px] font-mono px-1.5 py-0.5 rounded bg-success/10 text-success">↑ 41m</span>
+            </div>
+            <div class="pl-2 mt-1 cursor-pointer" onclick="showView('project-detail')">
+              <div class="flex items-center gap-2.5">
+                <div class="w-8 h-8 rounded-lg bg-surface-3 flex items-center justify-center text-sm">🟩</div>
+                <div class="min-w-0"><p class="font-medium text-sm truncate hover:text-accent">payment-api</p><p class="text-xs text-ink-faint font-mono">Node.js · :3000</p></div>
+              </div>
+              <svg viewBox="0 0 100 24" class="w-full h-6 mt-2"><polyline points="0,10 14,13 28,9 42,15 56,10 70,12 84,6 100,9" fill="none" stroke="#339933" stroke-width="1.5"/></svg>
+            </div>
+            <div class="flex items-center gap-2 mt-2 pt-3 border-t border-border pl-2">
+              <button class="flex-1 py-1.5 rounded-lg bg-surface-3 hover:bg-danger/15 hover:text-danger text-xs font-medium transition-colors">Stop</button>
+              <button class="w-7 h-7 flex items-center justify-center rounded-lg bg-surface-3 text-ink-faint hover:text-ink">⋮</button>
+            </div>
+          </div>
+
+          <div class="relative bg-surface border border-border rounded-xl2 p-4 shadow-card hover:border-border-hover transition-colors">
+            <span class="absolute left-0 top-0 bottom-0 w-1 rounded-l-xl2 bg-stack-laravel"></span>
+            <div class="flex items-start justify-between pl-2">
+              <input type="checkbox" onclick="event.stopPropagation()" onchange="updateBulkToolbar()" class="project-select mt-1 w-3.5 h-3.5 rounded border-border bg-surface-3 accent-accent">
+              <span class="text-[10px] font-mono px-1.5 py-0.5 rounded bg-surface-3 text-ink-faint">idle 2d</span>
+            </div>
+            <div class="pl-2 mt-1">
+              <div class="flex items-center gap-2.5">
+                <div class="w-8 h-8 rounded-lg bg-surface-3 flex items-center justify-center text-sm">🔴</div>
+                <div class="min-w-0"><p class="font-medium text-sm truncate">billing-service</p><p class="text-xs text-ink-faint font-mono">Laravel · :8000</p></div>
+              </div>
+              <svg viewBox="0 0 100 24" class="w-full h-6 mt-2 opacity-30"><polyline points="0,12 14,12 28,12 42,12 56,12 70,12 84,12 100,12" fill="none" stroke="#5C6472" stroke-width="1.5"/></svg>
+            </div>
+            <div class="flex items-center gap-2 mt-2 pt-3 border-t border-border pl-2">
+              <button class="flex-1 py-1.5 rounded-lg bg-success/10 hover:bg-success/20 text-success text-xs font-medium transition-colors">Start</button>
+              <button class="w-7 h-7 flex items-center justify-center rounded-lg bg-surface-3 text-ink-faint hover:text-ink">⋮</button>
+            </div>
+          </div>
+
+          <div class="relative bg-surface border border-border rounded-xl2 p-4 shadow-card hover:border-border-hover transition-colors">
+            <span class="absolute left-0 top-0 bottom-0 w-1 rounded-l-xl2" style="background:#00ADD8"></span>
+            <div class="flex items-start justify-between pl-2">
+              <input type="checkbox" onclick="event.stopPropagation()" onchange="updateBulkToolbar()" class="project-select mt-1 w-3.5 h-3.5 rounded border-border bg-surface-3 accent-accent">
+              <span class="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-danger/15 text-danger uppercase">Error</span>
+            </div>
+            <div class="pl-2 mt-1">
+              <div class="flex items-center gap-2.5">
+                <div class="w-8 h-8 rounded-lg bg-surface-3 flex items-center justify-center text-sm">🐹</div>
+                <div class="min-w-0"><p class="font-medium text-sm truncate">gateway-service</p><p class="text-xs text-ink-faint font-mono">Go · :8080</p></div>
+              </div>
+              <p class="text-[11px] text-danger mt-2.5 font-mono">exit code 1 · 14 min ago</p>
+            </div>
+            <div class="flex items-center gap-2 mt-2 pt-3 border-t border-border pl-2">
+              <button class="flex-1 py-1.5 rounded-lg bg-accent/10 hover:bg-accent/20 text-accent text-xs font-medium transition-colors">Restart</button>
+              <button class="w-7 h-7 flex items-center justify-center rounded-lg bg-surface-3 text-ink-faint hover:text-ink">⋮</button>
+            </div>
+          </div>
+
+          <div class="relative bg-surface border border-border rounded-xl2 p-4 shadow-card hover:border-border-hover transition-colors">
+            <span class="absolute left-0 top-0 bottom-0 w-1 rounded-l-xl2" style="background:#F5F5F7"></span>
+            <div class="flex items-start justify-between pl-2">
+              <input type="checkbox" onclick="event.stopPropagation()" onchange="updateBulkToolbar()" class="project-select mt-1 w-3.5 h-3.5 rounded border-border bg-surface-3 accent-accent">
+              <span class="text-[10px] font-mono px-1.5 py-0.5 rounded bg-surface-3 text-ink-faint">idle 5h</span>
+            </div>
+            <div class="pl-2 mt-1">
+              <div class="flex items-center gap-2.5">
+                <div class="w-8 h-8 rounded-lg bg-surface-3 flex items-center justify-center text-sm">⚡</div>
+                <div class="min-w-0"><p class="font-medium text-sm truncate">admin-dashboard</p><p class="text-xs text-ink-faint font-mono">Next.js · :3001</p></div>
+              </div>
+              <svg viewBox="0 0 100 24" class="w-full h-6 mt-2 opacity-30"><polyline points="0,12 100,12" fill="none" stroke="#5C6472" stroke-width="1.5"/></svg>
+            </div>
+            <div class="flex items-center gap-2 mt-2 pt-3 border-t border-border pl-2">
+              <button class="flex-1 py-1.5 rounded-lg bg-success/10 hover:bg-success/20 text-success text-xs font-medium transition-colors">Start</button>
+              <button class="w-7 h-7 flex items-center justify-center rounded-lg bg-surface-3 text-ink-faint hover:text-ink">⋮</button>
+            </div>
+          </div>
+
+          <div class="relative bg-surface border border-border rounded-xl2 p-4 shadow-card border-dashed flex flex-col items-center justify-center text-center py-8 hover:border-accent/50 transition-colors cursor-pointer" onclick="openModal('projectModal')">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-ink-faint mb-2"><path d="M12 5v14M5 12h14"/></svg>
+            <p class="text-xs text-ink-soft font-medium">Add Project</p>
+          </div>
+        </div>
+
+        <!-- List view (hidden by default) -->
+        <div id="projectsListView" class="hidden space-y-2">
+          <div class="flex items-center gap-4 bg-surface border border-border rounded-lg px-4 py-3">
+            <input type="checkbox" onchange="updateBulkToolbar()" class="project-select w-3.5 h-3.5 rounded border-border bg-surface-3 accent-accent">
+            <span class="relative flex w-2 h-2" style="color:#61DAFB"><span class="pulse-dot"></span><span class="relative w-2 h-2 rounded-full bg-[#61DAFB]"></span></span>
+            <p class="text-sm font-medium w-40 truncate cursor-pointer hover:text-accent" onclick="showView('project-detail')">storefront-web</p>
+            <p class="text-xs font-mono text-ink-faint w-28">React · :5173</p>
+            <p class="text-xs font-mono text-ink-faint flex-1 truncate">C:/projects/storefront-web</p>
+            <span class="text-[10px] font-mono px-1.5 py-0.5 rounded bg-success/10 text-success">↑ 2h 14m</span>
+            <button class="text-xs font-medium text-danger hover:underline">Stop</button>
+          </div>
+          <div class="flex items-center gap-4 bg-surface border border-border rounded-lg px-4 py-3">
+            <input type="checkbox" onchange="updateBulkToolbar()" class="project-select w-3.5 h-3.5 rounded border-border bg-surface-3 accent-accent">
+            <span class="w-2 h-2 rounded-full bg-ink-faint"></span>
+            <p class="text-sm font-medium w-40 truncate">billing-service</p>
+            <p class="text-xs font-mono text-ink-faint w-28">Laravel · :8000</p>
+            <p class="text-xs font-mono text-ink-faint flex-1 truncate">C:/projects/billing-service</p>
+            <span class="text-[10px] font-mono px-1.5 py-0.5 rounded bg-surface-3 text-ink-faint">idle 2d</span>
+            <button class="text-xs font-medium text-success hover:underline">Start</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ============================================================ -->
+      <!-- VIEW: PROJECT DETAIL -->
+      <!-- ============================================================ -->
+      <div id="view-project-detail" class="view hidden space-y-5">
+        <button onclick="showView('projects')" class="text-xs text-ink-faint hover:text-ink flex items-center gap-1">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M15 18l-6-6 6-6"/></svg> Back to Projects
+        </button>
+
+        <div class="flex items-start justify-between flex-wrap gap-4">
+          <div class="flex items-center gap-3">
+            <div class="w-12 h-12 rounded-xl bg-surface-3 flex items-center justify-center text-xl shrink-0">⚛️</div>
+            <div>
+              <div class="flex items-center gap-2 flex-wrap">
+                <h2 class="font-display font-bold text-xl">storefront-web</h2>
+                <span class="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full bg-success/10 text-success border border-success/20"><span class="w-1.5 h-1.5 rounded-full bg-success"></span>Running</span>
+                <span class="text-[11px] font-mono px-2 py-0.5 rounded bg-surface-3 text-ink-faint">↑ uptime 2h 14m</span>
+              </div>
+              <p class="text-xs font-mono text-ink-faint mt-1.5">C:/projects/storefront-web · React (Vite) · :5173 · pid 18420</p>
+            </div>
+          </div>
+          <div class="flex items-center gap-2 relative">
+            <button class="flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-danger/10 text-danger border border-danger/20 hover:bg-danger/15 text-sm font-medium transition-colors">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="1"/></svg> Stop
+            </button>
+            <button onclick="showToast('success','storefront-web restarted')" class="w-9 h-9 flex items-center justify-center rounded-lg bg-surface-3 hover:bg-accent/15 hover:text-accent transition-colors">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>
+            </button>
+            <button onclick="window.open && showToast('success','Opened http://localhost:5173')" class="w-9 h-9 flex items-center justify-center rounded-lg bg-surface-3 hover:bg-surface-2 text-ink-faint hover:text-ink transition-colors">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><path d="M15 3h6v6M10 14L21 3"/></svg>
+            </button>
+            <button onclick="toggleDropdown(event, 'detailMenu')" class="w-9 h-9 flex items-center justify-center rounded-lg bg-surface-3 hover:bg-surface-2 text-ink-faint hover:text-ink transition-colors">⋮</button>
+            <div id="detailMenu" class="dropdown-menu hidden absolute right-0 top-11 w-44 bg-surface-2 border border-border rounded-lg shadow-card py-1 z-20 text-xs">
+              <a href="#" class="block px-3 py-2 text-ink-soft hover:text-ink hover:bg-surface-3">Edit Project</a>
+              <a href="#" class="block px-3 py-2 text-ink-soft hover:text-ink hover:bg-surface-3">Duplicate</a>
+              <a href="#" class="block px-3 py-2 text-ink-soft hover:text-ink hover:bg-surface-3">Open in Explorer</a>
+              <div class="h-px bg-border my-1"></div>
+              <button onclick="closeAllDropdowns(); openConfirm('storefront-web')" class="w-full text-left px-3 py-2 text-danger hover:bg-danger/10">Remove Project</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Crash banner (persistent, dismissible) -->
+        <div id="crashBanner" class="flex items-start gap-3 bg-danger/10 border border-danger/25 rounded-xl2 px-4 py-3">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-danger shrink-0 mt-0.5"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg>
+          <div class="flex-1 min-w-0">
+            <p class="text-sm font-medium text-danger">Process crashed unexpectedly (2 days ago)</p>
+            <p class="text-xs text-ink-faint mt-0.5">Exited with code 1 at 14:22:25. DevLauncher did not auto-restart this project.</p>
+          </div>
+          <button onclick="showToast('success','Restarting storefront-web…')" class="text-xs font-medium px-3 py-1.5 rounded-lg bg-danger text-white shrink-0">Restart</button>
+          <button onclick="document.getElementById('crashBanner').classList.add('hidden')" class="text-ink-faint hover:text-ink shrink-0">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+          </button>
+        </div>
+
+        <!-- Tabs -->
+        <div class="flex items-center gap-1 border-b border-border">
+          <button id="tabBtn-logs" onclick="showTab('logs')" class="tab-btn px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors text-ink border-accent">Logs</button>
+          <button id="tabBtn-env" onclick="showTab('env')" class="tab-btn px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors text-ink-faint border-transparent hover:text-ink">Environment</button>
+          <button id="tabBtn-settings" onclick="showTab('settings')" class="tab-btn px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors text-ink-faint border-transparent hover:text-ink">Settings</button>
+        </div>
+
+        <div id="tab-logs" class="tab-content bg-surface border border-border rounded-xl2 shadow-card overflow-hidden">
+          <div class="flex items-center justify-between px-4 py-2.5 border-b border-border bg-surface-2">
+            <div class="relative">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="absolute left-2.5 top-1/2 -translate-y-1/2 text-ink-faint"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+              <input type="text" placeholder="Filter logs…" class="bg-surface-3 border border-border rounded-md pl-7 pr-2 py-1 text-xs text-ink placeholder:text-ink-faint focus:outline-none w-48">
+            </div>
+            <label class="flex items-center gap-1.5 text-[11px] text-ink-faint">
+              <input type="checkbox" checked class="w-3 h-3 accent-accent"> Auto-scroll
+            </label>
+          </div>
+          <div class="scan-line bg-[#08090C] px-5 py-4 font-mono text-[12.5px] leading-relaxed h-72 overflow-y-auto">
+            <p><span class="text-ink-faint">14:22:01</span> <span class="text-ink-soft">[info]</span> starting dev server…</p>
+            <p><span class="text-ink-faint">14:22:02</span> <span class="text-ink-soft">[info]</span> loaded config from vite.config.js</p>
+            <p><span class="text-ink-faint">14:22:03</span> <span class="text-success">[ready]</span> listening on http://localhost:5173</p>
+            <p><span class="text-ink-faint">14:22:14</span> <span class="text-ink-soft">[info]</span> GET / 200 12ms</p>
+            <p><span class="text-ink-faint">14:22:18</span> <span class="text-warning">[warn]</span> chunk size limit exceeded for vendor.js</p>
+            <p><span class="text-ink-faint">14:22:25</span> <span class="text-danger">[error]</span> Uncaught TypeError: Cannot read properties of undefined</p>
+            <p><span class="text-ink-faint">14:22:27</span> <span class="text-success">[ready]</span> hot module reload complete</p>
+            <p class="text-accent">▍</p>
+          </div>
+        </div>
+
+        <div id="tab-env" class="tab-content hidden bg-surface border border-border rounded-xl2 shadow-card p-5">
+          <div class="flex items-center justify-between mb-3">
+            <p class="text-sm font-medium">Environment Variables</p>
+            <button onclick="addEnvRow('detailEnvRows')" class="text-[11px] font-medium text-accent hover:text-accent-hover flex items-center gap-1">
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M12 5v14M5 12h14"/></svg> Add variable
+            </button>
+          </div>
+          <div id="detailEnvRows" class="space-y-2">
+            <div class="flex gap-2 items-center">
+              <input type="text" value="NODE_ENV" class="w-1/3 bg-surface-3 border border-border rounded-lg px-2.5 py-1.5 text-xs font-mono text-ink focus:outline-none focus:ring-2 focus:ring-accent/40">
+              <input type="text" value="development" class="flex-1 bg-surface-3 border border-border rounded-lg px-2.5 py-1.5 text-xs font-mono text-ink focus:outline-none focus:ring-2 focus:ring-accent/40">
+              <button onclick="this.parentElement.remove()" class="w-7 h-7 shrink-0 flex items-center justify-center rounded-lg text-ink-faint hover:text-danger hover:bg-danger/10">✕</button>
+            </div>
+            <div class="flex gap-2 items-center">
+              <input type="text" value="API_URL" class="w-1/3 bg-surface-3 border border-border rounded-lg px-2.5 py-1.5 text-xs font-mono text-ink focus:outline-none focus:ring-2 focus:ring-accent/40">
+              <input type="text" value="http://localhost:8080" class="flex-1 bg-surface-3 border border-border rounded-lg px-2.5 py-1.5 text-xs font-mono text-ink focus:outline-none focus:ring-2 focus:ring-accent/40">
+              <button onclick="this.parentElement.remove()" class="w-7 h-7 shrink-0 flex items-center justify-center rounded-lg text-ink-faint hover:text-danger hover:bg-danger/10">✕</button>
+            </div>
+          </div>
+        </div>
+
+        <div id="tab-settings" class="tab-content hidden space-y-4">
+          <div class="bg-surface border border-border rounded-xl2 shadow-card p-5 space-y-4">
+            <div><label class="text-xs text-ink-soft mb-1.5 block">Project name</label><input type="text" value="storefront-web" class="w-full bg-surface-3 border border-border rounded-lg px-3 py-2 text-sm text-ink focus:outline-none focus:ring-2 focus:ring-accent/40"></div>
+            <div><label class="text-xs text-ink-soft mb-1.5 block">Start command</label><input type="text" value="npm run dev" class="w-full bg-surface-3 border border-border rounded-lg px-3 py-2 text-sm font-mono text-ink focus:outline-none focus:ring-2 focus:ring-accent/40"></div>
+            <div class="flex items-center justify-between">
+              <div><p class="text-xs text-ink">Start on app launch</p><p class="text-[11px] text-ink-faint">Auto-run when DevLauncher opens.</p></div>
+              <button class="w-9 h-5 rounded-full bg-surface-3 border border-border relative shrink-0"><span class="absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white transition-transform"></span></button>
+            </div>
+            <div class="flex justify-end pt-1"><button onclick="showToast('success','Project settings saved')" class="px-3.5 py-2 rounded-lg bg-accent hover:bg-accent-hover text-white text-sm font-semibold shadow-glow transition-colors">Save Changes</button></div>
+          </div>
+          <div class="bg-danger/5 border border-danger/20 rounded-xl2 p-5">
+            <p class="text-sm font-medium text-danger">Danger Zone</p>
+            <p class="text-xs text-ink-faint mt-1 mb-3">Removing this project only unregisters it from DevLauncher — files on disk are untouched.</p>
+            <button onclick="openConfirm('storefront-web')" class="px-3.5 py-2 rounded-lg bg-danger/10 hover:bg-danger/20 text-danger text-sm font-medium border border-danger/20 transition-colors">Remove Project</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ============================================================ -->
+      <!-- VIEW: SETTINGS -->
+      <!-- ============================================================ -->
+      <div id="view-settings" class="view hidden space-y-5 max-w-2xl">
+        <div class="bg-surface border border-border rounded-xl2 shadow-card p-5">
+          <p class="font-display font-bold text-sm mb-1">Appearance</p>
+          <p class="text-xs text-ink-faint mb-4">Choose how DevLauncher looks.</p>
+          <div class="grid grid-cols-2 gap-3 max-w-sm">
+            <button id="themeDarkCard" onclick="setTheme('dark')" class="text-left border-2 border-accent rounded-xl2 p-3 transition-colors">
+              <div class="h-14 rounded-lg bg-[#12151A] border border-[#232830] flex items-center gap-1.5 px-2 mb-2">
+                <div class="w-3 h-8 rounded bg-[#20242C]"></div><div class="flex-1 h-3 rounded bg-[#20242C]"></div>
+              </div>
+              <p class="text-xs font-medium flex items-center gap-1.5">Dark <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" class="text-accent"><path d="M20 6L9 17l-5-5"/></svg></p>
+            </button>
+            <button id="themeLightCard" onclick="setTheme('light')" class="text-left border-2 border-border rounded-xl2 p-3 transition-colors">
+              <div class="h-14 rounded-lg bg-white border border-[#E3E6EB] flex items-center gap-1.5 px-2 mb-2">
+                <div class="w-3 h-8 rounded bg-[#EEF0F3]"></div><div class="flex-1 h-3 rounded bg-[#EEF0F3]"></div>
+              </div>
+              <p class="text-xs font-medium">Light</p>
+            </button>
+          </div>
+        </div>
+
+        <div class="bg-surface border border-border rounded-xl2 shadow-card p-5 space-y-4">
+          <p class="font-display font-bold text-sm">General</p>
+          <div class="flex items-center justify-between"><div><p class="text-xs text-ink">Sidebar expanded by default</p></div><button class="w-9 h-5 rounded-full bg-accent relative shrink-0"><span class="absolute top-0.5 right-0.5 w-4 h-4 rounded-full bg-white"></span></button></div>
+          <div class="flex items-center justify-between"><div><p class="text-xs text-ink">Start DevLauncher on system boot</p></div><button class="w-9 h-5 rounded-full bg-surface-3 border border-border relative shrink-0"><span class="absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white"></span></button></div>
+          <div class="flex items-center justify-between"><div><p class="text-xs text-ink">Minimize to tray on close</p></div><button class="w-9 h-5 rounded-full bg-accent relative shrink-0"><span class="absolute top-0.5 right-0.5 w-4 h-4 rounded-full bg-white"></span></button></div>
+        </div>
+
+        <div class="bg-surface border border-border rounded-xl2 shadow-card p-5 space-y-4">
+          <p class="font-display font-bold text-sm">Notifications</p>
+          <div class="flex items-center justify-between"><p class="text-xs text-ink">Notify when a project starts</p><button class="w-9 h-5 rounded-full bg-accent relative shrink-0"><span class="absolute top-0.5 right-0.5 w-4 h-4 rounded-full bg-white"></span></button></div>
+          <div class="flex items-center justify-between"><p class="text-xs text-ink">Notify on crash / error</p><button class="w-9 h-5 rounded-full bg-accent relative shrink-0"><span class="absolute top-0.5 right-0.5 w-4 h-4 rounded-full bg-white"></span></button></div>
+          <div class="flex items-center justify-between"><p class="text-xs text-ink">Play notification sound</p><button class="w-9 h-5 rounded-full bg-surface-3 border border-border relative shrink-0"><span class="absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white"></span></button></div>
+        </div>
+
+        <div class="bg-surface border border-border rounded-xl2 shadow-card p-5 space-y-4">
+          <p class="font-display font-bold text-sm">Terminal</p>
+          <div class="flex items-center justify-between">
+            <p class="text-xs text-ink">Font size</p>
+            <div class="flex items-center gap-2">
+              <button class="w-6 h-6 rounded-md bg-surface-3 text-ink-soft hover:text-ink">−</button>
+              <span class="text-xs font-mono w-6 text-center">14</span>
+              <button class="w-6 h-6 rounded-md bg-surface-3 text-ink-soft hover:text-ink">+</button>
+            </div>
+          </div>
+          <div class="flex items-center justify-between">
+            <p class="text-xs text-ink">Max log lines</p>
+            <input type="text" value="1000" class="w-20 bg-surface-3 border border-border rounded-lg px-2 py-1 text-xs font-mono text-ink text-right focus:outline-none">
+          </div>
+          <div class="flex items-center justify-between"><p class="text-xs text-ink">Auto-scroll logs</p><button class="w-9 h-5 rounded-full bg-accent relative shrink-0"><span class="absolute top-0.5 right-0.5 w-4 h-4 rounded-full bg-white"></span></button></div>
+        </div>
+
+        <div class="flex justify-end"><button onclick="showToast('success','Settings saved')" class="px-4 py-2 rounded-lg bg-accent hover:bg-accent-hover text-white text-sm font-semibold shadow-glow transition-colors">Save Settings</button></div>
+      </div>
+
+      <!-- ============================================================ -->
+      <!-- VIEW: EMPTY STATE (first run) -->
+      <!-- ============================================================ -->
+      <div id="view-empty" class="view hidden">
+        <div class="flex flex-col items-center justify-center text-center py-24 px-4">
+          <div class="w-16 h-16 rounded-2xl bg-accent/10 border border-accent/20 flex items-center justify-center mb-5">
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" class="text-accent"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M9 9h6v6H9z"/></svg>
+          </div>
+          <h2 class="font-display font-bold text-xl">Welcome to DevLauncher</h2>
+          <p class="text-sm text-ink-faint mt-2 max-w-sm">You don't have any projects yet. Point DevLauncher at a folder and it'll detect the stack automatically.</p>
+          <div class="flex items-center gap-2 mt-6">
+            <button onclick="openModal('projectModal')" class="px-4 py-2.5 rounded-lg bg-accent hover:bg-accent-hover text-white text-sm font-semibold shadow-glow transition-colors">+ Add Your First Project</button>
+            <button class="px-4 py-2.5 rounded-lg bg-surface-3 hover:bg-surface-2 text-ink text-sm font-medium border border-border transition-colors">Import from Folder</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ============================================================ -->
+      <!-- VIEW: LOADING SKELETON -->
+      <!-- ============================================================ -->
+      <div id="view-loading" class="view hidden space-y-8 animate-pulse">
+        <div class="grid grid-cols-4 gap-4">
+          <div class="bg-surface border border-border rounded-xl2 p-4 h-24"><div class="h-3 w-20 bg-surface-3 rounded mb-3"></div><div class="h-6 w-14 bg-surface-3 rounded"></div></div>
+          <div class="bg-surface border border-border rounded-xl2 p-4 h-24"><div class="h-3 w-20 bg-surface-3 rounded mb-3"></div><div class="h-6 w-14 bg-surface-3 rounded"></div></div>
+          <div class="bg-surface border border-border rounded-xl2 p-4 h-24"><div class="h-3 w-20 bg-surface-3 rounded mb-3"></div><div class="h-6 w-14 bg-surface-3 rounded"></div></div>
+          <div class="bg-surface border border-border rounded-xl2 p-4 h-24"><div class="h-3 w-20 bg-surface-3 rounded mb-3"></div><div class="h-6 w-14 bg-surface-3 rounded"></div></div>
+        </div>
+        <div class="grid grid-cols-3 gap-4">
+          <div class="col-span-2 bg-surface border border-border rounded-xl2 h-48"></div>
+          <div class="bg-surface border border-border rounded-xl2 h-48"></div>
+        </div>
+        <div class="grid grid-cols-3 gap-4">
+          <div class="bg-surface border border-border rounded-xl2 h-40"></div>
+          <div class="bg-surface border border-border rounded-xl2 h-40"></div>
+          <div class="bg-surface border border-border rounded-xl2 h-40"></div>
+        </div>
+      </div>
+
+    </main>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<!-- MODAL: Add / Edit Project -->
+<!-- ============================================================ -->
+<div id="projectModal" class="hidden fixed inset-0 z-50">
+  <div onclick="closeModal('projectModal')" class="absolute inset-0 bg-black/60 backdrop-blur-sm"></div>
+  <div class="relative h-full flex items-center justify-center p-4">
+    <div class="w-full max-w-lg bg-surface border border-border rounded-xl2 shadow-card max-h-[85vh] flex flex-col">
+      <div class="flex items-center justify-between px-5 py-4 border-b border-border shrink-0">
+        <div><h3 class="font-display font-bold text-sm">Add Project</h3><p class="text-xs text-ink-faint mt-0.5">Register a project folder to launch and monitor.</p></div>
+        <button onclick="closeModal('projectModal')" class="w-8 h-8 flex items-center justify-center rounded-lg text-ink-faint hover:text-ink hover:bg-surface-3 transition-colors">✕</button>
+      </div>
+      <div class="px-5 py-4 space-y-4 overflow-y-auto">
+        <div><label class="text-xs text-ink-soft mb-1.5 block">Project name</label><input type="text" placeholder="e.g. storefront-web" class="w-full bg-surface-3 border border-border rounded-lg px-3 py-2 text-sm text-ink placeholder:text-ink-faint focus:outline-none focus:ring-2 focus:ring-accent/40"></div>
+        <div>
+          <label class="text-xs text-ink-soft mb-1.5 block">Project path</label>
+          <div class="flex gap-2">
+            <input type="text" placeholder="C:/projects/storefront-web" class="flex-1 bg-surface-3 border border-border rounded-lg px-3 py-2 text-sm font-mono text-ink placeholder:text-ink-faint focus:outline-none focus:ring-2 focus:ring-accent/40">
+            <button class="px-3 py-2 rounded-lg bg-surface-3 border border-border text-xs font-medium text-ink-soft hover:text-ink hover:bg-surface-2 transition-colors shrink-0">Browse…</button>
+          </div>
+          <p class="text-[11px] text-success mt-1.5">✓ Detected: React (Vite) project</p>
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div><label class="text-xs text-ink-soft mb-1.5 block">Project type</label>
+            <select class="w-full bg-surface-3 border border-border rounded-lg px-3 py-2 text-sm text-ink focus:outline-none focus:ring-2 focus:ring-accent/40">
+              <option>⚛️ React (Vite)</option><option>⚡ Next.js</option><option>🟢 Vue.js</option><option>🔴 Laravel</option><option>🐹 Go</option><option>🟩 Node.js</option><option>⚙️ Custom</option>
+            </select>
+          </div>
+          <div><label class="text-xs text-ink-soft mb-1.5 block">Port</label><input type="text" placeholder="5173" class="w-full bg-surface-3 border border-border rounded-lg px-3 py-2 text-sm font-mono text-ink placeholder:text-ink-faint focus:outline-none focus:ring-2 focus:ring-accent/40"></div>
+        </div>
+        <div><label class="text-xs text-ink-soft mb-1.5 block">Start command</label><input type="text" value="npm run dev" class="w-full bg-surface-3 border border-border rounded-lg px-3 py-2 text-sm font-mono text-ink focus:outline-none focus:ring-2 focus:ring-accent/40"></div>
+        <div>
+          <div class="flex items-center justify-between mb-1.5"><label class="text-xs text-ink-soft">Environment variables</label>
+            <button onclick="addEnvRow('envRows')" type="button" class="text-[11px] font-medium text-accent hover:text-accent-hover flex items-center gap-1">+ Add variable</button>
+          </div>
+          <div id="envRows" class="space-y-2">
+            <div class="flex gap-2 items-center">
+              <input type="text" value="NODE_ENV" class="w-1/3 bg-surface-3 border border-border rounded-lg px-2.5 py-1.5 text-xs font-mono text-ink focus:outline-none focus:ring-2 focus:ring-accent/40">
+              <input type="text" value="development" class="flex-1 bg-surface-3 border border-border rounded-lg px-2.5 py-1.5 text-xs font-mono text-ink focus:outline-none focus:ring-2 focus:ring-accent/40">
+              <button onclick="this.parentElement.remove()" type="button" class="w-7 h-7 shrink-0 flex items-center justify-center rounded-lg text-ink-faint hover:text-danger hover:bg-danger/10">✕</button>
+            </div>
+          </div>
+        </div>
+        <div class="flex items-center justify-between pt-1">
+          <div><p class="text-xs text-ink">Start on app launch</p><p class="text-[11px] text-ink-faint">Auto-run this project when DevLauncher opens.</p></div>
+          <button onclick="this.classList.toggle('bg-accent'); this.classList.toggle('bg-surface-3')" class="w-9 h-5 rounded-full bg-surface-3 border border-border relative shrink-0"><span class="absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white"></span></button>
+        </div>
+      </div>
+      <div class="flex items-center justify-end gap-2 px-5 py-4 border-t border-border shrink-0">
+        <button onclick="closeModal('projectModal')" class="px-3.5 py-2 rounded-lg text-ink-soft hover:text-ink hover:bg-surface-3 text-sm font-medium transition-colors">Cancel</button>
+        <button onclick="closeModal('projectModal'); showToast('success', 'Project added')" class="px-3.5 py-2 rounded-lg bg-accent hover:bg-accent-hover text-white text-sm font-semibold shadow-glow transition-colors">Save Project</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<!-- CONFIRMATION DIALOG -->
+<!-- ============================================================ -->
+<div id="confirmDialog" class="hidden fixed inset-0 z-50">
+  <div onclick="closeConfirm()" class="absolute inset-0 bg-black/60 backdrop-blur-sm"></div>
+  <div class="relative h-full flex items-center justify-center p-4">
+    <div class="w-full max-w-sm bg-surface border border-border rounded-xl2 shadow-card p-5">
+      <div class="w-10 h-10 rounded-full bg-danger/10 flex items-center justify-center mb-3">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-danger"><path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m3 0v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6"/></svg>
+      </div>
+      <h3 class="font-display font-bold text-sm">Remove <span id="confirmProjectName">this project</span>?</h3>
+      <p class="text-xs text-ink-faint mt-1.5 leading-relaxed">This only removes it from DevLauncher — your project files on disk won't be touched. This action can't be undone.</p>
+      <div class="flex items-center justify-end gap-2 mt-5">
+        <button onclick="closeConfirm()" class="px-3.5 py-2 rounded-lg text-ink-soft hover:text-ink hover:bg-surface-3 text-sm font-medium transition-colors">Cancel</button>
+        <button onclick="closeConfirm(); showToast('error', 'Project removed')" class="px-3.5 py-2 rounded-lg bg-danger hover:bg-danger/90 text-white text-sm font-semibold transition-colors">Remove</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<!-- COMMAND PALETTE (Ctrl/Cmd+K) -->
+<!-- ============================================================ -->
+<div id="commandPalette" class="hidden fixed inset-0 z-50">
+  <div onclick="closeModal('commandPalette')" class="absolute inset-0 bg-black/60 backdrop-blur-sm"></div>
+  <div class="relative flex items-start justify-center pt-24 px-4">
+    <div class="w-full max-w-lg bg-surface border border-border rounded-xl2 shadow-card overflow-hidden">
+      <div class="flex items-center gap-2.5 px-4 py-3 border-b border-border">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-ink-faint"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+        <input id="paletteInput" oninput="filterPalette()" type="text" placeholder="Search projects or run a command…" class="flex-1 bg-transparent text-sm text-ink placeholder:text-ink-faint focus:outline-none">
+        <kbd class="text-[10px] font-mono text-ink-faint border border-border rounded px-1.5 py-0.5">Esc</kbd>
+      </div>
+      <div id="paletteResults" class="max-h-80 overflow-y-auto py-2">
+        <p class="px-4 pt-1 pb-1.5 text-[10px] font-semibold uppercase tracking-wider text-ink-faint">Projects</p>
+        <button data-label="storefront-web react" onclick="showView('project-detail'); closeModal('commandPalette')" class="palette-item w-full flex items-center gap-2.5 px-4 py-2 text-sm text-ink hover:bg-surface-3 text-left">⚛️ storefront-web</button>
+        <button data-label="payment-api node" onclick="showView('project-detail'); closeModal('commandPalette')" class="palette-item w-full flex items-center gap-2.5 px-4 py-2 text-sm text-ink hover:bg-surface-3 text-left">🟩 payment-api</button>
+        <button data-label="billing-service laravel" onclick="showView('project-detail'); closeModal('commandPalette')" class="palette-item w-full flex items-center gap-2.5 px-4 py-2 text-sm text-ink hover:bg-surface-3 text-left">🔴 billing-service</button>
+        <p class="px-4 pt-2 pb-1.5 text-[10px] font-semibold uppercase tracking-wider text-ink-faint">Actions</p>
+        <button data-label="start all projects" onclick="showToast('success','Starting all projects'); closeModal('commandPalette')" class="palette-item w-full flex items-center gap-2.5 px-4 py-2 text-sm text-ink hover:bg-surface-3 text-left">▶ Start All Projects</button>
+        <button data-label="stop all projects" onclick="showToast('error','Stopping all projects'); closeModal('commandPalette')" class="palette-item w-full flex items-center gap-2.5 px-4 py-2 text-sm text-ink hover:bg-surface-3 text-left">■ Stop All Projects</button>
+        <button data-label="open settings preferences" onclick="showView('settings'); closeModal('commandPalette')" class="palette-item w-full flex items-center gap-2.5 px-4 py-2 text-sm text-ink hover:bg-surface-3 text-left">⚙ Open Settings</button>
+        <button data-label="add new project" onclick="openModal('projectModal'); closeModal('commandPalette')" class="palette-item w-full flex items-center gap-2.5 px-4 py-2 text-sm text-ink hover:bg-surface-3 text-left">＋ Add New Project</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<!-- KEYBOARD SHORTCUTS SHEET -->
+<!-- ============================================================ -->
+<div id="shortcutsModal" class="hidden fixed inset-0 z-50">
+  <div onclick="closeModal('shortcutsModal')" class="absolute inset-0 bg-black/60 backdrop-blur-sm"></div>
+  <div class="relative h-full flex items-center justify-center p-4">
+    <div class="w-full max-w-sm bg-surface border border-border rounded-xl2 shadow-card p-5">
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="font-display font-bold text-sm">Keyboard Shortcuts</h3>
+        <button onclick="closeModal('shortcutsModal')" class="text-ink-faint hover:text-ink">✕</button>
+      </div>
+      <div class="space-y-2.5 text-xs">
+        <div class="flex items-center justify-between"><span class="text-ink-soft">Open command palette</span><kbd class="border border-border rounded px-1.5 py-0.5 font-mono text-ink-faint">Ctrl K</kbd></div>
+        <div class="flex items-center justify-between"><span class="text-ink-soft">Add new project</span><kbd class="border border-border rounded px-1.5 py-0.5 font-mono text-ink-faint">Ctrl N</kbd></div>
+        <div class="flex items-center justify-between"><span class="text-ink-soft">Start all projects</span><kbd class="border border-border rounded px-1.5 py-0.5 font-mono text-ink-faint">Ctrl Shift S</kbd></div>
+        <div class="flex items-center justify-between"><span class="text-ink-soft">Stop all projects</span><kbd class="border border-border rounded px-1.5 py-0.5 font-mono text-ink-faint">Ctrl Shift X</kbd></div>
+        <div class="flex items-center justify-between"><span class="text-ink-soft">Show this cheat sheet</span><kbd class="border border-border rounded px-1.5 py-0.5 font-mono text-ink-faint">?</kbd></div>
+        <div class="flex items-center justify-between"><span class="text-ink-soft">Close dialog</span><kbd class="border border-border rounded px-1.5 py-0.5 font-mono text-ink-faint">Esc</kbd></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<!-- PORT CONFLICT RESOLVER -->
+<!-- ============================================================ -->
+<div id="portConflictModal" class="hidden fixed inset-0 z-50">
+  <div onclick="closeModal('portConflictModal')" class="absolute inset-0 bg-black/60 backdrop-blur-sm"></div>
+  <div class="relative h-full flex items-center justify-center p-4">
+    <div class="w-full max-w-sm bg-surface border border-border rounded-xl2 shadow-card p-5">
+      <div class="w-10 h-10 rounded-full bg-warning/10 flex items-center justify-center mb-3">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-warning"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg>
+      </div>
+      <h3 class="font-display font-bold text-sm">Port 3000 is already in use</h3>
+      <p class="text-xs text-ink-faint mt-1.5 leading-relaxed">Another process on your machine is already listening on this port. Choose how to resolve it.</p>
+      <div class="space-y-2 mt-4">
+        <label class="flex items-center gap-2.5 px-3 py-2.5 rounded-lg border border-border hover:border-accent/50 cursor-pointer">
+          <input type="radio" name="portFix" checked class="accent-accent">
+          <span class="text-xs text-ink">Kill the process using <span class="font-mono">:3000</span>, then start</span>
+        </label>
+        <label class="flex items-center gap-2.5 px-3 py-2.5 rounded-lg border border-border hover:border-accent/50 cursor-pointer">
+          <input type="radio" name="portFix" class="accent-accent">
+          <span class="text-xs text-ink flex items-center gap-2">Use a different port <input type="text" value="3001" class="w-16 bg-surface-3 border border-border rounded px-1.5 py-0.5 font-mono text-xs"></span>
+        </label>
+      </div>
+      <div class="flex items-center justify-end gap-2 mt-5">
+        <button onclick="closeModal('portConflictModal')" class="px-3.5 py-2 rounded-lg text-ink-soft hover:text-ink hover:bg-surface-3 text-sm font-medium transition-colors">Cancel</button>
+        <button onclick="closeModal('portConflictModal'); showToast('success','admin-dashboard started on :3001')" class="px-3.5 py-2 rounded-lg bg-accent hover:bg-accent-hover text-white text-sm font-semibold shadow-glow transition-colors">Resolve &amp; Start</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<!-- TOAST CONTAINER -->
+<!-- ============================================================ -->
+<div id="toastContainer" class="fixed bottom-5 right-5 z-[60] flex flex-col gap-2 w-80"></div>
+
+<!-- ============================================================ -->
+<!-- TEMPLATE DEMO ONLY: system tray mockup — remove in production -->
+<!-- ============================================================ -->
+<button id="trayIconBtn" onclick="toggleTray(event)" class="fixed bottom-4 left-4 z-40 w-11 h-11 rounded-full bg-surface border border-border shadow-card flex items-center justify-center hover:border-border-hover transition-colors">
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M5 3l14 9-14 9V3z" fill="#6D5EF5"/></svg>
+  <span class="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-success border-2 border-base"></span>
+</button>
+<div id="trayPopup" class="hidden fixed bottom-16 left-4 z-40 w-64 bg-surface-2 border border-border rounded-xl2 shadow-card py-2">
+  <p class="px-3 pb-1.5 text-[10px] font-semibold uppercase tracking-wider text-ink-faint">Running (3)</p>
+  <div class="flex items-center justify-between px-3 py-1.5 hover:bg-surface-3 text-xs">
+    <span class="flex items-center gap-2"><span class="w-1.5 h-1.5 rounded-full bg-success"></span>storefront-web</span>
+    <button onclick="showToast('error','storefront-web stopped')" class="text-ink-faint hover:text-danger">Stop</button>
+  </div>
+  <div class="flex items-center justify-between px-3 py-1.5 hover:bg-surface-3 text-xs">
+    <span class="flex items-center gap-2"><span class="w-1.5 h-1.5 rounded-full bg-success"></span>payment-api</span>
+    <button onclick="showToast('error','payment-api stopped')" class="text-ink-faint hover:text-danger">Stop</button>
+  </div>
+  <div class="flex items-center justify-between px-3 py-1.5 hover:bg-surface-3 text-xs">
+    <span class="flex items-center gap-2"><span class="w-1.5 h-1.5 rounded-full bg-success"></span>gateway-service</span>
+    <button onclick="showToast('error','gateway-service stopped')" class="text-ink-faint hover:text-danger">Stop</button>
+  </div>
+  <div class="h-px bg-border my-1.5"></div>
+  <button onclick="closeTray()" class="w-full text-left px-3 py-1.5 text-xs text-ink-soft hover:bg-surface-3 hover:text-ink">Open DevLauncher</button>
+  <button class="w-full text-left px-3 py-1.5 text-xs text-danger hover:bg-danger/10">Quit</button>
+</div>
+
+<!-- ============================================================ -->
+<!-- TEMPLATE DEMO ONLY: preview panel — remove in production -->
+<!-- ============================================================ -->
+<div class="fixed bottom-4 right-4 z-40">
+  <button onclick="document.getElementById('demoPanelBody').classList.toggle('hidden')" class="w-11 h-11 rounded-full bg-accent shadow-glow flex items-center justify-center text-white">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 11-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06A1.65 1.65 0 004.6 15a1.65 1.65 0 00-1.51-1H3a2 2 0 110-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06A1.65 1.65 0 009 4.6a1.65 1.65 0 001-1.51V3a2 2 0 114 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06A1.65 1.65 0 0019.4 9c.14.32.4.6.73.79.24.14.5.21.78.21H21a2 2 0 110 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+  </button>
+  <div id="demoPanelBody" class="hidden absolute bottom-14 right-0 w-64 bg-surface-2 border border-border rounded-xl2 shadow-card p-3">
+    <p class="text-[10px] font-semibold uppercase tracking-wider text-ink-faint mb-2">Template Preview — jump anywhere</p>
+    <div class="grid grid-cols-2 gap-1.5">
+      <button onclick="showView('dashboard')" class="px-2 py-1.5 rounded-lg bg-surface-3 hover:bg-surface text-[11px] text-ink-soft hover:text-ink text-left transition-colors">Dashboard</button>
+      <button onclick="showView('projects')" class="px-2 py-1.5 rounded-lg bg-surface-3 hover:bg-surface text-[11px] text-ink-soft hover:text-ink text-left transition-colors">Projects</button>
+      <button onclick="showView('project-detail')" class="px-2 py-1.5 rounded-lg bg-surface-3 hover:bg-surface text-[11px] text-ink-soft hover:text-ink text-left transition-colors">Project Detail</button>
+      <button onclick="showView('settings')" class="px-2 py-1.5 rounded-lg bg-surface-3 hover:bg-surface text-[11px] text-ink-soft hover:text-ink text-left transition-colors">Settings</button>
+      <button onclick="showView('empty')" class="px-2 py-1.5 rounded-lg bg-surface-3 hover:bg-surface text-[11px] text-ink-soft hover:text-ink text-left transition-colors">Empty State</button>
+      <button onclick="showView('loading')" class="px-2 py-1.5 rounded-lg bg-surface-3 hover:bg-surface text-[11px] text-ink-soft hover:text-ink text-left transition-colors">Loading Skeleton</button>
+    </div>
+    <div class="h-px bg-border my-2.5"></div>
+    <div class="grid grid-cols-2 gap-1.5">
+      <button onclick="document.getElementById('updateBanner').classList.toggle('hidden')" class="px-2 py-1.5 rounded-lg bg-surface-3 hover:bg-surface text-[11px] text-ink-soft hover:text-ink text-left transition-colors">Update Banner</button>
+      <button onclick="openModal('portConflictModal')" class="px-2 py-1.5 rounded-lg bg-surface-3 hover:bg-surface text-[11px] text-ink-soft hover:text-ink text-left transition-colors">Port Conflict</button>
+      <button onclick="toggleTray()" class="px-2 py-1.5 rounded-lg bg-surface-3 hover:bg-surface text-[11px] text-ink-soft hover:text-ink text-left transition-colors">Tray Menu</button>
+      <button onclick="openModal('commandPalette')" class="px-2 py-1.5 rounded-lg bg-surface-3 hover:bg-surface text-[11px] text-ink-soft hover:text-ink text-left transition-colors">Cmd Palette</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  /* ---------- View router ---------- */
+  const navMeta = {
+    dashboard: { title: 'Dashboard', nav: 'nav-dashboard' },
+    projects: { title: 'Projects', nav: 'nav-projects' },
+    'project-detail': { title: 'storefront-web', nav: null },
+    settings: { title: 'Settings', nav: 'nav-settings' },
+    empty: { title: 'Projects', nav: 'nav-projects' },
+    loading: { title: 'Dashboard', nav: 'nav-dashboard' },
+  };
+  function showView(name) {
+    document.querySelectorAll('.view').forEach(v => v.classList.add('hidden'));
+    document.getElementById('view-' + name).classList.remove('hidden');
+    document.querySelectorAll('.nav-link').forEach(a => {
+      a.classList.remove('bg-accent/10', 'text-accent', 'border', 'border-accent/20');
+      a.classList.add('text-ink-soft');
+    });
+    const meta = navMeta[name] || { title: name, nav: null };
+    if (meta.nav) {
+      const el = document.getElementById(meta.nav);
+      el.classList.remove('text-ink-soft');
+      el.classList.add('bg-accent/10', 'text-accent', 'border', 'border-accent/20');
+    }
+    document.getElementById('pageTitle').textContent = meta.title;
+    document.getElementById('mainScroll').scrollTo(0, 0);
+    closeAllDropdowns();
+  }
+
+  function toggleSidebar() {
+    const sidebar = document.getElementById('sidebar');
+    const label = document.getElementById('collapseLabel');
+    sidebar.classList.toggle('collapsed');
+    label.textContent = sidebar.classList.contains('collapsed') ? 'Expand' : 'Collapse';
+  }
+
+  /* ---------- Modal ---------- */
+  function openModal(id) {
+    document.getElementById(id).classList.remove('hidden');
+    document.body.classList.add('overflow-hidden');
+  }
+  function closeModal(id) {
+    document.getElementById(id).classList.add('hidden');
+    document.body.classList.remove('overflow-hidden');
+  }
+
+  /* ---------- Confirmation dialog ---------- */
+  function openConfirm(projectName) {
+    document.getElementById('confirmProjectName').textContent = `"${projectName}"`;
+    openModal('confirmDialog');
+  }
+  function closeConfirm() { closeModal('confirmDialog'); }
+
+  /* ---------- Toast ---------- */
+  function showToast(type, message) {
+    const container = document.getElementById('toastContainer');
+    const variants = {
+      success: { border: 'border-success/30', icon: 'text-success', path: '<path d="M20 6L9 17l-5-5"/>' },
+      error:   { border: 'border-danger/30',  icon: 'text-danger',  path: '<circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/>' },
+      warning: { border: 'border-warning/30', icon: 'text-warning', path: '<path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><path d="M12 9v4M12 17h.01"/>' },
+    };
+    const v = variants[type] || variants.success;
+    const toast = document.createElement('div');
+    toast.className = `flex items-start gap-2.5 bg-surface-2 border ${v.border} rounded-lg px-3.5 py-3 shadow-card animate-[fadeIn_.15s_ease-out]`;
+    toast.innerHTML = `
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="${v.icon} shrink-0 mt-0.5">${v.path}</svg>
+      <p class="text-xs text-ink flex-1">${message}</p>
+      <button class="text-ink-faint hover:text-ink shrink-0" onclick="this.closest('div.flex').remove()">✕</button>`;
+    container.appendChild(toast);
+    setTimeout(() => toast.remove(), 4000);
+  }
+
+  /* ---------- Dropdown menu ---------- */
+  function toggleDropdown(event, id) {
+    if (event) event.stopPropagation();
+    const menu = document.getElementById(id);
+    const isHidden = menu.classList.contains('hidden');
+    closeAllDropdowns();
+    if (isHidden) menu.classList.remove('hidden');
+  }
+  function closeAllDropdowns() {
+    document.querySelectorAll('.dropdown-menu').forEach(m => m.classList.add('hidden'));
+  }
+  document.addEventListener('click', () => { closeAllDropdowns(); closeTray(); });
+
+  /* ---------- Env var rows ---------- */
+  function addEnvRow(containerId) {
+    const row = document.createElement('div');
+    row.className = 'flex gap-2 items-center';
+    row.innerHTML = `
+      <input type="text" placeholder="KEY" class="w-1/3 bg-surface-3 border border-border rounded-lg px-2.5 py-1.5 text-xs font-mono text-ink placeholder:text-ink-faint focus:outline-none focus:ring-2 focus:ring-accent/40">
+      <input type="text" placeholder="value" class="flex-1 bg-surface-3 border border-border rounded-lg px-2.5 py-1.5 text-xs font-mono text-ink placeholder:text-ink-faint focus:outline-none focus:ring-2 focus:ring-accent/40">
+      <button onclick="this.parentElement.remove()" type="button" class="w-7 h-7 shrink-0 flex items-center justify-center rounded-lg text-ink-faint hover:text-danger hover:bg-danger/10">✕</button>`;
+    document.getElementById(containerId).appendChild(row);
+  }
+
+  /* ---------- Projects page: view toggle + bulk select ---------- */
+  function setProjectsView(mode) {
+    const grid = document.getElementById('projectsGridView');
+    const list = document.getElementById('projectsListView');
+    const gridBtn = document.getElementById('viewGridBtn');
+    const listBtn = document.getElementById('viewListBtn');
+    grid.classList.toggle('hidden', mode !== 'grid');
+    list.classList.toggle('hidden', mode !== 'list');
+    gridBtn.classList.toggle('bg-surface', mode === 'grid');
+    gridBtn.classList.toggle('text-ink', mode === 'grid');
+    gridBtn.classList.toggle('text-ink-faint', mode !== 'grid');
+    listBtn.classList.toggle('bg-surface', mode === 'list');
+    listBtn.classList.toggle('text-ink', mode === 'list');
+    listBtn.classList.toggle('text-ink-faint', mode !== 'list');
+  }
+  function updateBulkToolbar() {
+    const checked = document.querySelectorAll('.project-select:checked').length;
+    document.getElementById('bulkCount').textContent = checked;
+    document.getElementById('bulkToolbar').classList.toggle('hidden', checked === 0);
+  }
+  function clearSelection() {
+    document.querySelectorAll('.project-select').forEach(c => c.checked = false);
+    updateBulkToolbar();
+  }
+
+  /* ---------- Project detail tabs ---------- */
+  function showTab(name) {
+    document.querySelectorAll('.tab-content').forEach(t => t.classList.add('hidden'));
+    document.getElementById('tab-' + name).classList.remove('hidden');
+    document.querySelectorAll('.tab-btn').forEach(b => {
+      b.classList.remove('text-ink', 'border-accent');
+      b.classList.add('text-ink-faint', 'border-transparent');
+    });
+    const btn = document.getElementById('tabBtn-' + name);
+    btn.classList.remove('text-ink-faint', 'border-transparent');
+    btn.classList.add('text-ink', 'border-accent');
+  }
+
+  /* ---------- Theme ---------- */
+  function setTheme(theme) {
+    document.documentElement.setAttribute('data-theme', theme);
+    const dark = document.getElementById('themeDarkCard');
+    const light = document.getElementById('themeLightCard');
+    dark.classList.toggle('border-accent', theme === 'dark');
+    dark.classList.toggle('border-border', theme !== 'dark');
+    light.classList.toggle('border-accent', theme === 'light');
+    light.classList.toggle('border-border', theme !== 'light');
+  }
+
+  /* ---------- Command palette filter ---------- */
+  function filterPalette() {
+    const q = document.getElementById('paletteInput').value.toLowerCase();
+    document.querySelectorAll('.palette-item').forEach(item => {
+      const label = item.getAttribute('data-label');
+      item.classList.toggle('hidden', q.length > 0 && !label.includes(q));
+    });
+  }
+
+  /* ---------- System tray popup ---------- */
+  function toggleTray(event) {
+    if (event) event.stopPropagation();
+    document.getElementById('trayPopup').classList.toggle('hidden');
+  }
+  function closeTray() { document.getElementById('trayPopup').classList.add('hidden'); }
+
+  /* ---------- Global keyboard shortcuts ---------- */
+  document.addEventListener('keydown', (e) => {
+    const tag = document.activeElement.tagName;
+    const typing = tag === 'INPUT' || tag === 'TEXTAREA';
+    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+      e.preventDefault();
+      openModal('commandPalette');
+      setTimeout(() => document.getElementById('paletteInput').focus(), 50);
+    } else if (e.key === '?' && !typing) {
+      e.preventDefault();
+      openModal('shortcutsModal');
+    } else if (e.key === 'Escape') {
+      closeModal('projectModal');
+      closeConfirm();
+      closeModal('commandPalette');
+      closeModal('shortcutsModal');
+      closeModal('portConflictModal');
+      closeTray();
+    }
+  });
+</script>
+</body>
+</html>
