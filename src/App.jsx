@@ -125,41 +125,10 @@ const MOCK_PROJECTS = [
 ];
 
 const MOCK_ACTIVITIES = [
-  {
-    id: 1,
-    type: 'start',
-    project: 'storefront-web',
-    message: 'Started successfully on port 3000',
-    timestamp: '2 minutes ago'
-  },
-  {
-    id: 2,
-    type: 'build',
-    project: 'payment-api',
-    message: 'Build completed in 0.8s',
-    timestamp: '5 minutes ago'
-  },
-  {
-    id: 3,
-    type: 'error',
-    project: 'legacy-monolith',
-    message: 'Failed to start: Module not found',
-    timestamp: '10 minutes ago'
-  },
-  {
-    id: 4,
-    type: 'stop',
-    project: 'analytics-dashboard',
-    message: 'Stopped gracefully',
-    timestamp: '2 hours ago'
-  },
-  {
-    id: 5,
-    type: 'install',
-    project: 'storefront-web',
-    message: 'Installed 3 dependencies',
-    timestamp: '3 hours ago'
-  }
+  { type: 'success', project: 'gateway-service', message: 'started', time: '2 min ago · port 8080' },
+  { type: 'danger', project: 'admin-dashboard', message: 'crashed', time: '14 min ago · exit code 1' },
+  { type: 'faint', project: 'payment-api', message: 'stopped', time: '32 min ago' },
+  { type: 'accent', project: 'storefront-web', message: 'added', time: '1 hour ago · Next.js' }
 ];
 
 const MOCK_LOGS = [
