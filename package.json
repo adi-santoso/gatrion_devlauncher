@@ -6,11 +6,12 @@
   "main": "electron/main.js",
   "type": "commonjs",
   "scripts": {
-    "dev": "concurrently \"vite\" \"wait-on http://localhost:5173 && cross-env NODE_ENV=development electron .\"",
+    "dev": "concurrently --kill-others --success first --kill-timeout 3000 \"vite\" \"wait-on http://localhost:5173 && cross-env NODE_ENV=development electron .\"",
     "dev:vite": "vite",
     "dev:electron": "cross-env NODE_ENV=development electron .",
     "build": "vite build && electron-builder",
     "build:win": "vite build && electron-builder --win --x64",
+    "test": "node test-process-manager.js",
     "preview": "vite preview"
   },
   "keywords": [

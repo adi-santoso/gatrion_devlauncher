@@ -10,6 +10,7 @@ let mainWindow
 let processManager
 let storageManager
 let projectDetector
+let isQuitting = false // Track if app is in quitting process
 
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -52,8 +53,8 @@ async function initialize() {
   createWindow()
 
   // Setup IPC handlers
-  setupProcessHandlers(processManager, mainWindow)
-  setupProjectHandlers(storageManager, mainWindow)
+  setupProcessHandlers(processManager, storageManager, mainWindow)
+  setupProjectHandlers(storageManager, processManager, mainWindow)
 
   // Setup config handler
   ipcMain.handle('get-config', async () => {
@@ -81,8 +82,14 @@ async function initialize() {
   })
 }
 
-app.whenReady().then(() => {
-  initialize()
+app.whenReady().then(async () => {
+  try {
+    await initialize()
+  } catch (error) {
+    console.error('[App] Initialization failed:', error)
+    app.quit()
+    return
+  }
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
@@ -91,31 +98,35 @@ app.whenReady().then(() => {
   })
 })
 
-app.on('window-all-closed', async () => {
-  // Stop all processes before quitting
-  if (processManager) {
-    try {
-      await processManager.stopAllProcesses()
-    } catch (error) {
-      console.error('Error stopping processes:', error)
-    }
-  }
-
+app.on('window-all-closed', () => {
+  // On macOS, keep app running until user explicitly quits
   if (process.platform !== 'darwin') {
     app.quit()
   }
 })
 
-// Handle app quit
+// Handle app quit - stop all processes before exiting
 app.on('before-quit', async (event) => {
+  if (isQuitting) {
+    return // Already in quitting process, don't prevent
+  }
+
   if (processManager) {
-    event.preventDefault()
+    event.preventDefault() // Prevent quit until processes are stopped
+    isQuitting = true
+
+    console.log('[App] Stopping all processes before quit...')
+
     try {
       await processManager.stopAllProcesses()
-      app.exit(0)
+      console.log('[App] All processes stopped successfully')
     } catch (error) {
-      console.error('Error stopping processes on quit:', error)
-      app.exit(1)
+      console.error('[App] Error stopping processes on quit:', error)
+    } finally {
+      // Force quit after cleanup
+      app.exit(0)
     }
+  } else {
+    isQuitting = true
   }
 })

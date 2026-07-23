@@ -10,9 +10,9 @@ contextBridge.exposeInMainWorld('electron', {
   getProjects: () => ipcRenderer.invoke('get-projects'),
 
   // Process Management
-  startProject: (projectId) => ipcRenderer.invoke('start-project', projectId),
+  startProject: (projectId, projectPath, command, env) => ipcRenderer.invoke('start-project', projectId, projectPath, command, env),
   stopProject: (projectId) => ipcRenderer.invoke('stop-project', projectId),
-  restartProject: (projectId) => ipcRenderer.invoke('restart-project', projectId),
+  restartProject: (projectId, projectPath, command, env) => ipcRenderer.invoke('restart-project', projectId, projectPath, command, env),
   startAllProjects: () => ipcRenderer.invoke('start-all-projects'),
   stopAllProjects: () => ipcRenderer.invoke('stop-all-projects'),
   getProcessStatus: (projectId) => ipcRenderer.invoke('get-process-status', projectId),
@@ -27,19 +27,29 @@ contextBridge.exposeInMainWorld('electron', {
 
   // Event Listeners
   onProcessStatus: (callback) => {
-    ipcRenderer.on('process-status', (event, projectId, status) => callback(projectId, status))
+    const listener = (event, projectId, status) => callback(projectId, status)
+    ipcRenderer.on('process-status', listener)
+    return () => ipcRenderer.removeListener('process-status', listener)
   },
   onProcessLog: (callback) => {
-    ipcRenderer.on('process-log', (event, projectId, logLine) => callback(projectId, logLine))
+    const listener = (event, projectId, logLine) => callback(projectId, logLine)
+    ipcRenderer.on('process-log', listener)
+    return () => ipcRenderer.removeListener('process-log', listener)
   },
   onProcessError: (callback) => {
-    ipcRenderer.on('process-error', (event, projectId, error) => callback(projectId, error))
+    const listener = (event, projectId, error) => callback(projectId, error)
+    ipcRenderer.on('process-error', listener)
+    return () => ipcRenderer.removeListener('process-error', listener)
   },
   onProcessExit: (callback) => {
-    ipcRenderer.on('process-exit', (event, projectId, code) => callback(projectId, code))
+    const listener = (event, projectId, code, signal) => callback(projectId, code, signal)
+    ipcRenderer.on('process-exit', listener)
+    return () => ipcRenderer.removeListener('process-exit', listener)
   },
   onProjectsUpdated: (callback) => {
-    ipcRenderer.on('projects-updated', (event, projects) => callback(projects))
+    const listener = (event, projects) => callback(projects)
+    ipcRenderer.on('projects-updated', listener)
+    return () => ipcRenderer.removeListener('projects-updated', listener)
   },
 
   // Remove listeners

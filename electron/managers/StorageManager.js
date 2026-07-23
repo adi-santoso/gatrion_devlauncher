@@ -29,7 +29,6 @@ class StorageManager {
       },
     }
 
-    this.init()
   }
 
   /**
@@ -62,6 +61,7 @@ class StorageManager {
       })
     } catch (error) {
       console.error('[StorageManager] Init error:', error)
+      throw error
     }
   }
 
@@ -72,9 +72,39 @@ class StorageManager {
   async loadProjects() {
     try {
       const data = await fs.readFile(this.projectsFilePath, 'utf8')
-      return JSON.parse(data)
+      const cleanData = data.replace(/^\uFEFF/, '')
+      return JSON.parse(cleanData)
     } catch (error) {
       console.error('[StorageManager] Error loading projects:', error)
+
+      // If JSON is corrupt, try to recover from latest backup
+      if (error instanceof SyntaxError) {
+        console.log('[StorageManager] Attempting recovery from backup...')
+        try {
+          const files = await fs.readdir(this.backupDir)
+          const backups = files
+            .filter(f => f.startsWith('projects-') && f.endsWith('.json'))
+            .sort()
+            .reverse()
+
+          for (const backupFile of backups) {
+            try {
+              const backupData = await fs.readFile(path.join(this.backupDir, backupFile), 'utf8')
+              const cleanBackupData = backupData.replace(/^\uFEFF/, '')
+              const projects = JSON.parse(cleanBackupData)
+              console.log(`[StorageManager] Recovered ${projects.length} projects from ${backupFile}`)
+              // Overwrite corrupted file with good backup
+              await this.atomicWrite(this.projectsFilePath, JSON.stringify(projects, null, 2))
+              return projects
+            } catch {
+              continue // try next backup
+            }
+          }
+        } catch (backupError) {
+          console.error('[StorageManager] Backup recovery failed:', backupError)
+        }
+      }
+
       return []
     }
   }
@@ -88,8 +118,8 @@ class StorageManager {
       // Backup current file before saving
       await this.backupProjects()
 
-      // Save new data
-      await fs.writeFile(this.projectsFilePath, JSON.stringify(projects, null, 2))
+      // Save new data atomically (write to temp, then rename)
+      await this.atomicWrite(this.projectsFilePath, JSON.stringify(projects, null, 2))
       console.log('[StorageManager] Saved', projects.length, 'projects')
     } catch (error) {
       console.error('[StorageManager] Error saving projects:', error)
@@ -149,7 +179,8 @@ class StorageManager {
   async loadConfig() {
     try {
       const data = await fs.readFile(this.configFilePath, 'utf8')
-      return JSON.parse(data)
+      const cleanData = data.replace(/^\uFEFF/, '')
+      return JSON.parse(cleanData)
     } catch (error) {
       console.error('[StorageManager] Error loading config:', error)
       return this.defaultConfig
@@ -162,7 +193,7 @@ class StorageManager {
    */
   async saveConfig(config) {
     try {
-      await fs.writeFile(this.configFilePath, JSON.stringify(config, null, 2))
+      await this.atomicWrite(this.configFilePath, JSON.stringify(config, null, 2))
       console.log('[StorageManager] Config saved')
     } catch (error) {
       console.error('[StorageManager] Error saving config:', error)
@@ -210,6 +241,17 @@ class StorageManager {
    */
   getAppDataPath() {
     return this.appDataPath
+  }
+  /**
+   * Atomic write: write to temp file first, then rename.
+   * Prevents corruption from partial writes or crashes during write.
+   * @param {string} filePath - Target file path
+   * @param {string} content - Content to write
+   */
+  async atomicWrite(filePath, content) {
+    const tmpPath = filePath + '.tmp'
+    await fs.writeFile(tmpPath, content, 'utf8')
+    await fs.rename(tmpPath, filePath)
   }
 }
 

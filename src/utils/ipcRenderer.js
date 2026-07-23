@@ -103,12 +103,12 @@ export const detectProjectType = async (projectPath) => {
 
 // ==================== Process APIs ====================
 
-export const startProject = async (projectId) => {
+export const startProject = async (projectId, projectPath, command, env = {}) => {
   if (!isElectron()) {
     console.warn('[IPC] Running in browser mode - mock startProject called');
     return { success: true, projectId, status: 'running' };
   }
-  return window.electron.startProject(projectId);
+  return window.electron.startProject(projectId, projectPath, command, env);
 };
 
 export const stopProject = async (projectId) => {
@@ -119,12 +119,12 @@ export const stopProject = async (projectId) => {
   return window.electron.stopProject(projectId);
 };
 
-export const restartProject = async (projectId) => {
+export const restartProject = async (projectId, projectPath, command, env = {}) => {
   if (!isElectron()) {
     console.warn('[IPC] Running in browser mode - mock restartProject called');
     return { success: true, projectId, status: 'running' };
   }
-  return window.electron.restartProject(projectId);
+  return window.electron.restartProject(projectId, projectPath, command, env);
 };
 
 export const startAllProjects = async () => {
@@ -176,9 +176,7 @@ export const onProcessStatus = (callback) => {
     console.warn('[IPC] Running in browser mode - onProcessStatus not available');
     return () => {}; // Return cleanup function
   }
-  window.electron.onProcessStatus(callback);
-  // Return cleanup function
-  return () => window.electron.removeAllListeners('process-status');
+  return window.electron.onProcessStatus(callback);
 };
 
 export const onProcessLog = (callback) => {
@@ -186,8 +184,7 @@ export const onProcessLog = (callback) => {
     console.warn('[IPC] Running in browser mode - onProcessLog not available');
     return () => {};
   }
-  window.electron.onProcessLog(callback);
-  return () => window.electron.removeAllListeners('process-log');
+  return window.electron.onProcessLog(callback);
 };
 
 export const onProcessError = (callback) => {
@@ -195,8 +192,7 @@ export const onProcessError = (callback) => {
     console.warn('[IPC] Running in browser mode - onProcessError not available');
     return () => {};
   }
-  window.electron.onProcessError(callback);
-  return () => window.electron.removeAllListeners('process-error');
+  return window.electron.onProcessError(callback);
 };
 
 export const onProcessExit = (callback) => {
@@ -204,8 +200,7 @@ export const onProcessExit = (callback) => {
     console.warn('[IPC] Running in browser mode - onProcessExit not available');
     return () => {};
   }
-  window.electron.onProcessExit(callback);
-  return () => window.electron.removeAllListeners('process-exit');
+  return window.electron.onProcessExit(callback);
 };
 
 export const onProjectsUpdated = (callback) => {
@@ -213,8 +208,7 @@ export const onProjectsUpdated = (callback) => {
     console.warn('[IPC] Running in browser mode - onProjectsUpdated not available');
     return () => {};
   }
-  window.electron.onProjectsUpdated(callback);
-  return () => window.electron.removeAllListeners('projects-updated');
+  return window.electron.onProjectsUpdated(callback);
 };
 
 // ==================== Utility ====================

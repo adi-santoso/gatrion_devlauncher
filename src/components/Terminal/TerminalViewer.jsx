@@ -2,6 +2,11 @@ import React, { useEffect, useRef, useState } from 'react'
 import Button from '../Common/Button'
 import Badge from '../Common/Badge'
 
+const stripAnsi = (str) =>
+  typeof str === 'string'
+    ? str.replace(/[\u001b\u009b][[()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-ORZcf-nqry=><]/g, '')
+    : str;
+
 function TerminalViewer({ logs = [], projectName }) {
   const terminalRef = useRef(null)
   const [autoScroll, setAutoScroll] = useState(true)
@@ -157,7 +162,7 @@ function TerminalViewer({ logs = [], projectName }) {
                   {getLogIcon(log.type)}
                 </span>
                 <span className={`flex-1 ${getLogColor(log.type)} whitespace-pre-wrap break-words leading-relaxed`}>
-                  {highlightText(log.message)}
+                  {highlightText(stripAnsi(log.message))}
                 </span>
               </div>
             ))}

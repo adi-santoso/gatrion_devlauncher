@@ -2,6 +2,7 @@ const getStatusColor = (status) => {
   const colors = {
     running: { bg: 'bg-success/10', text: 'text-success', border: 'border-success/20', dot: 'bg-success' },
     starting: { bg: 'bg-warning/10', text: 'text-warning', border: 'border-warning/20', dot: 'bg-warning' },
+    stopping: { bg: 'bg-warning/10', text: 'text-warning', border: 'border-warning/20', dot: 'bg-warning' },
     error: { bg: 'bg-danger/10', text: 'text-danger', border: 'border-danger/20', dot: 'bg-danger' },
     stopped: { bg: 'bg-surface-3', text: 'text-ink-faint', border: 'border-border', dot: 'bg-ink-faint' }
   };
@@ -40,7 +41,8 @@ export default function ProjectTable({ projects = [], onStop, onStart, onRestart
         </thead>
         <tbody className="divide-y divide-border">
           {projects.map((project, index) => {
-            const statusColor = getStatusColor(project.status);
+            const status = (project.status || 'stopped').toLowerCase();
+            const statusColor = getStatusColor(status);
             return (
               <tr key={index} className="hover:bg-surface-3/60 transition-colors">
                 <td className="px-5 py-3 font-medium">{project.name}</td>
@@ -52,36 +54,34 @@ export default function ProjectTable({ projects = [], onStop, onStart, onRestart
                 <td className="px-3 py-3">
                   <span className={`inline-flex items-center gap-1.5 text-xs font-medium ${statusColor.text}`}>
                     <span className={`w-1.5 h-1.5 rounded-full ${statusColor.dot}`}></span>
-                    {project.status.charAt(0).toUpperCase() + project.status.slice(1)}
+                    {status.charAt(0).toUpperCase() + status.slice(1)}
                   </span>
                 </td>
                 <td className="px-3 py-3 font-mono text-xs text-ink-soft">{project.port || '—'}</td>
-                <td className="px-3 py-3 font-mono text-xs text-ink-soft">{project.pid || '—'}</td>
+                <td className="px-3 py-3 font-mono text-xs text-ink-soft">{status === 'running' || status === 'stopping' ? project.pid || '—' : '—'}</td>
                 <td className="px-3 py-3 font-mono text-xs text-ink-soft">{project.cpu || '—'}</td>
-                <td className="px-3 py-3 font-mono text-xs text-ink-soft">{project.memory || '—'}</td>
+                <td className="px-3 py-3 font-mono text-xs text-ink-soft">{project.mem || '—'}</td>
                 <td className="px-5 py-3 text-right">
-                  {project.status === 'running' && (
+                  {status === 'running' ? (
                     <button
-                      onClick={() => onStop && onStop(project)}
-                      className="text-xs font-medium text-danger hover:underline"
+                      onClick={() => onStop?.(project)}
+                      className="px-2.5 py-1 rounded bg-danger/10 text-danger hover:bg-danger/20 text-xs font-medium transition-colors"
                     >
                       Stop
                     </button>
-                  )}
-                  {project.status === 'stopped' && (
+                  ) : status === 'starting' || status === 'stopping' ? (
                     <button
-                      onClick={() => onStart && onStart(project)}
-                      className="text-xs font-medium text-success hover:underline"
+                      className="px-2.5 py-1 rounded bg-warning/10 text-warning text-xs font-medium cursor-wait"
+                      disabled
+                    >
+                      {status === 'starting' ? 'Booting…' : 'Stopping…'}
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => onStart?.(project)}
+                      className="px-2.5 py-1 rounded bg-success/10 text-success hover:bg-success/20 text-xs font-medium transition-colors"
                     >
                       Start
-                    </button>
-                  )}
-                  {project.status === 'error' && (
-                    <button
-                      onClick={() => onRestart && onRestart(project)}
-                      className="text-xs font-medium text-accent hover:underline"
-                    >
-                      Restart
                     </button>
                   )}
                 </td>

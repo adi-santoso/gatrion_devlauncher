@@ -12,32 +12,108 @@ export const useProcesses = (projects = [], onProjectUpdate) => {
   // Start a project
   const startProject = useCallback(async (projectId) => {
     try {
-      const response = await ipc.startProject(projectId);
+      // Find project data to get path, command, and env
+      const project = projects.find(p => p.id === projectId);
+      if (!project) {
+        return { success: false, error: 'Project not found' };
+      }
+
+      // Validate required fields
+      if (!project.path) {
+        return { success: false, error: 'Project path is missing' };
+      }
+      if (!project.startCommand) {
+        return { success: false, error: 'Start command is missing' };
+      }
+
+      // Convert envVars array to object format
+      // From: [{key: 'NODE_ENV', value: 'development'}]
+      // To: {NODE_ENV: 'development'}
+      const envObject = {};
+      if (Array.isArray(project.envVars)) {
+        project.envVars.forEach(env => {
+          if (env.key && env.key.trim()) {
+            envObject[env.key] = env.value || '';
+          }
+        });
+      }
+
+      console.log('[useProcesses] Starting project:', {
+        projectId,
+        path: project.path,
+        command: project.startCommand,
+        env: envObject
+      });
+
+      // Update local status immediately BEFORE IPC call for responsive UI
+      setProcessStatuses(prev => ({
+        ...prev,
+        [projectId]: 'starting'
+      }));
+
+      // Notify parent component to update project status
+      if (onProjectUpdate) {
+        onProjectUpdate(projectId, { status: 'starting' });
+      }
+
+      const response = await ipc.startProject(
+        projectId,
+        project.path,
+        project.startCommand,
+        envObject
+      );
 
       if (response.success) {
-        // Update local status immediately for responsive UI
+        const normalizedStatus = (response.status || 'running').toLowerCase();
         setProcessStatuses(prev => ({
           ...prev,
-          [projectId]: 'starting'
+          [projectId]: normalizedStatus
         }));
 
-        // Notify parent component to update project status
         if (onProjectUpdate) {
-          onProjectUpdate(projectId, { status: 'starting' });
+          onProjectUpdate(projectId, {
+            status: normalizedStatus,
+            pid: response.pid
+          });
         }
 
         return { success: true };
       } else {
+        // Revert status on failure
+        setProcessStatuses(prev => ({
+          ...prev,
+          [projectId]: 'stopped'
+        }));
+
+        if (onProjectUpdate) {
+          onProjectUpdate(projectId, { status: 'stopped' });
+        }
+
         return { success: false, error: response.error || 'Failed to start project' };
       }
     } catch (err) {
       console.error('Error starting project:', err);
+      setProcessStatuses(prev => ({
+        ...prev,
+        [projectId]: 'stopped'
+      }));
+      if (onProjectUpdate) {
+        onProjectUpdate(projectId, { status: 'stopped' });
+      }
       return { success: false, error: err.message };
     }
-  }, [onProjectUpdate]);
+  }, [projects, onProjectUpdate]);
 
   // Stop a project
   const stopProject = useCallback(async (projectId) => {
+    setProcessStatuses(prev => ({
+      ...prev,
+      [projectId]: 'stopping'
+    }));
+    if (onProjectUpdate) {
+      onProjectUpdate(projectId, { status: 'stopping' });
+    }
+
     try {
       const response = await ipc.stopProject(projectId);
 
@@ -48,15 +124,29 @@ export const useProcesses = (projects = [], onProjectUpdate) => {
         }));
 
         if (onProjectUpdate) {
-          onProjectUpdate(projectId, { status: 'stopped' });
+          onProjectUpdate(projectId, { status: 'stopped', pid: null, uptime: null });
         }
 
         return { success: true };
       } else {
+        setProcessStatuses(prev => ({
+          ...prev,
+          [projectId]: 'running'
+        }));
+        if (onProjectUpdate) {
+          onProjectUpdate(projectId, { status: 'running' });
+        }
         return { success: false, error: response.error || 'Failed to stop project' };
       }
     } catch (err) {
       console.error('Error stopping project:', err);
+      setProcessStatuses(prev => ({
+        ...prev,
+        [projectId]: 'running'
+      }));
+      if (onProjectUpdate) {
+        onProjectUpdate(projectId, { status: 'running' });
+      }
       return { success: false, error: err.message };
     }
   }, [onProjectUpdate]);
@@ -64,27 +154,81 @@ export const useProcesses = (projects = [], onProjectUpdate) => {
   // Restart a project
   const restartProject = useCallback(async (projectId) => {
     try {
-      const response = await ipc.restartProject(projectId);
+      // Find project data to get path, command, and env
+      const project = projects.find(p => p.id === projectId);
+      if (!project) {
+        return { success: false, error: 'Project not found' };
+      }
+
+      // Validate required fields
+      if (!project.path) {
+        return { success: false, error: 'Project path is missing' };
+      }
+      if (!project.startCommand) {
+        return { success: false, error: 'Start command is missing' };
+      }
+
+      // Convert envVars array to object format
+      const envObject = {};
+      if (Array.isArray(project.envVars)) {
+        project.envVars.forEach(env => {
+          if (env.key && env.key.trim()) {
+            envObject[env.key] = env.value || '';
+          }
+        });
+      }
+
+      console.log('[useProcesses] Restarting project:', {
+        projectId,
+        path: project.path,
+        command: project.startCommand,
+        env: envObject
+      });
+
+      // Update local status immediately BEFORE IPC call for responsive UI
+      setProcessStatuses(prev => ({
+        ...prev,
+        [projectId]: 'starting'
+      }));
+
+      if (onProjectUpdate) {
+        onProjectUpdate(projectId, { status: 'starting' });
+      }
+
+      const response = await ipc.restartProject(
+        projectId,
+        project.path,
+        project.startCommand,
+        envObject
+      );
 
       if (response.success) {
+        return { success: true };
+      } else {
+        // Revert status on failure
         setProcessStatuses(prev => ({
           ...prev,
-          [projectId]: 'starting'
+          [projectId]: 'stopped'
         }));
 
         if (onProjectUpdate) {
-          onProjectUpdate(projectId, { status: 'starting' });
+          onProjectUpdate(projectId, { status: 'stopped' });
         }
 
-        return { success: true };
-      } else {
         return { success: false, error: response.error || 'Failed to restart project' };
       }
     } catch (err) {
       console.error('Error restarting project:', err);
+      setProcessStatuses(prev => ({
+        ...prev,
+        [projectId]: 'stopped'
+      }));
+      if (onProjectUpdate) {
+        onProjectUpdate(projectId, { status: 'stopped' });
+      }
       return { success: false, error: err.message };
     }
-  }, [onProjectUpdate]);
+  }, [projects, onProjectUpdate]);
 
   // Start all projects
   const startAll = useCallback(async () => {
@@ -137,17 +281,20 @@ export const useProcesses = (projects = [], onProjectUpdate) => {
     const cleanup = ipc.onProcessStatus((projectId, status) => {
       console.log(`[Process Status] Project ${projectId}:`, status);
 
+      const rawStatus = typeof status === 'string' ? status : status?.status;
+      const normalizedStatus = (rawStatus || 'stopped').toLowerCase();
+
       setProcessStatuses(prev => ({
         ...prev,
-        [projectId]: status.status
+        [projectId]: normalizedStatus
       }));
 
       if (onProjectUpdate) {
         onProjectUpdate(projectId, {
-          status: status.status,
-          pid: status.pid,
-          port: status.port,
-          uptime: status.uptime
+          status: normalizedStatus,
+          pid: status?.pid,
+          port: status?.port,
+          uptime: status?.uptime
         });
       }
     });
@@ -206,6 +353,8 @@ export const useProcesses = (projects = [], onProjectUpdate) => {
       if (onProjectUpdate) {
         onProjectUpdate(projectId, {
           status,
+          pid: null,
+          uptime: null,
           ...(code !== 0 && { errorMessage: `exit code ${code}` })
         });
       }

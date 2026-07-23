@@ -1,4 +1,7 @@
-import React from 'react';
+const stripAnsi = (str) =>
+  typeof str === 'string'
+    ? str.replace(/[\u001b\u009b][[()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-ORZcf-nqry=><]/g, '')
+    : str;
 
 export default function LogsTab({
   logs = [],
@@ -42,14 +45,25 @@ export default function LogsTab({
         </label>
       </div>
       <div className="scan-line bg-[#08090C] px-5 py-4 font-mono text-[12.5px] leading-relaxed h-72 overflow-y-auto">
-        {logs.map((log, index) => (
-          <p key={index}>
-            <span className="text-ink-faint">{log.timestamp}</span>{' '}
-            <span className={getLogColor(log.level)}>[{log.level}]</span>{' '}
-            {log.message}
-          </p>
-        ))}
-        <p className="text-accent">▍</p>
+        {logs.length === 0 ? (
+          <p className="text-ink-faint italic">No logs captured yet.</p>
+        ) : (
+          logs.map((log, index) => {
+            if (typeof log === 'string') {
+              return <p key={index} className="text-ink-soft whitespace-pre-wrap">{stripAnsi(log)}</p>;
+            }
+            const time = log.timestamp ? new Date(log.timestamp).toLocaleTimeString() : '';
+            const type = log.type || log.level || 'info';
+            return (
+              <p key={index} className="whitespace-pre-wrap">
+                {time && <span className="text-ink-faint mr-1.5">{time}</span>}
+                <span className={getLogColor(type)}>[{type.toUpperCase()}]</span>{' '}
+                {stripAnsi(log.message)}
+              </p>
+            );
+          })
+        )}
+        <p className="text-accent animate-pulse">▍</p>
       </div>
     </div>
   );

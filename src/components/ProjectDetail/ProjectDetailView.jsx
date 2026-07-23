@@ -8,9 +8,17 @@ import SettingsTab from './SettingsTab';
 
 export default function ProjectDetailView({
   project,
+  logs = [],
   onBack,
   onSave,
-  onRemove
+  onRemove,
+  onStart,
+  onStop,
+  onRestart,
+  onOpenInEditor,
+  onOpenInFinder,
+  onOpenBrowser,
+  onInstallDeps
 }) {
   const [activeTab, setActiveTab] = useState('logs');
   const [showCrashBanner, setShowCrashBanner] = useState(project?.hasCrashed || false);
@@ -38,11 +46,14 @@ export default function ProjectDetailView({
   const handleRestartCrashed = () => {
     console.log('Restarting crashed project');
     setShowCrashBanner(false);
+    onRestart?.();
   };
 
   const handleDismissCrash = () => {
     setShowCrashBanner(false);
   };
+
+  const combinedLogs = logs && logs.length > 0 ? logs : (project?.logs || []);
 
   return (
     <div className="view space-y-5">
@@ -58,16 +69,19 @@ export default function ProjectDetailView({
 
       <ProjectDetailHeader
         project={project}
-        onStop={project.onStop}
-        onRestart={project.onRestart}
-        onOpenBrowser={project.onOpenBrowser}
-        onShowMenu={project.onShowMenu}
+        onStart={onStart}
+        onStop={onStop}
+        onRestart={onRestart}
+        onOpenBrowser={onOpenBrowser}
+        onOpenInEditor={onOpenInEditor}
+        onOpenInFinder={onOpenInFinder}
+        onInstallDeps={onInstallDeps}
       />
 
       {showCrashBanner && (
         <CrashBanner
-          message="Process crashed unexpectedly (2 days ago)"
-          timestamp="Exited with code 1 at 14:22:25. DevLauncher did not auto-restart this project."
+          message="Process crashed unexpectedly"
+          timestamp="Exited with error. DevLauncher did not auto-restart this project."
           onRestart={handleRestartCrashed}
           onDismiss={handleDismissCrash}
         />
@@ -77,7 +91,7 @@ export default function ProjectDetailView({
 
       {activeTab === 'logs' && (
         <LogsTab
-          logs={project?.logs || []}
+          logs={combinedLogs}
           onFilterChange={setLogFilter}
           autoScroll={autoScroll}
           onAutoScrollChange={setAutoScroll}

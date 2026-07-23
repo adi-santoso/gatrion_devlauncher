@@ -13,6 +13,8 @@ const MainLayout = ({
   onUpdateDismiss,
   onViewChange,
   onOpenModal,
+  onStartAll,
+  onStopAll,
   runningProjects = []
 }) => {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -77,6 +79,8 @@ const MainLayout = ({
             onCommandPalette={handleCommandPalette}
             onAddProject={handleAddProject}
             onSettings={handleSettings}
+            onStartAll={onStartAll}
+            onStopAll={onStopAll}
           />
 
           <main className="flex-1 overflow-y-auto px-6 py-6">

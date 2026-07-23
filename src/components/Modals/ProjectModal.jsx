@@ -210,15 +210,9 @@ const ProjectModal = ({ isOpen, onClose, onSave, project = null }) => {
       return;
     }
 
-    // Add required fields for project
-    const projectData = {
-      ...formData,
-      status: 'stopped',
-      uptime: '0s',
-      idleTime: '0s',
-    };
-
-    onSave(projectData);
+    // Don't include runtime fields (status, uptime, idleTime)
+    // Those are managed by process manager, not stored
+    onSave(formData);
     onClose();
   };
 

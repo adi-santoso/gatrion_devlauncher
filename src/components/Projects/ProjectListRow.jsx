@@ -6,8 +6,10 @@ export default function ProjectListRow({
   onToggleSelect,
   onShowDetail
 }) {
+  const status = (project.status || 'stopped').toLowerCase();
+
   const renderStatusDot = () => {
-    if (project.status === 'running') {
+    if (status === 'running') {
       return (
         <span className="relative flex w-2 h-2" style={{ color: project.color }}>
           <span className="pulse-dot"></span>
@@ -17,29 +19,41 @@ export default function ProjectListRow({
           ></span>
         </span>
       );
+    } else if (status === 'starting' || status === 'stopping') {
+      return (
+        <svg width="8" height="8" className="animate-spin text-warning" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+          <path d="M21 12a9 9 0 11-6.219-8.56" />
+        </svg>
+      );
     } else {
       return <span className="w-2 h-2 rounded-full bg-ink-faint"></span>;
     }
   };
 
   const renderStatus = () => {
-    if (project.status === 'running') {
+    if (status === 'running') {
       return (
         <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-success/10 text-success">
-          ↑ {project.uptime}
+          ↑ {project.uptime || 'running'}
+        </span>
+      );
+    } else if (status === 'starting' || status === 'stopping') {
+      return (
+        <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-warning/15 text-warning uppercase">
+          {status === 'starting' ? 'Starting…' : 'Stopping…'}
         </span>
       );
     } else {
       return (
         <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-surface-3 text-ink-faint">
-          idle {project.idleTime}
+          idle {project.idleTime || ''}
         </span>
       );
     }
   };
 
   const renderActionButton = () => {
-    if (project.status === 'running') {
+    if (status === 'running') {
       return (
         <button
           onClick={project.onStop}
@@ -47,6 +61,12 @@ export default function ProjectListRow({
         >
           Stop
         </button>
+      );
+    } else if (status === 'starting' || status === 'stopping') {
+      return (
+        <span className="text-xs font-medium text-warning cursor-wait">
+          {status === 'starting' ? 'Booting…' : 'Stopping…'}
+        </span>
       );
     } else {
       return (

@@ -1,7 +1,8 @@
 import { useState } from 'react';
 
-export default function ProjectCard({ project, onStop, onStart, onRestart, onNavigate, onShowToast }) {
+export default function ProjectCard({ project, onStop, onStart, onRestart, onNavigate, onShowToast, onDelete }) {
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  const status = (project.status || 'stopped').toLowerCase();
 
   const toggleDropdown = (e) => {
     e.stopPropagation();
@@ -17,7 +18,7 @@ export default function ProjectCard({ project, onStop, onStart, onRestart, onNav
   };
 
   const getStatusBadge = () => {
-    switch (project.status) {
+    switch (status) {
       case 'running':
         return (
           <span className="relative flex w-2 h-2 mt-1.5" style={{ color: project.color }}>
@@ -26,9 +27,10 @@ export default function ProjectCard({ project, onStop, onStart, onRestart, onNav
           </span>
         );
       case 'starting':
+      case 'stopping':
         return (
           <span className="flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded bg-warning/15 text-warning uppercase tracking-wide">
-            Starting
+            {status === 'starting' ? 'Starting' : 'Stopping'}
           </span>
         );
       case 'error':
@@ -43,7 +45,7 @@ export default function ProjectCard({ project, onStop, onStart, onRestart, onNav
   };
 
   const getActionButton = () => {
-    if (project.status === 'running') {
+    if (status === 'running') {
       return (
         <button
           onClick={(e) => handleAction(() => onStop(project), e)}
@@ -55,13 +57,13 @@ export default function ProjectCard({ project, onStop, onStart, onRestart, onNav
           Stop
         </button>
       );
-    } else if (project.status === 'starting') {
+    } else if (status === 'starting' || status === 'stopping') {
       return (
-        <button className="flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg bg-surface-3 text-ink-faint text-xs font-medium cursor-wait">
+        <button className="flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg bg-surface-3 text-warning text-xs font-medium cursor-wait" disabled>
           <svg width="12" height="12" className="animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <path d="M21 12a9 9 0 11-6.219-8.56" />
           </svg>
-          Booting
+          {status === 'starting' ? 'Booting' : 'Stopping'}
         </button>
       );
     } else {
@@ -97,12 +99,12 @@ export default function ProjectCard({ project, onStop, onStart, onRestart, onNav
       <p className="text-xs font-mono text-ink-faint mt-3 truncate">{project.path}</p>
       <div className="flex items-center gap-3 mt-3">
         {project.port && <span className="text-[11px] font-mono px-2 py-0.5 rounded bg-surface-3 text-ink-soft">:{project.port}</span>}
-        {project.status === 'running' ? (
+        {status === 'running' ? (
           <>
             <span className="text-[11px] font-mono text-ink-faint">CPU {project.cpu || '—'}</span>
             <span className="text-[11px] font-mono text-ink-faint">{project.memory || '—'}</span>
           </>
-        ) : project.status === 'starting' ? (
+        ) : status === 'starting' || status === 'stopping' ? (
           <>
             <span className="text-[11px] font-mono text-ink-faint">CPU —</span>
             <span className="text-[11px] font-mono text-ink-faint">—</span>
@@ -113,7 +115,7 @@ export default function ProjectCard({ project, onStop, onStart, onRestart, onNav
       </div>
       <div className="flex items-center gap-2 mt-4 pt-3 border-t border-border">
         {getActionButton()}
-        {project.status === 'running' && (
+        {status === 'running' && (
           <button
             onClick={(e) => handleAction(() => onRestart(project), e)}
             className="w-8 h-8 flex items-center justify-center rounded-lg bg-surface-3 hover:bg-accent/15 hover:text-accent transition-colors"
@@ -124,14 +126,14 @@ export default function ProjectCard({ project, onStop, onStart, onRestart, onNav
             </svg>
           </button>
         )}
-        {project.status === 'starting' && (
+        {(status === 'starting' || status === 'stopping') && (
           <button className="w-8 h-8 flex items-center justify-center rounded-lg bg-surface-3 text-ink-faint" disabled>
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M23 4v6h-6M1 20v-6h6" />
             </svg>
           </button>
         )}
-        {project.status === 'stopped' && (
+        {(status === 'stopped' || status === 'error') && (
           <button className="w-8 h-8 flex items-center justify-center rounded-lg bg-surface-3 text-ink-faint" disabled>
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M23 4v6h-6M1 20v-6h6" />
@@ -161,7 +163,7 @@ export default function ProjectCard({ project, onStop, onStart, onRestart, onNav
             </a>
             <div className="h-px bg-border my-1"></div>
             <button
-              onClick={(e) => handleAction(() => console.log('Remove', project.name), e)}
+              onClick={(e) => handleAction(() => onDelete?.(project), e)}
               className="w-full flex items-center gap-2.5 px-3 py-2 text-xs text-danger hover:bg-danger/10 transition-colors text-left"
             >
               Remove Project

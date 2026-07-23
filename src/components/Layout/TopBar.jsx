@@ -5,7 +5,9 @@ const TopBar = ({
   subtitle = 'DevLauncher',
   onCommandPalette,
   onAddProject,
-  onSettings
+  onSettings,
+  onStartAll,
+  onStopAll
 }) => {
   return (
     <header className="h-16 shrink-0 border-b border-border flex items-center justify-between px-6 bg-base/80 backdrop-blur">
@@ -25,13 +27,19 @@ const TopBar = ({
           Search or run command
           <kbd className="ml-2 text-[10px] border border-border rounded px-1.5 py-0.5">Ctrl K</kbd>
         </button>
-        <button className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-success/10 text-success border border-success/20 hover:bg-success/15 text-sm font-medium transition-colors">
+        <button
+          onClick={onStartAll}
+          className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-success/10 text-success border border-success/20 hover:bg-success/15 text-sm font-medium transition-colors"
+        >
           <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
             <path d="M8 5v14l11-7z" />
           </svg>
           Start All
         </button>
-        <button className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-danger/10 text-danger border border-danger/20 hover:bg-danger/15 text-sm font-medium transition-colors">
+        <button
+          onClick={onStopAll}
+          className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-danger/10 text-danger border border-danger/20 hover:bg-danger/15 text-sm font-medium transition-colors"
+        >
           <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
             <rect x="6" y="6" width="12" height="12" rx="1" />
           </svg>

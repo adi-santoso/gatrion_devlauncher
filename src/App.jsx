@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { MainLayout } from './components/Layout';
 import { DashboardView } from './components/Dashboard';
 import { ProjectsView } from './components/Projects';
@@ -38,7 +38,7 @@ const MOCK_LOGS = [
 
 function App() {
   // Initialize hooks
-  const { projects, loading: projectsLoading, addProject: addProjectToStore, updateProject: updateProjectInStore, deleteProject: deleteProjectFromStore } = useProjects();
+  const { projects, loading: projectsLoading, addProject: addProjectToStore, updateProject: updateProjectInStore, updateProjectLocal, deleteProject: deleteProjectFromStore } = useProjects();
   const { config, updateConfig: updateElectronConfig } = useElectronConfig();
 
   // View state
@@ -57,13 +57,25 @@ function App() {
     console.log('[Toast] Current toasts:', toasts);
   }, [toasts]);
 
-  // Activities state (mock for now)
-  const [activities] = useState(MOCK_ACTIVITIES);
+  // Activities state
+  const [activities, setActivities] = useState(MOCK_ACTIVITIES);
 
-  // Handle project updates from process events
-  const handleProjectUpdate = (projectId, updates) => {
-    updateProjectInStore(projectId, updates);
+  const addActivity = (type, project, message, detail = '') => {
+    setActivities(prev => [
+      {
+        type,
+        project,
+        message,
+        time: `Just now${detail ? ' · ' + detail : ''}`
+      },
+      ...prev.slice(0, 19)
+    ]);
   };
+
+  // Handle project updates from process events (runtime state only — no IPC persist)
+  const handleProjectUpdate = useCallback((projectId, updates) => {
+    updateProjectLocal(projectId, updates);
+  }, [updateProjectLocal]);
 
   // Initialize process manager with project update callback
   const {
@@ -159,8 +171,10 @@ function App() {
     const result = await startProjectProcess(project.id);
     if (result.success) {
       showToast('success', `${project.name} started successfully`);
+      addActivity('success', project.name, 'started', project.port ? `port ${project.port}` : '');
     } else {
       showToast('error', result.error || `Failed to start ${project.name}`);
+      addActivity('danger', project.name, 'failed to start');
     }
   };
 
@@ -168,6 +182,7 @@ function App() {
     const result = await stopProjectProcess(project.id);
     if (result.success) {
       showToast('info', `${project.name} stopped`);
+      addActivity('faint', project.name, 'stopped');
     } else {
       showToast('error', result.error || `Failed to stop ${project.name}`);
     }
@@ -178,23 +193,51 @@ function App() {
     const result = await restartProjectProcess(project.id);
     if (result.success) {
       showToast('success', `${project.name} restarted successfully`);
+      addActivity('success', project.name, 'restarted');
     } else {
       showToast('error', result.error || `Failed to restart ${project.name}`);
+      addActivity('danger', project.name, 'restart failed');
+    }
+  };
+
+  const handleStartAll = async () => {
+    showToast('info', 'Starting all projects...');
+    const result = await startAll();
+    const failures = Array.isArray(result) ? result.filter(item => !item.success) : [];
+    if (result?.error) {
+      showToast('error', result.error);
+    } else if (failures.length > 0) {
+      showToast('error', `${failures.length} project(s) failed to start`);
+    } else {
+      showToast('success', 'Issued start command for all projects');
+      addActivity('success', 'All projects', 'started');
+    }
+  };
+
+  const handleStopAll = async () => {
+    showToast('info', 'Stopping all projects...');
+    const result = await stopAll();
+    if (result && result.error) {
+      showToast('error', result.error);
+    } else {
+      showToast('info', 'All projects stopped');
+      addActivity('faint', 'All projects', 'stopped');
     }
   };
 
   const handleDeleteProject = (project) => {
-    openModalHandler('confirm', project.name);
+    // Store project ID instead of name for reliable deletion
+    openModalHandler('confirm', project);
   };
 
   const confirmDelete = async () => {
-    const projectToDelete = projects.find(p => p.name === confirmTarget);
-    if (projectToDelete) {
-      const result = await deleteProjectFromStore(projectToDelete.id);
+    if (confirmTarget) {
+      const result = await deleteProjectFromStore(confirmTarget.id);
       if (result.success) {
-        showToast('success', `${confirmTarget} removed from projects`);
+        showToast('success', `${confirmTarget.name || 'Project'} removed from projects`);
+        addActivity('faint', confirmTarget.name || 'Project', 'removed');
         closeModalHandler();
-        if (currentView === 'project-detail' && selectedProject?.name === confirmTarget) {
+        if (currentView === 'project-detail' && selectedProject?.id === confirmTarget.id) {
           showView('projects');
         }
       } else {
@@ -231,6 +274,7 @@ function App() {
 
     if (result.success) {
       showToast('success', `Project ${projectData.name} created successfully`);
+      addActivity('accent', projectData.name, 'added', projectData.type || '');
       closeModalHandler();
     } else {
       showToast('error', result.error || 'Failed to create project');
@@ -286,10 +330,10 @@ function App() {
         openModalHandler('shortcuts');
         break;
       case 'start-all':
-        showToast('info', 'Starting all projects...');
+        handleStartAll();
         break;
       case 'stop-all':
-        showToast('info', 'Stopping all projects...');
+        handleStopAll();
         break;
       default:
         // Handle project-specific commands
@@ -317,8 +361,10 @@ function App() {
             onUpdateDismiss={() => setShowUpdateBanner(false)}
             onViewChange={showView}
             onOpenModal={openModalHandler}
+            onStartAll={handleStartAll}
+            onStopAll={handleStopAll}
             runningProjects={projects
-              .filter(p => p.status === 'running')
+              .filter(p => p.status?.toLowerCase() === 'running')
               .map(p => ({
                 name: p.name,
                 color: p.color,
@@ -334,6 +380,7 @@ function App() {
             onStart={handleStartProject}
             onStop={handleStopProject}
             onRestart={handleRestartProject}
+            onDelete={handleDeleteProject}
             onNavigate={(projectOrView) => {
               if (typeof projectOrView === 'string') {
                 showView(projectOrView);
@@ -353,32 +400,38 @@ function App() {
             onStart={handleStartProject}
             onStop={handleStopProject}
             onRestart={handleRestartProject}
+            onDelete={handleDeleteProject}
             onNavigate={(project) => showView('project-detail', project)}
             onOpenModal={() => openModalHandler('project')}
             onConfirmDelete={(projectName) => {
-              // TODO: implement delete confirmation
-              showToast('error', `Delete ${projectName}?`);
+              const project = projects.find(p => p.name === projectName);
+              if (project) handleDeleteProject(project);
             }}
             onShowToast={showToast}
           />
         )}
 
         {/* Project Detail View */}
-        {currentView === 'project-detail' && selectedProject && (
-          <ProjectDetailView
-            project={selectedProject}
-            logs={MOCK_LOGS}
-            onBack={() => showView('projects')}
-            onStart={() => handleStartProject(selectedProject)}
-            onStop={() => handleStopProject(selectedProject)}
-            onRestart={() => handleRestartProject(selectedProject)}
-            onRemove={() => handleDeleteProject(selectedProject)}
-            onOpenInEditor={() => handleOpenInEditor(selectedProject)}
-            onOpenInFinder={() => handleOpenInFinder(selectedProject)}
-            onOpenBrowser={() => handleOpenBrowser(selectedProject)}
-            onInstallDeps={() => handleInstallDeps(selectedProject)}
-          />
-        )}
+        {currentView === 'project-detail' && selectedProject && (() => {
+          // Always use the latest project data from the projects array
+          // so status/log changes are reflected in real-time
+          const liveProject = projects.find(p => p.id === selectedProject.id) || selectedProject;
+          return (
+            <ProjectDetailView
+              project={liveProject}
+              logs={getLogs(liveProject.id)}
+              onBack={() => showView('projects')}
+              onStart={() => handleStartProject(liveProject)}
+              onStop={() => handleStopProject(liveProject)}
+              onRestart={() => handleRestartProject(liveProject)}
+              onRemove={() => handleDeleteProject(liveProject)}
+              onOpenInEditor={() => handleOpenInEditor(liveProject)}
+              onOpenInFinder={() => handleOpenInFinder(liveProject)}
+              onOpenBrowser={() => handleOpenBrowser(liveProject)}
+              onInstallDeps={() => handleInstallDeps(liveProject)}
+            />
+          );
+        })()}
 
         {/* Settings View */}
         {currentView === 'settings' && (
@@ -407,7 +460,7 @@ function App() {
       <ConfirmDialog
         isOpen={openModal === 'confirm'}
         title="Delete Project"
-        message={`Are you sure you want to remove "${confirmTarget}" from your projects? This will not delete the files.`}
+        message={`Are you sure you want to remove "${confirmTarget?.name || 'this project'}" from your projects? This will not delete the files.`}
         confirmLabel="Delete"
         confirmVariant="danger"
         onConfirm={confirmDelete}
@@ -451,13 +504,13 @@ function App() {
       {/* Tray Icon */}
       <TrayIcon
         onClick={toggleTray}
-        runningCount={projects.filter(p => p.status === 'running').length}
+        runningCount={projects.filter(p => p.status?.toLowerCase() === 'running').length}
       />
 
       {/* Tray Popup */}
       <TrayPopup
         isOpen={showTray}
-        projects={projects.filter(p => p.status === 'running').map(p => ({
+        projects={projects.filter(p => p.status?.toLowerCase() === 'running').map(p => ({
           name: p.name,
           type: p.type,
           port: p.port,

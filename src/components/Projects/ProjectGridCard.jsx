@@ -6,14 +6,39 @@ export default function ProjectGridCard({
   onToggleSelect,
   onShowDetail
 }) {
+  const [dropdownOpen, setDropdownOpen] = React.useState(false);
+
+  const toggleDropdown = (e) => {
+    e.stopPropagation();
+    setDropdownOpen(!dropdownOpen);
+  };
+
+  const closeDropdown = () => setDropdownOpen(false);
+
+  const handleAction = (action, e) => {
+    e?.stopPropagation();
+    closeDropdown();
+    action();
+  };
+  const status = (project.status || 'stopped').toLowerCase();
+
   const renderStatus = () => {
-    if (project.status === 'running') {
+    if (status === 'running') {
       return (
         <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-success/10 text-success">
-          ↑ {project.uptime}
+          ↑ {project.uptime || 'running'}
         </span>
       );
-    } else if (project.status === 'error') {
+    } else if (status === 'starting' || status === 'stopping') {
+      return (
+        <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded bg-warning/15 text-warning uppercase tracking-wide">
+          <svg width="10" height="10" className="animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+            <path d="M21 12a9 9 0 11-6.219-8.56" />
+          </svg>
+          {status === 'starting' ? 'Starting' : 'Stopping'}
+        </span>
+      );
+    } else if (status === 'error') {
       return (
         <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-danger/15 text-danger uppercase">
           Error
@@ -22,14 +47,14 @@ export default function ProjectGridCard({
     } else {
       return (
         <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-surface-3 text-ink-faint">
-          idle {project.idleTime}
+          idle {project.idleTime || ''}
         </span>
       );
     }
   };
 
   const renderSparkline = () => {
-    if (project.status === 'running' && project.sparklinePoints) {
+    if (status === 'running' && project.sparklinePoints) {
       return (
         <svg viewBox="0 0 100 24" className="w-full h-6 mt-2">
           <polyline
@@ -40,10 +65,16 @@ export default function ProjectGridCard({
           />
         </svg>
       );
-    } else if (project.status === 'error') {
+    } else if (status === 'starting' || status === 'stopping') {
+      return (
+        <p className="text-[11px] text-warning mt-2.5 font-mono animate-pulse">
+          {status === 'starting' ? 'Booting up…' : 'Stopping…'}
+        </p>
+      );
+    } else if (status === 'error') {
       return (
         <p className="text-[11px] text-danger mt-2.5 font-mono">
-          {project.errorMessage}
+          {project.errorMessage || 'Process crashed'}
         </p>
       );
     } else {
@@ -61,7 +92,7 @@ export default function ProjectGridCard({
   };
 
   const renderActionButton = () => {
-    if (project.status === 'running') {
+    if (status === 'running') {
       return (
         <button
           onClick={(e) => {
@@ -73,7 +104,19 @@ export default function ProjectGridCard({
           Stop
         </button>
       );
-    } else if (project.status === 'error') {
+    } else if (status === 'starting' || status === 'stopping') {
+      return (
+        <button
+          className="flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg bg-surface-3 text-warning text-xs font-medium cursor-wait"
+          disabled
+        >
+          <svg width="12" height="12" className="animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M21 12a9 9 0 11-6.219-8.56" />
+          </svg>
+          {status === 'starting' ? 'Booting' : 'Stopping'}
+        </button>
+      );
+    } else if (status === 'error') {
       return (
         <button
           onClick={(e) => {
@@ -137,14 +180,31 @@ export default function ProjectGridCard({
       <div className="flex items-center gap-2 mt-2 pt-3 border-t border-border pl-2">
         {renderActionButton()}
         <button
-          onClick={(e) => {
-            e.stopPropagation();
-            project.onShowMenu?.();
-          }}
-          className="w-7 h-7 flex items-center justify-center rounded-lg bg-surface-3 text-ink-faint hover:text-ink relative"
+          onClick={toggleDropdown}
+          className="w-7 h-7 flex items-center justify-center rounded-lg bg-surface-3 text-ink-faint hover:text-ink relative transition-colors"
         >
           ⋮
         </button>
+        {dropdownOpen && (
+          <div className="absolute right-4 bottom-14 w-44 bg-surface-2 border border-border rounded-lg shadow-card py-1 z-20">
+            <a href="#" onClick={(e) => { e.preventDefault(); closeDropdown(); }} className="flex items-center gap-2.5 px-3 py-2 text-xs text-ink-soft hover:text-ink hover:bg-surface-3 transition-colors">
+              Edit Project
+            </a>
+            <a href="#" onClick={(e) => { e.preventDefault(); closeDropdown(); }} className="flex items-center gap-2.5 px-3 py-2 text-xs text-ink-soft hover:text-ink hover:bg-surface-3 transition-colors">
+              Duplicate
+            </a>
+            <a href="#" onClick={(e) => { e.preventDefault(); closeDropdown(); }} className="flex items-center gap-2.5 px-3 py-2 text-xs text-ink-soft hover:text-ink hover:bg-surface-3 transition-colors">
+              Open in Explorer
+            </a>
+            <div className="h-px bg-border my-1"></div>
+            <button
+              onClick={(e) => handleAction(() => project.onDelete?.(), e)}
+              className="w-full flex items-center gap-2.5 px-3 py-2 text-xs text-danger hover:bg-danger/10 transition-colors text-left"
+            >
+              Remove Project
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

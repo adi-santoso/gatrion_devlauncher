@@ -18,7 +18,13 @@ export const useProjects = () => {
       const response = await ipc.getProjects();
 
       if (response.success) {
-        setProjects(response.projects || []);
+        // Reset all project statuses to 'stopped' on initial load
+        // Status is runtime state, not persisted data
+        const projectsWithResetStatus = (response.projects || []).map(project => ({
+          ...project,
+          status: 'stopped'
+        }));
+        setProjects(projectsWithResetStatus);
       } else {
         setError(response.error || 'Failed to load projects');
       }
@@ -36,7 +42,7 @@ export const useProjects = () => {
       const response = await ipc.addProject(projectData);
 
       if (response.success) {
-        setProjects(prev => [...prev, response.project]);
+        setProjects(prev => [...prev, { ...response.project, status: 'stopped' }]);
         return { success: true, project: response.project };
       } else {
         return { success: false, error: response.error || 'Failed to add project' };
@@ -47,23 +53,38 @@ export const useProjects = () => {
     }
   }, []);
 
-  // Update an existing project
+  // Update an existing project (persists to backend)
   const updateProject = useCallback(async (projectId, updates) => {
     try {
-      const response = await ipc.updateProject(projectId, updates);
+      // Don't persist runtime-only fields to backend
+      const { status, pid, uptime, errorMessage, ...persistableUpdates } = updates;
 
-      if (response.success) {
-        setProjects(prev => prev.map(p =>
-          p.id === projectId ? { ...p, ...updates } : p
-        ));
-        return { success: true, project: response.project };
-      } else {
-        return { success: false, error: response.error || 'Failed to update project' };
+      // Always update local state immediately
+      setProjects(prev => prev.map(p =>
+        p.id === projectId ? { ...p, ...updates } : p
+      ));
+
+      // Only call IPC if there are persistable fields to save
+      if (Object.keys(persistableUpdates).length > 0) {
+        const response = await ipc.updateProject(projectId, persistableUpdates);
+        if (!response.success) {
+          return { success: false, error: response.error || 'Failed to update project' };
+        }
       }
+
+      return { success: true };
     } catch (err) {
       console.error('Error updating project:', err);
       return { success: false, error: err.message };
     }
+  }, []);
+
+  // Update project locally only (for runtime state like status, pid, etc.)
+  // This does NOT persist to Electron storage — avoids IPC round-trip race conditions
+  const updateProjectLocal = useCallback((projectId, updates) => {
+    setProjects(prev => prev.map(p =>
+      p.id === projectId ? { ...p, ...updates } : p
+    ));
   }, []);
 
   // Delete a project
@@ -105,10 +126,31 @@ export const useProjects = () => {
     }
   }, []);
 
-  // Subscribe to projects updates
+  // Subscribe to projects updates from backend (CRUD changes only)
+  // Preserve runtime status when merging backend updates
   useEffect(() => {
     const cleanup = ipc.onProjectsUpdated((updatedProjects) => {
-      setProjects(updatedProjects);
+      setProjects(prev => {
+        // Build a map of current runtime statuses
+        const statusMap = {};
+        prev.forEach(p => {
+          statusMap[p.id] = {
+            status: p.status,
+            pid: p.pid,
+            uptime: p.uptime,
+            errorMessage: p.errorMessage
+          };
+        });
+
+        // Merge backend data with preserved runtime state
+        return updatedProjects.map(p => ({
+          ...p,
+          status: statusMap[p.id]?.status || 'stopped',
+          pid: statusMap[p.id]?.pid,
+          uptime: statusMap[p.id]?.uptime,
+          errorMessage: statusMap[p.id]?.errorMessage
+        }));
+      });
     });
 
     return cleanup;
@@ -125,6 +167,7 @@ export const useProjects = () => {
     error,
     addProject,
     updateProject,
+    updateProjectLocal,
     deleteProject,
     refreshProjects,
     browseFolder,

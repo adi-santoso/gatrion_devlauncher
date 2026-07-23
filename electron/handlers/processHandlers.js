@@ -3,9 +3,21 @@ const { ipcMain } = require('electron')
 /**
  * Setup process-related IPC handlers
  * @param {ProcessManager} processManager - ProcessManager instance
+ * @param {StorageManager} storageManager - StorageManager instance
  * @param {BrowserWindow} mainWindow - Main window instance
  */
-function setupProcessHandlers(processManager, mainWindow) {
+function setupProcessHandlers(processManager, storageManager, mainWindow) {
+  // Helper to safely send to renderer (skip if window is destroyed or app is quitting)
+  const safeSend = (channel, ...args) => {
+    try {
+      if (mainWindow && !mainWindow.isDestroyed() && mainWindow.webContents) {
+        mainWindow.webContents.send(channel, ...args)
+      }
+    } catch (error) {
+      // Silently ignore if window is destroyed during app quit
+      console.log(`[processHandlers] Skipping ${channel} - window unavailable`)
+    }
+  }
   // Start a project
   ipcMain.handle('start-project', async (event, projectId, projectPath, command, env = {}) => {
     try {
@@ -16,7 +28,7 @@ function setupProcessHandlers(processManager, mainWindow) {
         env,
         // onLog callback
         (projectId, logLine, type) => {
-          mainWindow.webContents.send('process-log', projectId, {
+          safeSend('process-log', projectId, {
             timestamp: new Date().toISOString(),
             type,
             message: logLine,
@@ -24,18 +36,18 @@ function setupProcessHandlers(processManager, mainWindow) {
         },
         // onExit callback
         (projectId, code, signal) => {
-          mainWindow.webContents.send('process-exit', projectId, code, signal)
-          mainWindow.webContents.send('process-status', projectId, processManager.getProcessStatus(projectId))
+          safeSend('process-exit', projectId, code, signal)
+          safeSend('process-status', projectId, processManager.getProcessStatus(projectId))
         },
         // onError callback
         (projectId, error) => {
-          mainWindow.webContents.send('process-error', projectId, error.message)
-          mainWindow.webContents.send('process-status', projectId, processManager.getProcessStatus(projectId))
+          safeSend('process-error', projectId, error.message)
+          safeSend('process-status', projectId, processManager.getProcessStatus(projectId))
         }
       )
 
       // Send initial status
-      mainWindow.webContents.send('process-status', projectId, processManager.getProcessStatus(projectId))
+      safeSend('process-status', projectId, processManager.getProcessStatus(projectId))
 
       return { success: true, ...result }
     } catch (error) {
@@ -46,8 +58,10 @@ function setupProcessHandlers(processManager, mainWindow) {
   // Stop a project
   ipcMain.handle('stop-project', async (event, projectId, force = false) => {
     try {
-      const result = await processManager.stopProcess(projectId, force)
-      mainWindow.webContents.send('process-status', projectId, processManager.getProcessStatus(projectId))
+      const stopPromise = processManager.stopProcess(projectId, force)
+      safeSend('process-status', projectId, processManager.getProcessStatus(projectId))
+      const result = await stopPromise
+      safeSend('process-status', projectId, processManager.getProcessStatus(projectId))
       return { success: true, ...result }
     } catch (error) {
       return { success: false, error: error.message }
@@ -63,23 +77,23 @@ function setupProcessHandlers(processManager, mainWindow) {
         command,
         env,
         (projectId, logLine, type) => {
-          mainWindow.webContents.send('process-log', projectId, {
+          safeSend('process-log', projectId, {
             timestamp: new Date().toISOString(),
             type,
             message: logLine,
           })
         },
         (projectId, code, signal) => {
-          mainWindow.webContents.send('process-exit', projectId, code, signal)
-          mainWindow.webContents.send('process-status', projectId, processManager.getProcessStatus(projectId))
+          safeSend('process-exit', projectId, code, signal)
+          safeSend('process-status', projectId, processManager.getProcessStatus(projectId))
         },
         (projectId, error) => {
-          mainWindow.webContents.send('process-error', projectId, error.message)
-          mainWindow.webContents.send('process-status', projectId, processManager.getProcessStatus(projectId))
+          safeSend('process-error', projectId, error.message)
+          safeSend('process-status', projectId, processManager.getProcessStatus(projectId))
         }
       )
 
-      mainWindow.webContents.send('process-status', projectId, processManager.getProcessStatus(projectId))
+      safeSend('process-status', projectId, processManager.getProcessStatus(projectId))
 
       return { success: true, ...result }
     } catch (error) {
@@ -103,33 +117,41 @@ function setupProcessHandlers(processManager, mainWindow) {
     return { success: true }
   })
 
-  // Start all projects (will be called from project handlers)
+  // Start all projects
   ipcMain.handle('start-all-projects', async (event, projects) => {
+    let projectList = projects
+    if ((!projectList || !Array.isArray(projectList)) && storageManager) {
+      projectList = await storageManager.loadProjects()
+    }
+    projectList = projectList || []
+
     const results = []
-    for (const project of projects) {
+    for (const project of projectList) {
       try {
+        const cmd = project.startCommand || project.command
+        if (!cmd) continue
         const result = processManager.startProcess(
           project.id,
           project.path,
-          project.command,
+          cmd,
           project.env || {},
           (projectId, logLine, type) => {
-            mainWindow.webContents.send('process-log', projectId, {
+            safeSend('process-log', projectId, {
               timestamp: new Date().toISOString(),
               type,
               message: logLine,
             })
           },
           (projectId, code, signal) => {
-            mainWindow.webContents.send('process-exit', projectId, code, signal)
-            mainWindow.webContents.send('process-status', projectId, processManager.getProcessStatus(projectId))
+            safeSend('process-exit', projectId, code, signal)
+            safeSend('process-status', projectId, processManager.getProcessStatus(projectId))
           },
           (projectId, error) => {
-            mainWindow.webContents.send('process-error', projectId, error.message)
-            mainWindow.webContents.send('process-status', projectId, processManager.getProcessStatus(projectId))
+            safeSend('process-error', projectId, error.message)
+            safeSend('process-status', projectId, processManager.getProcessStatus(projectId))
           }
         )
-        mainWindow.webContents.send('process-status', project.id, processManager.getProcessStatus(project.id))
+        safeSend('process-status', project.id, processManager.getProcessStatus(project.id))
         results.push({ projectId: project.id, success: true, ...result })
       } catch (error) {
         results.push({ projectId: project.id, success: false, error: error.message })

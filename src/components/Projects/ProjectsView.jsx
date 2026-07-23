@@ -9,6 +9,7 @@ export default function ProjectsView({
   onStart,
   onStop,
   onRestart,
+  onDelete,
   onNavigate,
   onOpenModal,
   onConfirmDelete,
@@ -76,6 +77,7 @@ export default function ProjectsView({
                 onStart: () => onStart(project),
                 onStop: () => onStop(project),
                 onRestart: () => onRestart(project),
+                onDelete: () => onDelete(project),
                 onShowMenu: () => onShowToast?.('info', 'Menu clicked')
               }}
               isSelected={selectedProjects.has(project.id)}

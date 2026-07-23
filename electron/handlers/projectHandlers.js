@@ -4,9 +4,21 @@ const { v4: uuidv4 } = require('uuid')
 /**
  * Setup project-related IPC handlers
  * @param {StorageManager} storageManager - StorageManager instance
+ * @param {ProcessManager} processManager - ProcessManager instance
  * @param {BrowserWindow} mainWindow - Main window instance
  */
-function setupProjectHandlers(storageManager, mainWindow) {
+function setupProjectHandlers(storageManager, processManager, mainWindow) {
+  // Helper to safely send to renderer (skip if window is destroyed or app is quitting)
+  const safeSend = (channel, ...args) => {
+    try {
+      if (mainWindow && !mainWindow.isDestroyed() && mainWindow.webContents) {
+        mainWindow.webContents.send(channel, ...args)
+      }
+    } catch (error) {
+      // Silently ignore if window is destroyed during app quit
+      console.log(`[projectHandlers] Skipping ${channel} - window unavailable`)
+    }
+  }
   // Get all projects
   ipcMain.handle('get-projects', async (event) => {
     try {
@@ -63,7 +75,7 @@ function setupProjectHandlers(storageManager, mainWindow) {
       await storageManager.saveProjects(projects)
 
       // Notify renderer of update
-      mainWindow.webContents.send('projects-updated', projects)
+      safeSend('projects-updated', projects)
 
       return { success: true, project: projectData }
     } catch (error) {
@@ -87,7 +99,7 @@ function setupProjectHandlers(storageManager, mainWindow) {
       await storageManager.saveProjects(projects)
 
       // Notify renderer of update
-      mainWindow.webContents.send('projects-updated', projects)
+      safeSend('projects-updated', projects)
 
       return { success: true, project: projects[index] }
     } catch (error) {
@@ -99,6 +111,16 @@ function setupProjectHandlers(storageManager, mainWindow) {
   // Delete a project
   ipcMain.handle('delete-project', async (event, projectId) => {
     try {
+      const processStatus = processManager.getProcessStatus(projectId)
+      if (processStatus.status === processManager.STATUS.RUNNING) {
+        await processManager.stopProcess(projectId)
+      } else if (
+        processStatus.status === processManager.STATUS.STARTING ||
+        processStatus.status === processManager.STATUS.STOPPING
+      ) {
+        throw new Error(`Cannot delete project while process is ${processStatus.status.toLowerCase()}`)
+      }
+
       const projects = await storageManager.loadProjects()
       const filtered = projects.filter((p) => p.id !== projectId)
 
@@ -109,7 +131,7 @@ function setupProjectHandlers(storageManager, mainWindow) {
       await storageManager.saveProjects(filtered)
 
       // Notify renderer of update
-      mainWindow.webContents.send('projects-updated', filtered)
+      safeSend('projects-updated', filtered)
 
       return { success: true }
     } catch (error) {
