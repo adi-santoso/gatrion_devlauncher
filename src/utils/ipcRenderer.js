@@ -15,8 +15,9 @@ const MOCK_PROJECTS = [
     path: 'C:/projects/storefront-web',
     status: 'stopped',
     port: 5173,
-    framework: 'React',
-    type: 'React (Vite)',
+    type: 'REACT_VITE',
+    startCommand: 'npm run dev',
+    envVars: [],
     emoji: '⚛️',
     color: '#61DAFB'
   },
@@ -26,8 +27,9 @@ const MOCK_PROJECTS = [
     path: 'C:/projects/payment-api',
     status: 'stopped',
     port: 3000,
-    framework: 'Express',
-    type: 'Node.js',
+    type: 'NODEJS',
+    startCommand: 'npm start',
+    envVars: [],
     emoji: '🟩',
     color: '#339933'
   }
@@ -38,12 +40,9 @@ const MOCK_CONFIG = {
   sidebarExpanded: true,
   startOnBoot: false,
   minimizeToTray: true,
-  notifyOnStart: false,
-  notifyOnCrash: true,
-  notificationSound: false,
-  terminalFontSize: 14,
-  terminalMaxLines: 1000,
-  terminalAutoScroll: true
+  autoStartProjects: false,
+  notifications: { onStart: true, onError: true, sound: false },
+  terminal: { fontSize: 14, maxLines: 1000, autoScroll: true }
 };
 
 // ==================== Project APIs ====================
@@ -93,9 +92,12 @@ export const detectProjectType = async (projectPath) => {
     console.warn('[IPC] Running in browser mode - mock detectProjectType called');
     return {
       success: true,
-      type: 'React',
-      framework: 'React (Vite)',
-      emoji: '⚛️'
+      type: 'REACT_VITE',
+      name: 'React (Vite)',
+      defaultCommand: 'npm run dev',
+      defaultPort: 5173,
+      icon: '⚛️',
+      color: '#61DAFB'
     };
   }
   return window.electron.detectProjectType(projectPath);
@@ -164,7 +166,15 @@ export const getConfig = async () => {
 export const updateConfig = async (updates) => {
   if (!isElectron()) {
     console.warn('[IPC] Running in browser mode - mock updateConfig called');
-    return { success: true, config: { ...MOCK_CONFIG, ...updates } };
+    return {
+      success: true,
+      config: {
+        ...MOCK_CONFIG,
+        ...updates,
+        notifications: { ...MOCK_CONFIG.notifications, ...(updates.notifications || {}) },
+        terminal: { ...MOCK_CONFIG.terminal, ...(updates.terminal || {}) }
+      }
+    };
   }
   return window.electron.updateConfig(updates);
 };

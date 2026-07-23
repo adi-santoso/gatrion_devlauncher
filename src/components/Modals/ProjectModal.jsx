@@ -11,7 +11,7 @@ const ProjectModal = ({ isOpen, onClose, onSave, project = null }) => {
   const [formData, setFormData] = useState({
     name: '',
     path: '',
-    type: '⚛️ React (Vite)',
+    type: 'REACT_VITE',
     port: '5173',
     startCommand: 'npm run dev',
     envVars: [{ key: 'NODE_ENV', value: 'development' }],
@@ -24,14 +24,15 @@ const ProjectModal = ({ isOpen, onClose, onSave, project = null }) => {
   const [isDetecting, setIsDetecting] = useState(false);
   const [detectedMetadata, setDetectedMetadata] = useState(null);
   const [errors, setErrors] = useState({});
+  const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
     if (project) {
       setFormData({
         name: project.name || '',
         path: project.path || '',
-        type: project.type || '⚛️ React (Vite)',
-        port: project.port || '5173',
+        type: project.type || 'REACT_VITE',
+        port: String(project.port || 5173),
         startCommand: project.startCommand || 'npm run dev',
         envVars: project.envVars || [{ key: 'NODE_ENV', value: 'development' }],
         autoStart: project.autoStart || false,
@@ -42,7 +43,7 @@ const ProjectModal = ({ isOpen, onClose, onSave, project = null }) => {
       setFormData({
         name: '',
         path: '',
-        type: '⚛️ React (Vite)',
+        type: 'REACT_VITE',
         port: '5173',
         startCommand: 'npm run dev',
         envVars: [{ key: 'NODE_ENV', value: 'development' }],
@@ -53,6 +54,8 @@ const ProjectModal = ({ isOpen, onClose, onSave, project = null }) => {
       setDetectedType(null);
       setDetectedMetadata(null);
     }
+    setErrors({});
+    setIsSaving(false);
   }, [project, isOpen]);
 
   const handleChange = (field, value) => {
@@ -70,13 +73,13 @@ const ProjectModal = ({ isOpen, onClose, onSave, project = null }) => {
     // Update emoji and color when type changes manually
     if (field === 'type') {
       const typeToMetadata = {
-        '⚛️ React (Vite)': { emoji: '⚛️', color: '#61DAFB' },
-        '⚡ Next.js': { emoji: '⚡', color: '#000000' },
-        '🟢 Vue.js': { emoji: '🟢', color: '#42B883' },
-        '🔴 Laravel': { emoji: '🔴', color: '#FF2D20' },
-        '🐹 Go': { emoji: '🐹', color: '#00ADD8' },
-        '🟩 Node.js': { emoji: '🟩', color: '#339933' },
-        '⚙️ Custom': { emoji: '⚙️', color: '#6B7280' },
+        REACT_VITE: { emoji: '⚛️', color: '#61DAFB' },
+        NEXTJS: { emoji: '⚡', color: '#000000' },
+        VUE: { emoji: '🟢', color: '#42B883' },
+        LARAVEL: { emoji: '🔴', color: '#FF2D20' },
+        GOLANG: { emoji: '🐹', color: '#00ADD8' },
+        NODEJS: { emoji: '🟩', color: '#339933' },
+        CUSTOM: { emoji: '⚙️', color: '#6B7280' },
       };
 
       const metadata = typeToMetadata[value];
@@ -92,9 +95,12 @@ const ProjectModal = ({ isOpen, onClose, onSave, project = null }) => {
   };
 
   const handleEnvVarChange = (index, field, value) => {
-    const newEnvVars = [...formData.envVars];
-    newEnvVars[index][field] = value;
-    setFormData((prev) => ({ ...prev, envVars: newEnvVars }));
+    setFormData((prev) => ({
+      ...prev,
+      envVars: prev.envVars.map((envVar, envIndex) =>
+        envIndex === index ? { ...envVar, [field]: value } : envVar
+      )
+    }));
   };
 
   const addEnvVar = () => {
@@ -140,13 +146,13 @@ const ProjectModal = ({ isOpen, onClose, onSave, project = null }) => {
 
           // Map detected type key to form type options (backend returns NEXTJS, REACT_VITE, etc.)
           const typeMap = {
-            'NEXTJS': '⚡ Next.js',
-            'REACT_VITE': '⚛️ React (Vite)',
-            'VUE': '🟢 Vue.js',
-            'LARAVEL': '🔴 Laravel',
-            'GOLANG': '🐹 Go',
-            'NODEJS': '🟩 Node.js',
-            'CUSTOM': '⚙️ Custom',
+            'NEXTJS': 'NEXTJS',
+            'REACT_VITE': 'REACT_VITE',
+            'VUE': 'VUE',
+            'LARAVEL': 'LARAVEL',
+            'GOLANG': 'GOLANG',
+            'NODEJS': 'NODEJS',
+            'CUSTOM': 'CUSTOM',
           };
 
           if (typeMap[detectionResult.type]) {
@@ -204,7 +210,7 @@ const ProjectModal = ({ isOpen, onClose, onSave, project = null }) => {
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     // Validate form first
     if (!validateForm()) {
       return;
@@ -212,8 +218,17 @@ const ProjectModal = ({ isOpen, onClose, onSave, project = null }) => {
 
     // Don't include runtime fields (status, uptime, idleTime)
     // Those are managed by process manager, not stored
-    onSave(formData);
-    onClose();
+    setIsSaving(true);
+    try {
+      const result = await onSave({ ...formData, port: Number(formData.port) });
+      if (!result?.success && result?.error) {
+        setErrors((prev) => ({ ...prev, form: result.error }));
+      }
+    } catch (error) {
+      setErrors((prev) => ({ ...prev, form: error.message || 'Failed to save project' }));
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   if (!isOpen) return null;
@@ -294,13 +309,13 @@ const ProjectModal = ({ isOpen, onClose, onSave, project = null }) => {
                   onChange={(e) => handleChange('type', e.target.value)}
                   className="w-full bg-surface-3 border border-border rounded-lg px-3 py-2 text-sm text-ink focus:outline-none focus:ring-2 focus:ring-accent/40"
                 >
-                  <option>⚛️ React (Vite)</option>
-                  <option>⚡ Next.js</option>
-                  <option>🟢 Vue.js</option>
-                  <option>🔴 Laravel</option>
-                  <option>🐹 Go</option>
-                  <option>🟩 Node.js</option>
-                  <option>⚙️ Custom</option>
+                  <option value="REACT_VITE">⚛️ React (Vite)</option>
+                  <option value="NEXTJS">⚡ Next.js</option>
+                  <option value="VUE">🟢 Vue.js</option>
+                  <option value="LARAVEL">🔴 Laravel</option>
+                  <option value="GOLANG">🐹 Go</option>
+                  <option value="NODEJS">🟩 Node.js</option>
+                  <option value="CUSTOM">⚙️ Custom</option>
                 </select>
               </div>
               <div>
@@ -398,6 +413,7 @@ const ProjectModal = ({ isOpen, onClose, onSave, project = null }) => {
             </div>
           </div>
           <div className="flex items-center justify-end gap-2 px-5 py-4 border-t border-border shrink-0">
+            {errors.form && <p className="mr-auto text-xs text-danger">{errors.form}</p>}
             <button
               onClick={onClose}
               className="px-3.5 py-2 rounded-lg text-ink-soft hover:text-ink hover:bg-surface-3 text-sm font-medium transition-colors"
@@ -406,9 +422,10 @@ const ProjectModal = ({ isOpen, onClose, onSave, project = null }) => {
             </button>
             <button
               onClick={handleSubmit}
-              className="px-3.5 py-2 rounded-lg bg-accent hover:bg-accent-hover text-white text-sm font-semibold shadow-glow transition-colors"
+              disabled={isSaving}
+              className="px-3.5 py-2 rounded-lg bg-accent hover:bg-accent-hover text-white text-sm font-semibold shadow-glow transition-colors disabled:opacity-50"
             >
-              Save Project
+              {isSaving ? 'Saving…' : 'Save Project'}
             </button>
           </div>
         </div>

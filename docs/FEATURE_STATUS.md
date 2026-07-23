@@ -18,10 +18,11 @@ Legend:
 | Project list/load | Done | JSON di Electron `userData` |
 | Add project | Done | Validation dasar + duplicate name/path |
 | Delete project | Done | Running process dihentikan dulu |
-| Edit project | Pending | Backend update ada, UI edit belum terhubung |
+| Edit project | Done | Modal yang sama dipakai untuk add/edit |
 | Framework detection | Done | Laravel, Next, React/Vite, Vue, Go, Node, Custom |
 | Storage backup/recovery | Done | 5 backup project, recovery JSON corrupt |
-| Config persistence | Partial | Berfungsi, tetapi schema backend/renderer ganda |
+| Concurrent storage mutation | Done | Queue project/config + transactional project updates |
+| Config persistence | Done | Schema nested canonical + migrasi key flat lama |
 
 ## Process
 
@@ -30,44 +31,44 @@ Legend:
 | Start project | Done | Path/command dikirim melalui IPC |
 | Stop project | Done | Status `Stopping`, process-tree kill, PID dibersihkan |
 | Restart project | Done | Stop + delay + start |
-| Start All | Partial | Membaca storage; env shape tidak sama dengan individual start |
+| Start All | Done | Membaca storage dan memakai canonical `envVars` |
 | Stop All | Done | Menunggu semua running process |
 | Cleanup saat app close | Done | `before-quit` stop all; dev script juga stop Vite |
 | Real-time stdout/stderr | Done | IPC event ke Project Detail |
 | Backend log limit | Done | Maksimal 1000 entry per process |
-| Frontend log limit | Pending | Array frontend dapat terus tumbuh |
+| Frontend log limit | Done | Buffer renderer dibatasi 1000 entry per project |
 | Crash/error status | Partial | Non-zero exit jadi error; UX crash banner masih belum event-driven penuh |
-| CPU/RAM metrics | Mock | Dashboard menampilkan placeholder |
-| Port conflict detection | Mock | Modal hard-coded, backend detector belum ada |
+| CPU/RAM metrics | Pending | Workspace jujur menandai backend monitoring belum tersedia |
+| Port conflict detection | Pending | Demo modal dilepas; backend detector belum ada |
 
 ## UI
 
 | Feature | Status | Catatan |
 |---|---|---|
-| Dashboard | Partial | Project/activity bekerja; chart/resource mock |
-| Project grid | Done | Start/stop/status/detail terhubung |
-| Project list mode | Done | Start/stop/status terhubung |
-| Project Detail | Partial | Lifecycle/log bekerja; settings save belum terhubung |
+| Workspace dashboard | Done | Status, running projects, latest output, activity, dan lifecycle memakai data nyata |
+| Projects registry | Done | Table, search, filter type/status, lifecycle, edit, delete, dan detail terhubung |
+| Terminals workspace | Partial | Output per project dan aggregate real-time; belum hydrate backend logs setelah reload |
+| Project Detail | Partial | Lifecycle, terminal, environment, dan settings terhubung; embedded App menunggu backend |
 | Stopping state | Done | Detail, dashboard card/table, grid/list |
 | PID cleanup | Done | Null setelah exit/stop |
-| Search/filter/sort | Pending | State ada, daftar belum diproses |
-| Bulk start/stop/delete | Mock | Handler masih `console.log`/placeholder |
+| Search/filter/sort | Partial | Search dan filter type/status bekerja; sort belum ada |
+| Bulk start/stop/delete | Pending | Dilepas dari UI sampai workflow individual stabil |
 | Command palette | Broken/Partial | Prop dan item shape tidak cocok dengan App wiring |
 | Keyboard shortcuts | Partial | Ctrl/Cmd+K, Escape, `?`; shortcut lain hanya didokumentasikan UI |
 | Toast | Partial | Bekerja, dua auto-dismiss timer berbeda |
 | Theme | Done | Dark/light disimpan dan diterapkan |
-| Settings | Partial | Nilai tersimpan; beberapa setting belum punya behavior native |
+| Settings | Partial | Theme, sidebar, terminal tersimpan otomatis; setting native yang belum bekerja disembunyikan |
 
 ## Desktop Integration
 
 | Feature | Status | Catatan |
 |---|---|---|
 | Browse folder | Done | Electron dialog |
-| Open localhost URL | Mock | Saat ini hanya toast |
-| Open editor | Mock | Saat ini hanya toast |
-| Reveal in Explorer | Mock | Saat ini hanya toast |
-| Install dependencies | Mock | Timer toast, tidak menjalankan command |
-| Native system tray | Pending | TrayIcon/TrayPopup hanya overlay renderer dan wiring belum cocok |
+| Embedded localhost app | Pending | Tab App menampilkan URL inferred dan status backend belum tersedia |
+| Open editor | Pending | Aksi demo dilepas sampai IPC tersedia |
+| Reveal in Explorer | Pending | Aksi demo dilepas sampai IPC tersedia |
+| Install dependencies | Pending | Aksi demo dilepas sampai runner tersedia |
+| Native system tray | Pending | Overlay renderer demo dilepas; Electron Tray belum ada |
 | Minimize to tray | Pending | Config ada, behavior tidak ada |
 | Start on OS boot | Pending | Config ada, `setLoginItemSettings` belum digunakan |
 | Native notifications | Pending | Config/UI ada, Electron Notification belum digunakan |
@@ -78,7 +79,7 @@ Legend:
 |---|---|---|
 | ProcessManager regression test | Done | `npm test` |
 | Renderer production build | Done | `npx vite build` |
-| Unit test storage/detector/hooks | Pending | Belum ada |
+| Unit test storage/detector/hooks | Partial | Storage ada; detector/hooks belum ada |
 | Electron integration/smoke automation | Pending | Hanya manual helper lama/non-runner |
 | Lint command | Pending | Config lama ada, dependency/script lint tidak siap |
 | Type checking | Pending | JavaScript tanpa TypeScript/JSDoc check |
@@ -94,8 +95,6 @@ Legend:
 - `TrayPopup` mengharapkan `runningProjects`, App mengirim `projects`.
 - Tray item mengharapkan `id`, mapping App saat ini tidak menyertakannya.
 - `PortConflictModal` mengharapkan `onClose/onResolve`, App mengirim callback dengan nama lain.
-- `SettingsView` membuat instance config hook sendiri, terpisah dari App.
-- `ProjectDetailView` mendukung `onSave`, App tidak memasoknya.
 - `clearLogs` hanya membersihkan state frontend; handler backend tidak terpanggil.
 
 ## Manual Smoke Checklist

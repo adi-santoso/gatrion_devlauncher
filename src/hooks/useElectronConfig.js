@@ -11,12 +11,9 @@ export const useElectronConfig = () => {
     sidebarExpanded: true,
     startOnBoot: false,
     minimizeToTray: true,
-    notifyOnStart: false,
-    notifyOnCrash: true,
-    notificationSound: false,
-    terminalFontSize: 14,
-    terminalMaxLines: 1000,
-    terminalAutoScroll: true
+    autoStartProjects: false,
+    notifications: { onStart: true, onError: true, sound: false },
+    terminal: { fontSize: 14, maxLines: 1000, autoScroll: true }
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -47,7 +44,7 @@ export const useElectronConfig = () => {
       const response = await ipc.updateConfig(updates);
 
       if (response.success) {
-        setConfig(prev => ({ ...prev, ...updates }));
+        setConfig(response.config);
 
         // Apply theme changes to DOM
         if (updates.theme) {

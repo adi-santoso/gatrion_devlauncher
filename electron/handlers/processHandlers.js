@@ -1,4 +1,5 @@
 const { ipcMain } = require('electron')
+const { envVarsToObject } = require('../projectSchema')
 
 /**
  * Setup process-related IPC handlers
@@ -128,13 +129,16 @@ function setupProcessHandlers(processManager, storageManager, mainWindow) {
     const results = []
     for (const project of projectList) {
       try {
-        const cmd = project.startCommand || project.command
-        if (!cmd) continue
+        const cmd = project.startCommand
+        if (!cmd) {
+          results.push({ projectId: project.id, success: false, error: 'Start command is missing' })
+          continue
+        }
         const result = processManager.startProcess(
           project.id,
           project.path,
           cmd,
-          project.env || {},
+          envVarsToObject(project.envVars),
           (projectId, logLine, type) => {
             safeSend('process-log', projectId, {
               timestamp: new Date().toISOString(),

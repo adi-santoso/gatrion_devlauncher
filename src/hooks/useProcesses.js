@@ -309,7 +309,7 @@ export const useProcesses = (projects = [], onProjectUpdate) => {
         const logs = prev[projectId] || [];
         return {
           ...prev,
-          [projectId]: [...logs, logLine]
+          [projectId]: [...logs, logLine].slice(-1000)
         };
       });
     });
@@ -365,6 +365,7 @@ export const useProcesses = (projects = [], onProjectUpdate) => {
 
   return {
     processStatuses,
+    processLogs,
     startProject,
     stopProject,
     restartProject,

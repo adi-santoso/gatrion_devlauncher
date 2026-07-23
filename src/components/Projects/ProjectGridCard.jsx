@@ -187,7 +187,7 @@ export default function ProjectGridCard({
         </button>
         {dropdownOpen && (
           <div className="absolute right-4 bottom-14 w-44 bg-surface-2 border border-border rounded-lg shadow-card py-1 z-20">
-            <a href="#" onClick={(e) => { e.preventDefault(); closeDropdown(); }} className="flex items-center gap-2.5 px-3 py-2 text-xs text-ink-soft hover:text-ink hover:bg-surface-3 transition-colors">
+            <a href="#" onClick={(e) => { e.preventDefault(); handleAction(() => project.onEdit?.(), e); }} className="flex items-center gap-2.5 px-3 py-2 text-xs text-ink-soft hover:text-ink hover:bg-surface-3 transition-colors">
               Edit Project
             </a>
             <a href="#" onClick={(e) => { e.preventDefault(); closeDropdown(); }} className="flex items-center gap-2.5 px-3 py-2 text-xs text-ink-soft hover:text-ink hover:bg-surface-3 transition-colors">

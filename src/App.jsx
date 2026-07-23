@@ -5,36 +5,16 @@ import { ProjectsView } from './components/Projects';
 import { ProjectDetailView } from './components/ProjectDetail';
 import { SettingsView } from './components/Settings';
 import { EmptyState, LoadingSkeleton } from './components/States';
+import TerminalWorkspace from './components/TerminalWorkspace';
 import {
   ProjectModal,
   ConfirmDialog,
   CommandPalette,
   ShortcutsModal,
-  PortConflictModal,
   ToastContainer
 } from './components/Modals';
-import { TrayIcon, TrayPopup, DemoPanel } from './components/Demo';
 import { useProjects, useProcesses, useElectronConfig } from './hooks';
 import { isElectronAvailable } from './utils/ipcRenderer';
-
-// Mock data for activities and logs (will be replaced with real data later)
-const MOCK_ACTIVITIES = [
-  { type: 'success', project: 'gateway-service', message: 'started', time: '2 min ago · port 8080' },
-  { type: 'danger', project: 'admin-dashboard', message: 'crashed', time: '14 min ago · exit code 1' },
-  { type: 'faint', project: 'payment-api', message: 'stopped', time: '32 min ago' },
-  { type: 'accent', project: 'storefront-web', message: 'added', time: '1 hour ago · Next.js' }
-];
-
-const MOCK_LOGS = [
-  { id: 1, type: 'info', message: 'Server starting on port 3000...', timestamp: '14:23:01' },
-  { id: 2, type: 'success', message: 'Webpack compiled successfully in 1.2s', timestamp: '14:23:03' },
-  { id: 3, type: 'info', message: 'Hot Module Replacement enabled', timestamp: '14:23:03' },
-  { id: 4, type: 'warning', message: 'Deprecated API usage in @legacy/utils', timestamp: '14:23:05' },
-  { id: 5, type: 'info', message: 'GET /api/users 200 45ms', timestamp: '14:23:12' },
-  { id: 6, type: 'info', message: 'POST /api/auth/login 200 123ms', timestamp: '14:23:18' },
-  { id: 7, type: 'error', message: 'Failed to fetch: TypeError: Cannot read property "data"', timestamp: '14:23:25' },
-  { id: 8, type: 'info', message: 'WebSocket connected', timestamp: '14:23:30' }
-];
 
 function App() {
   // Initialize hooks
@@ -46,19 +26,14 @@ function App() {
   const [selectedProject, setSelectedProject] = useState(null);
 
   // UI state
-  const [showUpdateBanner, setShowUpdateBanner] = useState(true);
+  const [showUpdateBanner, setShowUpdateBanner] = useState(false);
   const [openModal, setOpenModal] = useState(null);
   const [toasts, setToasts] = useState([]);
   const [confirmTarget, setConfirmTarget] = useState(null);
-  const [showTray, setShowTray] = useState(false);
-
-  // Debug: Log toasts changes
-  useEffect(() => {
-    console.log('[Toast] Current toasts:', toasts);
-  }, [toasts]);
+  const [editingProject, setEditingProject] = useState(null);
 
   // Activities state
-  const [activities, setActivities] = useState(MOCK_ACTIVITIES);
+  const [activities, setActivities] = useState([]);
 
   const addActivity = (type, project, message, detail = '') => {
     setActivities(prev => [
@@ -85,7 +60,8 @@ function App() {
     startAll,
     stopAll,
     getLogs,
-    clearLogs
+    clearLogs,
+    processLogs
   } = useProcesses(projects, handleProjectUpdate);
 
   // Check Electron availability on mount
@@ -140,6 +116,9 @@ function App() {
   // Modal handlers
   const openModalHandler = (modalName, data = null) => {
     setOpenModal(modalName);
+    if (modalName === 'project') {
+      setEditingProject(data);
+    }
     if (modalName === 'confirm' && data) {
       setConfirmTarget(data);
     }
@@ -148,6 +127,7 @@ function App() {
   const closeModalHandler = () => {
     setOpenModal(null);
     setConfirmTarget(null);
+    setEditingProject(null);
   };
 
   // Toast notifications
@@ -246,38 +226,21 @@ function App() {
     }
   };
 
-  const handleOpenInEditor = (project) => {
-    showToast('info', `Opening ${project.name} in VS Code...`);
-  };
-
-  const handleOpenInFinder = (project) => {
-    showToast('info', `Revealing ${project.name} in Finder...`);
-  };
-
-  const handleOpenBrowser = (project) => {
-    if (project.port) {
-      showToast('info', `Opening http://localhost:${project.port}`);
-    }
-  };
-
-  const handleInstallDeps = (project) => {
-    showToast('info', `Installing dependencies for ${project.name}...`);
-    setTimeout(() => {
-      showToast('success', `Dependencies installed for ${project.name}`);
-    }, 2000);
-  };
-
   const handleCreateProject = async (projectData) => {
-    console.log('[App] Creating project:', projectData);
-    const result = await addProjectToStore(projectData);
-    console.log('[App] Add project result:', result);
+    const result = editingProject
+      ? await updateProjectInStore(editingProject.id, projectData)
+      : await addProjectToStore(projectData);
 
     if (result.success) {
-      showToast('success', `Project ${projectData.name} created successfully`);
-      addActivity('accent', projectData.name, 'added', projectData.type || '');
+      const action = editingProject ? 'updated' : 'created';
+      showToast('success', `Project ${projectData.name} ${action} successfully`);
+      addActivity('accent', projectData.name, action, projectData.type || '');
       closeModalHandler();
+      return { success: true };
     } else {
-      showToast('error', result.error || 'Failed to create project');
+      const error = result.error || `Failed to ${editingProject ? 'update' : 'create'} project`;
+      showToast('error', error);
+      return { success: false, error };
     }
   };
 
@@ -289,21 +252,6 @@ function App() {
     } else {
       showToast('error', result.error || 'Failed to update theme');
     }
-  };
-
-  // Settings handlers
-  const handleSettingsChange = (newSettings) => {
-    // Update local state immediately for responsive UI
-    // The hook will sync to Electron
-  };
-
-  const handleSaveSettings = async () => {
-    showToast('success', 'Settings saved');
-  };
-
-  // Tray handler
-  const toggleTray = () => {
-    setShowTray(prev => !prev);
   };
 
   // Command palette actions
@@ -363,6 +311,9 @@ function App() {
             onOpenModal={openModalHandler}
             onStartAll={handleStartAll}
             onStopAll={handleStopAll}
+            projects={projects}
+            sidebarExpanded={config.sidebarExpanded}
+            onProjectSelect={(project) => showView('project-detail', project)}
             runningProjects={projects
               .filter(p => p.status?.toLowerCase() === 'running')
               .map(p => ({
@@ -377,10 +328,14 @@ function App() {
           <DashboardView
             projects={projects}
             activities={activities}
+            recentActivity={activities}
+            latestOutputProject={projects.find((project) => getLogs(project.id).length)?.name}
+            latestOutput={getLogs(projects.find((project) => getLogs(project.id).length)?.id)}
             onStart={handleStartProject}
             onStop={handleStopProject}
             onRestart={handleRestartProject}
             onDelete={handleDeleteProject}
+            onEdit={(project) => openModalHandler('project', project)}
             onNavigate={(projectOrView) => {
               if (typeof projectOrView === 'string') {
                 showView(projectOrView);
@@ -390,7 +345,13 @@ function App() {
             }}
             onShowToast={showToast}
             onOpenModal={openModalHandler}
+            onStartAll={handleStartAll}
+            onStopAll={handleStopAll}
           />
+        )}
+
+        {currentView === 'terminals' && (
+          <TerminalWorkspace projects={projects} getLogs={getLogs} processLogs={processLogs} onClearLogs={clearLogs} />
         )}
 
         {/* Projects View */}
@@ -401,6 +362,7 @@ function App() {
             onStop={handleStopProject}
             onRestart={handleRestartProject}
             onDelete={handleDeleteProject}
+            onEdit={(project) => openModalHandler('project', project)}
             onNavigate={(project) => showView('project-detail', project)}
             onOpenModal={() => openModalHandler('project')}
             onConfirmDelete={(projectName) => {
@@ -425,17 +387,15 @@ function App() {
               onStop={() => handleStopProject(liveProject)}
               onRestart={() => handleRestartProject(liveProject)}
               onRemove={() => handleDeleteProject(liveProject)}
-              onOpenInEditor={() => handleOpenInEditor(liveProject)}
-              onOpenInFinder={() => handleOpenInFinder(liveProject)}
-              onOpenBrowser={() => handleOpenBrowser(liveProject)}
-              onInstallDeps={() => handleInstallDeps(liveProject)}
+              onEdit={() => openModalHandler('project', liveProject)}
+              onClearLogs={() => clearLogs(liveProject.id)}
             />
           );
         })()}
 
         {/* Settings View */}
         {currentView === 'settings' && (
-          <SettingsView onSave={handleSaveSettings} />
+          <SettingsView config={config} updateConfig={updateElectronConfig} />
         )}
 
         {/* Empty State */}
@@ -454,6 +414,7 @@ function App() {
         isOpen={openModal === 'project'}
         onClose={closeModalHandler}
         onSave={handleCreateProject}
+        project={editingProject}
       />
 
       {/* Confirm Dialog */}
@@ -481,63 +442,8 @@ function App() {
         onClose={closeModalHandler}
       />
 
-      {/* Port Conflict Modal */}
-      <PortConflictModal
-        isOpen={openModal === 'portConflict'}
-        port={3000}
-        projectName="storefront-web"
-        conflictingProcess="node (PID 1234)"
-        onKillAndRestart={() => {
-          showToast('success', 'Process killed and project restarted');
-          closeModalHandler();
-        }}
-        onChangePort={() => {
-          showToast('info', 'Port changed to 3001');
-          closeModalHandler();
-        }}
-        onCancel={closeModalHandler}
-      />
-
       {/* Toast Container */}
       <ToastContainer toasts={toasts} onDismiss={dismissToast} />
-
-      {/* Tray Icon */}
-      <TrayIcon
-        onClick={toggleTray}
-        runningCount={projects.filter(p => p.status?.toLowerCase() === 'running').length}
-      />
-
-      {/* Tray Popup */}
-      <TrayPopup
-        isOpen={showTray}
-        projects={projects.filter(p => p.status?.toLowerCase() === 'running').map(p => ({
-          name: p.name,
-          type: p.type,
-          port: p.port,
-          color: p.color
-        }))}
-        onClose={() => setShowTray(false)}
-        onOpenProject={(projectName) => {
-          const project = projects.find(p => p.name === projectName);
-          if (project) {
-            showView('project-detail', project);
-            setShowTray(false);
-          }
-        }}
-        onStopProject={(projectName) => {
-          const project = projects.find(p => p.name === projectName);
-          if (project) handleStopProject(project);
-        }}
-      />
-
-      {/* Demo Panel */}
-      <DemoPanel
-        onNavigate={showView}
-        onOpenModal={openModalHandler}
-        onShowToast={showToast}
-        currentView={currentView}
-        currentTheme={config.theme}
-      />
     </>
       )}
     </>

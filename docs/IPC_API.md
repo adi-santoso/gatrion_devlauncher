@@ -47,7 +47,7 @@ Channel: `update-project`
 { success: false, error: '...' }
 ```
 
-Update memakai shallow merge tanpa schema validation. Renderer aktif membuang `status`, `pid`, `uptime`, dan `errorMessage` sebelum persist.
+Update hanya menerima field persisted yang di-allowlist. ID dan runtime field tidak dapat diubah. Full project hasil merge divalidasi sebelum disimpan.
 
 ### `deleteProject(projectId)`
 

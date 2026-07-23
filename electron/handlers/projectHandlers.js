@@ -1,5 +1,6 @@
 const { ipcMain, dialog } = require('electron')
 const { v4: uuidv4 } = require('uuid')
+const { normalizeProject, sanitizeProjectChanges, validateProject } = require('../projectSchema')
 
 /**
  * Setup project-related IPC handlers
@@ -32,52 +33,28 @@ function setupProjectHandlers(storageManager, processManager, mainWindow) {
   // Add a project
   ipcMain.handle('add-project', async (event, projectData) => {
     try {
-      // Validate required fields
-      if (!projectData.name || !projectData.name.trim()) {
-        throw new Error('Project name is required')
-      }
-      if (!projectData.path || !projectData.path.trim()) {
-        throw new Error('Project path is required')
-      }
-      if (!projectData.port) {
-        throw new Error('Port is required')
-      }
-      if (!projectData.startCommand || !projectData.startCommand.trim()) {
-        throw new Error('Start command is required')
-      }
+      const changes = sanitizeProjectChanges(projectData)
+      const project = validateProject(normalizeProject({
+        ...changes,
+        id: uuidv4(),
+        createdAt: new Date().toISOString(),
+        lastRun: null,
+      }))
 
-      // Load existing projects
-      const projects = await storageManager.loadProjects()
+      const { projects } = await storageManager.updateProjects((currentProjects) => {
+        const duplicateName = currentProjects.find(p => p.name.toLowerCase() === project.name.toLowerCase())
+        if (duplicateName) throw new Error(`Project with name "${project.name}" already exists`)
 
-      // Check for duplicate name
-      const duplicateName = projects.find(p => p.name.toLowerCase() === projectData.name.toLowerCase())
-      if (duplicateName) {
-        throw new Error(`Project with name "${projectData.name}" already exists`)
-      }
+        const duplicatePath = currentProjects.find(p => p.path.toLowerCase() === project.path.toLowerCase())
+        if (duplicatePath) throw new Error(`Project at path "${project.path}" already exists`)
 
-      // Check for duplicate path
-      const duplicatePath = projects.find(p => p.path === projectData.path)
-      if (duplicatePath) {
-        throw new Error(`Project at path "${projectData.path}" already exists`)
-      }
-
-      // Generate ID if not provided
-      if (!projectData.id) {
-        projectData.id = uuidv4()
-      }
-
-      // Add timestamps
-      projectData.createdAt = new Date().toISOString()
-      projectData.lastRun = null
-
-      // Save to storage
-      projects.push(projectData)
-      await storageManager.saveProjects(projects)
+        return { projects: [...currentProjects, project] }
+      })
 
       // Notify renderer of update
       safeSend('projects-updated', projects)
 
-      return { success: true, project: projectData }
+      return { success: true, project }
     } catch (error) {
       console.error('[projectHandlers] Error adding project:', error)
       return { success: false, error: error.message }
@@ -87,21 +64,31 @@ function setupProjectHandlers(storageManager, processManager, mainWindow) {
   // Update a project
   ipcMain.handle('update-project', async (event, projectId, updates) => {
     try {
-      const projects = await storageManager.loadProjects()
-      const index = projects.findIndex((p) => p.id === projectId)
+      const changes = sanitizeProjectChanges(updates)
+      const { projects, value: project } = await storageManager.updateProjects((currentProjects) => {
+        const index = currentProjects.findIndex((item) => item.id === projectId)
+        if (index === -1) throw new Error(`Project ${projectId} not found`)
 
-      if (index === -1) {
-        throw new Error(`Project ${projectId} not found`)
-      }
+        const nextProject = validateProject(normalizeProject({ ...currentProjects[index], ...changes }))
+        const duplicateName = currentProjects.find((item, itemIndex) =>
+          itemIndex !== index && item.name.toLowerCase() === nextProject.name.toLowerCase()
+        )
+        if (duplicateName) throw new Error(`Project with name "${nextProject.name}" already exists`)
 
-      // Update project
-      projects[index] = { ...projects[index], ...updates }
-      await storageManager.saveProjects(projects)
+        const duplicatePath = currentProjects.find((item, itemIndex) =>
+          itemIndex !== index && item.path.toLowerCase() === nextProject.path.toLowerCase()
+        )
+        if (duplicatePath) throw new Error(`Project at path "${nextProject.path}" already exists`)
+
+        const nextProjects = [...currentProjects]
+        nextProjects[index] = nextProject
+        return { projects: nextProjects, value: nextProject }
+      })
 
       // Notify renderer of update
       safeSend('projects-updated', projects)
 
-      return { success: true, project: projects[index] }
+      return { success: true, project }
     } catch (error) {
       console.error('[projectHandlers] Error updating project:', error)
       return { success: false, error: error.message }
@@ -121,17 +108,14 @@ function setupProjectHandlers(storageManager, processManager, mainWindow) {
         throw new Error(`Cannot delete project while process is ${processStatus.status.toLowerCase()}`)
       }
 
-      const projects = await storageManager.loadProjects()
-      const filtered = projects.filter((p) => p.id !== projectId)
-
-      if (filtered.length === projects.length) {
-        throw new Error(`Project ${projectId} not found`)
-      }
-
-      await storageManager.saveProjects(filtered)
+      const { projects } = await storageManager.updateProjects((currentProjects) => {
+        const filtered = currentProjects.filter((project) => project.id !== projectId)
+        if (filtered.length === currentProjects.length) throw new Error(`Project ${projectId} not found`)
+        return { projects: filtered }
+      })
 
       // Notify renderer of update
-      safeSend('projects-updated', filtered)
+      safeSend('projects-updated', projects)
 
       return { success: true }
     } catch (error) {

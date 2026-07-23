@@ -11,7 +11,7 @@
     "dev:electron": "cross-env NODE_ENV=development electron .",
     "build": "vite build && electron-builder",
     "build:win": "vite build && electron-builder --win --x64",
-    "test": "node test-process-manager.js",
+    "test": "node test-process-manager.js && node test-schema.js && node test-storage-manager.js",
     "preview": "vite preview"
   },
   "keywords": [

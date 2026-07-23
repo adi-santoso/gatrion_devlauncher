@@ -48,12 +48,12 @@ Acceptance criteria:
 - [x] Folder picker.
 - [x] Framework detection.
 - [x] Atomic write, lima backup, recovery project JSON.
-- [ ] Hubungkan UI edit project ke `updateProject`.
+- [x] Hubungkan UI edit project ke `updateProject`.
 - [ ] Validasi port integer `1..65535` di renderer dan backend.
 - [ ] Validasi path directory sebelum add dan sebelum start.
 - [ ] Normalisasi/canonicalize path sebelum duplicate check.
-- [ ] Definisikan schema project tunggal dan migrasi data lama (`command/env/icon` ke `startCommand/envVars/emoji`).
-- [ ] Serialisasi storage writes untuk mencegah lost update/race `.tmp`.
+- [x] Definisikan schema project tunggal dan migrasi data lama (`command/env/icon` ke `startCommand/envVars/emoji`).
+- [x] Serialisasi storage writes untuk mencegah lost update/race temp file.
 - [ ] Tambahkan recovery/config backup atau failure UX yang jelas.
 
 Acceptance criteria:
@@ -75,7 +75,7 @@ Acceptance criteria:
 - [x] Real-time stdout/stderr.
 - [x] Backend log buffer 1000 entry.
 - [x] Regression test dasar ProcessManager.
-- [ ] Satukan env model individual dan Start All.
+- [x] Satukan env model individual dan Start All.
 - [ ] Tampilkan partial result Start All secara rinci.
 - [ ] Batasi frontend log buffer menurut config.
 - [ ] Hubungkan clear log frontend dan backend.
@@ -179,9 +179,9 @@ Acceptance criteria:
 
 **Status: Pending, release blocker**
 
-- [ ] Pilih nested atau flat config schema tunggal.
-- [ ] Migrasikan key lama tanpa kehilangan preference.
-- [ ] Satu config provider/source of truth di renderer.
+- [x] Pilih nested config schema tunggal.
+- [x] Migrasikan key lama tanpa kehilangan preference.
+- [x] Satu config source of truth di renderer aktif.
 - [ ] Terapkan terminal font size, max lines, dan auto-scroll ke viewer nyata.
 - [ ] Terapkan sidebar default.
 - [ ] Versioning untuk `projects.json` dan `config.json`.
@@ -198,7 +198,7 @@ Acceptance criteria:
 **Status: Pending, release blocker**
 
 - [ ] Unit test ProjectDetector dan StorageManager.
-- [ ] Test project CRUD handler dengan temp data.
+- [ ] Test project CRUD handler dengan temp data. Storage transaction/recovery sudah diuji.
 - [ ] Test process lifecycle termasuk timeout, signal, duplicate start, Start All partial failure.
 - [ ] Renderer component/hook tests untuk status transitions.
 - [ ] Automated Electron smoke test.

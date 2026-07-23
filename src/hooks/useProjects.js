@@ -59,17 +59,19 @@ export const useProjects = () => {
       // Don't persist runtime-only fields to backend
       const { status, pid, uptime, errorMessage, ...persistableUpdates } = updates;
 
-      // Always update local state immediately
-      setProjects(prev => prev.map(p =>
-        p.id === projectId ? { ...p, ...updates } : p
-      ));
-
       // Only call IPC if there are persistable fields to save
       if (Object.keys(persistableUpdates).length > 0) {
         const response = await ipc.updateProject(projectId, persistableUpdates);
         if (!response.success) {
           return { success: false, error: response.error || 'Failed to update project' };
         }
+        setProjects(prev => prev.map(p =>
+          p.id === projectId ? { ...p, ...response.project } : p
+        ));
+      } else {
+        setProjects(prev => prev.map(p =>
+          p.id === projectId ? { ...p, ...updates } : p
+        ));
       }
 
       return { success: true };

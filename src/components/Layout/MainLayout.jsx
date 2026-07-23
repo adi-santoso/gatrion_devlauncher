@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import UpdateBanner from './UpdateBanner';
-import TitleBar from './TitleBar';
 import Sidebar from './Sidebar';
 import TopBar from './TopBar';
 
@@ -15,9 +14,12 @@ const MainLayout = ({
   onOpenModal,
   onStartAll,
   onStopAll,
-  runningProjects = []
+  projects = [],
+  runningProjects = [],
+  onProjectSelect,
+  sidebarExpanded = true
 }) => {
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(!sidebarExpanded);
 
   const handleToggleCollapse = () => {
     setSidebarCollapsed(!sidebarCollapsed);
@@ -31,15 +33,12 @@ const MainLayout = ({
     onOpenModal?.('project');
   };
 
-  const handleSettings = () => {
-    onViewChange?.('settings');
-  };
-
-  // Get title based on active view
   const getTitle = () => {
     switch (currentView) {
       case 'dashboard':
-        return 'Dashboard';
+        return 'Workspace';
+      case 'terminals':
+        return 'Terminals';
       case 'projects':
         return 'Projects';
       case 'settings':
@@ -47,7 +46,7 @@ const MainLayout = ({
       case 'project-detail':
         return 'Project Detail';
       default:
-        return 'Dashboard';
+        return 'Workspace';
     }
   };
 
@@ -61,15 +60,16 @@ const MainLayout = ({
         />
       )}
 
-      <TitleBar version="v1.0.0" />
-
       <div className="flex flex-1 overflow-hidden">
         <Sidebar
           collapsed={sidebarCollapsed}
           onToggleCollapse={handleToggleCollapse}
           activeView={currentView}
           onViewChange={onViewChange}
+          projects={projects}
           runningProjects={runningProjects}
+          onProjectSelect={onProjectSelect || ((project) => onViewChange?.('project-detail', project))}
+          onAddProject={handleAddProject}
         />
 
         <div className="flex-1 flex flex-col min-w-0">
@@ -77,13 +77,9 @@ const MainLayout = ({
             title={getTitle()}
             subtitle="DevLauncher"
             onCommandPalette={handleCommandPalette}
-            onAddProject={handleAddProject}
-            onSettings={handleSettings}
-            onStartAll={onStartAll}
-            onStopAll={onStopAll}
           />
 
-          <main className="flex-1 overflow-y-auto px-6 py-6">
+          <main className={`flex-1 overflow-y-auto bg-[radial-gradient(circle_at_80%_-20%,rgba(124,109,242,0.08),transparent_36%)] ${currentView === 'project-detail' ? 'px-4 py-5 sm:px-6' : 'px-4 py-5 sm:px-7 sm:py-7'}`}>
             {children}
           </main>
         </div>

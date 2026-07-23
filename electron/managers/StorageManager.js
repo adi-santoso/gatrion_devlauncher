@@ -1,34 +1,24 @@
 const fs = require('fs').promises
 const path = require('path')
 const { app } = require('electron')
+const { v4: uuidv4 } = require('uuid')
+const { DEFAULT_CONFIG, applyConfigUpdates, normalizeConfig } = require('../configSchema')
+const { normalizeProject, validateProject } = require('../projectSchema')
 
 class StorageManager {
-  constructor() {
+  constructor(appDataPath = app.getPath('userData')) {
     // Get app data directory
-    this.appDataPath = app.getPath('userData')
+    this.appDataPath = appDataPath
     this.projectsFilePath = path.join(this.appDataPath, 'projects.json')
     this.configFilePath = path.join(this.appDataPath, 'config.json')
     this.backupDir = path.join(this.appDataPath, 'backups')
 
     // Default config
-    this.defaultConfig = {
-      theme: 'dark',
-      sidebarExpanded: true,
-      startOnBoot: false,
-      minimizeToTray: true,
-      autoStartProjects: false,
-      notifications: {
-        onStart: true,
-        onError: true,
-        sound: false,
-      },
-      terminal: {
-        fontSize: 14,
-        maxLines: 1000,
-        autoScroll: true,
-      },
-    }
-
+    this.defaultConfig = DEFAULT_CONFIG
+    this.projectQueue = Promise.resolve()
+    this.configQueue = Promise.resolve()
+    this.tempFileCounter = 0
+    this.backupFileCounter = 0
   }
 
   /**
@@ -70,10 +60,21 @@ class StorageManager {
    * @returns {Promise<Array>} Array of projects
    */
   async loadProjects() {
+    return this.enqueue('projectQueue', () => this.loadProjectsUnlocked())
+  }
+
+  async loadProjectsUnlocked() {
     try {
       const data = await fs.readFile(this.projectsFilePath, 'utf8')
       const cleanData = data.replace(/^\uFEFF/, '')
-      return JSON.parse(cleanData)
+      const parsed = JSON.parse(cleanData)
+      if (!Array.isArray(parsed)) throw new SyntaxError('Projects data must be an array')
+
+      const projects = parsed.map((project) => validateProject(normalizeProject(project, uuidv4)))
+      if (JSON.stringify(projects) !== JSON.stringify(parsed)) {
+        await this.saveProjectsUnlocked(projects)
+      }
+      return projects
     } catch (error) {
       console.error('[StorageManager] Error loading projects:', error)
 
@@ -91,7 +92,9 @@ class StorageManager {
             try {
               const backupData = await fs.readFile(path.join(this.backupDir, backupFile), 'utf8')
               const cleanBackupData = backupData.replace(/^\uFEFF/, '')
-              const projects = JSON.parse(cleanBackupData)
+              const parsedProjects = JSON.parse(cleanBackupData)
+              if (!Array.isArray(parsedProjects)) continue
+              const projects = parsedProjects.map((project) => validateProject(normalizeProject(project, uuidv4)))
               console.log(`[StorageManager] Recovered ${projects.length} projects from ${backupFile}`)
               // Overwrite corrupted file with good backup
               await this.atomicWrite(this.projectsFilePath, JSON.stringify(projects, null, 2))
@@ -114,6 +117,10 @@ class StorageManager {
    * @param {Array} projects - Array of projects
    */
   async saveProjects(projects) {
+    return this.enqueue('projectQueue', () => this.saveProjectsUnlocked(projects))
+  }
+
+  async saveProjectsUnlocked(projects) {
     try {
       // Backup current file before saving
       await this.backupProjects()
@@ -127,6 +134,16 @@ class StorageManager {
     }
   }
 
+  async updateProjects(mutator) {
+    return this.enqueue('projectQueue', async () => {
+      const projects = await this.loadProjectsUnlocked()
+      const result = await mutator(projects)
+      const nextProjects = result?.projects || projects
+      await this.saveProjectsUnlocked(nextProjects)
+      return { projects: nextProjects, value: result?.value }
+    })
+  }
+
   /**
    * Backup projects file
    */
@@ -137,7 +154,7 @@ class StorageManager {
 
       // Create backup filename with timestamp
       const timestamp = new Date().toISOString().replace(/[:.]/g, '-')
-      const backupPath = path.join(this.backupDir, `projects-${timestamp}.json`)
+      const backupPath = path.join(this.backupDir, `projects-${timestamp}-${++this.backupFileCounter}.json`)
 
       // Copy file
       await fs.copyFile(this.projectsFilePath, backupPath)
@@ -177,10 +194,19 @@ class StorageManager {
    * @returns {Promise<Object>} Config object
    */
   async loadConfig() {
+    return this.enqueue('configQueue', () => this.loadConfigUnlocked())
+  }
+
+  async loadConfigUnlocked() {
     try {
       const data = await fs.readFile(this.configFilePath, 'utf8')
       const cleanData = data.replace(/^\uFEFF/, '')
-      return JSON.parse(cleanData)
+      const parsed = JSON.parse(cleanData)
+      const config = normalizeConfig(parsed)
+      if (JSON.stringify(config) !== JSON.stringify(parsed)) {
+        await this.saveConfigUnlocked(config)
+      }
+      return config
     } catch (error) {
       console.error('[StorageManager] Error loading config:', error)
       return this.defaultConfig
@@ -192,6 +218,10 @@ class StorageManager {
    * @param {Object} config - Config object
    */
   async saveConfig(config) {
+    return this.enqueue('configQueue', () => this.saveConfigUnlocked(config))
+  }
+
+  async saveConfigUnlocked(config) {
     try {
       await this.atomicWrite(this.configFilePath, JSON.stringify(config, null, 2))
       console.log('[StorageManager] Config saved')
@@ -206,34 +236,17 @@ class StorageManager {
    * @param {Object} updates - Partial config updates
    */
   async updateConfig(updates) {
-    try {
-      const current = await this.loadConfig()
-      // Deep merge for nested objects like notifications and terminal
-      const merged = this.deepMerge(current, updates)
-      await this.saveConfig(merged)
-      return merged
-    } catch (error) {
-      console.error('[StorageManager] Error updating config:', error)
-      throw error
-    }
-  }
-
-  /**
-   * Deep merge two objects
-   * @param {Object} target - Target object
-   * @param {Object} source - Source object
-   * @returns {Object} Merged object
-   */
-  deepMerge(target, source) {
-    const result = { ...target }
-    for (const key in source) {
-      if (source[key] instanceof Object && !Array.isArray(source[key])) {
-        result[key] = this.deepMerge(target[key] || {}, source[key])
-      } else {
-        result[key] = source[key]
+    return this.enqueue('configQueue', async () => {
+      try {
+        const current = await this.loadConfigUnlocked()
+        const merged = applyConfigUpdates(current, updates)
+        await this.saveConfigUnlocked(merged)
+        return merged
+      } catch (error) {
+        console.error('[StorageManager] Error updating config:', error)
+        throw error
       }
-    }
-    return result
+    })
   }
 
   /**
@@ -242,6 +255,13 @@ class StorageManager {
   getAppDataPath() {
     return this.appDataPath
   }
+
+  enqueue(queueName, operation) {
+    const result = this[queueName].then(operation, operation)
+    this[queueName] = result.catch(() => {})
+    return result
+  }
+
   /**
    * Atomic write: write to temp file first, then rename.
    * Prevents corruption from partial writes or crashes during write.
@@ -249,9 +269,14 @@ class StorageManager {
    * @param {string} content - Content to write
    */
   async atomicWrite(filePath, content) {
-    const tmpPath = filePath + '.tmp'
-    await fs.writeFile(tmpPath, content, 'utf8')
-    await fs.rename(tmpPath, filePath)
+    const tmpPath = `${filePath}.${process.pid}.${++this.tempFileCounter}.tmp`
+    try {
+      await fs.writeFile(tmpPath, content, 'utf8')
+      await fs.rename(tmpPath, filePath)
+    } catch (error) {
+      await fs.unlink(tmpPath).catch(() => {})
+      throw error
+    }
   }
 }
 

@@ -1,49 +1,17 @@
 import React from 'react';
 
-export default function EnvironmentTab({
-  envVars = [],
-  onAdd,
-  onRemove,
-  onChange
-}) {
+export default function EnvironmentTab({ envVars = [], onEdit }) {
+  const variables = Array.isArray(envVars) ? envVars : [];
   return (
     <div className="bg-surface border border-border rounded-xl shadow-card p-5">
       <div className="flex items-center justify-between mb-3">
-        <p className="text-sm font-medium">Environment Variables</p>
-        <button
-          onClick={onAdd}
-          className="text-[11px] font-medium text-accent hover:text-accent-hover flex items-center gap-1"
-        >
-          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
-            <path d="M12 5v14M5 12h14"/>
-          </svg>
-          Add variable
-        </button>
+        <div><p className="text-sm font-medium">Environment Variables</p><p className="text-[11px] text-ink-faint mt-1">Read-only project configuration.</p></div>
+        <button onClick={onEdit} className="px-3 py-1.5 rounded-lg bg-surface-3 hover:bg-surface-2 text-xs font-medium transition-colors">Edit Project</button>
       </div>
-      <div className="space-y-2">
-        {envVars.map((envVar, index) => (
-          <div key={index} className="flex gap-2 items-center">
-            <input
-              type="text"
-              value={envVar.key}
-              onChange={(e) => onChange?.(index, 'key', e.target.value)}
-              className="w-1/3 bg-surface-3 border border-border rounded-lg px-2.5 py-1.5 text-xs font-mono text-ink focus:outline-none focus:ring-2 focus:ring-accent/40"
-            />
-            <input
-              type="text"
-              value={envVar.value}
-              onChange={(e) => onChange?.(index, 'value', e.target.value)}
-              className="flex-1 bg-surface-3 border border-border rounded-lg px-2.5 py-1.5 text-xs font-mono text-ink focus:outline-none focus:ring-2 focus:ring-accent/40"
-            />
-            <button
-              onClick={() => onRemove?.(index)}
-              className="w-7 h-7 shrink-0 flex items-center justify-center rounded-lg text-ink-faint hover:text-danger hover:bg-danger/10"
-            >
-              ✕
-            </button>
-          </div>
-        ))}
-      </div>
+      {variables.length === 0 ? <p className="py-6 text-center text-sm text-ink-faint">No environment variables configured.</p>
+        : <dl className="divide-y divide-border">{variables.map((envVar, index) => <div key={`${envVar?.key || 'variable'}-${index}`} className="grid grid-cols-3 gap-4 py-3 text-xs font-mono">
+          <dt className="text-ink-soft break-all">{envVar?.key || '(unnamed)'}</dt><dd className="col-span-2 text-ink break-all">{envVar?.value == null ? '' : String(envVar.value)}</dd>
+        </div>)}</dl>}
     </div>
   );
 }

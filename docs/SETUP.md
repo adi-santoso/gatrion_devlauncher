@@ -63,7 +63,7 @@ Regression check:
 npm test
 ```
 
-Check saat ini mencakup validasi input ProcessManager, exit code sukses/gagal, stop process, status akhir, dan pembersihan PID.
+Check saat ini mencakup ProcessManager, schema/migration, concurrent storage transaction, atomic writes, dan recovery JSON project rusak.
 
 Build renderer tanpa packaging:
 
@@ -109,8 +109,10 @@ Setiap save project:
 
 1. File saat ini disalin ke backup timestamped.
 2. Maksimal lima backup terbaru dipertahankan.
-3. Data baru ditulis ke `.tmp`, lalu di-rename.
+3. Data baru ditulis ke temp file unik, lalu di-rename.
 4. JSON project rusak dipulihkan dari backup valid terbaru bila tersedia.
+
+Mutation project dan config diantrikan di main process. Request concurrent diproses berurutan agar update tidak saling menimpa.
 
 Runtime status, PID, dan log tidak persisten. Semua project kembali `stopped` setelah aplikasi dibuka ulang.
 

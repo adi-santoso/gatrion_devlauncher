@@ -94,11 +94,11 @@ Path dasar berasal dari `app.getPath('userData')`.
 
 Project save memakai backup dan atomic rename. Lima backup terbaru disimpan. Recovery otomatis hanya untuk syntax error `projects.json`.
 
-Operasi CRUD memakai pola load-modify-save tanpa lock. Dua write paralel dapat menghasilkan lost update atau konflik file `.tmp`; serialisasi write masuk roadmap reliability.
+Operasi project dan config diserialisasi melalui queue terpisah. CRUD project memakai transaction `updateProjects`, sehingga load-modify-save berjalan sebagai satu unit. Atomic write memakai nama temp unik untuk mencegah collision.
 
 ## Model Project Aktual
 
-Data dibuat dari ProjectModal dan disimpan sebagai object terbuka. Field utama:
+Data dibuat dari ProjectModal, dinormalisasi, divalidasi, lalu disimpan dengan field allowlist berikut:
 
 ```js
 {
@@ -145,14 +145,14 @@ Backend default:
 }
 ```
 
-Renderer saat ini juga menulis key flat seperti `notifyOnStart`, `terminalFontSize`, dan `terminalMaxLines`. Kedua schema hidup bersamaan dan harus dimigrasikan menjadi satu schema sebelum release.
+Config lama dengan key flat seperti `notifyOnStart`, `terminalFontSize`, dan `terminalMaxLines` dimigrasikan ke schema nested saat dibaca, lalu ditulis ulang secara canonical.
 
 ## State Flow Renderer
 
 - `useProjects` menjadi source of truth project aktif.
 - Backend event `projects-updated` mengganti persisted fields sambil mempertahankan runtime status.
 - `useProcesses` menyimpan status/log lokal dan mengirim runtime update ke `useProjects` melalui callback.
-- `useElectronConfig` memiliki state per hook instance; App dan Settings membuat instance berbeda.
+- `useElectronConfig` di App menjadi source of truth config aktif dan diteruskan ke Settings.
 - Navigation memakai local state `currentView`, bukan router.
 
 ## Security Boundary
