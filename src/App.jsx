@@ -105,9 +105,14 @@ function App() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [openModal]);
 
+  const [isFullscreen, setIsFullscreen] = useState(false);
+
   // View navigation
   const showView = (viewName, data = null) => {
     setCurrentView(viewName);
+    if (viewName !== 'project-detail') {
+      setIsFullscreen(false);
+    }
     if (viewName === 'project-detail' && data) {
       setSelectedProject(data);
     }
@@ -284,12 +289,16 @@ function App() {
         handleStopAll();
         break;
       default:
-        // Handle project-specific commands
-        if (command.id.startsWith('start-')) {
+        // Handle project navigation and project-specific commands
+        if (command.projectId || (command.id && command.id.startsWith('project-'))) {
+          const targetId = command.projectId || command.id.replace('project-', '');
+          setSelectedProjectId(targetId);
+          showView('project-detail');
+        } else if (command.id && command.id.startsWith('start-')) {
           const projectName = command.id.replace('start-', '');
           const project = projects.find(p => p.name === projectName);
           if (project) handleStartProject(project);
-        } else if (command.id.startsWith('stop-')) {
+        } else if (command.id && command.id.startsWith('stop-')) {
           const projectName = command.id.replace('stop-', '');
           const project = projects.find(p => p.name === projectName);
           if (project) handleStopProject(project);
@@ -313,6 +322,7 @@ function App() {
             onStopAll={handleStopAll}
             projects={projects}
             sidebarExpanded={config.sidebarExpanded}
+            hideTopBar={isFullscreen}
             onProjectSelect={(project) => showView('project-detail', project)}
             runningProjects={projects
               .filter(p => p.status?.toLowerCase() === 'running')
@@ -389,6 +399,7 @@ function App() {
               onRemove={() => handleDeleteProject(liveProject)}
               onEdit={() => openModalHandler('project', liveProject)}
               onClearLogs={() => clearLogs(liveProject.id)}
+              onFullscreenChange={setIsFullscreen}
             />
           );
         })()}

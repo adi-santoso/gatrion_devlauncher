@@ -10,16 +10,23 @@ contextBridge.exposeInMainWorld('electron', {
   getProjects: () => ipcRenderer.invoke('get-projects'),
 
   // Process Management
-  startProject: (projectId, projectPath, command, env) => ipcRenderer.invoke('start-project', projectId, projectPath, command, env),
+  startProject: (projectId, projectPath, command, env, port) => ipcRenderer.invoke('start-project', projectId, projectPath, command, env, port),
   stopProject: (projectId) => ipcRenderer.invoke('stop-project', projectId),
-  restartProject: (projectId, projectPath, command, env) => ipcRenderer.invoke('restart-project', projectId, projectPath, command, env),
+  restartProject: (projectId, projectPath, command, env, port) => ipcRenderer.invoke('restart-project', projectId, projectPath, command, env, port),
   startAllProjects: () => ipcRenderer.invoke('start-all-projects'),
   stopAllProjects: () => ipcRenderer.invoke('stop-all-projects'),
   getProcessStatus: (projectId) => ipcRenderer.invoke('get-process-status', projectId),
+  getLogs: (projectId, limit) => ipcRenderer.invoke('get-logs', projectId, limit),
+  clearLogs: (projectId) => ipcRenderer.invoke('clear-logs', projectId),
 
   // Project Detection
   detectProjectType: (projectPath) => ipcRenderer.invoke('detect-project-type', projectPath),
   browseFolder: () => ipcRenderer.invoke('browse-folder'),
+
+  // Desktop Integration
+  openExternalUrl: (url) => ipcRenderer.invoke('open-external-url', url),
+  revealInExplorer: (targetPath) => ipcRenderer.invoke('reveal-in-explorer', targetPath),
+  openInEditor: (targetPath) => ipcRenderer.invoke('open-in-editor', targetPath),
 
   // Config
   getConfig: () => ipcRenderer.invoke('get-config'),

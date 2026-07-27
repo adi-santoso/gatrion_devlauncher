@@ -17,7 +17,8 @@ const MainLayout = ({
   projects = [],
   runningProjects = [],
   onProjectSelect,
-  sidebarExpanded = true
+  sidebarExpanded = true,
+  hideTopBar = false
 }) => {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(!sidebarExpanded);
 
@@ -72,14 +73,16 @@ const MainLayout = ({
           onAddProject={handleAddProject}
         />
 
-        <div className="flex-1 flex flex-col min-w-0">
-          <TopBar
-            title={getTitle()}
-            subtitle="DevLauncher"
-            onCommandPalette={handleCommandPalette}
-          />
+        <div className="flex-1 flex flex-col min-w-0 h-full">
+          {!hideTopBar && (
+            <TopBar
+              title={getTitle()}
+              subtitle="DevLauncher"
+              onCommandPalette={handleCommandPalette}
+            />
+          )}
 
-          <main className={`flex-1 overflow-y-auto bg-[radial-gradient(circle_at_80%_-20%,rgba(124,109,242,0.08),transparent_36%)] ${currentView === 'project-detail' ? 'px-4 py-5 sm:px-6' : 'px-4 py-5 sm:px-7 sm:py-7'}`}>
+          <main className={`flex-1 ${hideTopBar ? 'p-0 overflow-hidden flex flex-col' : 'overflow-y-auto bg-[radial-gradient(circle_at_80%_-20%,rgba(124,109,242,0.08),transparent_36%)] ' + (currentView === 'project-detail' ? 'px-4 py-5 sm:px-6' : 'px-4 py-5 sm:px-7 sm:py-7')}`}>
             {children}
           </main>
         </div>

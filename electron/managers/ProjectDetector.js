@@ -128,6 +128,11 @@ class ProjectDetector {
    * @param {string} projectPath - Project directory path
    * @returns {Promise<Object>} Detection result
    */
+  /**
+   * Detect project type from path
+   * @param {string} projectPath - Project directory path
+   * @returns {Promise<Object>} Detection result
+   */
   async detectProjectType(projectPath) {
     try {
       // Check if path exists
@@ -141,12 +146,13 @@ class ProjectDetector {
         try {
           const isMatch = await typeConfig.detector(projectPath)
           if (isMatch) {
+            const detectedPort = await this.detectActualPort(projectPath, typeConfig.defaultPort)
             return {
               success: true,
               type: typeKey,
               name: typeConfig.name,
               defaultCommand: typeConfig.defaultCommand,
-              defaultPort: typeConfig.defaultPort,
+              defaultPort: detectedPort,
               icon: typeConfig.icon,
               color: typeConfig.color,
             }
@@ -156,13 +162,14 @@ class ProjectDetector {
         }
       }
 
-      // No match found, return CUSTOM
+      // No match found, check if custom port exists in .env
+      const customPort = await this.detectActualPort(projectPath, null)
       return {
         success: true,
         type: 'CUSTOM',
         name: 'Custom',
         defaultCommand: '',
-        defaultPort: null,
+        defaultPort: customPort,
         icon: '⚙️',
         color: '#6B7280',
       }
@@ -172,6 +179,68 @@ class ProjectDetector {
         error: error.message,
       }
     }
+  }
+
+  /**
+   * Helper: Detect actual port from .env files, vite.config.js/ts, or package.json scripts
+   */
+  async detectActualPort(projectPath, defaultPort) {
+    // 1. Check .env files (.env, .env.local, .env.development)
+    const envFiles = ['.env', '.env.local', '.env.development']
+    for (const envFile of envFiles) {
+      try {
+        const filePath = path.join(projectPath, envFile)
+        if (await this.fileExists(filePath)) {
+          const content = await fs.readFile(filePath, 'utf8')
+          // Match PORT=3000, VITE_PORT=3000, APP_PORT=8000, SERVER_PORT=4000
+          const match = content.match(/^(?:PORT|VITE_PORT|APP_PORT|SERVER_PORT|DEV_PORT)\s*=\s*(\d+)/m)
+          if (match && match[1]) {
+            const parsed = parseInt(match[1], 10)
+            if (parsed > 0 && parsed < 65536) return parsed
+          }
+        }
+      } catch {
+        // Ignore read errors
+      }
+    }
+
+    // 2. Check vite.config.js / vite.config.ts / vite.config.mjs
+    const viteConfigFiles = ['vite.config.js', 'vite.config.ts', 'vite.config.mjs']
+    for (const viteFile of viteConfigFiles) {
+      try {
+        const filePath = path.join(projectPath, viteFile)
+        if (await this.fileExists(filePath)) {
+          const content = await fs.readFile(filePath, 'utf8')
+          // Match server: { port: 3000 } or port: 3000
+          const match = content.match(/port\s*:\s*(\d+)/)
+          if (match && match[1]) {
+            const parsed = parseInt(match[1], 10)
+            if (parsed > 0 && parsed < 65536) return parsed
+          }
+        }
+      } catch {
+        // Ignore
+      }
+    }
+
+    // 3. Check package.json scripts (e.g. "next dev -p 4000" or "vite --port 3000")
+    try {
+      const packageJson = await this.readPackageJson(projectPath)
+      const scripts = packageJson.scripts || {}
+      for (const scriptCmd of Object.values(scripts)) {
+        if (typeof scriptCmd === 'string') {
+          const match = scriptCmd.match(/(?:-p|--port)\s+=?\s*(\d+)/)
+          if (match && match[1]) {
+            const parsed = parseInt(match[1], 10)
+            if (parsed > 0 && parsed < 65536) return parsed
+          }
+        }
+      }
+    } catch {
+      // Ignore
+    }
+
+    return defaultPort
   }
 
   /**

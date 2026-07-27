@@ -51,9 +51,9 @@ Legend:
 | Project Detail | Partial | Lifecycle, terminal, environment, dan settings terhubung; embedded App menunggu backend |
 | Stopping state | Done | Detail, dashboard card/table, grid/list |
 | PID cleanup | Done | Null setelah exit/stop |
-| Search/filter/sort | Partial | Search dan filter type/status bekerja; sort belum ada |
-| Bulk start/stop/delete | Pending | Dilepas dari UI sampai workflow individual stabil |
-| Command palette | Broken/Partial | Prop dan item shape tidak cocok dengan App wiring |
+| Search/filter/sort | Done | Search, filter type/status, serta sorting (name, status, type, port) sudah terhubung |
+| Bulk start/stop/delete | Done | Multi-select checkbox dan BulkToolbar sudah terpasang |
+| Command palette | Done | Prop, item shape, default actions, dan navigasi project sudah terhubung |
 | Keyboard shortcuts | Partial | Ctrl/Cmd+K, Escape, `?`; shortcut lain hanya didokumentasikan UI |
 | Toast | Partial | Bekerja, dua auto-dismiss timer berbeda |
 | Theme | Done | Dark/light disimpan dan diterapkan |
@@ -64,14 +64,14 @@ Legend:
 | Feature | Status | Catatan |
 |---|---|---|
 | Browse folder | Done | Electron dialog |
-| Embedded localhost app | Pending | Tab App menampilkan URL inferred dan status backend belum tersedia |
-| Open editor | Pending | Aksi demo dilepas sampai IPC tersedia |
-| Reveal in Explorer | Pending | Aksi demo dilepas sampai IPC tersedia |
+| Embedded localhost app | Done | Terhubung dengan tab AppPreviewTab & iframe interaktif saat project RUNNING |
+| Open editor | Done | Buka path folder via `shell.openPath` / IPC |
+| Reveal in Explorer | Done | Buka lokasi folder via `shell.showItemInFolder` / IPC |
 | Install dependencies | Pending | Aksi demo dilepas sampai runner tersedia |
-| Native system tray | Pending | Overlay renderer demo dilepas; Electron Tray belum ada |
-| Minimize to tray | Pending | Config ada, behavior tidak ada |
-| Start on OS boot | Pending | Config ada, `setLoginItemSettings` belum digunakan |
-| Native notifications | Pending | Config/UI ada, Electron Notification belum digunakan |
+| Native system tray | Done | Native Electron Tray dengan context menu interaktif |
+| Minimize to tray | Done | Ditangani saat window `close` event sesuai `config.minimizeToTray` |
+| Start on OS boot | Done | Diatur via `app.setLoginItemSettings` |
+| Native notifications | Done | Notifikasi OS native saat project crash/error |
 
 ## Quality dan Release
 

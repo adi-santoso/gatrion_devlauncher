@@ -105,12 +105,12 @@ export const detectProjectType = async (projectPath) => {
 
 // ==================== Process APIs ====================
 
-export const startProject = async (projectId, projectPath, command, env = {}) => {
+export const startProject = async (projectId, projectPath, command, env = {}, port = null) => {
   if (!isElectron()) {
     console.warn('[IPC] Running in browser mode - mock startProject called');
     return { success: true, projectId, status: 'running' };
   }
-  return window.electron.startProject(projectId, projectPath, command, env);
+  return window.electron.startProject(projectId, projectPath, command, env, port);
 };
 
 export const stopProject = async (projectId) => {
@@ -121,12 +121,12 @@ export const stopProject = async (projectId) => {
   return window.electron.stopProject(projectId);
 };
 
-export const restartProject = async (projectId, projectPath, command, env = {}) => {
+export const restartProject = async (projectId, projectPath, command, env = {}, port = null) => {
   if (!isElectron()) {
     console.warn('[IPC] Running in browser mode - mock restartProject called');
     return { success: true, projectId, status: 'running' };
   }
-  return window.electron.restartProject(projectId, projectPath, command, env);
+  return window.electron.restartProject(projectId, projectPath, command, env, port);
 };
 
 export const startAllProjects = async () => {
@@ -153,6 +153,16 @@ export const getProcessStatus = async (projectId) => {
   return window.electron.getProcessStatus(projectId);
 };
 
+export const getLogs = async (projectId, limit = 1000) => {
+  if (!isElectron()) return [];
+  return window.electron.getLogs(projectId, limit);
+};
+
+export const clearLogs = async (projectId) => {
+  if (!isElectron()) return { success: true };
+  return window.electron.clearLogs(projectId);
+};
+
 // ==================== Config APIs ====================
 
 export const getConfig = async () => {
@@ -177,6 +187,33 @@ export const updateConfig = async (updates) => {
     };
   }
   return window.electron.updateConfig(updates);
+};
+
+// ==================== Desktop Integration APIs ====================
+
+export const openExternalUrl = async (url) => {
+  if (!isElectron()) {
+    console.warn('[IPC] Running in browser mode - opening URL in window:', url);
+    window.open(url, '_blank');
+    return { success: true };
+  }
+  return window.electron.openExternalUrl(url);
+};
+
+export const revealInExplorer = async (targetPath) => {
+  if (!isElectron()) {
+    console.warn('[IPC] Running in browser mode - revealInExplorer called for path:', targetPath);
+    return { success: false, error: 'File Explorer integration requires desktop app' };
+  }
+  return window.electron.revealInExplorer(targetPath);
+};
+
+export const openInEditor = async (targetPath) => {
+  if (!isElectron()) {
+    console.warn('[IPC] Running in browser mode - openInEditor called for path:', targetPath);
+    return { success: false, error: 'Editor integration requires desktop app' };
+  }
+  return window.electron.openInEditor(targetPath);
 };
 
 // ==================== Event Listeners ====================

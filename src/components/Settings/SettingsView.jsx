@@ -21,13 +21,22 @@ const SettingsView = ({ config, updateConfig }) => {
       />
 
       <div className="bg-surface border border-border rounded-xl shadow-card p-5 space-y-4">
-        <p className="font-display font-bold text-sm">General</p>
+        <p className="font-display font-bold text-sm">General & Desktop Integration</p>
         <ToggleSwitch
           enabled={config.sidebarExpanded}
           onChange={() => handleChange('sidebarExpanded', !config.sidebarExpanded)}
           label="Sidebar expanded by default"
         />
-        <p className="text-xs text-ink-faint">System startup and tray integration will appear here when native support is connected.</p>
+        <ToggleSwitch
+          enabled={!!config.minimizeToTray}
+          onChange={() => handleChange('minimizeToTray', !config.minimizeToTray)}
+          label="Minimize to System Tray on close"
+        />
+        <ToggleSwitch
+          enabled={!!config.startOnBoot}
+          onChange={() => handleChange('startOnBoot', !config.startOnBoot)}
+          label="Start DevLauncher on Windows boot"
+        />
       </div>
 
       <TerminalSettings

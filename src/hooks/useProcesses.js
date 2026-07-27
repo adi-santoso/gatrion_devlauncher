@@ -1,5 +1,28 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import * as ipc from '../utils/ipcRenderer';
+
+const formatUptime = (startedAt) => {
+  if (!startedAt) return null;
+  const totalSeconds = Math.max(0, Math.floor((Date.now() - startedAt) / 1000));
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  if (hours) return `${hours}h ${minutes}m`;
+  if (minutes) return `${minutes}m`;
+  return `${totalSeconds}s`;
+};
+
+const runtimeUpdate = (status) => {
+  const details = typeof status === 'string' ? { status } : status || {};
+  const normalizedStatus = (details.status || 'stopped').toLowerCase();
+  const active = normalizedStatus === 'running' || normalizedStatus === 'starting';
+  return {
+    status: normalizedStatus,
+    pid: details.pid ?? null,
+    startedAt: details.startedAt ?? null,
+    uptime: active ? formatUptime(details.startedAt) : null,
+    errorMessage: details.error || null
+  };
+};
 
 /**
  * useProcesses Hook
@@ -8,6 +31,7 @@ import * as ipc from '../utils/ipcRenderer';
 export const useProcesses = (projects = [], onProjectUpdate) => {
   const [processStatuses, setProcessStatuses] = useState({});
   const [processLogs, setProcessLogs] = useState({});
+  const statusRevisions = useRef({});
 
   // Start a project
   const startProject = useCallback(async (projectId) => {
@@ -60,19 +84,25 @@ export const useProcesses = (projects = [], onProjectUpdate) => {
         projectId,
         project.path,
         project.startCommand,
-        envObject
+        envObject,
+        project.port
       );
 
       if (response.success) {
-        const normalizedStatus = (response.status || 'running').toLowerCase();
-        setProcessStatuses(prev => ({
-          ...prev,
-          [projectId]: normalizedStatus
-        }));
+        setProcessStatuses(prev => {
+          const current = prev[projectId];
+          if (current === 'running' || current === 'error') {
+            return prev;
+          }
+          const normalizedStatus = (response.status || 'running').toLowerCase();
+          return {
+            ...prev,
+            [projectId]: normalizedStatus
+          };
+        });
 
         if (onProjectUpdate) {
           onProjectUpdate(projectId, {
-            status: normalizedStatus,
             pid: response.pid
           });
         }
@@ -199,7 +229,8 @@ export const useProcesses = (projects = [], onProjectUpdate) => {
         projectId,
         project.path,
         project.startCommand,
-        envObject
+        envObject,
+        project.port
       );
 
       if (response.success) {
@@ -269,33 +300,33 @@ export const useProcesses = (projects = [], onProjectUpdate) => {
   }, [processLogs]);
 
   // Clear logs for a specific project
-  const clearLogs = useCallback((projectId) => {
-    setProcessLogs(prev => ({
-      ...prev,
-      [projectId]: []
-    }));
+  const clearLogs = useCallback(async (projectId) => {
+    try {
+      const response = await ipc.clearLogs(projectId);
+      if (!response.success) return response;
+      setProcessLogs(prev => ({ ...prev, [projectId]: [] }));
+      return { success: true };
+    } catch (err) {
+      console.error('Error clearing process logs:', err);
+      return { success: false, error: err.message };
+    }
   }, []);
 
   // Subscribe to process status updates
   useEffect(() => {
     const cleanup = ipc.onProcessStatus((projectId, status) => {
       console.log(`[Process Status] Project ${projectId}:`, status);
+      statusRevisions.current[projectId] = (statusRevisions.current[projectId] || 0) + 1;
 
-      const rawStatus = typeof status === 'string' ? status : status?.status;
-      const normalizedStatus = (rawStatus || 'stopped').toLowerCase();
+      const update = runtimeUpdate(status);
 
       setProcessStatuses(prev => ({
         ...prev,
-        [projectId]: normalizedStatus
+        [projectId]: update.status
       }));
 
       if (onProjectUpdate) {
-        onProjectUpdate(projectId, {
-          status: normalizedStatus,
-          pid: status?.pid,
-          port: status?.port,
-          uptime: status?.uptime
-        });
+        onProjectUpdate(projectId, update);
       }
     });
 
@@ -337,6 +368,55 @@ export const useProcesses = (projects = [], onProjectUpdate) => {
 
     return cleanup;
   }, [onProjectUpdate]);
+
+  const projectIds = JSON.stringify(projects.map(project => project.id));
+
+  // Hydrate after listeners are attached so reloads keep backend runtime state and output.
+  useEffect(() => {
+    let cancelled = false;
+
+    const hydrate = async () => {
+      const snapshots = await Promise.all(projects.map(async (project) => {
+        const statusRevision = statusRevisions.current[project.id] || 0;
+        const [statusResult, logsResult] = await Promise.allSettled([
+          ipc.getProcessStatus(project.id),
+          ipc.getLogs(project.id)
+        ]);
+        return { project, statusRevision, statusResult, logsResult };
+      }));
+
+      if (cancelled) return;
+
+      for (const { project, statusRevision, statusResult, logsResult } of snapshots) {
+        if (statusResult.status === 'fulfilled' && statusRevision === (statusRevisions.current[project.id] || 0)) {
+          const update = runtimeUpdate(statusResult.value);
+          setProcessStatuses(prev => ({ ...prev, [project.id]: update.status }));
+          onProjectUpdate?.(project.id, update);
+        } else {
+          console.error(`Error hydrating status for project ${project.id}:`, statusResult.reason);
+        }
+
+        if (logsResult.status === 'fulfilled') {
+          setProcessLogs(prev => {
+            const logs = [...logsResult.value, ...(prev[project.id] || [])];
+            const seen = new Set();
+            const merged = logs.filter(log => {
+              const key = log.id ?? JSON.stringify([log.timestamp, log.type, log.message]);
+              if (seen.has(key)) return false;
+              seen.add(key);
+              return true;
+            }).sort((a, b) => a.timestamp.localeCompare(b.timestamp)).slice(-1000);
+            return { ...prev, [project.id]: merged };
+          });
+        } else {
+          console.error(`Error hydrating logs for project ${project.id}:`, logsResult.reason);
+        }
+      }
+    };
+
+    hydrate();
+    return () => { cancelled = true; };
+  }, [projectIds, onProjectUpdate]);
 
   // Subscribe to process exits
   useEffect(() => {

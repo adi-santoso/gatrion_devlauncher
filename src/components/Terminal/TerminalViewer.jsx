@@ -7,7 +7,7 @@ const stripAnsi = (str) =>
     ? str.replace(/[\u001b\u009b][[()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-ORZcf-nqry=><]/g, '')
     : str;
 
-function TerminalViewer({ logs = [], projectName }) {
+function TerminalViewer({ logs = [], projectName, onClearLogs }) {
   const terminalRef = useRef(null)
   const [autoScroll, setAutoScroll] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
@@ -87,8 +87,9 @@ function TerminalViewer({ logs = [], projectName }) {
   }
 
   const clearLogs = () => {
-    // This would need to be implemented in the parent component
-    console.log('Clear logs requested')
+    if (onClearLogs) {
+      onClearLogs();
+    }
   }
 
   const scrollToBottom = () => {

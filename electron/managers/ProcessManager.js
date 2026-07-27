@@ -1,9 +1,13 @@
 const { spawn } = require('child_process')
+const net = require('net')
 const path = require('path')
+const { EventEmitter } = require('events')
 
-class ProcessManager {
+class ProcessManager extends EventEmitter {
   constructor() {
+    super()
     this.processes = new Map() // projectId -> process data
+    this.nextLogId = 1
     this.STATUS = {
       STOPPED: 'STOPPED',
       STARTING: 'STARTING',
@@ -22,8 +26,9 @@ class ProcessManager {
    * @param {function} onLog - Callback for log lines
    * @param {function} onExit - Callback for process exit
    * @param {function} onError - Callback for errors
+   * @param {function} onReady - Callback when readiness succeeds
    */
-  startProcess(projectId, projectPath, command, env = {}, onLog, onExit, onError) {
+  async startProcess(projectId, projectPath, command, env = {}, port = null, onLog, onExit, onError, onReady) {
     // Validate required parameters
     if (!projectId) {
       throw new Error('Project ID is required')
@@ -34,6 +39,9 @@ class ProcessManager {
     if (!command || !command.trim()) {
       throw new Error('Start command is required')
     }
+    if (port !== null && (!Number.isInteger(port) || port < 1 || port > 65535)) {
+      throw new Error('Port must be an integer between 1 and 65535')
+    }
 
     // Check if already running or starting
     if (this.processes.has(projectId)) {
@@ -41,6 +49,10 @@ class ProcessManager {
       if (processData.status === this.STATUS.RUNNING || processData.status === this.STATUS.STARTING) {
         throw new Error(`Project ${projectId} is already running`)
       }
+    }
+
+    if (port !== null && await this.isPortOpen(port)) {
+      throw new Error(`Port ${port} is already in use`)
     }
 
     try {
@@ -59,7 +71,9 @@ class ProcessManager {
         logs: [],
         command,
         projectPath,
+        port,
       })
+      this.emit('status-change', { projectId, status: 'starting' })
 
       // Spawn the process (pass full command string to avoid DEP0190 warning when shell: true)
       const childProcess = spawn(command, {
@@ -76,22 +90,24 @@ class ProcessManager {
       const processData = this.processes.get(projectId)
       processData.pid = childProcess.pid
       processData.process = childProcess
-      processData.status = this.STATUS.RUNNING
-
-      console.log('[ProcessManager] Process status updated to RUNNING')
+      if (port === null) {
+        processData.status = this.STATUS.RUNNING
+        console.log('[ProcessManager] Process status updated to RUNNING')
+        this.emit('status-change', { projectId, status: 'running' })
+      }
 
       // Handle stdout
       childProcess.stdout.on('data', (data) => {
         const logLine = data.toString()
-        this.addLog(projectId, logLine, 'stdout')
-        if (onLog) onLog(projectId, logLine, 'stdout')
+        const log = this.addLog(projectId, logLine, 'stdout')
+        if (onLog) onLog(projectId, log)
       })
 
       // Handle stderr
       childProcess.stderr.on('data', (data) => {
         const logLine = data.toString()
-        this.addLog(projectId, logLine, 'stderr')
-        if (onLog) onLog(projectId, logLine, 'stderr')
+        const log = this.addLog(projectId, logLine, 'stderr')
+        if (onLog) onLog(projectId, log)
       })
 
       // Handle process exit
@@ -99,16 +115,18 @@ class ProcessManager {
         console.log('[ProcessManager] Process exited:', { projectId, code, signal })
         const processData = this.processes.get(projectId)
         if (processData) {
-          const stoppedByUser = processData.status === this.STATUS.STOPPING
-          processData.status = stoppedByUser || code === 0
-            ? this.STATUS.STOPPED
-            : this.STATUS.ERROR
+          const previousStatus = processData.status
+          const stoppedByUser = previousStatus === this.STATUS.STOPPING
+          processData.status = previousStatus === this.STATUS.ERROR
+            ? this.STATUS.ERROR
+            : stoppedByUser || code === 0 ? this.STATUS.STOPPED : this.STATUS.ERROR
           processData.pid = null
           processData.exitCode = code
           processData.exitSignal = signal
-          if (processData.status === this.STATUS.ERROR) {
+          if (processData.status === this.STATUS.ERROR && previousStatus !== this.STATUS.ERROR) {
             processData.error = signal ? `Exited with signal ${signal}` : `Exited with code ${code}`
           }
+          this.emit('status-change', { projectId, status: processData.status.toLowerCase() })
         }
         if (onExit) onExit(projectId, code, signal)
       })
@@ -121,11 +139,28 @@ class ProcessManager {
           processData.status = this.STATUS.ERROR
           processData.error = error.message
           this.addLog(projectId, `Error: ${error.message}`, 'error')
+          this.emit('status-change', { projectId, status: 'error' })
         }
         if (onError) onError(projectId, error)
       })
 
-      return { success: true, pid: childProcess.pid }
+      if (port !== null) {
+        this.waitForPort(projectId, port)
+          .then((ready) => {
+            if (ready && onReady) onReady(projectId)
+          })
+          .catch((error) => {
+            const current = this.processes.get(projectId)
+            if (!current || current.status !== this.STATUS.STARTING) return
+            current.status = this.STATUS.ERROR
+            current.error = error.message
+            this.addLog(projectId, error.message, 'error')
+            if (onError) onError(projectId, error)
+            this.killProcessTree(childProcess, true).catch(() => {})
+          })
+      }
+
+      return { success: true, pid: childProcess.pid, status: processData.status }
     } catch (error) {
       this.processes.set(projectId, {
         pid: null,
@@ -135,6 +170,42 @@ class ProcessManager {
       })
       throw error
     }
+  }
+
+  async isPortOpen(port, timeout = 250) {
+    const checkHost = (targetHost) => new Promise((resolve) => {
+      const socket = net.createConnection({ port, host: targetHost })
+      const finish = (open) => {
+        socket.destroy()
+        resolve(open)
+      }
+      socket.setTimeout(timeout)
+      socket.once('connect', () => finish(true))
+      socket.once('timeout', () => finish(false))
+      socket.once('error', () => finish(false))
+    })
+
+    if (await checkHost('127.0.0.1')) return true
+    if (await checkHost('localhost')) return true
+    if (await checkHost('::1')) return true
+    return false
+  }
+
+  async waitForPort(projectId, port, timeout = 30000) {
+    const deadline = Date.now() + timeout
+    while (Date.now() < deadline) {
+      const processData = this.processes.get(projectId)
+      if (!processData || processData.status !== this.STATUS.STARTING) {
+        return false
+      }
+      if (await this.isPortOpen(port)) {
+        processData.status = this.STATUS.RUNNING
+        this.emit('status-change', { projectId, status: 'running' })
+        return true
+      }
+      await new Promise((resolve) => setTimeout(resolve, 250))
+    }
+    throw new Error(`Timed out waiting for port ${port}`)
   }
 
   /**
@@ -148,7 +219,7 @@ class ProcessManager {
     }
 
     const processData = this.processes.get(projectId)
-    if (processData.status !== this.STATUS.RUNNING) {
+    if (processData.status !== this.STATUS.RUNNING && processData.status !== this.STATUS.STARTING) {
       throw new Error(`Project ${projectId} is not running (status: ${processData.status})`)
     }
 
@@ -249,7 +320,12 @@ class ProcessManager {
       logs: processData.logs,
       exitCode: processData.exitCode,
       error: processData.error,
+      port: processData.port,
     }
+  }
+
+  getStatus(projectId) {
+    return this.getProcessStatus(projectId)
   }
 
   /**
@@ -267,16 +343,20 @@ class ProcessManager {
       ? logLine.replace(/[\u001b\u009b][[()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-ORZcf-nqry=><]/g, '')
       : logLine
 
-    processData.logs.push({
+    const log = {
+      id: this.nextLogId++,
       timestamp,
       type,
       message: cleanLine,
-    })
+    }
+    processData.logs.push(log)
 
     // Keep only last 1000 log lines
     if (processData.logs.length > 1000) {
       processData.logs.shift()
     }
+
+    return log
   }
 
   /**
@@ -287,7 +367,8 @@ class ProcessManager {
   getLogs(projectId, limit = 1000) {
     if (!this.processes.has(projectId)) return []
     const processData = this.processes.get(projectId)
-    return processData.logs.slice(-limit)
+    const safeLimit = Number.isInteger(limit) && limit >= 0 ? Math.min(limit, 1000) : 1000
+    return safeLimit === 0 ? [] : processData.logs.slice(-safeLimit)
   }
 
   /**
@@ -330,15 +411,17 @@ class ProcessManager {
     projectPath,
     command,
     env = {},
+    port = null,
     onLog,
     onExit,
-    onError
+    onError,
+    onReady
   ) {
     try {
       // Stop if running
       if (this.processes.has(projectId)) {
         const processData = this.processes.get(projectId)
-        if (processData.status === this.STATUS.RUNNING) {
+        if (processData.status === this.STATUS.RUNNING || processData.status === this.STATUS.STARTING) {
           await this.stopProcess(projectId, false)
           // Wait a bit for cleanup
           await new Promise((resolve) => setTimeout(resolve, 1000))
@@ -346,14 +429,16 @@ class ProcessManager {
       }
 
       // Start again
-      return this.startProcess(
+      return await this.startProcess(
         projectId,
         projectPath,
         command,
         env,
+        port,
         onLog,
         onExit,
-        onError
+        onError,
+        onReady
       )
     } catch (error) {
       throw error
@@ -366,7 +451,7 @@ class ProcessManager {
   async stopAllProcesses() {
     const promises = []
     this.processes.forEach((processData, projectId) => {
-      if (processData.status === this.STATUS.RUNNING) {
+      if (processData.status === this.STATUS.RUNNING || processData.status === this.STATUS.STARTING) {
         promises.push(this.stopProcess(projectId, false))
       }
     })

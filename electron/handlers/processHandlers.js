@@ -19,21 +19,26 @@ function setupProcessHandlers(processManager, storageManager, mainWindow) {
       console.log(`[processHandlers] Skipping ${channel} - window unavailable`)
     }
   }
+
+  // Listen for process status-change events and forward to renderer
+  if (processManager && typeof processManager.on === 'function') {
+    processManager.on('status-change', (data) => {
+      safeSend('process-status', data.projectId, processManager.getProcessStatus(data.projectId))
+    })
+  }
+
   // Start a project
-  ipcMain.handle('start-project', async (event, projectId, projectPath, command, env = {}) => {
+  ipcMain.handle('start-project', async (event, projectId, projectPath, command, env = {}, port = null) => {
     try {
-      const result = processManager.startProcess(
+      const result = await processManager.startProcess(
         projectId,
         projectPath,
         command,
         env,
+        port,
         // onLog callback
-        (projectId, logLine, type) => {
-          safeSend('process-log', projectId, {
-            timestamp: new Date().toISOString(),
-            type,
-            message: logLine,
-          })
+        (projectId, log) => {
+          safeSend('process-log', projectId, log)
         },
         // onExit callback
         (projectId, code, signal) => {
@@ -43,6 +48,9 @@ function setupProcessHandlers(processManager, storageManager, mainWindow) {
         // onError callback
         (projectId, error) => {
           safeSend('process-error', projectId, error.message)
+          safeSend('process-status', projectId, processManager.getProcessStatus(projectId))
+        },
+        (projectId) => {
           safeSend('process-status', projectId, processManager.getProcessStatus(projectId))
         }
       )
@@ -70,19 +78,16 @@ function setupProcessHandlers(processManager, storageManager, mainWindow) {
   })
 
   // Restart a project
-  ipcMain.handle('restart-project', async (event, projectId, projectPath, command, env = {}) => {
+  ipcMain.handle('restart-project', async (event, projectId, projectPath, command, env = {}, port = null) => {
     try {
       const result = await processManager.restartProcess(
         projectId,
         projectPath,
         command,
         env,
-        (projectId, logLine, type) => {
-          safeSend('process-log', projectId, {
-            timestamp: new Date().toISOString(),
-            type,
-            message: logLine,
-          })
+        port,
+        (projectId, log) => {
+          safeSend('process-log', projectId, log)
         },
         (projectId, code, signal) => {
           safeSend('process-exit', projectId, code, signal)
@@ -90,6 +95,9 @@ function setupProcessHandlers(processManager, storageManager, mainWindow) {
         },
         (projectId, error) => {
           safeSend('process-error', projectId, error.message)
+          safeSend('process-status', projectId, processManager.getProcessStatus(projectId))
+        },
+        (projectId) => {
           safeSend('process-status', projectId, processManager.getProcessStatus(projectId))
         }
       )
@@ -134,17 +142,14 @@ function setupProcessHandlers(processManager, storageManager, mainWindow) {
           results.push({ projectId: project.id, success: false, error: 'Start command is missing' })
           continue
         }
-        const result = processManager.startProcess(
+        const result = await processManager.startProcess(
           project.id,
           project.path,
           cmd,
           envVarsToObject(project.envVars),
-          (projectId, logLine, type) => {
-            safeSend('process-log', projectId, {
-              timestamp: new Date().toISOString(),
-              type,
-              message: logLine,
-            })
+          project.port,
+          (projectId, log) => {
+            safeSend('process-log', projectId, log)
           },
           (projectId, code, signal) => {
             safeSend('process-exit', projectId, code, signal)
@@ -152,6 +157,9 @@ function setupProcessHandlers(processManager, storageManager, mainWindow) {
           },
           (projectId, error) => {
             safeSend('process-error', projectId, error.message)
+            safeSend('process-status', projectId, processManager.getProcessStatus(projectId))
+          },
+          (projectId) => {
             safeSend('process-status', projectId, processManager.getProcessStatus(projectId))
           }
         )

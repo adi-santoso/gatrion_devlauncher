@@ -1,4 +1,5 @@
 import ProjectCard from './ProjectCard';
+import CrashBanner from '../ProjectDetail/CrashBanner';
 
 const stripAnsi = (value) => typeof value === 'string'
   ? value.replace(/[\u001b\u009b][[()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-ORZcf-nqry=><]/g, '')
@@ -30,7 +31,8 @@ export default function DashboardView({
 }) {
   const runningProjects = projects.filter((project) => project.status?.toLowerCase() === 'running');
   const startingCount = projects.filter((project) => project.status?.toLowerCase() === 'starting').length;
-  const errorCount = projects.filter((project) => project.status?.toLowerCase() === 'error').length;
+  const erroredProjects = projects.filter((project) => project.status?.toLowerCase() === 'error');
+  const errorCount = erroredProjects.length;
   const logs = latestOutput.slice(-8).map(formatLog);
   const dateLabel = new Intl.DateTimeFormat(undefined, { weekday: 'long', day: 'numeric', month: 'long' }).format(new Date());
   const startWorkspace = () => onStartAll ? onStartAll() : projects.filter((project) => !['running', 'starting'].includes(project.status?.toLowerCase())).forEach((project) => onStart?.(project));
@@ -49,6 +51,19 @@ export default function DashboardView({
           <button type="button" onClick={startWorkspace} disabled={!onStartAll && !onStart} className="rounded-lg border border-accent bg-accent px-3 py-2 text-xs font-semibold text-white hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-50">Start workspace</button>
         </div>
       </header>
+
+      {erroredProjects.length > 0 && (
+        <div className="mb-6 space-y-2">
+          {erroredProjects.map((project) => (
+            <CrashBanner
+              key={project.id}
+              message={`Project "${project.name}" encountered an error or exited unexpectedly.`}
+              timestamp={project.errorMessage ? `Details: ${project.errorMessage}` : null}
+              onRestart={() => onRestart?.(project)}
+            />
+          ))}
+        </div>
+      )}
 
       <section className="grid overflow-hidden rounded-xl border border-border bg-surface/80 sm:grid-cols-2 xl:grid-cols-4">
         <div className="border-b border-border p-4 sm:border-r xl:border-b-0"><span className="font-mono text-[9px] font-semibold uppercase tracking-wider text-ink-faint">Running</span><p className="mt-1 font-display text-xl font-bold text-success">{runningProjects.length} <small className="text-[10px] font-medium text-ink-soft">of {projects.length} projects</small></p></div>

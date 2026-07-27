@@ -1,5 +1,17 @@
 const assert = require('assert/strict')
+const net = require('net')
 const ProcessManager = require('./electron/managers/ProcessManager')
+
+function listen(server, port = 0) {
+  return new Promise((resolve, reject) => {
+    server.once('error', reject)
+    server.listen(port, '127.0.0.1', () => resolve(server.address().port))
+  })
+}
+
+function close(server) {
+  return new Promise((resolve, reject) => server.close(error => error ? reject(error) : resolve()))
+}
 
 async function waitForStatus(manager, projectId, expected, timeout = 5000) {
   const deadline = Date.now() + timeout
@@ -13,18 +25,55 @@ async function waitForStatus(manager, projectId, expected, timeout = 5000) {
 async function run() {
   const manager = new ProcessManager()
 
-  assert.throws(() => manager.startProcess('', '.', 'node --version'), /Project ID is required/)
-  assert.throws(() => manager.startProcess('missing-command', '.', ''), /Start command is required/)
+  await assert.rejects(manager.startProcess('', '.', 'node --version'), /Project ID is required/)
+  await assert.rejects(manager.startProcess('missing-command', '.', ''), /Start command is required/)
+  await assert.rejects(manager.startProcess('bad-port', '.', 'node --version', {}, 0), /Port must be an integer/)
 
-  manager.startProcess('clean-exit', '.', 'node -e "process.exit(0)"')
+  const occupiedServer = net.createServer()
+  const occupiedPort = await listen(occupiedServer)
+  await assert.rejects(
+    manager.startProcess('occupied-port', '.', 'node --version', {}, occupiedPort),
+    new RegExp(`Port ${occupiedPort} is already in use`)
+  )
+  await close(occupiedServer)
+
+  manager.processes.set('readiness-check', { status: manager.STATUS.STARTING })
+  manager.isPortOpen = async () => true
+  await manager.waitForPort('readiness-check', 1234, 100)
+  assert.equal(manager.getProcessStatus('readiness-check').status, manager.STATUS.RUNNING)
+
+  manager.processes.set('readiness-cancelled', { status: manager.STATUS.STOPPED })
+  assert.equal(await manager.waitForPort('readiness-cancelled', 1234, 100), false)
+
+  manager.processes.set('readiness-timeout', { status: manager.STATUS.STARTING })
+  manager.isPortOpen = async () => false
+  await assert.rejects(manager.waitForPort('readiness-timeout', 1234, 10), /Timed out waiting for port 1234/)
+  manager.processes.delete('readiness-check')
+  manager.processes.delete('readiness-cancelled')
+  manager.processes.delete('readiness-timeout')
+  delete manager.isPortOpen
+
+  await manager.startProcess('clean-exit', '.', 'node -e "process.exit(0)"')
   await waitForStatus(manager, 'clean-exit', manager.STATUS.STOPPED)
 
-  manager.startProcess('failed-exit', '.', 'node -e "process.exit(7)"')
+  await manager.startProcess('failed-exit', '.', 'node -e "process.exit(7)"')
   await waitForStatus(manager, 'failed-exit', manager.STATUS.ERROR)
   assert.equal(manager.getProcessStatus('failed-exit').exitCode, 7)
 
-  manager.startProcess('long-running', '.', 'node -e "setInterval(() => {}, 1000)"')
-  assert.equal(manager.getProcessStatus('long-running').status, manager.STATUS.RUNNING)
+  await manager.startProcess('long-running', '.', 'node -e "setInterval(() => {}, 1000)"')
+  const runningStatus = manager.getProcessStatus('long-running')
+  assert.equal(runningStatus.status, manager.STATUS.RUNNING)
+  assert.ok(runningStatus.pid)
+  assert.ok(runningStatus.startedAt)
+
+  const log = manager.addLog('long-running', 'hydrated output', 'stdout')
+  assert.deepEqual(manager.getLogs('long-running'), [log])
+  assert.ok(log.id)
+  assert.deepEqual(manager.getLogs('long-running', 0), [])
+  assert.deepEqual(manager.getLogs('long-running', 'invalid'), [log])
+  manager.clearLogs('long-running')
+  assert.deepEqual(manager.getLogs('long-running'), [])
+
   await manager.stopProcess('long-running')
   assert.equal(manager.getProcessStatus('long-running').status, manager.STATUS.STOPPED)
   assert.equal(manager.getProcessStatus('long-running').pid, null)

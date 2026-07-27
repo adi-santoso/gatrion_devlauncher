@@ -99,12 +99,12 @@ function setupProjectHandlers(storageManager, processManager, mainWindow) {
   ipcMain.handle('delete-project', async (event, projectId) => {
     try {
       const processStatus = processManager.getProcessStatus(projectId)
-      if (processStatus.status === processManager.STATUS.RUNNING) {
-        await processManager.stopProcess(projectId)
-      } else if (
-        processStatus.status === processManager.STATUS.STARTING ||
-        processStatus.status === processManager.STATUS.STOPPING
+      if (
+        processStatus.status === processManager.STATUS.RUNNING ||
+        processStatus.status === processManager.STATUS.STARTING
       ) {
+        await processManager.stopProcess(projectId)
+      } else if (processStatus.status === processManager.STATUS.STOPPING) {
         throw new Error(`Cannot delete project while process is ${processStatus.status.toLowerCase()}`)
       }
 

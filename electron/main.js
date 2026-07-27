@@ -1,16 +1,19 @@
-const { app, BrowserWindow, ipcMain } = require('electron')
+const { app, BrowserWindow, ipcMain, Notification } = require('electron')
 const path = require('path')
 const ProcessManager = require('./managers/ProcessManager')
 const StorageManager = require('./managers/StorageManager')
 const ProjectDetector = require('./managers/ProjectDetector')
+const TrayManager = require('./managers/TrayManager')
 const { setupProcessHandlers } = require('./handlers/processHandlers')
 const { setupProjectHandlers } = require('./handlers/projectHandlers')
+const { setupDesktopHandlers } = require('./handlers/desktopHandlers')
 
 let mainWindow
 let processManager
 let storageManager
 let projectDetector
-let isQuitting = false // Track if app is in quitting process
+let trayManager
+let isQuitting = false
 
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -35,9 +38,39 @@ function createWindow() {
     mainWindow.loadFile(path.join(__dirname, '../dist-react/index.html'))
   }
 
+  // Handle minimize to tray when user closes window
+  mainWindow.on('close', async (event) => {
+    if (!isQuitting) {
+      try {
+        const config = await storageManager.loadConfig()
+        if (config && config.minimizeToTray) {
+          event.preventDefault()
+          mainWindow.hide()
+          return
+        }
+      } catch (err) {
+        console.error('[App] Error reading config on close:', err)
+      }
+    }
+  })
+
   mainWindow.on('closed', () => {
     mainWindow = null
   })
+}
+
+async function applyOSSettings(config) {
+  if (!config) return
+  if (typeof app.setLoginItemSettings === 'function') {
+    try {
+      app.setLoginItemSettings({
+        openAtLogin: !!config.startOnBoot,
+        path: app.getPath('exe')
+      })
+    } catch (err) {
+      console.error('[App] Error setting login item settings:', err)
+    }
+  }
 }
 
 async function initialize() {
@@ -52,20 +85,41 @@ async function initialize() {
   // Create window
   createWindow()
 
+  // Create native tray
+  trayManager = new TrayManager(mainWindow, processManager, storageManager)
+  trayManager.init()
+
   // Setup IPC handlers
   setupProcessHandlers(processManager, storageManager, mainWindow)
   setupProjectHandlers(storageManager, processManager, mainWindow)
+  setupDesktopHandlers()
+
+  // Listen to process events for native notifications & tray updates
+  processManager.on('status-change', (data) => {
+    trayManager.updateContextMenu()
+    if (data.status === 'error' && Notification.isSupported()) {
+      new Notification({
+        title: 'DevLauncher - Project Crash',
+        body: `Project "${data.projectId}" encountered an error.`
+      }).show()
+    }
+  })
+
+  // Apply OS startup settings
+  const config = await storageManager.loadConfig()
+  await applyOSSettings(config)
 
   // Setup config handler
   ipcMain.handle('get-config', async () => {
-    const config = await storageManager.loadConfig()
-    return { success: true, config }
+    const currentConfig = await storageManager.loadConfig()
+    return { success: true, config: currentConfig }
   })
 
   ipcMain.handle('update-config', async (event, updates) => {
     try {
-      const config = await storageManager.updateConfig(updates)
-      return { success: true, config }
+      const updatedConfig = await storageManager.updateConfig(updates)
+      await applyOSSettings(updatedConfig)
+      return { success: true, config: updatedConfig }
     } catch (error) {
       return { success: false, error: error.message }
     }
@@ -99,7 +153,6 @@ app.whenReady().then(async () => {
 })
 
 app.on('window-all-closed', () => {
-  // On macOS, keep app running until user explicitly quits
   if (process.platform !== 'darwin') {
     app.quit()
   }
@@ -108,13 +161,17 @@ app.on('window-all-closed', () => {
 // Handle app quit - stop all processes before exiting
 app.on('before-quit', async (event) => {
   if (isQuitting) {
-    return // Already in quitting process, don't prevent
+    return
+  }
+
+  isQuitting = true
+
+  if (trayManager) {
+    trayManager.destroy()
   }
 
   if (processManager) {
-    event.preventDefault() // Prevent quit until processes are stopped
-    isQuitting = true
-
+    event.preventDefault()
     console.log('[App] Stopping all processes before quit...')
 
     try {
@@ -123,10 +180,7 @@ app.on('before-quit', async (event) => {
     } catch (error) {
       console.error('[App] Error stopping processes on quit:', error)
     } finally {
-      // Force quit after cleanup
       app.exit(0)
     }
-  } else {
-    isQuitting = true
   }
 })

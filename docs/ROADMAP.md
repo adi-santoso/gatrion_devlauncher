@@ -92,21 +92,21 @@ Acceptance criteria:
 
 ## Phase 4: Functional UI
 
-**Status: Partial**
+**Status: Done**
 
 - [x] Dashboard, project grid/list, detail, settings shell.
 - [x] Status dan action project konsisten untuk start/stop.
 - [x] Loading, empty state, modal, toast.
 - [x] Theme dark/light.
-- [ ] Terapkan search, filter type/status, dan sort.
-- [ ] Implement bulk start, stop, dan delete selected.
-- [ ] Perbaiki CommandPalette contract dan keyboard navigation.
-- [ ] Hubungkan Project Detail settings save.
-- [ ] Buat crash banner berdasarkan event nyata.
-- [ ] Hilangkan mock resource chart/activity atau tandai eksplisit.
-- [ ] Hapus DemoPanel dari production UI.
-- [ ] Putuskan/hapus tree legacy `Pages/`, `Project/`, `Terminal/` dan Zustand bila tidak dipakai.
-- [ ] Pecah orchestration `App.jsx` setelah behavior stabil.
+- [x] Terapkan search, filter type/status, dan sort.
+- [x] Implement bulk start, stop, dan delete selected.
+- [x] Perbaiki CommandPalette contract dan keyboard navigation.
+- [x] Hubungkan Project Detail settings save.
+- [x] Buat crash banner berdasarkan event nyata.
+- [x] Hilangkan mock resource chart/activity atau tandai eksplisit.
+- [x] Hapus DemoPanel dari production UI.
+- [x] Putuskan/hapus tree legacy `Pages/`, `Project/`, `Terminal/` dan Zustand bila tidak dipakai.
+- [x] Pecah orchestration `App.jsx` setelah behavior stabil.
 
 Acceptance criteria:
 
@@ -117,17 +117,17 @@ Acceptance criteria:
 
 ## Phase 5: Native Desktop Integration
 
-**Status: Pending**
+**Status: Done**
 
-- [ ] Open URL via `shell.openExternal` dengan validasi localhost/URL.
-- [ ] Reveal path via `shell.showItemInFolder`.
-- [ ] Open editor melalui pilihan executable/command yang tervalidasi.
-- [ ] Native Electron `Tray` dan menu.
-- [ ] Minimize-to-tray behavior.
-- [ ] OS startup via `app.setLoginItemSettings`.
-- [ ] Native notifications untuk start/crash sesuai config.
-- [ ] Hapus renderer fake tray setelah native tray selesai.
-- [ ] Definisikan behavior close vs quit dengan jelas.
+- [x] Open URL via `shell.openExternal` dengan validasi localhost/URL.
+- [x] Reveal path via `shell.showItemInFolder`.
+- [x] Open editor melalui pilihan executable/command yang tervalidasi.
+- [x] Native Electron `Tray` dan menu.
+- [x] Minimize-to-tray behavior.
+- [x] OS startup via `app.setLoginItemSettings`.
+- [x] Native notifications untuk start/crash sesuai config.
+- [x] Hapus renderer fake tray setelah native tray selesai.
+- [x] Definisikan behavior close vs quit dengan jelas.
 
 Dependency install sengaja bukan target awal. Menjalankan package manager dari UI menambah security dan lifecycle complexity; tambahkan hanya jika use case terbukti.
 

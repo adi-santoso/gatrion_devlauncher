@@ -4,9 +4,31 @@ import React, { useState, useEffect, useRef } from 'react';
  * CommandPalette - Search overlay (Ctrl+K) with filtered items
  * Lines 995-1017 from template
  */
-const CommandPalette = ({ isOpen, onClose, onItemSelect, projects = [], actions = [] }) => {
+const DEFAULT_ACTIONS = [
+  { id: 'new-project', name: 'Add New Project', label: 'Add New Project', icon: '➕' },
+  { id: 'view-dashboard', name: 'Go to Dashboard', label: 'Go to Dashboard', icon: '📊' },
+  { id: 'view-projects', name: 'Go to Projects Registry', label: 'Go to Projects Registry', icon: '📦' },
+  { id: 'view-settings', name: 'Go to Settings', label: 'Go to Settings', icon: '⚙️' },
+  { id: 'toggle-theme', name: 'Toggle Dark/Light Theme', label: 'Toggle Dark/Light Theme', icon: '🌙' },
+  { id: 'shortcuts', name: 'Keyboard Shortcuts', label: 'Keyboard Shortcuts', icon: '⌨️' },
+  { id: 'start-all', name: 'Start All Projects', label: 'Start All Projects', icon: '▶️' },
+  { id: 'stop-all', name: 'Stop All Projects', label: 'Stop All Projects', icon: '⏹️' }
+];
+
+/**
+ * CommandPalette - Search overlay (Ctrl+K) with filtered items
+ */
+const CommandPalette = ({
+  isOpen,
+  onClose,
+  onItemSelect,
+  onSelectCommand,
+  projects = [],
+  actions = DEFAULT_ACTIONS
+}) => {
   const [searchQuery, setSearchQuery] = useState('');
   const inputRef = useRef(null);
+  const handleSelect = onItemSelect || onSelectCommand;
 
   useEffect(() => {
     if (isOpen && inputRef.current) {
@@ -22,7 +44,7 @@ const CommandPalette = ({ isOpen, onClose, onItemSelect, projects = [], actions 
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
         e.preventDefault();
         if (!isOpen) {
-          // Open palette (handled by parent)
+          // Open palette handled by parent
         }
       } else if (e.key === 'Escape' && isOpen) {
         onClose();
@@ -36,15 +58,29 @@ const CommandPalette = ({ isOpen, onClose, onItemSelect, projects = [], actions 
   const filterItems = (item) => {
     if (!searchQuery) return true;
     const query = searchQuery.toLowerCase();
-    const label = item.label.toLowerCase();
-    return label.includes(query);
+    const nameStr = (item.name || item.label || '').toLowerCase();
+    const pathStr = (item.path || '').toLowerCase();
+    const typeStr = (item.type || '').toLowerCase();
+    return nameStr.includes(query) || pathStr.includes(query) || typeStr.includes(query);
   };
 
   const filteredProjects = projects.filter(filterItems);
-  const filteredActions = actions.filter(filterItems);
+  const filteredActions = (actions.length > 0 ? actions : DEFAULT_ACTIONS).filter(filterItems);
 
-  const handleItemClick = (item) => {
-    onItemSelect(item);
+  const handleItemClick = (item, isProject = false) => {
+    if (handleSelect) {
+      if (isProject) {
+        handleSelect({
+          id: `project-${item.id}`,
+          projectId: item.id,
+          type: 'project',
+          name: item.name,
+          ...item
+        });
+      } else {
+        handleSelect(item);
+      }
+    }
     onClose();
   };
 
@@ -90,11 +126,13 @@ const CommandPalette = ({ isOpen, onClose, onItemSelect, projects = [], actions 
                 {filteredProjects.map((project) => (
                   <button
                     key={project.id}
-                    onClick={() => handleItemClick(project)}
-                    data-label={project.label}
+                    onClick={() => handleItemClick(project, true)}
+                    data-label={project.name || project.label}
                     className="palette-item w-full flex items-center gap-2.5 px-4 py-2 text-sm text-ink hover:bg-surface-3 text-left"
                   >
-                    {project.icon} {project.name}
+                    <span>{project.emoji || project.icon || '📁'}</span>
+                    <span className="font-medium text-ink">{project.name || project.label}</span>
+                    <span className="text-xs text-ink-faint ml-auto capitalize">{project.type || 'custom'}</span>
                   </button>
                 ))}
               </>
@@ -107,11 +145,12 @@ const CommandPalette = ({ isOpen, onClose, onItemSelect, projects = [], actions 
                 {filteredActions.map((action) => (
                   <button
                     key={action.id}
-                    onClick={() => handleItemClick(action)}
-                    data-label={action.label}
+                    onClick={() => handleItemClick(action, false)}
+                    data-label={action.name || action.label}
                     className="palette-item w-full flex items-center gap-2.5 px-4 py-2 text-sm text-ink hover:bg-surface-3 text-left"
                   >
-                    {action.icon} {action.name}
+                    <span>{action.icon || '⚡'}</span>
+                    <span className="text-ink">{action.name || action.label}</span>
                   </button>
                 ))}
               </>
@@ -127,3 +166,4 @@ const CommandPalette = ({ isOpen, onClose, onItemSelect, projects = [], actions 
 };
 
 export default CommandPalette;
+

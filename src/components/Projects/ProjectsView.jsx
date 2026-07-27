@@ -1,12 +1,30 @@
 import React, { useState } from 'react';
 import ProjectListRow from './ProjectListRow';
+import BulkToolbar from './BulkToolbar';
 
-export default function ProjectsView({ projects = [], onStart, onStop, onRestart, onDelete, onEdit, onNavigate, onOpenModal }) {
+export default function ProjectsView({
+  projects = [],
+  onStart,
+  onStop,
+  onRestart,
+  onDelete,
+  onEdit,
+  onNavigate,
+  onOpenModal,
+  onBulkStart,
+  onBulkStop,
+  onBulkDelete
+}) {
   const [searchQuery, setSearchQuery] = useState('');
   const [typeFilter, setTypeFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [sortBy, setSortBy] = useState('name-asc');
+  const [selectedIds, setSelectedIds] = useState([]);
+
   const types = [...new Set(projects.map((project) => project.type).filter(Boolean))].sort();
   const query = searchQuery.trim().toLowerCase();
+
+  // Filter projects
   const filteredProjects = projects.filter((project) => {
     const status = (project.status || 'stopped').toLowerCase();
     const matchesSearch = !query || [project.name, project.path, project.type]
@@ -15,6 +33,57 @@ export default function ProjectsView({ projects = [], onStart, onStop, onRestart
       && (typeFilter === 'all' || project.type === typeFilter)
       && (statusFilter === 'all' || status === statusFilter);
   });
+
+  // Sort projects
+  const sortedProjects = [...filteredProjects].sort((a, b) => {
+    if (sortBy === 'name-asc') return (a.name || '').localeCompare(b.name || '');
+    if (sortBy === 'name-desc') return (b.name || '').localeCompare(a.name || '');
+    if (sortBy === 'status') return (a.status || '').localeCompare(b.status || '');
+    if (sortBy === 'type') return (a.type || '').localeCompare(b.type || '');
+    if (sortBy === 'port') return (a.port || 0) - (b.port || 0);
+    return 0;
+  });
+
+  // Checkbox handlers
+  const handleSelectAll = (checked) => {
+    if (checked) {
+      setSelectedIds(sortedProjects.map(p => p.id));
+    } else {
+      setSelectedIds([]);
+    }
+  };
+
+  const handleSelectOne = (id, checked) => {
+    if (checked) {
+      setSelectedIds(prev => [...prev, id]);
+    } else {
+      setSelectedIds(prev => prev.filter(item => item !== id));
+    }
+  };
+
+  const handleClearSelection = () => {
+    setSelectedIds([]);
+  };
+
+  const handleBulkStartClick = () => {
+    const targetProjects = projects.filter(p => selectedIds.includes(p.id));
+    if (onBulkStart) onBulkStart(targetProjects);
+    else targetProjects.forEach(p => onStart?.(p));
+  };
+
+  const handleBulkStopClick = () => {
+    const targetProjects = projects.filter(p => selectedIds.includes(p.id));
+    if (onBulkStop) onBulkStop(targetProjects);
+    else targetProjects.forEach(p => onStop?.(p));
+  };
+
+  const handleBulkDeleteClick = () => {
+    const targetProjects = projects.filter(p => selectedIds.includes(p.id));
+    if (onBulkDelete) onBulkDelete(targetProjects);
+    else if (onDelete && targetProjects.length > 0) onDelete(targetProjects[0]);
+  };
+
+  const allSelected = sortedProjects.length > 0 && sortedProjects.every(p => selectedIds.includes(p.id));
 
   return (
     <div className="view space-y-4">
@@ -28,6 +97,14 @@ export default function ProjectsView({ projects = [], onStart, onStop, onRestart
           + Add Project
         </button>
       </div>
+
+      <BulkToolbar
+        selectedCount={selectedIds.length}
+        onClearSelection={handleClearSelection}
+        onBulkStart={handleBulkStartClick}
+        onBulkStop={handleBulkStopClick}
+        onBulkDelete={handleBulkDeleteClick}
+      />
 
       <div className="flex items-center gap-2 flex-wrap">
         <div className="relative flex-1 min-w-56 max-w-sm">
@@ -45,24 +122,53 @@ export default function ProjectsView({ projects = [], onStart, onStop, onRestart
           <option value="running">Running</option><option value="starting">Starting</option>
           <option value="stopping">Stopping</option><option value="stopped">Stopped</option><option value="error">Error</option>
         </select>
+        <select value={sortBy} onChange={(event) => setSortBy(event.target.value)} aria-label="Sort by" className="bg-surface-3 border border-border rounded-lg px-3 py-2 text-xs text-ink-soft focus:outline-none ml-auto">
+          <option value="name-asc">Sort: Name (A-Z)</option>
+          <option value="name-desc">Sort: Name (Z-A)</option>
+          <option value="status">Sort: Status</option>
+          <option value="type">Sort: Type</option>
+          <option value="port">Sort: Port</option>
+        </select>
       </div>
 
       <div className="bg-surface border border-border rounded-xl shadow-card overflow-x-auto">
         <table className="w-full min-w-[760px] text-sm">
-          <thead><tr className="text-left text-[11px] uppercase tracking-wider text-ink-faint border-b border-border">
-            <th className="font-medium px-5 py-3">Project</th><th className="font-medium px-3 py-3">Status</th>
-            <th className="font-medium px-3 py-3">Type</th><th className="font-medium px-3 py-3">Port</th>
-            <th className="font-medium px-5 py-3 text-right">Actions</th>
-          </tr></thead>
+          <thead>
+            <tr className="text-left text-[11px] uppercase tracking-wider text-ink-faint border-b border-border">
+              <th className="pl-4 pr-2 py-3 w-10">
+                <input
+                  type="checkbox"
+                  checked={allSelected}
+                  onChange={(e) => handleSelectAll(e.target.checked)}
+                  aria-label="Select all projects"
+                  className="w-4 h-4 accent-accent rounded border-border cursor-pointer"
+                />
+              </th>
+              <th className="font-medium px-3 py-3">Project</th>
+              <th className="font-medium px-3 py-3">Status</th>
+              <th className="font-medium px-3 py-3">Type</th>
+              <th className="font-medium px-3 py-3">Port</th>
+              <th className="font-medium px-5 py-3 text-right">Actions</th>
+            </tr>
+          </thead>
           <tbody className="divide-y divide-border">
-            {filteredProjects.map((project) => (
-              <ProjectListRow key={project.id} project={project}
-                onStart={() => onStart?.(project)} onStop={() => onStop?.(project)} onRestart={() => onRestart?.(project)}
-                onEdit={() => onEdit?.(project)} onDelete={() => onDelete?.(project)} onShowDetail={() => onNavigate?.(project)}/>
+            {sortedProjects.map((project) => (
+              <ProjectListRow
+                key={project.id}
+                project={project}
+                isSelected={selectedIds.includes(project.id)}
+                onSelectChange={(checked) => handleSelectOne(project.id, checked)}
+                onStart={() => onStart?.(project)}
+                onStop={() => onStop?.(project)}
+                onRestart={() => onRestart?.(project)}
+                onEdit={() => onEdit?.(project)}
+                onDelete={() => onDelete?.(project)}
+                onShowDetail={() => onNavigate?.(project)}
+              />
             ))}
           </tbody>
         </table>
-        {filteredProjects.length === 0 && <p className="px-5 py-10 text-center text-sm text-ink-faint">No projects match current filters.</p>}
+        {sortedProjects.length === 0 && <p className="px-5 py-10 text-center text-sm text-ink-faint">No projects match current filters.</p>}
       </div>
     </div>
   );
