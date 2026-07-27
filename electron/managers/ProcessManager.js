@@ -306,7 +306,35 @@ class ProcessManager extends EventEmitter {
       uptimeStr = `${m}m ${s}s`
     }
 
-    let memoryMb = null
+    processData.uptime = uptimeStr
+
+    // Throttle CLI tasklist execution to at most once every 5000ms per project
+    const lastCheck = processData.lastMetricsTime || 0
+    if (now - lastCheck < 5000 && processData.cachedMemoryMb !== undefined) {
+      return {
+        status: (processData.status || 'stopped').toLowerCase(),
+        pid,
+        uptime: uptimeStr,
+        uptimeSec,
+        memoryMb: processData.cachedMemoryMb,
+        cpuPercent: null
+      }
+    }
+
+    // Skip if another tasklist check is currently in-flight
+    if (processData.isFetchingMetrics) {
+      return {
+        status: (processData.status || 'stopped').toLowerCase(),
+        pid,
+        uptime: uptimeStr,
+        uptimeSec,
+        memoryMb: processData.cachedMemoryMb || null,
+        cpuPercent: null
+      }
+    }
+
+    processData.isFetchingMetrics = true
+    processData.lastMetricsTime = now
 
     try {
       const { stdout } = await execAsync(`tasklist /FI "PID eq ${pid}" /FO CSV /NH`, { timeout: 1500 })
@@ -315,22 +343,21 @@ class ProcessManager extends EventEmitter {
         const memKbStr = match[1].replace(/[,.\s]/g, '')
         const memKb = parseInt(memKbStr, 10)
         if (!isNaN(memKb)) {
-          memoryMb = Math.round(memKb / 1024)
+          processData.cachedMemoryMb = Math.round(memKb / 1024)
         }
       }
     } catch {
       // Ignore
+    } finally {
+      processData.isFetchingMetrics = false
     }
-
-    // Assign uptime string back to processData so headers retain it
-    processData.uptime = uptimeStr
 
     return {
       status: (processData.status || 'stopped').toLowerCase(),
       pid,
       uptime: uptimeStr,
       uptimeSec,
-      memoryMb,
+      memoryMb: processData.cachedMemoryMb || null,
       cpuPercent: null
     }
   }

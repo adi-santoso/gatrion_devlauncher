@@ -444,21 +444,36 @@ export const useProcesses = (projects = [], onProjectUpdate) => {
     return cleanup;
   }, [onProjectUpdate]);
 
-  // Smart polling for resource metrics (every 3s when window is visible)
-  useEffect(() => {
-    const runningProjects = projects.filter(p => (processStatuses[p.id] || p.status || '').toLowerCase() === 'running');
-    if (runningProjects.length === 0) return;
+  const projectsRef = useRef(projects);
+  projectsRef.current = projects;
 
+  const processStatusesRef = useRef(processStatuses);
+  processStatusesRef.current = processStatuses;
+
+  const onProjectUpdateRef = useRef(onProjectUpdate);
+  onProjectUpdateRef.current = onProjectUpdate;
+
+  // Smart polling for resource metrics (runs once on mount, 4s interval, throttled backend)
+  useEffect(() => {
     const pollMetrics = async () => {
       if (document.hidden) return;
+      const currentProjects = projectsRef.current || [];
+      const currentStatuses = processStatusesRef.current || {};
+      const runningProjects = currentProjects.filter(
+        p => (currentStatuses[p.id] || p.status || '').toLowerCase() === 'running'
+      );
+
       for (const p of runningProjects) {
         try {
           const metrics = await ipc.getProcessMetrics(p.id);
           if (metrics && metrics.pid) {
-            onProjectUpdate?.(p.id, {
-              uptime: metrics.uptime,
-              metrics
-            });
+            // Only notify if metrics or uptime actually changed
+            if (p.uptime !== metrics.uptime || p.metrics?.memoryMb !== metrics.memoryMb) {
+              onProjectUpdateRef.current?.(p.id, {
+                uptime: metrics.uptime,
+                metrics
+              });
+            }
           }
         } catch {
           // Ignore
@@ -466,11 +481,9 @@ export const useProcesses = (projects = [], onProjectUpdate) => {
       }
     };
 
-    const intervalId = setInterval(pollMetrics, 3000);
-    pollMetrics();
-
+    const intervalId = setInterval(pollMetrics, 4000);
     return () => clearInterval(intervalId);
-  }, [projects, processStatuses, onProjectUpdate]);
+  }, []);
 
   return {
     processStatuses,
