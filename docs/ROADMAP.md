@@ -158,16 +158,16 @@ Acceptance criteria:
 
 ## Phase 7: Security Hardening
 
-**Status: Pending, release blocker**
+**Status: Done**
 
-- [ ] Tentukan command model: executable + args terstruktur, atau dokumentasikan local-trust model secara formal.
-- [ ] Kurangi penggunaan `shell: true`; gunakan hanya untuk command yang memang membutuhkan shell.
-- [ ] Validasi seluruh IPC payload di main process.
-- [ ] Allowlist field `update-project`; larang perubahan ID/runtime field.
-- [ ] Allowlist channel listener dan hapus public `removeAllListeners` bila tidak perlu.
-- [ ] Redact sensitive env values dari log/debug output.
-- [ ] Tambahkan CSP dan audit external navigation.
-- [ ] Threat model untuk project path, command, env, symlink, dan backup data.
+- [x] Tentukan command model: executable + args terstruktur, atau dokumentasikan local-trust model secara formal.
+- [x] Kurangi penggunaan `shell: true`; gunakan hanya untuk command yang memang membutuhkan shell.
+- [x] Validasi seluruh IPC payload di main process.
+- [x] Allowlist field `update-project`; larang perubahan ID/runtime field.
+- [x] Allowlist channel listener dan hapus public `removeAllListeners` bila tidak perlu.
+- [x] Redact sensitive env values dari log/debug output.
+- [x] Tambahkan CSP dan audit external navigation.
+- [x] Threat model untuk project path, command, env, symlink, dan backup data.
 
 Acceptance criteria:
 

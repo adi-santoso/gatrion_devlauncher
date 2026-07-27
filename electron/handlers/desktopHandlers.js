@@ -1,5 +1,7 @@
 const { ipcMain, shell } = require('electron');
 
+const fs = require('fs');
+
 function setupDesktopHandlers() {
   // Open external URL in default OS browser
   ipcMain.handle('open-external-url', async (event, url) => {
@@ -7,10 +9,19 @@ function setupDesktopHandlers() {
       if (!url || typeof url !== 'string') {
         return { success: false, error: 'Invalid URL parameter' };
       }
-      if (!url.startsWith('http://') && !url.startsWith('https://')) {
+      const trimmed = url.trim();
+      let parsed;
+      try {
+        parsed = new URL(trimmed);
+      } catch {
+        return { success: false, error: 'Invalid URL format' };
+      }
+
+      if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
         return { success: false, error: 'Only http:// and https:// URLs are allowed' };
       }
-      await shell.openExternal(url);
+
+      await shell.openExternal(parsed.toString());
       return { success: true };
     } catch (error) {
       console.error('[DesktopHandlers] Error opening external URL:', error);
@@ -23,6 +34,9 @@ function setupDesktopHandlers() {
     try {
       if (!targetPath || typeof targetPath !== 'string') {
         return { success: false, error: 'Invalid path parameter' };
+      }
+      if (!fs.existsSync(targetPath)) {
+        return { success: false, error: 'Path does not exist' };
       }
       shell.showItemInFolder(targetPath);
       return { success: true };
@@ -37,6 +51,9 @@ function setupDesktopHandlers() {
     try {
       if (!targetPath || typeof targetPath !== 'string') {
         return { success: false, error: 'Invalid path parameter' };
+      }
+      if (!fs.existsSync(targetPath)) {
+        return { success: false, error: 'Path does not exist' };
       }
       const errorMessage = await shell.openPath(targetPath);
       if (errorMessage) {

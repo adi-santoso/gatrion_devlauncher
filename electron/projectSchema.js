@@ -133,6 +133,35 @@ function validateProject(project) {
   return project
 }
 
+const SENSITIVE_KEYWORDS = [
+  'PASSWORD', 'SECRET', 'KEY', 'TOKEN', 'AUTH', 'CREDENTIAL', 'PRIVATE', 'DATABASE_URL', 'CONN_STRING', 'SALT', 'PASSPHRASE'
+]
+
+function isSensitiveKey(key) {
+  if (typeof key !== 'string') return false
+  const upperKey = key.toUpperCase()
+  return SENSITIVE_KEYWORDS.some((kw) => upperKey.includes(kw))
+}
+
+function redactSensitiveEnv(envInput) {
+  if (Array.isArray(envInput)) {
+    return envInput.map((item) => {
+      if (!item || typeof item !== 'object') return item
+      if (isSensitiveKey(item.key)) {
+        return { ...item, value: '••••••••' }
+      }
+      return item
+    })
+  } else if (envInput && typeof envInput === 'object') {
+    const redacted = {}
+    for (const [k, v] of Object.entries(envInput)) {
+      redacted[k] = isSensitiveKey(k) ? '••••••••' : v
+    }
+    return redacted
+  }
+  return envInput
+}
+
 module.exports = {
   PROJECT_TYPES,
   envVarsToObject,
@@ -140,4 +169,6 @@ module.exports = {
   normalizeType,
   sanitizeProjectChanges,
   validateProject,
+  redactSensitiveEnv,
+  isSensitiveKey,
 }

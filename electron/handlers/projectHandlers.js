@@ -1,3 +1,4 @@
+const fs = require('fs')
 const { ipcMain, dialog } = require('electron')
 const { v4: uuidv4 } = require('uuid')
 const { normalizeProject, sanitizeProjectChanges, validateProject } = require('../projectSchema')
@@ -40,6 +41,10 @@ function setupProjectHandlers(storageManager, processManager, mainWindow) {
         createdAt: new Date().toISOString(),
         lastRun: null,
       }))
+
+      if (!fs.existsSync(project.path)) {
+        throw new Error(`Project directory path "${project.path}" does not exist`)
+      }
 
       const { projects } = await storageManager.updateProjects((currentProjects) => {
         const duplicateName = currentProjects.find(p => p.name.toLowerCase() === project.name.toLowerCase())
