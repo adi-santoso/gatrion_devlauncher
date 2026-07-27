@@ -435,6 +435,7 @@ export const useProcesses = (projects = [], onProjectUpdate) => {
           status,
           pid: null,
           uptime: null,
+          metrics: null,
           ...(code !== 0 && { errorMessage: `exit code ${code}` })
         });
       }
@@ -442,6 +443,34 @@ export const useProcesses = (projects = [], onProjectUpdate) => {
 
     return cleanup;
   }, [onProjectUpdate]);
+
+  // Smart polling for resource metrics (every 3s when window is visible)
+  useEffect(() => {
+    const runningProjects = projects.filter(p => (processStatuses[p.id] || p.status || '').toLowerCase() === 'running');
+    if (runningProjects.length === 0) return;
+
+    const pollMetrics = async () => {
+      if (document.hidden) return;
+      for (const p of runningProjects) {
+        try {
+          const metrics = await ipc.getProcessMetrics(p.id);
+          if (metrics && metrics.pid) {
+            onProjectUpdate?.(p.id, {
+              uptime: metrics.uptime,
+              metrics
+            });
+          }
+        } catch {
+          // Ignore
+        }
+      }
+    };
+
+    const intervalId = setInterval(pollMetrics, 3000);
+    pollMetrics();
+
+    return () => clearInterval(intervalId);
+  }, [projects, processStatuses, onProjectUpdate]);
 
   return {
     processStatuses,

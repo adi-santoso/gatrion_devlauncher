@@ -115,6 +115,16 @@ function setupProcessHandlers(processManager, storageManager, mainWindow) {
     return processManager.getProcessStatus(projectId)
   })
 
+  // Check port conflict
+  ipcMain.handle('check-port-conflict', async (event, port) => {
+    return processManager.findPortOwner(port)
+  })
+
+  // Get process metrics (uptime, memory MB)
+  ipcMain.handle('get-process-metrics', async (event, projectId) => {
+    return processManager.getProcessMetrics(projectId)
+  })
+
   // Get logs
   ipcMain.handle('get-logs', async (event, projectId, limit = 1000) => {
     return processManager.getLogs(projectId, limit)

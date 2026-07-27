@@ -158,6 +158,20 @@ export const getLogs = async (projectId, limit = 1000) => {
   return window.electron.getLogs(projectId, limit);
 };
 
+export const checkPortConflict = async (port) => {
+  if (!isElectron()) {
+    return { inUse: false };
+  }
+  return window.electron.checkPortConflict(port);
+};
+
+export const getProcessMetrics = async (projectId) => {
+  if (!isElectron()) {
+    return { status: 'stopped', pid: null, uptime: null, memoryMb: null, cpuPercent: null };
+  }
+  return window.electron.getProcessMetrics(projectId);
+};
+
 export const clearLogs = async (projectId) => {
   if (!isElectron()) return { success: true };
   return window.electron.clearLogs(projectId);

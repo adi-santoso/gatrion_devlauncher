@@ -136,8 +136,11 @@ export default function ProjectDetailHeader({ project, onStart, onStop, onRestar
         {project?.pid != null && (
           <span>PID <strong className="text-ink-soft">{project.pid}</strong></span>
         )}
-        {project?.uptime && (
-          <span>Uptime <strong className="text-ink-soft">{project.uptime}</strong></span>
+        {(project?.uptime || project?.metrics?.uptime) && (
+          <span>Uptime <strong className="text-ink-soft">{project?.metrics?.uptime || project.uptime}</strong></span>
+        )}
+        {project?.metrics?.memoryMb != null && (
+          <span>RAM <strong className="text-emerald-400 font-semibold">{project.metrics.memoryMb} MB</strong></span>
         )}
         {project?.startCommand && (
           <span className="truncate max-w-xs">Cmd: <code className="text-ink-soft">{project.startCommand}</code></span>

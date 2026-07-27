@@ -139,16 +139,16 @@ Acceptance criteria:
 
 ## Phase 6: Port dan Resource Monitoring
 
-**Status: Pending**
+**Status: Done**
 
-- [ ] Deteksi port availability sebelum start.
-- [ ] Identifikasi owner PID secara aman pada Windows.
-- [ ] Resolver: cancel, pilih port lain, atau stop process yang dikelola DevLauncher.
-- [ ] Jangan kill arbitrary process tanpa konfirmasi kuat dan detail PID/executable.
-- [ ] Deteksi port siap setelah start sebelum status healthy.
-- [ ] CPU dan memory metrics per managed process tree.
-- [ ] Uptime aktual.
-- [ ] Batasi polling dan stop polling saat window/app tidak aktif.
+- [x] Deteksi port availability sebelum start.
+- [x] Identifikasi owner PID secara aman pada Windows.
+- [x] Resolver: cancel, pilih port lain, atau stop process yang dikelola DevLauncher.
+- [x] Jangan kill arbitrary process tanpa konfirmasi kuat dan detail PID/executable.
+- [x] Deteksi port siap setelah start sebelum status healthy.
+- [x] CPU dan memory metrics per managed process tree.
+- [x] Uptime aktual.
+- [x] Batasi polling dan stop polling saat window/app tidak aktif.
 
 Acceptance criteria:
 

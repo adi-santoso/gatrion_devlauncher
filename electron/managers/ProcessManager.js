@@ -1,7 +1,9 @@
-const { spawn } = require('child_process')
+const { spawn, exec } = require('child_process')
 const net = require('net')
 const path = require('path')
+const util = require('util')
 const { EventEmitter } = require('events')
+const execAsync = util.promisify(exec)
 
 class ProcessManager extends EventEmitter {
   constructor() {
@@ -206,6 +208,131 @@ class ProcessManager extends EventEmitter {
       await new Promise((resolve) => setTimeout(resolve, 250))
     }
     throw new Error(`Timed out waiting for port ${port}`)
+  }
+
+  /**
+   * Check if a port is in use and find its owner PID + process name
+   * @param {number} port - TCP Port
+   */
+  async findPortOwner(port) {
+    if (!Number.isInteger(port) || port < 1 || port > 65535) {
+      return { inUse: false }
+    }
+    const isOpen = await this.isPortOpen(port)
+    if (!isOpen) {
+      return { inUse: false }
+    }
+
+    try {
+      const { stdout } = await execAsync(`netstat -ano -p tcp`, { timeout: 2500 })
+      const lines = stdout.split('\n')
+      const targetPattern = new RegExp(`:${port}\\s+.*LISTENING\\s+(\\d+)`, 'i')
+      let foundPid = null
+
+      for (const line of lines) {
+        const match = line.match(targetPattern)
+        if (match && match[1]) {
+          foundPid = parseInt(match[1], 10)
+          break
+        }
+      }
+
+      if (!foundPid) {
+        return { inUse: true, pid: null, processName: 'Unknown Process' }
+      }
+
+      // Check if managed by DevLauncher
+      let isManaged = false
+      let managedProjectName = null
+      for (const [pId, pData] of this.processes.entries()) {
+        if (pData.pid === foundPid || (pData.port === port && pData.status === this.STATUS.RUNNING)) {
+          isManaged = true
+          managedProjectName = pId
+          break
+        }
+      }
+
+      let processName = 'Unknown Process'
+      try {
+        const { stdout: tasklistOut } = await execAsync(`tasklist /FI "PID eq ${foundPid}" /FO CSV /NH`, { timeout: 2000 })
+        const csvMatch = tasklistOut.match(/^"([^"]+)"/)
+        if (csvMatch && csvMatch[1]) {
+          processName = csvMatch[1]
+        }
+      } catch {
+        // Fallback
+      }
+
+      return {
+        inUse: true,
+        pid: foundPid,
+        processName,
+        isManaged,
+        managedProjectName
+      }
+    } catch {
+      return { inUse: true, pid: null, processName: 'Occupied Port' }
+    }
+  }
+
+  /**
+   * Get real-time resource metrics (uptime, memory MB, status) for a managed project
+   * @param {string} projectId - Project ID
+   */
+  async getProcessMetrics(projectId) {
+    const processData = this.processes.get(projectId)
+    if (!processData || !processData.pid) {
+      return {
+        status: processData?.status ? processData.status.toLowerCase() : 'stopped',
+        pid: null,
+        uptime: null,
+        memoryMb: null,
+        cpuPercent: null
+      }
+    }
+
+    const pid = processData.pid
+    const now = Date.now()
+    const uptimeSec = Math.max(0, Math.floor((now - (processData.startedAt || now)) / 1000))
+
+    let uptimeStr = `${uptimeSec}s`
+    if (uptimeSec >= 3600) {
+      const h = Math.floor(uptimeSec / 3600)
+      const m = Math.floor((uptimeSec % 3600) / 60)
+      uptimeStr = `${h}h ${m}m`
+    } else if (uptimeSec >= 60) {
+      const m = Math.floor(uptimeSec / 60)
+      const s = uptimeSec % 60
+      uptimeStr = `${m}m ${s}s`
+    }
+
+    let memoryMb = null
+
+    try {
+      const { stdout } = await execAsync(`tasklist /FI "PID eq ${pid}" /FO CSV /NH`, { timeout: 1500 })
+      const match = stdout.match(/^"[^"]+","\d+","[^"]+","\d+","([\d\s,.]+)\s*K"/i)
+      if (match && match[1]) {
+        const memKbStr = match[1].replace(/[,.\s]/g, '')
+        const memKb = parseInt(memKbStr, 10)
+        if (!isNaN(memKb)) {
+          memoryMb = Math.round(memKb / 1024)
+        }
+      }
+    } catch {
+      // Ignore
+    }
+
+    // Assign uptime string back to processData so headers retain it
+    processData.uptime = uptimeStr
+
+    return {
+      status: (processData.status || 'stopped').toLowerCase(),
+      pid,
+      uptime: uptimeStr,
+      uptimeSec,
+      memoryMb,
+      cpuPercent: null
+    }
   }
 
   /**

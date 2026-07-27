@@ -11,8 +11,9 @@ import {
   ConfirmDialog,
   CommandPalette,
   ShortcutsModal,
-  ToastContainer
+  ToastContainer,
 } from './components/Modals';
+import PortConflictModal from './components/Modals/PortConflictModal';
 import { useProjects, useProcesses, useElectronConfig } from './hooks';
 import { isElectronAvailable } from './utils/ipcRenderer';
 
@@ -151,8 +152,22 @@ function App() {
     setToasts(prev => prev.filter(toast => toast.id !== id));
   };
 
+  const [portConflictTarget, setPortConflictTarget] = useState(null);
+
   // Project actions
-  const handleStartProject = async (project) => {
+  const handleStartProject = async (project, force = false) => {
+    if (!force && project?.port && isElectronAvailable()) {
+      try {
+        const conflict = await ipc.checkPortConflict(project.port);
+        if (conflict && conflict.inUse && !conflict.isManaged) {
+          setPortConflictTarget({ project, conflictData: { ...conflict, port: project.port } });
+          return;
+        }
+      } catch {
+        // Ignore check error and continue to start
+      }
+    }
+
     const result = await startProjectProcess(project.id);
     if (result.success) {
       showToast('success', `${project.name} started successfully`);
@@ -452,6 +467,25 @@ function App() {
         isOpen={openModal === 'shortcuts'}
         onClose={closeModalHandler}
       />
+
+      {/* Port Conflict Modal */}
+      {portConflictTarget && (
+        <PortConflictModal
+          isOpen={!!portConflictTarget}
+          conflictData={portConflictTarget.conflictData}
+          onClose={() => setPortConflictTarget(null)}
+          onProceed={() => {
+            const prj = portConflictTarget.project;
+            setPortConflictTarget(null);
+            handleStartProject(prj, true);
+          }}
+          onEditPort={() => {
+            const prj = portConflictTarget.project;
+            setPortConflictTarget(null);
+            openModalHandler('project', prj);
+          }}
+        />
+      )}
 
       {/* Toast Container */}
       <ToastContainer toasts={toasts} onDismiss={dismissToast} />

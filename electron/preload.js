@@ -16,6 +16,8 @@ contextBridge.exposeInMainWorld('electron', {
   startAllProjects: () => ipcRenderer.invoke('start-all-projects'),
   stopAllProjects: () => ipcRenderer.invoke('stop-all-projects'),
   getProcessStatus: (projectId) => ipcRenderer.invoke('get-process-status', projectId),
+  checkPortConflict: (port) => ipcRenderer.invoke('check-port-conflict', port),
+  getProcessMetrics: (projectId) => ipcRenderer.invoke('get-process-metrics', projectId),
   getLogs: (projectId, limit) => ipcRenderer.invoke('get-logs', projectId, limit),
   clearLogs: (projectId) => ipcRenderer.invoke('clear-logs', projectId),
 
