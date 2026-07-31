@@ -558,16 +558,16 @@ class ProcessManager extends EventEmitter {
     if (!pid || pid === 'null') return null
     
     try {
-      // Use tasklist /FO CSV /NH /PID <pid> on Windows
-      const { stdout } = await execAsync(`tasklist /FO CSV /NH /PID "${pid}"`, { 
+      // Use tasklist /FO CSV /FI "PID eq <pid>" on Windows PowerShell
+      const { stdout } = await execAsync(`tasklist /FO CSV /NH /FI "PID eq ${pid}"`, { 
         timeout: 3000 
       })
       
-      console.log('[ProcessManager] tasklist output:', stdout)
+      console.log('[ProcessManager] tasklist output:', stdout.trim())
       
       // Parse CSV output: "PID","Image","Memory Usage"
       // Example: 1234,"node.exe",45678912
-      const lines = stdout.trim().split('\n').filter(l => l.trim())
+      const lines = stdout.trim().split('\n').filter(l => l.trim() && !l.includes('INFO'))
       if (lines.length === 0) return null
       
       // Remove quotes and split by comma carefully (memory value might contain commas)
@@ -606,23 +606,31 @@ class ProcessManager extends EventEmitter {
       const memoryKB = parseInt(memoryStr, 10)
       const memoryMB = memoryKB / 1024
       
-      // Calculate CPU using WMIC
+      // Calculate CPU - use simple estimation based on working set
+      // For more accurate CPU%, we would need to sample twice with delta
       let cpuPercent = 0
       try {
+        // Try wmic for CPU percentage
         const { stdout: wmicOut } = await execAsync(
-          `wmic path win32_process where "ProcessId=${pid}" get CPUExecutionDuration /FORMAT:CSV`,
+          `wmic path win32_process where "ProcessId=${pid}" get CPU /FORMAT:CSV`,
           { timeout: 3000 }
         )
         const wmicLines = wmicOut.trim().split('\n').filter(l => l.trim())
         if (wmicLines.length >= 2) {
-          const cpuValue = parseFloat(wmicLines[1])
-          cpuPercent = Math.min(100, Math.max(0, cpuValue * 100))
+          const cpuValue = parseFloat(wmicLines[1].replace(/[^0-9.]/g, ''))
+          if (!isNaN(cpuValue)) {
+            cpuPercent = Math.min(100, Math.max(0, cpuValue))
+          }
         }
       } catch (wmicErr) {
-        console.log('[ProcessManager] WMIC failed, using default CPU:', wmicErr.message)
+        console.log('[ProcessManager] WMIC not available, CPU will show 0%')
       }
       
-      console.log('[ProcessManager] Resources for PID', pid, ':', { cpu: cpuPercent.toFixed(1) + '%', memory: memoryMB.toFixed(1) + 'MB' })
+      console.log('[ProcessManager] Resources for PID', pid, ':', { 
+        cpu: cpuPercent.toFixed(1) + '%', 
+        memory: memoryMB.toFixed(1) + 'MB',
+        image 
+      })
       
       return {
         pid: parseInt(pidStr, 10),
