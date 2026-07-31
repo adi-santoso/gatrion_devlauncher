@@ -38,17 +38,17 @@ export default function ProjectCard({ project, onStop, onRestart, onNavigate }) 
         </div>
         <span className={`ml-2 shrink-0 rounded-md px-2 py-0.5 font-mono text-[8px] font-medium uppercase tracking-wide ${
           isRunning 
-            ? 'bg-success/10 text-success animate-pulse' 
+            ? 'bg-success/10 text-emerald-600 dark:text-emerald-400 animate-pulse' 
             : isStarting 
-            ? 'bg-accent/10 text-accent' 
+            ? 'bg-blue-100/10 text-blue-600 dark:text-blue-400' 
             : isError
-            ? 'bg-danger/10 text-danger'
-            : 'bg-surface-2 text-ink-soft'
+            ? 'bg-red-100/10 text-red-600 dark:text-red-400'
+            : 'bg-gray-100/10 text-gray-600 dark:text-gray-400'
         }`}>
-          {isRunning && '● '}Running
-          {isStarting && '⚡ '}Starting
-          {isStopped && '■ '}Stopped
-          {isError && '✕ '}Error
+          {isRunning && <><span className="inline-block h-1.5 w-1.5 rounded-full bg-current mr-1"></span>Running</>}
+          {!isRunning && !isStarting && !isError && <><span className="inline-block h-1.5 w-1.5 rounded-sm bg-current mr-1"></span>Stopped</>}
+          {isStarting && <><span className="inline-block h-1.5 w-1.5 rounded-full bg-current mr-1 animate-pulse"></span>Starting</>}
+          {isError && <><span className="inline-block h-1.5 w-1.5 rounded-full bg-current mr-1"></span>Error</>}
         </span>
       </div>
       
