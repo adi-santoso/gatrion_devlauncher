@@ -1,3 +1,4 @@
+import { useState, useMemo } from 'react';
 import ProjectCard from './ProjectCard';
 import CrashBanner from '../ProjectDetail/CrashBanner';
 
@@ -29,30 +30,123 @@ export default function DashboardView({
   onStartAll,
   onStopAll
 }) {
-  const runningProjects = projects.filter((project) => project.status?.toLowerCase() === 'running');
-  const notRunningProjects = projects.filter((project) => project.status?.toLowerCase() !== 'running');
-  const startingCount = projects.filter((project) => project.status?.toLowerCase() === 'starting').length;
-  const erroredProjects = projects.filter((project) => project.status?.toLowerCase() === 'error');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [sortBy, setSortBy] = useState('name');
+
+  const runningProjects = projects.filter((p) => p.status?.toLowerCase() === 'running');
+  const startingProjects = projects.filter((p) => p.status?.toLowerCase() === 'starting');
+  const stoppedProjects = projects.filter((p) => p.status?.toLowerCase() === 'stopped');
+  const erroredProjects = projects.filter((p) => p.status?.toLowerCase() === 'error');
+  
+  const filteredProjects = useMemo(() => {
+    let result = [...projects];
+    
+    if (searchQuery) {
+      const query = searchQuery.toLowerCase();
+      result = result.filter(p => 
+        p.name?.toLowerCase().includes(query) ||
+        p.type?.toLowerCase().includes(query) ||
+        p.stack?.toLowerCase().includes(query)
+      );
+    }
+    
+    if (statusFilter !== 'all') {
+      result = result.filter(p => p.status?.toLowerCase() === statusFilter);
+    }
+    
+    result.sort((a, b) => {
+      switch (sortBy) {
+        case 'name': return a.name.localeCompare(b.name);
+        case 'status': return (a.status || '').localeCompare(b.status || '');
+        case 'cpu': return (b.cpu ?? 0) - (a.cpu ?? 0);
+        case 'memory': return (b.memory ?? 0) - (a.memory ?? 0);
+        default: return 0;
+      }
+    });
+    
+    return result;
+  }, [projects, searchQuery, statusFilter, sortBy]);
+
+  const activeCount = runningProjects.length + startingProjects.length;
   const errorCount = erroredProjects.length;
+
   const logs = latestOutput.slice(-8).map(formatLog);
   const dateLabel = new Intl.DateTimeFormat(undefined, { weekday: 'long', day: 'numeric', month: 'long' }).format(new Date());
-  const startWorkspace = () => onStartAll ? onStartAll() : projects.filter((project) => !['running', 'starting'].includes(project.status?.toLowerCase())).forEach((project) => onStart?.(project));
-  const stopWorkspace = () => onStopAll ? onStopAll() : runningProjects.forEach((project) => onStop?.(project));
+
+  const startWorkspace = () => {
+    if (onStartAll) onStartAll();
+    else projects
+      .filter(p => !['running', 'starting'].includes(p.status?.toLowerCase()))
+      .forEach(p => onStart?.(p));
+  };
+
+  const stopWorkspace = () => {
+    if (onStopAll) onStopAll();
+    else runningProjects.forEach(p => onStop?.(p));
+  };
 
   return (
-    <div className="view mx-auto max-w-[1400px]">
+    <div className="view mx-auto max-w-[1600px]">
       <header className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <p className="mb-1.5 font-mono text-[9px] font-semibold uppercase tracking-[0.13em] text-accent">{dateLabel}</p>
           <h1 className="font-display text-2xl font-extrabold tracking-tight">Your local workspace</h1>
-          <p className="mt-1 text-xs text-ink-soft">Run, inspect, and use every project without leaving DevLauncher.</p>
+          <p className="mt-1 text-xs text-ink-soft">Manage and monitor all your projects in one place.</p>
         </div>
         <div className="flex gap-2">
-          <button type="button" onClick={stopWorkspace} disabled={!onStopAll && !onStop} className="rounded-lg border border-border bg-surface-2 px-3 py-2 text-xs font-semibold text-ink-soft hover:text-ink disabled:cursor-not-allowed disabled:opacity-50">Stop all</button>
-          <button type="button" onClick={startWorkspace} disabled={!onStartAll && !onStart} className="rounded-lg border border-accent bg-accent px-3 py-2 text-xs font-semibold text-white hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-50">Start workspace</button>
+          <button type="button" onClick={stopWorkspace} disabled={!onStopAll && !onStop} className="rounded-lg border border-border bg-surface-2 px-3 py-2 text-xs font-semibold text-ink-soft hover:text-ink disabled:cursor-not-allowed disabled:opacity-50">
+            Stop all
+          </button>
+          <button type="button" onClick={startWorkspace} disabled={!onStartAll && !onStart} className="rounded-lg border border-accent bg-accent px-3 py-2 text-xs font-semibold text-white hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-50">
+            Start workspace
+          </button>
         </div>
       </header>
 
+      {/* Stats Grid */}
+      <section className="grid overflow-hidden rounded-xl border border-border bg-surface/80 sm:grid-cols-2 lg:grid-cols-5">
+        <div className="border-b border-border p-4 sm:border-r xl:border-b-0">
+          <span className="font-mono text-[9px] font-semibold uppercase tracking-wider text-ink-faint">Running</span>
+          <p className="mt-1 flex items-baseline gap-1 font-display text-2xl font-bold text-success">
+            {runningProjects.length}
+            <small className="text-[10px] font-medium text-ink-soft">of {projects.length}</small>
+          </p>
+        </div>
+        <div className="border-b border-border p-4 xl:border-b-0 xl:border-r">
+          <span className="font-mono text-[9px] font-semibold uppercase tracking-wider text-ink-faint">Starting</span>
+          <p className="mt-1 flex items-baseline gap-1 font-display text-2xl font-bold">
+            {startingProjects.length}
+            <small className="text-[10px] font-medium text-ink-soft">in progress</small>
+          </p>
+        </div>
+        <div className="border-b border-border p-4 sm:border-r sm:border-b-0">
+          <span className="font-mono text-[9px] font-semibold uppercase tracking-wider text-ink-faint">Stopped</span>
+          <p className="mt-1 flex items-baseline gap-1 font-display text-2xl font-bold">
+            {stoppedProjects.length}
+            <small className="text-[10px] font-medium text-ink-soft">ready to start</small>
+          </p>
+        </div>
+        <div className="border-b border-border p-4 sm:border-r xl:border-b-0">
+          <span className="font-mono text-[9px] font-semibold uppercase tracking-wider text-ink-faint">Errors</span>
+          <p className={`mt-1 flex items-baseline gap-1 font-display text-2xl font-bold ${errorCount ? 'text-danger' : 'text-ink-soft'}`}>
+            {errorCount}
+          </p>
+        </div>
+        <div className="p-4">
+          <span className="font-mono text-[9px] font-semibold uppercase tracking-wider text-ink-faint">Actions</span>
+          <div className="mt-1 flex gap-2">
+            <button type="button" onClick={startWorkspace} disabled={!onStartAll && !onStart} className="flex-1 rounded-md bg-accent px-2 py-1.5 text-[9px] font-semibold text-white hover:bg-accent-hover disabled:opacity-50">
+              Start All
+            </button>
+            <button type="button" onClick={stopWorkspace} disabled={!onStopAll && !onStop} className="flex-1 rounded-md border border-border bg-surface-2 px-2 py-1.5 text-[9px] font-semibold text-ink-soft hover:bg-surface disabled:opacity-50">
+              Stop All
+            </button>
+          </div>
+        </div>
+      </section>
+
+      {/* Crash Banners */}
       {erroredProjects.length > 0 && (
         <div className="mb-6 space-y-2">
           {erroredProjects.map((project) => (
@@ -66,88 +160,179 @@ export default function DashboardView({
         </div>
       )}
 
-      <section className="grid overflow-hidden rounded-xl border border-border bg-surface/80 sm:grid-cols-2 xl:grid-cols-4">
-        <div className="border-b border-border p-4 sm:border-r xl:border-b-0"><span className="font-mono text-[9px] font-semibold uppercase tracking-wider text-ink-faint">Running</span><p className="mt-1 font-display text-xl font-bold text-success">{runningProjects.length} <small className="text-[10px] font-medium text-ink-soft">of {projects.length} projects</small></p></div>
-        <div className="border-b border-border p-4 xl:border-b-0 xl:border-r"><span className="font-mono text-[9px] font-semibold uppercase tracking-wider text-ink-faint">Starting</span><p className="mt-1 font-display text-xl font-bold">{startingCount} <small className="text-[10px] font-medium text-ink-soft">in progress</small></p></div>
-        <div className="border-b border-border p-4 sm:border-r sm:border-b-0"><span className="font-mono text-[9px] font-semibold uppercase tracking-wider text-ink-faint">Needs attention</span><p className={`mt-1 font-display text-xl font-bold ${errorCount ? 'text-danger' : ''}`}>{errorCount} <small className="text-[10px] font-medium text-ink-soft">errors</small></p></div>
-        <div className="p-4"><span className="font-mono text-[9px] font-semibold uppercase tracking-wider text-ink-faint">CPU / RAM</span><p className="mt-1 font-display text-sm font-bold text-ink-soft">Unavailable</p><span className="text-[10px] text-ink-faint">Pending backend monitoring</span></div>
-      </section>
-
-      <section className="mt-6">
-        <div className="mb-2.5 flex items-center justify-between"><h2 className="font-display text-sm font-bold">Workspace</h2><button type="button" onClick={() => onNavigate?.('projects')} className="text-[10px] font-medium text-accent hover:text-accent-hover">Manage projects</button></div>
-        
-        {runningProjects.length > 0 && (
-          <>
-            <h3 className="mb-2 flex items-center gap-2 font-display text-xs font-semibold text-success">
-              <span className="flex h-2 w-2 items-center justify-center rounded-full bg-success pulse-dot"></span>
-              Running Now
-            </h3>
-            <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
-              {runningProjects.map((project) => <ProjectCard key={project.id || project.name} project={project} onStop={onStop} onStart={onStart} onRestart={onRestart} onNavigate={onNavigate} />)}
-            </div>
-          </>
-        )}
-
-        {notRunningProjects.length > 0 && (
-          <>
-            <h3 className="mb-2 mt-6 flex items-center gap-2 font-display text-xs font-semibold text-ink-soft">
-              <span className="h-2 w-2 rounded-full bg-ink-soft"></span>
-              Available Projects
-            </h3>
-            <div className="overflow-x pb-2">
-              <div className="flex gap-3 min-w-max">
-                {notRunningProjects.map((project) => (
-                  <div key={project.id} className="flex-none w-[280px] rounded-xl border border-border bg-surface p-4 transition-all hover:border-accent hover:bg-surface-2">
-                    <div className="flex items-start justify-between mb-3">
-                      <div className="min-w-0 flex-1">
-                        <h4 className="font-display text-sm font-bold text-ink truncate">{project.name}</h4>
-                        {project.type && (
-                          <p className="mt-0.5 font-mono text-[9px] text-ink-faint capitalize">{project.type}</p>
-                        )}
-                      </div>
-                      <span className={`ml-2 shrink-0 rounded-md px-2 py-0.5 font-mono text-[8px] font-medium uppercase tracking-wide ${project.status?.toLowerCase() === 'starting' ? 'bg-accent-soft text-accent' : 'bg-surface-2 text-ink-soft'}`}>
-                        {project.status === 'starting' ? 'Starting' : 'Stopped'}
-                      </span>
-                    </div>
-                    
-                    {project.port && (
-                      <div className="mb-3 flex items-center gap-2 font-mono text-[9px] text-ink-soft">
-                        <span className="shrink-0 text-ink-faint">Port:</span>
-                        <span className="text-ink">{project.port}</span>
-                      </div>
-                    )}
-                    
-                    <button type="button" onClick={() => onStart(project)} className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-accent px-3 py-2 text-[9px] font-semibold text-white transition-colors hover:bg-accent-hover">
-                      Start Project
-                    </button>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </>
-        )}
-
-        {projects.length === 0 && (
-          <div className="rounded-xl border border-dashed border-border bg-surface/60 py-9 text-center">
-            <p className="text-xs text-ink-faint">No projects yet</p>
-            <button type="button" onClick={() => onOpenModal?.('project')} className="mt-2 text-xs font-semibold text-accent hover:text-accent-hover">+ Add your first project</button>
+      {/* Search & Filters */}
+      <section className="mt-6 mb-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h2 className="font-display text-sm font-bold">Projects</h2>
+            <p className="font-mono text-[9px] text-ink-faint">{filteredProjects.length} of {projects.length} displayed</p>
           </div>
-        )}
-      </section>
+          
+          <div className="flex flex-wrap gap-2">
+            {/* Search */}
+            <div className="relative">
+              <input
+                type="text"
+                placeholder="Search projects..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full sm:w-64 rounded-lg border border-border bg-surface-2 px-3 py-2 pl-9 text-xs font-medium text-ink placeholder:text-ink-faint focus:border-accent focus:outline-none"
+              />
+              <svg className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-ink-faint" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+            </div>
 
-      <div className="mb-2.5 mt-6 flex items-center justify-between"><h2 className="font-display text-sm font-bold">Live workspace</h2><span className="font-mono text-[9px] text-ink-faint">real process data</span></div>
-      <section className="grid gap-3 lg:grid-cols-[1.35fr_1fr]">
-        <div className="overflow-hidden rounded-xl border border-border bg-surface/80 shadow-card">
-          <div className="flex h-11 items-center justify-between border-b border-border px-4"><h3 className="font-display text-xs font-bold">Latest output</h3><span className="font-mono text-[8px] text-ink-faint">{latestOutputProject || 'No stream selected'}</span></div>
-          <div className="min-h-36 max-h-52 overflow-y-auto bg-base/60 px-4 py-3 font-mono text-[10px] leading-5">
-            {logs.length > 0 ? logs.map((log, index) => <p key={index} className={log.type === 'error' ? 'text-danger' : log.type === 'warn' || log.type === 'warning' ? 'text-warning' : 'text-ink-soft'}>{log.time && <span className="mr-2 text-ink-faint">{log.time}</span>}{log.message}</p>) : <p className="text-ink-faint">No real process output available.</p>}
+            {/* Status Filter */}
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className="rounded-lg border border-border bg-surface-2 px-3 py-2 text-xs font-medium text-ink focus:border-accent focus:outline-none"
+            >
+              <option value="all">All Status</option>
+              <option value="running">Running</option>
+              <option value="starting">Starting</option>
+              <option value="stopped">Stopped</option>
+              <option value="error">Error</option>
+            </select>
+
+            {/* Sort */}
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value)}
+              className="rounded-lg border border-border bg-surface-2 px-3 py-2 text-xs font-medium text-ink focus:border-accent focus:outline-none"
+            >
+              <option value="name">Sort by Name</option>
+              <option value="status">Sort by Status</option>
+              <option value="cpu">Sort by CPU</option>
+              <option value="memory">Sort by Memory</option>
+            </select>
           </div>
         </div>
 
+        {/* Quick Stats */}
+        {(activeCount > 0 || errorCount > 0) && (
+          <div className="mt-3 flex flex-wrap gap-2">
+            {activeCount > 0 && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-success/10 px-3 py-1 font-mono text-[9px] font-semibold text-success">
+                <span className="h-1.5 w-1.5 rounded-full bg-success animate-pulse"></span>
+                {activeCount} active
+              </span>
+            )}
+            {errorCount > 0 && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-danger/10 px-3 py-1 font-mono text-[9px] font-semibold text-danger">
+                {errorCount} error{errorCount > 1 ? 's' : ''}
+              </span>
+            )}
+          </div>
+        )}
+      </section>
+
+      {/* Projects Grid */}
+      <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+        {filteredProjects.map((project) => (
+          <ProjectCard
+            key={project.id || project.name}
+            project={project}
+            onStop={onStop}
+            onStart={onStart}
+            onRestart={onRestart}
+            onNavigate={onNavigate}
+          />
+        ))}
+
+        {/* Empty State */}
+        {filteredProjects.length === 0 && (
+          <div className="col-span-full">
+            <div className="rounded-xl border border-dashed border-border bg-surface/60 py-12 text-center">
+              <svg className="mx-auto h-12 w-12 text-ink-faint" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+              </svg>
+              <p className="mt-3 font-display text-sm font-semibold text-ink">No projects found</p>
+              <p className="mt-1 text-xs text-ink-faint">
+                {searchQuery || statusFilter !== 'all' 
+                  ? 'Try adjusting your search or filters' 
+                  : 'Get started by creating your first project'}
+              </p>
+              {!searchQuery && statusFilter === 'all' && (
+                <button
+                  type="button"
+                  onClick={() => onOpenModal?.('project')}
+                  className="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-accent px-4 py-2 text-xs font-semibold text-white hover:bg-accent-hover"
+                >
+                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                  </svg>
+                  Add Project
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+      </section>
+
+      {/* Live Output & Activity */}
+      <div className="mb-2.5 mt-8 flex items-center justify-between">
+        <h2 className="font-display text-sm font-bold">Live Activity</h2>
+        <span className="font-mono text-[9px] text-ink-finite">real-time monitoring</span>
+      </div>
+      <section className="grid gap-3 lg:grid-cols-2">
+        {/* Latest Logs */}
         <div className="overflow-hidden rounded-xl border border-border bg-surface/80 shadow-card">
-          <div className="flex h-11 items-center justify-between border-b border-border px-4"><h3 className="font-display text-xs font-bold">Recent activity</h3><span className="font-mono text-[8px] text-ink-faint">current session</span></div>
-          <div className="px-4 py-1">
-            {recentActivity.length > 0 ? recentActivity.slice(0, 6).map((event, index) => <div key={event.id || index} className="grid grid-cols-[7px_minmax(0,1fr)_auto] items-center gap-2.5 border-b border-border/60 py-2.5 last:border-0"><span className={`h-2 w-2 rounded-full ${event.type === 'danger' || event.type === 'error' ? 'bg-danger' : event.type === 'success' ? 'bg-success' : 'bg-ink-faint'}`} /><p className="truncate text-[10px]"><strong className="font-semibold">{event.project}</strong> {event.message}</p><time className="font-mono text-[8px] text-ink-faint">{event.time}</time></div>) : <p className="py-6 text-center text-xs text-ink-faint">No activity this session.</p>}
+          <div className="flex h-11 items-center justify-between border-b border-border px-4">
+            <h3 className="font-display text-xs font-bold">Recent Logs</h3>
+            <span className="font-mono text-[8px] text-ink-faint">last 8 entries</span>
+          </div>
+          <div className="min-h-32 max-h-52 overflow-y-auto bg-base/60 px-4 py-3 font-mono text-[10px] leading-5">
+            {logs.length > 0 ? logs.map((log, index) => (
+              <p key={index} className={`${log.type === 'error' ? 'text-danger' : log.type === 'warn' || log.type === 'warning' ? 'text-warning' : 'text-ink-soft'}`}>
+                {log.time && <span className="mr-2 text-ink-faint">{log.time}</span>}
+                {log.message}
+              </p>
+            )) : (
+              <p className="text-ink-faint">No log activity available.</p>
+            )}
+          </div>
+        </div>
+
+        {/* Recent Activity */}
+        <div className="overflow-hidden rounded-xl border border-border bg-surface/80 shadow-card">
+          <div className="flex h-11 items-center justify-between border-b border-border px-4">
+            <h3 className="font-display text-xs font-bold">Activity Feed</h3>
+            <span className="font-mono text-[8px] text-ink-faint">current session</span>
+          </div>
+          <div className="max-h-52 overflow-y-auto px-4 py-2">
+            {recentActivity.length > 0 ? (
+              recentActivity.slice(0, 10).map((event, index) => (
+                <div
+                  key={event.id || index}
+                  className="flex items-center gap-2.5 border-b border-border/60 py-2.5 last:border-0"
+                >
+                  <span className={`h-2 w-2 shrink-0 rounded-full ${
+                    event.type === 'danger' || event.type === 'error'
+                      ? 'bg-danger'
+                      : event.type === 'success'
+                      ? 'bg-success'
+                      : event.type === 'accent'
+                      ? 'bg-accent'
+                      : 'bg-ink-faint'
+                  }`} />
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-[10px] font-medium text-ink">
+                      <strong className="font-semibold">{event.project}</strong>
+                      {' '}
+                      {event.message}
+                    </p>
+                    {event.detail && (
+                      <span className="mt-0.5 block truncate font-mono text-[8px] text-ink-faint">{event.detail}</span>
+                    )}
+                  </div>
+                  <time className="shrink-0 font-mono text-[8px] text-ink-faint whitespace-nowrap">{event.time}</time>
+                </div>
+              ))
+            ) : (
+              <p className="py-8 text-center text-xs text-ink-faint">No activity yet this session.</p>
+            )}
           </div>
         </div>
       </section>

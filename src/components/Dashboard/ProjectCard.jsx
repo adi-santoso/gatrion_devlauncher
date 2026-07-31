@@ -1,35 +1,184 @@
 export default function ProjectCard({ project, onStop, onRestart, onNavigate }) {
   const cpu = project.cpu ?? project.cpuUsage;
   const memory = project.memory ?? project.mem ?? project.memoryUsage;
+  const status = (project.status || '').toLowerCase();
+  const isRunning = status === 'running';
+  const isStarting = status === 'starting';
+  const isStopped = status === 'stopped';
+  const isError = status === 'error';
+  const hasLogs = project.logs?.length > 0;
 
   return (
-    <article className="min-w-0 rounded-xl border border-border bg-gradient-to-br from-surface-2 to-surface p-3.5 shadow-card">
-      <div className="flex items-center gap-2.5">
-        <button type="button" onClick={() => onNavigate?.(project)} className="w-9 h-9 shrink-0 rounded-lg border border-border bg-surface-3 flex items-center justify-center text-base hover:border-border-hover">
-          {project.emoji || project.name?.slice(0, 1)?.toUpperCase() || '?'}
-        </button>
-        <button type="button" onClick={() => onNavigate?.(project)} className="min-w-0 flex-1 text-left">
-          <strong className="block truncate font-display text-xs font-bold hover:text-accent">{project.name}</strong>
-          <span className="block truncate font-mono text-[9px] text-ink-faint">{project.stack || project.type || 'Project'}</span>
-        </button>
-        <span className="rounded-full bg-success/10 px-2 py-1 font-mono text-[8px] font-semibold uppercase text-success">Running</span>
+    <article className="group min-w-0 rounded-xl border border-border bg-surface/80 p-4 shadow-card transition-all hover:shadow-lg">
+      <div className="flex items-start justify-between mb-3">
+        <div className="flex items-center gap-2.5 min-w-0">
+          <button 
+            type="button" 
+            onClick={() => onNavigate?.(project)} 
+            className={`w-10 h-10 shrink-0 rounded-lg flex items-center justify-center text-sm font-bold transition-all ${
+              project.color 
+                ? `bg-${project.color}-100 text-${project.color}` 
+                : 'bg-gradient-to-br from-accent-soft to-accent text-white'
+            }`}
+          >
+            {project.emoji || project.name?.slice(0, 1)?.toUpperCase() || '?'}
+          </button>
+          <button 
+            type="button" 
+            onClick={() => onNavigate?.(project)} 
+            className="min-w-0 flex-1 text-left truncate"
+          >
+            <strong className="block truncate font-display text-xs font-bold leading-tight hover:text-accent">
+              {project.name}
+            </strong>
+            <span className="block truncate font-mono text-[9px] text-ink-faint capitalize">
+              {project.type || project.stack || 'Web Application'}
+            </span>
+          </button>
+        </div>
+        <span className={`ml-2 shrink-0 rounded-md px-2 py-0.5 font-mono text-[8px] font-medium uppercase tracking-wide ${
+          isRunning 
+            ? 'bg-success/10 text-success animate-pulse' 
+            : isStarting 
+            ? 'bg-accent/10 text-accent' 
+            : isError
+            ? 'bg-danger/10 text-danger'
+            : 'bg-surface-2 text-ink-soft'
+        }`}>
+          {isRunning && '● '}Running
+          {isStarting && '⚡ '}Starting
+          {isStopped && '■ '}Stopped
+          {isError && '✕ '}Error
+        </span>
       </div>
+      
+      <div className="space-y-2.5">
+        {(project.port || project.url) && (
+          <div className="flex flex-wrap gap-2 font-mono text-[9px]">
+            {project.port && (
+              <span className="inline-flex items-center gap-1 rounded bg-surface-2 px-2 py-1 text-ink-soft">
+                <svg className="h-3 w-3 text-ink-faint" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                </svg>
+                {project.port}
+              </span>
+            )}
+            {project.protocol && (
+              <span className="inline-flex items-center gap-1 rounded bg-surface-2 px-2 py-1 text-ink-soft">
+                {project.protocol}
+              </span>
+            )}
+            {project.pid != null && (
+              <span className="inline-flex items-center gap-1 rounded bg-surface-2 px-2 py-1 text-ink-soft">
+                <svg className="h-3 w-3 text-ink-faint" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
+                </svg>
+                PID {project.pid}
+              </span>
+            )}
+            {project.uptime && (
+              <span className="inline-flex items-center gap-1 rounded bg-surface-2 px-2 py-1 text-ink-soft">
+                <svg className="h-3 w-3 text-ink-faint" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                {project.uptime}
+              </span>
+            )}
+          </div>
+        )}
 
-      <div className="mt-3.5 flex gap-3 font-mono text-[9px] text-ink-soft">
-        <span>{project.port ? `:${project.port}` : 'no port'}</span>
-        {project.pid != null && <span>PID {project.pid}</span>}
-        {project.uptime && <span>{project.uptime}</span>}
-      </div>
+        {(cpu != null || memory != null) && (
+          <div className="grid grid-cols-2 gap-2">
+            <div className="rounded-lg border border-border bg-surface-2 px-3 py-2">
+              <div className="mb-1 flex items-center justify-between">
+                <span className="font-mono text-[7px] uppercase tracking-wider text-ink-faint">CPU</span>
+                {cpu != null && cpu > 80 && <span className="animate-pulse text-[8px] text-warning">⚠️</span>}
+              </div>
+              <strong className="font-mono text-xs font-semibold text-ink block">
+                {cpu != null ? `${Number(cpu).toFixed(1)}%` : 'N/A'}
+              </strong>
+              {cpu != null && (
+                <div className="mt-1 h-1 rounded-full bg-surface-3 overflow-hidden">
+                  <div 
+                    className={`h-full rounded-full transition-all ${
+                      cpu > 80 ? 'bg-warning' : cpu > 60 ? 'bg-accent' : 'bg-success'
+                    }`}
+                    style={{ width: `${Math.min(cpu, 100)}%` }}
+                  />
+                </div>
+              )}
+            </div>
+            <div className="rounded-lg border border-border bg-surface-2 px-3 py-2">
+              <div className="mb-1 flex items-center justify-between">
+                <span className="font-mono text-[7px] uppercase tracking-wider text-ink-faint">Memory</span>
+                {memory != null && memory > 80 && <span className="animate-pulse text-[8px] text-warning">⚠️</span>}
+              </div>
+              <strong className="font-mono text-xs font-semibold text-ink block">
+                {memory != null ? (typeof memory === 'number' ? `${(memory / 1024 / 1024).toFixed(1)} MB` : memory) : 'N/A'}
+              </strong>
+              {memory != null && typeof memory === 'number' && (
+                <div className="mt-1 h-1 rounded-full bg-surface-3 overflow-hidden">
+                  <div 
+                    className={`h-full rounded-full transition-all ${
+                      memory > 2048 * 80 ? 'bg-warning' : memory > 2048 * 60 ? 'bg-accent' : 'bg-success'
+                    }`}
+                    style={{ width: `${Math.min((memory / (2048 * 1024)) * 100, 100)}%` }}
+                  />
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
-      <div className="my-3 grid grid-cols-2 gap-2">
-        <div className="rounded-md border border-border bg-base/50 px-2 py-1.5"><span className="block font-mono text-[7px] uppercase tracking-wider text-ink-faint">CPU</span><strong className="mt-0.5 block font-mono text-[10px] font-semibold text-ink-soft">{cpu ?? 'Unavailable'}</strong></div>
-        <div className="rounded-md border border-border bg-base/50 px-2 py-1.5"><span className="block font-mono text-[7px] uppercase tracking-wider text-ink-faint">Memory</span><strong className="mt-0.5 block font-mono text-[10px] font-semibold text-ink-soft">{memory ?? 'Unavailable'}</strong></div>
-      </div>
+        {!hasLogs && !isRunning && !isStarting && (
+          <div className="text-center rounded-lg border border-dashed border-border bg-surface/30 px-3 py-2">
+            <span className="font-mono text-[9px] text-ink-faint">No live activity</span>
+          </div>
+        )}
 
-      <div className="flex gap-1.5">
-        <button type="button" onClick={() => onNavigate?.(project)} className="flex-1 rounded-lg border border-border bg-surface-2 px-2 py-2 text-[11px] font-semibold text-ink-soft hover:text-ink">Inspect</button>
-        <button type="button" onClick={() => onRestart?.(project)} title="Restart" className="w-8 rounded-lg border border-border bg-surface-2 text-ink-faint hover:text-accent">↻</button>
-        <button type="button" onClick={() => onStop?.(project)} title="Stop" className="w-8 rounded-lg border border-danger/20 bg-danger/10 text-danger hover:bg-danger/15">■</button>
+        <div className="flex gap-1.5 pt-2">
+          <button 
+            type="button" 
+            onClick={() => onNavigate?.(project)}
+            className="flex-1 rounded-lg border border-border bg-surface-2 px-3 py-2 text-[11px] font-semibold text-ink-soft transition-colors hover:border-accent hover:bg-accent/5 hover:text-accent"
+          >
+            Inspect
+          </button>
+          {!isRunning && !isStarting && (
+            <button 
+              type="button" 
+              onClick={() => onRestart?.(project)}
+              className="rounded-lg bg-accent px-3 py-2 text-[11px] font-semibold text-white transition-colors hover:bg-accent-hover"
+            >
+              Start
+            </button>
+          )}
+          {isRunning && (
+            <>
+              <button 
+                type="button" 
+                onClick={() => onRestart?.(project)}
+                title="Restart"
+                className="w-9 rounded-lg border border-border bg-surface-2 text-ink-faint transition-colors hover:border-accent hover:text-accent"
+              >
+                <svg className="h-4 w-4 mx-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+              </button>
+              <button 
+                type="button" 
+                onClick={() => onStop?.(project)}
+                title="Stop"
+                className="w-9 rounded-lg border border-danger/20 bg-danger/10 text-danger transition-colors hover:bg-danger/20"
+              >
+                <svg className="h-4 w-4 mx-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 10a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z" />
+                </svg>
+              </button>
+            </>
+          )}
+        </div>
       </div>
     </article>
   );
