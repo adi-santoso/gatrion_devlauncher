@@ -552,7 +552,7 @@ class ProcessManager extends EventEmitter {
 
   /**
    * Get CPU & Memory usage for a specific PID using Windows tasklist
-   * Returns { cpu: number (percentage), memory: number (KB) } or null if not found
+   * Returns { cpu: number (percentage), memory: number (MB) } or null if not found
    */
   async getProcessResources(pid) {
     if (!pid || pid === 'null') return null
@@ -563,29 +563,78 @@ class ProcessManager extends EventEmitter {
         timeout: 3000 
       })
       
+      console.log('[ProcessManager] tasklist output:', stdout)
+      
       // Parse CSV output: "PID","Image","Memory Usage"
       // Example: 1234,"node.exe",45678912
-      const lines = stdout.trim().split('\n')
+      const lines = stdout.trim().split('\n').filter(l => l.trim())
       if (lines.length === 0) return null
       
-      // Remove quotes and split by comma
-      const [pidStr, image, memoryStr] = lines[0].replace(/"/g, '').split(',')
+      // Remove quotes and split by comma carefully (memory value might contain commas)
+      const firstLine = lines[0]
+      const parts = []
+      let current = ''
+      let inQuotes = false
       
-      if (!memoryStr || !Number(memoryStr)) return null
+      for (let i = 0; i < firstLine.length; i++) {
+        const char = firstLine[i]
+        if (char === '"') {
+          inQuotes = !inQuotes
+          continue
+        }
+        if (char === ',' && !inQuotes) {
+          parts.push(current)
+          current = ''
+        } else {
+          current += char
+        }
+      }
+      parts.push(current)
+      
+      if (parts.length < 3) {
+        console.warn('[ProcessManager] Not enough columns in tasklist output:', parts)
+        return null
+      }
+      
+      const [pidStr, image, memoryStr] = parts
+      
+      if (!pidStr || !memoryStr || !Number(memoryStr)) {
+        console.warn('[ProcessManager] Invalid memory value:', memoryStr)
+        return null
+      }
       
       const memoryKB = parseInt(memoryStr, 10)
       const memoryMB = memoryKB / 1024
       
+      // Calculate CPU using WMIC
+      let cpuPercent = 0
+      try {
+        const { stdout: wmicOut } = await execAsync(
+          `wmic path win32_process where "ProcessId=${pid}" get CPUExecutionDuration /FORMAT:CSV`,
+          { timeout: 3000 }
+        )
+        const wmicLines = wmicOut.trim().split('\n').filter(l => l.trim())
+        if (wmicLines.length >= 2) {
+          const cpuValue = parseFloat(wmicLines[1])
+          cpuPercent = Math.min(100, Math.max(0, cpuValue * 100))
+        }
+      } catch (wmicErr) {
+        console.log('[ProcessManager] WMIC failed, using default CPU:', wmicErr.message)
+      }
+      
+      console.log('[ProcessManager] Resources for PID', pid, ':', { cpu: cpuPercent.toFixed(1) + '%', memory: memoryMB.toFixed(1) + 'MB' })
+      
       return {
         pid: parseInt(pidStr, 10),
         memory: memoryMB, // in MB
-        cpu: 0 // tasklist doesn't give real-time CPU, we'll calculate delta
+        cpu: cpuPercent
       }
     } catch (err) {
-      // Process might have exited
+      console.warn('[ProcessManager] Failed to get resources for PID', pid, ':', err.message)
       return null
     }
   }
+
 
   /**
    * Calculate CPU usage by comparing two samples
@@ -624,18 +673,16 @@ class ProcessManager extends EventEmitter {
     const processData = this.processes.get(projectId)
     if (!processData || !processData.pid) return null
     
-    // Get memory from tasklist
-    const memoryStats = await this.getProcessResources(processData.pid)
-    if (!memoryStats) return null
+    // Get memory from tasklist + CPU estimation
+    const resources = await this.getProcessResources(processData.pid)
     
-    // Calculate CPU usage (simplified - single snapshot)
-    // For accurate CPU%, we need to measure over time
-    // For now, return approximate value based on memory usage ratio
-    const estimatedCpu = Math.min(100, Math.max(0, (memoryStats.memory / 1024) * 0.5))
+    if (!resources) {
+      console.log('[ProcessManager] No resources found for project', projectId, '(PID:', processData.pid + ')')
+      return null
+    }
     
     return {
-      ...memoryStats,
-      cpu: estimatedCpu,
+      ...resources,
       lastUpdated: Date.now()
     }
   }

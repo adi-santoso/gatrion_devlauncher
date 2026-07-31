@@ -2,6 +2,8 @@ const fs = require('fs')
 const { ipcMain, dialog } = require('electron')
 const { v4: uuidv4 } = require('uuid')
 const { normalizeProject, sanitizeProjectChanges, validateProject } = require('../projectSchema')
+const Logger = require('../utils/logger')
+const log = Logger || { info: () => {}, warn: () => {}, error: () => {} }
 
 /**
  * Setup project-related IPC handlers
