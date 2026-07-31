@@ -82,6 +82,9 @@ async function initialize() {
   // Wait for storage to initialize
   await storageManager.init()
 
+  // Start resource monitoring (every 5 seconds)
+  processManager.startResourceMonitoring(5000)
+
   // Create window
   createWindow()
 
@@ -165,6 +168,11 @@ app.on('before-quit', async (event) => {
   }
 
   isQuitting = true
+
+  // Stop resource monitoring first
+  if (processManager && processManager.stopResourceMonitoring) {
+    processManager.stopResourceMonitoring()
+  }
 
   if (trayManager) {
     trayManager.destroy()

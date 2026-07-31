@@ -279,6 +279,18 @@ export const onNavigateToProject = (callback) => {
   return window.electron.onNavigateToProject(callback);
 };
 
-// ==================== Utility ====================
+// ==================== Resource Monitoring ====================
+
+/**
+ * Subscribe to real-time CPU/memory updates for projects
+ * @param {(data: {projectId: string, cpu: number, memory: number}) => void} callback
+ */
+export const onResourceUpdate = (callback) => {
+  if (!isElectron()) {
+    console.warn('[IPC] Running in browser mode - onResourceUpdate not available');
+    return () => {};
+  }
+  return window.electron.onResourceUpdate(callback);
+};
 
 export const isElectronAvailable = isElectron;

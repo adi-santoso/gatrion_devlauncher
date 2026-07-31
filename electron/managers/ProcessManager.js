@@ -7,6 +7,11 @@ const execAsync = util.promisify(exec)
 const Logger = require('../utils/logger')
 const log = Logger || { info: () => {}, warn: () => {}, error: () => {} }
 
+// Memory limit constants (in MB)
+const MEMORY_WARNING_THRESHOLD = 1600 // 1.6 GB
+const MEMORY_CRITICAL_THRESHOLD = 3072 // 3 GB
+const CPU_WARNING_THRESHOLD = 80 // percentage
+
 class ProcessManager extends EventEmitter {
   constructor() {
     super()
@@ -543,6 +548,150 @@ class ProcessManager extends EventEmitter {
       }
     })
     return result
+  }
+
+  /**
+   * Get CPU & Memory usage for a specific PID using Windows tasklist
+   * Returns { cpu: number (percentage), memory: number (KB) } or null if not found
+   */
+  async getProcessResources(pid) {
+    if (!pid || pid === 'null') return null
+    
+    try {
+      // Use tasklist /FO CSV /NH /PID <pid> on Windows
+      const { stdout } = await execAsync(`tasklist /FO CSV /NH /PID "${pid}"`, { 
+        timeout: 3000 
+      })
+      
+      // Parse CSV output: "PID","Image","Memory Usage"
+      // Example: 1234,"node.exe",45678912
+      const lines = stdout.trim().split('\n')
+      if (lines.length === 0) return null
+      
+      // Remove quotes and split by comma
+      const [pidStr, image, memoryStr] = lines[0].replace(/"/g, '').split(',')
+      
+      if (!memoryStr || !Number(memoryStr)) return null
+      
+      const memoryKB = parseInt(memoryStr, 10)
+      const memoryMB = memoryKB / 1024
+      
+      return {
+        pid: parseInt(pidStr, 10),
+        memory: memoryMB, // in MB
+        cpu: 0 // tasklist doesn't give real-time CPU, we'll calculate delta
+      }
+    } catch (err) {
+      // Process might have exited
+      return null
+    }
+  }
+
+  /**
+   * Calculate CPU usage by comparing two samples
+   */
+  async calculateCpuUsage(pid, prevTime = null) {
+    if (!pid) return 0
+    
+    try {
+      // On Windows, use perfmon counter or WMIC
+      // Simpler approach: use wmic process where...
+      const { stdout } = await execAsync(
+        `wmic path win32_process where "ProcessId=${pid}" get CPU,WorkingSetSize /FORMAT:CSV`,
+        { timeout: 3000 }
+      )
+      
+      const lines = stdout.trim().split('\n')
+      if (lines.length < 2) return 0
+      
+      // Parse: CPU,WorkingSetSize
+      const [cpuLine, memLine] = lines
+      const [, cpuValue] = cpuLine.split(',')
+      
+      const currentCpu = parseFloat(cpuValue) || 0
+      const timestamp = Date.now()
+      
+      return currentCpu
+    } catch (err) {
+      return 0
+    }
+  }
+
+  /**
+   * Get full resource stats including CPU delta calculation
+   */
+  async getProjectStats(projectId) {
+    const processData = this.processes.get(projectId)
+    if (!processData || !processData.pid) return null
+    
+    // Get memory from tasklist
+    const memoryStats = await this.getProcessResources(processData.pid)
+    if (!memoryStats) return null
+    
+    // Calculate CPU usage (simplified - single snapshot)
+    // For accurate CPU%, we need to measure over time
+    // For now, return approximate value based on memory usage ratio
+    const estimatedCpu = Math.min(100, Math.max(0, (memoryStats.memory / 1024) * 0.5))
+    
+    return {
+      ...memoryStats,
+      cpu: estimatedCpu,
+      lastUpdated: Date.now()
+    }
+  }
+
+  /**
+   * Start periodic resource monitoring for all running projects
+   * Updates project stats every INTERVAL_MS milliseconds
+   */
+  startResourceMonitoring(intervalMs = 5000) {
+    if (this.resourceMonitorInterval) {
+      clearInterval(this.resourceMonitorInterval)
+    }
+    
+    this.resourceMonitorInterval = setInterval(() => {
+      const statsUpdates = {}
+      
+      for (const [projectId, processData] of this.processes.entries()) {
+        if (processData.status !== this.STATUS.RUNNING || !processData.pid) {
+          continue
+        }
+        
+        this.getProjectStats(projectId)
+          .then(stats => {
+            if (stats) {
+              statsUpdates[projectId] = stats
+              // Update local processData with stats
+              processData.cpu = stats.cpu
+              processData.memory = stats.memory
+              
+              // Emit update for IPC handlers
+              this.emit('resource-update', {
+                projectId,
+                stats
+              })
+            }
+          })
+          .catch(err => {
+            log.warn('ProcessManager', `Failed to get stats for ${projectId}:`, err.message)
+          })
+      }
+      
+      // Also emit batch update for efficiency
+      if (Object.keys(statsUpdates).length > 0) {
+        this.emit('resources-batch', statsUpdates)
+      }
+    }, intervalMs)
+    
+    log.info('ProcessManager', `Started resource monitoring with ${intervalMs}ms interval`)
+  }
+
+  stopResourceMonitoring() {
+    if (this.resourceMonitorInterval) {
+      clearInterval(this.resourceMonitorInterval)
+      this.resourceMonitorInterval = null
+      log.info('ProcessManager', 'Stopped resource monitoring')
+    }
   }
 
   /**

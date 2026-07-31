@@ -369,6 +369,23 @@ export const useProcesses = (projects = [], onProjectUpdate) => {
     return cleanup;
   }, [onProjectUpdate]);
 
+  // Subscribe to CPU/Memory resource updates
+  useEffect(() => {
+    const cleanup = ipc.onResourceUpdate(({ projectId, cpu, memory }) => {
+      console.log(`[Resource Update] Project ${projectId}: CPU ${cpu}%, Memory ${memory ? Math.round(memory) + 'MB' : 'N/A'}`);
+      
+      // Update the project's CPU and memory in parent component via callback
+      if (onProjectUpdate) {
+        onProjectUpdate(projectId, {
+          cpu,
+          memory
+        });
+      }
+    });
+
+    return cleanup;
+  }, [onProjectUpdate]);
+
   const projectIds = JSON.stringify(projects.map(project => project.id));
 
   // Hydrate after listeners are attached so reloads keep backend runtime state and output.

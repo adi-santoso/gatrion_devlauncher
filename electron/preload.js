@@ -66,6 +66,13 @@ contextBridge.exposeInMainWorld('electron', {
     return () => ipcRenderer.removeListener('navigate-to-project', listener)
   },
 
+  // Resource Monitoring (CPU/Memory)
+  onResourceUpdate: (callback) => {
+    const listener = (event, data) => callback(data)
+    ipcRenderer.on('project-resource-update', listener)
+    return () => ipcRenderer.removeListener('project-resource-update', listener)
+  },
+
   // Remove listeners
   removeAllListeners: (channel) => {
     ipcRenderer.removeAllListeners(channel)

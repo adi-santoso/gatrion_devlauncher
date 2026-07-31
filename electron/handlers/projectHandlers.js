@@ -21,6 +21,27 @@ function setupProjectHandlers(storageManager, processManager, mainWindow) {
       console.log(`[projectHandlers] Skipping ${channel} - window unavailable`)
     }
   }
+
+  // Subscribe to resource updates from ProcessManager
+  if (processManager && processManager.on) {
+    processManager.on('resource-update', ({ projectId, stats }) => {
+      // Send real-time CPU/memory to frontend
+      safeSend('project-resource-update', {
+        projectId,
+        cpu: stats.cpu,
+        memory: stats.memory
+      })
+      
+      // Also update the project data in the manager for consistency
+      const processData = processManager.processes.get(projectId)
+      if (processData) {
+        processData.cpu = stats.cpu
+        processData.memory = stats.memory
+      }
+    })
+    
+    log.info('projectHandlers', 'Subscribed to resource updates from ProcessManager')
+  }
   // Get all projects
   ipcMain.handle('get-projects', async (event) => {
     try {
