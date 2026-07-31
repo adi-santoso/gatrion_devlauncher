@@ -108,41 +108,35 @@ export default function DashboardView({
       <section className="grid overflow-hidden rounded-xl border border-border bg-surface/80 sm:grid-cols-2 lg:grid-cols-5">
         <div className="border-b border-border p-4 sm:border-r xl:border-b-0">
           <span className="font-mono text-[9px] font-semibold uppercase tracking-wider text-ink-faint">Running</span>
-          <p className="mt-1 flex items-baseline gap-1 font-display text-2xl font-bold text-success">
+          <p className="mt-1 flex items-baseline gap-1 font-display text-2xl font-bold text-emerald-500 dark:text-emerald-400">
             {runningProjects.length}
             <small className="text-[10px] font-medium text-ink-soft">of {projects.length}</small>
           </p>
         </div>
         <div className="border-b border-border p-4 xl:border-b-0 xl:border-r">
           <span className="font-mono text-[9px] font-semibold uppercase tracking-wider text-ink-faint">Starting</span>
-          <p className="mt-1 flex items-baseline gap-1 font-display text-2xl font-bold">
+          <p className="mt-1 flex items-baseline gap-1 font-display text-2xl font-bold text-blue-500 dark:text-blue-400">
             {startingProjects.length}
             <small className="text-[10px] font-medium text-ink-soft">in progress</small>
           </p>
         </div>
         <div className="border-b border-border p-4 sm:border-r sm:border-b-0">
           <span className="font-mono text-[9px] font-semibold uppercase tracking-wider text-ink-faint">Stopped</span>
-          <p className="mt-1 flex items-baseline gap-1 font-display text-2xl font-bold">
+          <p className="mt-1 flex items-baseline gap-1 font-display text-2xl font-bold text-gray-500 dark:text-gray-400">
             {stoppedProjects.length}
             <small className="text-[10px] font-medium text-ink-soft">ready to start</small>
           </p>
         </div>
         <div className="border-b border-border p-4 sm:border-r xl:border-b-0">
           <span className="font-mono text-[9px] font-semibold uppercase tracking-wider text-ink-faint">Errors</span>
-          <p className={`mt-1 flex items-baseline gap-1 font-display text-2xl font-bold ${errorCount ? 'text-danger' : 'text-ink-soft'}`}>
+          <p className={`mt-1 flex items-baseline gap-1 font-display text-2xl font-bold ${errorCount ? 'text-red-500 dark:text-red-400' : 'text-ink-soft'}`}>
             {errorCount}
           </p>
         </div>
         <div className="p-4">
-          <span className="font-mono text-[9px] font-semibold uppercase tracking-wider text-ink-faint">Actions</span>
-          <div className="mt-1 flex gap-2">
-            <button type="button" onClick={startWorkspace} disabled={!onStartAll && !onStart} className="flex-1 rounded-md bg-accent px-2 py-1.5 text-[9px] font-semibold text-white hover:bg-accent-hover disabled:opacity-50">
-              Start All
-            </button>
-            <button type="button" onClick={stopWorkspace} disabled={!onStopAll && !onStop} className="flex-1 rounded-md border border-border bg-surface-2 px-2 py-1.5 text-[9px] font-semibold text-ink-soft hover:bg-surface disabled:opacity-50">
-              Stop All
-            </button>
-          </div>
+          <span className="font-mono text-[9px] font-semibold uppercase tracking-wider text-ink-faint">System</span>
+          <p className="mt-1 font-display text-sm font-bold text-ink-soft">CPU / RAM</p>
+          <span className="text-[10px] text-ink-faint">Available when running</span>
         </div>
       </section>
 

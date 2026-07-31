@@ -87,48 +87,48 @@ export default function ProjectCard({ project, onStop, onRestart, onNavigate }) 
           </div>
         )}
 
-        {(cpu != null || memory != null) && (
-          <div className="grid grid-cols-2 gap-2">
-            <div className="rounded-lg border border-border bg-surface-2 px-3 py-2">
-              <div className="mb-1 flex items-center justify-between">
-                <span className="font-mono text-[7px] uppercase tracking-wider text-ink-faint">CPU</span>
+        <div className="grid grid-cols-2 gap-2">
+            <div className="rounded-lg border border-border bg-surface-2 px-3 py-2.5">
+              <div className="mb-1.5 flex items-center justify-between">
+                <span className="font-mono text-[7px] uppercase tracking-wider text-ink-faint">CPU Usage</span>
                 {cpu != null && cpu > 80 && <span className="animate-pulse text-[8px] text-warning">⚠️</span>}
               </div>
-              <strong className="font-mono text-xs font-semibold text-ink block">
+              <strong className="font-mono text-sm font-bold text-emerald-500 dark:text-emerald-400 block">
                 {cpu != null ? `${Number(cpu).toFixed(1)}%` : 'N/A'}
               </strong>
               {cpu != null && (
-                <div className="mt-1 h-1 rounded-full bg-surface-3 overflow-hidden">
+                <div className="mt-1 h-1.5 rounded-full bg-surface-3 overflow-hidden">
                   <div 
                     className={`h-full rounded-full transition-all ${
-                      cpu > 80 ? 'bg-warning' : cpu > 60 ? 'bg-accent' : 'bg-success'
+                      cpu > 80 ? 'bg-red-500' : cpu > 60 ? 'bg-yellow-500' : 'bg-emerald-500'
                     }`}
                     style={{ width: `${Math.min(cpu, 100)}%` }}
                   />
                 </div>
               )}
             </div>
-            <div className="rounded-lg border border-border bg-surface-2 px-3 py-2">
-              <div className="mb-1 flex items-center justify-between">
+            <div className="rounded-lg border border-border bg-surface-2 px-3 py-2.5">
+              <div className="mb-1.5 flex items-center justify-between">
                 <span className="font-mono text-[7px] uppercase tracking-wider text-ink-faint">Memory</span>
-                {memory != null && memory > 80 && <span className="animate-pulse text-[8px] text-warning">⚠️</span>}
+                {memory != null && typeof memory === 'number' && memory > 1600 && <span className="animate-pulse text-[8px] text-warning">⚠️</span>}
               </div>
-              <strong className="font-mono text-xs font-semibold text-ink block">
-                {memory != null ? (typeof memory === 'number' ? `${(memory / 1024 / 1024).toFixed(1)} MB` : memory) : 'N/A'}
+              <strong className="font-mono text-sm font-bold text-blue-500 dark:text-blue-400 block">
+                {memory != null 
+                  ? (typeof memory === 'number' ? `${(memory / 1024 / 1024).toFixed(1)} MB` : String(memory)) 
+                  : 'N/A'}
               </strong>
               {memory != null && typeof memory === 'number' && (
-                <div className="mt-1 h-1 rounded-full bg-surface-3 overflow-hidden">
+                <div className="mt-1 h-1.5 rounded-full bg-surface-3 overflow-hidden">
                   <div 
                     className={`h-full rounded-full transition-all ${
-                      memory > 2048 * 80 ? 'bg-warning' : memory > 2048 * 60 ? 'bg-accent' : 'bg-success'
+                      memory > 3072 ? 'bg-red-500' : memory > 2048 ? 'bg-yellow-500' : 'bg-blue-500'
                     }`}
-                    style={{ width: `${Math.min((memory / (2048 * 1024)) * 100, 100)}%` }}
+                    style={{ width: `${Math.min((memory / (2 * 1024)) * 100, 100)}%` }}
                   />
                 </div>
               )}
             </div>
           </div>
-        )}
 
         {!hasLogs && !isRunning && !isStarting && (
           <div className="text-center rounded-lg border border-dashed border-border bg-surface/30 px-3 py-2">
