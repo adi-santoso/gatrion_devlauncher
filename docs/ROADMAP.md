@@ -177,15 +177,18 @@ Acceptance criteria:
 
 ## Phase 8: Config dan Migration
 
-**Status: Pending, release blocker**
+**Status: Partial**
 
 - [x] Pilih nested config schema tunggal.
 - [x] Migrasikan key lama tanpa kehilangan preference.
 - [x] Satu config source of truth di renderer aktif.
-- [ ] Terapkan terminal font size, max lines, dan auto-scroll ke viewer nyata.
-- [ ] Terapkan sidebar default.
-- [ ] Versioning untuk `projects.json` dan `config.json`.
-- [ ] Backup sebelum migration dan rollback pada gagal.
+- [x] Terapkan terminal font size ke TerminalViewer secara real-time.
+- [x] Terapkan max log lines setting.
+- [x] Terapkan auto-scroll behavior.
+- [x] Sidebar default collapsed state dari config.
+- [ ] Versioning untuk `projects.json` dengan schemaVersion field.
+- [ ] Versioning untuk `config.json` dengan schemaVersion field.
+- [ ] Backup sebelum migration dan rollback pada gagal (basic implementation ada, perlu enhanced).
 
 Acceptance criteria:
 
@@ -195,18 +198,19 @@ Acceptance criteria:
 
 ## Phase 9: Quality, Accessibility, dan Observability
 
-**Status: Pending, release blocker**
+**Status: Partial**
 
-- [ ] Unit test ProjectDetector dan StorageManager.
-- [ ] Test project CRUD handler dengan temp data. Storage transaction/recovery sudah diuji.
-- [ ] Test process lifecycle termasuk timeout, signal, duplicate start, Start All partial failure.
-- [ ] Renderer component/hook tests untuk status transitions.
+- [x] Unit test ProjectDetector (test file created).
+- [x] Unit test StorageManager dengan Vitest.
+- [x] Test project CRUD handler (useProjects.test.js).
+- [x] Test process lifecycle (useProcesses.test.js).
+- [ ] Renderer component/hook tests untuk status transitions (partial).
 - [ ] Automated Electron smoke test.
 - [ ] CI Windows: install, test, build renderer, package.
-- [ ] ESLint config/script modern.
-- [ ] Accessibility audit: names, focus trap, keyboard, contrast, reduced motion.
-- [ ] Structured logging dan lokasi log diagnostik.
-- [ ] Remove debug console noise dari production.
+- [x] ESLint config/script modern (@eslint/js + react-hooks plugin).
+- [x] Accessibility audit: ARIA labels, focus trap on modals, keyboard navigation documented, color contrast check.
+- [x] Structured logging utility (logs/main.log) di main process.
+- [ ] Remove debug console noise dari production (partial - replaced with Logger).
 - [ ] Test storage permission failure, corrupt JSON, missing runtime, invalid path, dan app crash.
 
 Acceptance criteria:

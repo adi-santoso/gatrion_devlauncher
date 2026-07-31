@@ -18,6 +18,7 @@ export default function AppPreviewTab({
   onToggleFullscreen
 }) {
   const [iframeKey, setIframeKey] = useState(0);
+  const [zoomLevel, setZoomLevel] = useState(100);
   const status = (project?.status || 'stopped').toLowerCase();
   const isRunning = status === 'running';
   const appUrl = Number.isInteger(project?.port) ? `http://localhost:${project.port}` : null;
@@ -118,8 +119,24 @@ export default function AppPreviewTab({
             <span className="text-ink-soft truncate">{appUrl || 'No app port configured'}</span>
           </div>
 
-          {/* Right Controls (Open externally + Toggle Fullscreen) */}
+          {/* Right Controls (Zoom + Open externally + Toggle Fullscreen) */}
           <div className="flex items-center gap-3">
+            {/* Zoom Selector */}
+            <div className="flex items-center gap-1 bg-surface-3 border border-border rounded-md px-1.5 py-0.5 text-xs text-ink-soft font-mono">
+              <span className="text-[10px] text-ink-faint">Zoom:</span>
+              <select
+                value={zoomLevel}
+                onChange={(e) => setZoomLevel(Number(e.target.value))}
+                className="bg-transparent text-xs text-ink font-semibold focus:outline-none cursor-pointer"
+              >
+                <option value={50}>50%</option>
+                <option value={75}>75%</option>
+                <option value={100}>100%</option>
+                <option value={125}>125%</option>
+                <option value={150}>150%</option>
+              </select>
+            </div>
+
             <button
               type="button"
               onClick={handleOpenExternally}
@@ -187,6 +204,7 @@ export default function AppPreviewTab({
             key={iframeKey}
             src={appUrl}
             title={`${project.name} preview`}
+            style={{ zoom: `${zoomLevel}%` }}
             className={
               fullscreen
                 ? 'w-full h-full flex-1 border-0 rounded-none bg-white'

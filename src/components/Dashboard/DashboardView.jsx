@@ -30,6 +30,7 @@ export default function DashboardView({
   onStopAll
 }) {
   const runningProjects = projects.filter((project) => project.status?.toLowerCase() === 'running');
+  const notRunningProjects = projects.filter((project) => project.status?.toLowerCase() !== 'running');
   const startingCount = projects.filter((project) => project.status?.toLowerCase() === 'starting').length;
   const erroredProjects = projects.filter((project) => project.status?.toLowerCase() === 'error');
   const errorCount = erroredProjects.length;
@@ -73,13 +74,64 @@ export default function DashboardView({
       </section>
 
       <section className="mt-6">
-        <div className="mb-2.5 flex items-center justify-between"><h2 className="font-display text-sm font-bold">Running now</h2><button type="button" onClick={() => onNavigate?.('projects')} className="text-[10px] font-medium text-accent hover:text-accent-hover">Manage projects</button></div>
-        {runningProjects.length > 0 ? (
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-            {runningProjects.map((project) => <ProjectCard key={project.id || project.name} project={project} onStop={onStop} onStart={onStart} onRestart={onRestart} onNavigate={onNavigate} />)}
+        <div className="mb-2.5 flex items-center justify-between"><h2 className="font-display text-sm font-bold">Workspace</h2><button type="button" onClick={() => onNavigate?.('projects')} className="text-[10px] font-medium text-accent hover:text-accent-hover">Manage projects</button></div>
+        
+        {runningProjects.length > 0 && (
+          <>
+            <h3 className="mb-2 flex items-center gap-2 font-display text-xs font-semibold text-success">
+              <span className="flex h-2 w-2 items-center justify-center rounded-full bg-success pulse-dot"></span>
+              Running Now
+            </h3>
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+              {runningProjects.map((project) => <ProjectCard key={project.id || project.name} project={project} onStop={onStop} onStart={onStart} onRestart={onRestart} onNavigate={onNavigate} />)}
+            </div>
+          </>
+        )}
+
+        {notRunningProjects.length > 0 && (
+          <>
+            <h3 className="mb-2 mt-6 flex items-center gap-2 font-display text-xs font-semibold text-ink-soft">
+              <span className="h-2 w-2 rounded-full bg-ink-soft"></span>
+              Available Projects
+            </h3>
+            <div className="overflow-x pb-2">
+              <div className="flex gap-3 min-w-max">
+                {notRunningProjects.map((project) => (
+                  <div key={project.id} className="flex-none w-[280px] rounded-xl border border-border bg-surface p-4 transition-all hover:border-accent hover:bg-surface-2">
+                    <div className="flex items-start justify-between mb-3">
+                      <div className="min-w-0 flex-1">
+                        <h4 className="font-display text-sm font-bold text-ink truncate">{project.name}</h4>
+                        {project.type && (
+                          <p className="mt-0.5 font-mono text-[9px] text-ink-faint capitalize">{project.type}</p>
+                        )}
+                      </div>
+                      <span className={`ml-2 shrink-0 rounded-md px-2 py-0.5 font-mono text-[8px] font-medium uppercase tracking-wide ${project.status?.toLowerCase() === 'starting' ? 'bg-accent-soft text-accent' : 'bg-surface-2 text-ink-soft'}`}>
+                        {project.status === 'starting' ? 'Starting' : 'Stopped'}
+                      </span>
+                    </div>
+                    
+                    {project.port && (
+                      <div className="mb-3 flex items-center gap-2 font-mono text-[9px] text-ink-soft">
+                        <span className="shrink-0 text-ink-faint">Port:</span>
+                        <span className="text-ink">{project.port}</span>
+                      </div>
+                    )}
+                    
+                    <button type="button" onClick={() => onStart(project)} className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-accent px-3 py-2 text-[9px] font-semibold text-white transition-colors hover:bg-accent-hover">
+                      Start Project
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </>
+        )}
+
+        {projects.length === 0 && (
+          <div className="rounded-xl border border-dashed border-border bg-surface/60 py-9 text-center">
+            <p className="text-xs text-ink-faint">No projects yet</p>
+            <button type="button" onClick={() => onOpenModal?.('project')} className="mt-2 text-xs font-semibold text-accent hover:text-accent-hover">+ Add your first project</button>
           </div>
-        ) : (
-          <div className="rounded-xl border border-dashed border-border bg-surface/60 py-9 text-center"><p className="text-xs text-ink-faint">No projects running</p><button type="button" onClick={() => projects.length ? startWorkspace() : onOpenModal?.('project')} className="mt-2 text-xs font-semibold text-accent">{projects.length ? 'Start workspace' : '+ Add your first project'}</button></div>
         )}
       </section>
 

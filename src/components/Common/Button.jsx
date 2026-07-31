@@ -7,6 +7,8 @@ export default function Button({
   icon,
   disabled,
   className = '',
+  ariaLabel,
+  title,
   ...props
 }) {
   const variants = {
@@ -19,15 +21,23 @@ export default function Button({
     icon: 'w-9 h-9 flex items-center justify-center rounded-lg bg-surface-3 hover:bg-surface-2 text-ink-faint hover:text-ink transition-colors',
   };
 
+  const btnContent = (
+    <>
+      {icon && <span className="inline-block">{icon}</span>}
+      {children}
+    </>
+  );
+
   return (
     <button
       onClick={onClick}
       disabled={disabled}
+      aria-label={ariaLabel || title}
+      title={title || undefined}
       className={`${variants[variant]} ${disabled ? 'opacity-50 cursor-not-allowed' : ''} ${className}`}
       {...props}
     >
-      {icon}
-      {children}
+      {btnContent}
     </button>
   );
 }

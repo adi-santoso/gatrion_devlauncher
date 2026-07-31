@@ -60,6 +60,11 @@ contextBridge.exposeInMainWorld('electron', {
     ipcRenderer.on('projects-updated', listener)
     return () => ipcRenderer.removeListener('projects-updated', listener)
   },
+  onNavigateToProject: (callback) => {
+    const listener = (event, projectId) => callback(projectId)
+    ipcRenderer.on('navigate-to-project', listener)
+    return () => ipcRenderer.removeListener('navigate-to-project', listener)
+  },
 
   // Remove listeners
   removeAllListeners: (channel) => {

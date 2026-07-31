@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react'
+import React, { useEffect, useRef, useState, useCallback } from 'react'
 import Button from '../Common/Button'
 import Badge from '../Common/Badge'
 
@@ -7,17 +7,34 @@ const stripAnsi = (str) =>
     ? str.replace(/[\u001b\u009b][[()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-ORZcf-nqry=><]/g, '')
     : str;
 
-function TerminalViewer({ logs = [], projectName, onClearLogs }) {
+function TerminalViewer({ logs = [], projectName, onClearLogs, config }) {
   const terminalRef = useRef(null)
   const [autoScroll, setAutoScroll] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
-
-  // Auto-scroll to bottom when new logs arrive (if enabled)
+  
+  const fontSize = config?.terminal?.fontSize || 14
+  const maxLines = config?.terminal?.maxLines || 1000
+  const useAutoScroll = config?.terminal?.autoScroll !== undefined ? config.terminal.autoScroll : true
+  
   useEffect(() => {
-    if (autoScroll && terminalRef.current) {
+    if (config?.terminal?.fontSize) {
+      setPrevFontSize(config.terminal.fontSize)
+    }
+  }, [config?.terminal?.fontSize])
+
+  const [prevFontSize, setPrevFontSize] = useState(fontSize)
+
+  useEffect(() => {
+    if (terminalRef.current) {
+      terminalRef.current.style.fontSize = `${fontSize}px`
+    }
+  }, [fontSize])
+
+  useEffect(() => {
+    if (useAutoScroll && terminalRef.current) {
       terminalRef.current.scrollTop = terminalRef.current.scrollHeight
     }
-  }, [logs, autoScroll])
+  }, [logs, useAutoScroll])
 
   // Detect manual scroll
   const handleScroll = () => {
@@ -80,10 +97,25 @@ function TerminalViewer({ logs = [], projectName, onClearLogs }) {
   const filteredLogs = searchTerm
     ? logs.filter(log => log.message.toLowerCase().includes(searchTerm.toLowerCase()))
     : logs
+  
+  const finalLogs = maxLines && filteredLogs.length > maxLines
+    ? filteredLogs.slice(-maxLines)
+    : filteredLogs
 
   const copyLogs = () => {
-    const text = logs.map(log => `[${new Date(log.timestamp).toLocaleTimeString()}] ${log.message}`).join('\n')
+    const text = logs.map(log => `[${new Date(log.timestamp).toLocaleTimeString()}] ${stripAnsi(log.message)}`).join('\n')
     navigator.clipboard.writeText(text)
+  }
+
+  const downloadLogs = () => {
+    const text = logs.map(log => `[${new Date(log.timestamp).toLocaleTimeString()}] ${stripAnsi(log.message)}`).join('\n')
+    const blob = new Blob([text], { type: 'text/plain;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `${projectName ? projectName.toLowerCase().replace(/\s+/g, '-') : 'project'}-logs-${Date.now()}.log`
+    a.click()
+    URL.revokeObjectURL(url)
   }
 
   const clearLogs = () => {
@@ -117,7 +149,7 @@ function TerminalViewer({ logs = [], projectName, onClearLogs }) {
             </>
           )}
           <Badge variant="default" size="sm">
-            {filteredLogs.length} {filteredLogs.length === 1 ? 'line' : 'lines'}
+            {finalLogs.length} {finalLogs.length === 1 ? 'line' : 'lines'}
           </Badge>
         </div>
 
@@ -130,8 +162,9 @@ function TerminalViewer({ logs = [], projectName, onClearLogs }) {
             onChange={(e) => setSearchTerm(e.target.value)}
             className="px-3 py-1 bg-gray-800 border border-gray-700 rounded-lg text-xs text-gray-300 placeholder-gray-600 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 w-40"
           />
-          <Button variant="icon" icon="📋" onClick={copyLogs} />
-          <Button variant="icon" icon="🗑️" onClick={clearLogs} />
+          <Button variant="icon" icon="📋" onClick={copyLogs} title="Copy logs to clipboard" />
+          <Button variant="icon" icon="📥" onClick={downloadLogs} title="Download .log file" />
+          <Button variant="icon" icon="🗑️" onClick={clearLogs} title="Clear logs" />
         </div>
       </div>
 
@@ -139,7 +172,8 @@ function TerminalViewer({ logs = [], projectName, onClearLogs }) {
       <div
         ref={terminalRef}
         onScroll={handleScroll}
-        className="flex-1 bg-black p-4 overflow-auto font-mono text-sm scrollbar-thin scrollbar-thumb-gray-700 scrollbar-track-gray-900"
+        className="flex-1 bg-black p-4 overflow-auto font-mono scrollbar-thin scrollbar-thumb-gray-700 scrollbar-track-gray-900"
+        style={{ fontSize: `${fontSize}px` }}
       >
         {filteredLogs.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-gray-600 gap-3">
@@ -151,7 +185,7 @@ function TerminalViewer({ logs = [], projectName, onClearLogs }) {
           </div>
         ) : (
           <div className="space-y-0.5">
-            {filteredLogs.map((log, index) => (
+            {finalLogs.map((log, index) => (
               <div
                 key={index}
                 className="flex gap-3 hover:bg-gray-900/50 px-2 py-1 rounded transition-colors group"
@@ -162,7 +196,8 @@ function TerminalViewer({ logs = [], projectName, onClearLogs }) {
                 <span className="text-gray-700 select-none flex-shrink-0 opacity-50 group-hover:opacity-100 transition-opacity">
                   {getLogIcon(log.type)}
                 </span>
-                <span className={`flex-1 ${getLogColor(log.type)} whitespace-pre-wrap break-words leading-relaxed`}>
+                <span className={`flex-1 ${getLogColor(log.type)} whitespace-pre-wrap break-words leading-relaxed`}
+                     style={{ fontSize: `${fontSize}px` }}>
                   {highlightText(stripAnsi(log.message))}
                 </span>
               </div>
@@ -172,7 +207,7 @@ function TerminalViewer({ logs = [], projectName, onClearLogs }) {
       </div>
 
       {/* Auto-scroll indicator */}
-      {!autoScroll && logs.length > 0 && (
+      {!useAutoScroll && !autoScroll && finalLogs.length > 0 && (
         <div className="absolute bottom-6 right-6 z-10">
           <Button
             variant="primary"

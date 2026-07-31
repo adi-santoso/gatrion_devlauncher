@@ -54,26 +54,41 @@ const ProjectGroup = ({ title, projects, collapsed, status, onProjectSelect }) =
 };
 
 const Sidebar = ({
-  collapsed = false,
+  collapsed,
   onToggleCollapse,
   activeView = 'dashboard',
   onViewChange,
   projects = [],
   runningProjects = [],
   onProjectSelect,
-  onAddProject
+  onAddProject,
+  defaultCollapsed = false
 }) => {
+  const [isCollapsed, setIsCollapsed] = React.useState(
+    collapsed !== undefined ? collapsed : defaultCollapsed
+  );
+
   const sourceProjects = projects.length > 0 ? projects : runningProjects;
   const running = sourceProjects.filter((project) => !project.status || project.status.toLowerCase() === 'running');
   const errors = projects.filter((project) => project.status?.toLowerCase() === 'error');
 
+  const toggleCollapse = () => {
+    const newState = !isCollapsed;
+    setIsCollapsed(newState);
+    onToggleCollapse?.(newState);
+  };
+
   return (
-    <aside className={`${collapsed ? 'w-[68px]' : 'w-[238px]'} shrink-0 bg-surface border-r border-border flex flex-col transition-[width] duration-200`}>
+    <aside 
+      className={`${isCollapsed ? 'w-[68px]' : 'w-[238px]'} shrink-0 bg-surface border-r border-border flex flex-col transition-[width] duration-200`}
+      role="navigation"
+      aria-label="Main navigation sidebar"
+    >
       <div className="h-[66px] flex items-center gap-2.5 px-4 border-b border-border overflow-hidden">
-        <div className="w-[34px] h-[34px] rounded-[10px] bg-accent flex items-center justify-center shadow-glow shrink-0">
+        <div className="w-[34px] h-[34px] rounded-[10px] bg-accent flex items-center justify-center shadow-glow shrink-0" role="img" aria-label="DevLauncher logo">
           <svg width="15" height="15" viewBox="0 0 24 24"><path d="M5 3l14 9-14 9z" fill="white" /></svg>
         </div>
-        {!collapsed && <div className="min-w-0"><strong className="block font-display font-extrabold text-sm">DevLauncher</strong><span className="block text-[8px] font-mono uppercase tracking-[0.12em] text-ink-faint">Local workspace</span></div>}
+      {!collapsed && <div className="min-w-0"><strong className="block font-display font-extrabold text-sm">DevLauncher</strong><span className="block text-[8px] font-mono uppercase tracking-[0.12em] text-ink-faint">Local workspace</span></div>}
       </div>
 
       <div className="flex-1 overflow-y-auto px-3 py-3.5">
@@ -86,29 +101,35 @@ const Sidebar = ({
                 key={item.id}
                 type="button"
                 onClick={() => onViewChange?.(item.id)}
-                title={item.label}
-                className={`w-full flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-xs font-semibold transition-colors ${collapsed ? 'justify-center' : ''} ${isActive ? 'bg-accent/10 text-ink border border-accent/20' : 'text-ink-soft hover:bg-surface-3 hover:text-ink border border-transparent'}`}
+                title={`${item.label}${count !== null ? ` (${count})` : ''}`}
+                aria-label={item.label}
+                className={`w-full flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-xs font-semibold transition-colors ${isCollapsed ? 'justify-center' : ''} ${isActive ? 'bg-accent/10 text-ink border border-accent/20' : 'text-ink-soft hover:bg-surface-3 hover:text-ink border border-transparent'}`}
               >
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="shrink-0">{item.icon}</svg>
-                {!collapsed && <span>{item.label}</span>}
-                {!collapsed && count !== null && <span className="ml-auto text-[9px] font-mono text-ink-faint">{count}</span>}
+                {!isCollapsed && <span>{item.label}</span>}
+                {!isCollapsed && count !== null && <span className="ml-auto text-[9px] font-mono text-ink-faint">{count}</span>}
               </button>
             );
           })}
         </nav>
 
         <div className="h-px bg-border my-4" />
-        <ProjectGroup title="Running now" projects={running} collapsed={collapsed} status="running" onProjectSelect={onProjectSelect} />
-        <ProjectGroup title="Needs attention" projects={errors} collapsed={collapsed} status="error" onProjectSelect={onProjectSelect} />
+        <ProjectGroup title="Running now" projects={running} collapsed={isCollapsed} status="running" onProjectSelect={onProjectSelect} />
+        <ProjectGroup title="Needs attention" projects={errors} collapsed={isCollapsed} status="error" onProjectSelect={onProjectSelect} />
       </div>
 
       <div className="border-t border-border p-3 space-y-2">
-        <button type="button" onClick={onAddProject} title="Add project" className="w-full flex items-center justify-center gap-2 rounded-lg border border-border bg-surface-2 py-2 text-xs font-semibold text-ink-soft hover:text-ink hover:border-border-hover transition-colors">
-          <span className="text-base leading-none">+</span>{!collapsed && 'Add project'}
+        <button type="button" onClick={onAddProject} aria-label="Add new project" className="w-full flex items-center justify-center gap-2 rounded-lg border border-border bg-surface-2 py-2 text-xs font-semibold text-ink-soft hover:text-ink hover:border-border-hover transition-colors">
+          <span className="text-base leading-none">+</span>{!isCollapsed && 'Add project'}
         </button>
         {onToggleCollapse && (
-          <button type="button" onClick={onToggleCollapse} className="w-full text-[10px] text-ink-faint hover:text-ink transition-colors">
-            {collapsed ? 'Expand' : 'Collapse sidebar'}
+          <button 
+            type="button" 
+            onClick={toggleCollapse}
+            aria-label={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+            className="w-full text-[10px] text-ink-faint hover:text-ink transition-colors"
+          >
+            {isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
           </button>
         )}
       </div>

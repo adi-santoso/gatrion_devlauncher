@@ -16,16 +16,27 @@ export default function ProjectDetailView({
   onStop,
   onRestart,
   onClearLogs,
-  onFullscreenChange
+  onFullscreenChange,
+  isFullscreen = false
 }) {
   const [activeTab, setActiveTab] = useState('app');
   const [autoScroll, setAutoScroll] = useState(true);
-  const [fullscreen, setFullscreen] = useState(false);
+  // Use prop instead of local state to sync with parent
+  const [fullscreen, setFullscreen] = useState(isFullscreen);
   const combinedLogs = Array.isArray(logs) && logs.length > 0 ? logs : (Array.isArray(project?.logs) ? project.logs : []);
+
+  // Sync local fullscreen state when prop changes
+  useEffect(() => {
+    if (fullscreen !== isFullscreen) {
+      setFullscreen(isFullscreen);
+    }
+  }, [isFullscreen]);
 
   // Notify parent component (App.jsx) when fullscreen status changes
   useEffect(() => {
+    console.log('[PDV] Fullscreen state changed to:', fullscreen);
     onFullscreenChange?.(fullscreen);
+    return () => console.log('[PDV] Cleanup');
   }, [fullscreen, onFullscreenChange]);
 
   // ESC key listener to exit fullscreen

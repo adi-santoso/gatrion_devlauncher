@@ -56,10 +56,13 @@
 }
 
 /* Pulse dot animation */
+.pulse-dot {
+  position: relative;
+}
 .pulse-dot::before {
   content: '';
   position: absolute;
-  inset: -4px;
+  inset: -2px;
   border-radius: 999px;
   background: currentColor;
   opacity: 0.35;

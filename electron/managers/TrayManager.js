@@ -72,14 +72,25 @@ class TrayManager {
         }
       ];
 
+      const safeSend = (channel, ...args) => {
+        try {
+          if (this.mainWindow && !this.mainWindow.isDestroyed() && this.mainWindow.webContents) {
+            this.mainWindow.webContents.send(channel, ...args);
+          }
+        } catch {
+          // Ignore
+        }
+      };
+
       if (runningProjects.length > 0) {
         runningProjects.forEach(p => {
           menuTemplate.push({
             label: `  ⚡ ${p.name}`,
             click: () => {
-              if (this.mainWindow) {
+              if (this.mainWindow && !this.mainWindow.isDestroyed()) {
                 this.mainWindow.show();
                 this.mainWindow.focus();
+                safeSend('navigate-to-project', p.id);
               }
             }
           });
@@ -102,7 +113,27 @@ class TrayManager {
                 if (Array.isArray(p.envVars)) {
                   p.envVars.forEach(e => { if (e.key) envObj[e.key] = e.value || ''; });
                 }
-                await this.processManager.startProcess(p.id, p.path, p.startCommand, envObj, p.port);
+                try {
+                  await this.processManager.startProcess(
+                    p.id,
+                    p.path,
+                    p.startCommand,
+                    envObj,
+                    p.port,
+                    (projectId, log) => safeSend('process-log', projectId, log),
+                    (projectId, code, signal) => {
+                      safeSend('process-exit', projectId, code, signal);
+                      safeSend('process-status', projectId, this.processManager.getProcessStatus(projectId));
+                    },
+                    (projectId, error) => {
+                      safeSend('process-error', projectId, error.message);
+                      safeSend('process-status', projectId, this.processManager.getProcessStatus(projectId));
+                    },
+                    (projectId) => safeSend('process-status', projectId, this.processManager.getProcessStatus(projectId))
+                  );
+                } catch (err) {
+                  console.error(`[TrayManager] Error starting project ${p.name}:`, err);
+                }
               }
             }
             this.updateContextMenu();

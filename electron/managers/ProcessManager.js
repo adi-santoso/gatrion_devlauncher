@@ -4,6 +4,8 @@ const path = require('path')
 const util = require('util')
 const { EventEmitter } = require('events')
 const execAsync = util.promisify(exec)
+const Logger = require('../utils/logger')
+const log = Logger || { info: () => {}, warn: () => {}, error: () => {} }
 
 class ProcessManager extends EventEmitter {
   constructor() {
@@ -58,14 +60,8 @@ class ProcessManager extends EventEmitter {
     }
 
     try {
-      console.log('[ProcessManager] Starting process:', {
-        projectId,
-        projectPath,
-        command,
-        env
-      })
+      log.info('ProcessManager', 'Starting process', { projectId, projectPath, command })
 
-      // Set initial status
       this.processes.set(projectId, {
         pid: null,
         status: this.STATUS.STARTING,
@@ -77,16 +73,15 @@ class ProcessManager extends EventEmitter {
       })
       this.emit('status-change', { projectId, status: 'starting' })
 
-      // Spawn the process (pass full command string to avoid DEP0190 warning when shell: true)
       const childProcess = spawn(command, {
         cwd: projectPath,
         env: { ...process.env, ...env },
-        shell: true, // Use shell to support complex commands
+        shell: true,
         detached: process.platform !== 'win32',
-        windowsHide: false, // Show console window on Windows
+        windowsHide: false,
       })
 
-      console.log('[ProcessManager] Process spawned with PID:', childProcess.pid)
+      log.info('ProcessManager', 'Process spawned', { pid: childProcess.pid })
 
       // Update with PID
       const processData = this.processes.get(projectId)
@@ -94,7 +89,7 @@ class ProcessManager extends EventEmitter {
       processData.process = childProcess
       if (port === null) {
         processData.status = this.STATUS.RUNNING
-        console.log('[ProcessManager] Process status updated to RUNNING')
+        log.info('ProcessManager', 'Process status updated', { status: 'RUNNING' })
         this.emit('status-change', { projectId, status: 'running' })
       }
 
@@ -114,7 +109,7 @@ class ProcessManager extends EventEmitter {
 
       // Handle process exit
       childProcess.on('exit', (code, signal) => {
-        console.log('[ProcessManager] Process exited:', { projectId, code, signal })
+        log.info('ProcessManager', 'Process exited', { projectId, code, signal })
         const processData = this.processes.get(projectId)
         if (processData) {
           const previousStatus = processData.status
@@ -135,7 +130,7 @@ class ProcessManager extends EventEmitter {
 
       // Handle errors
       childProcess.on('error', (error) => {
-        console.error('[ProcessManager] Process error:', { projectId, error: error.message })
+        log.error('ProcessManager', 'Process error', { projectId, error: error.message })
         const processData = this.processes.get(projectId)
         if (processData) {
           processData.status = this.STATUS.ERROR

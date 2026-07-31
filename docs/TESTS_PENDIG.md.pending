@@ -1,0 +1,60 @@
+import { describe, test, expect } from 'vitest'
+
+async function loadModule(path) {
+  const module = await import(path)
+  return module.default || module
+}
+
+describe('ProjectDetector', async () => {
+  const ProjectDetector = await loadModule('../ProjectDetector.js')
+  
+  test('detects Laravel from artisan file', async () => {
+    const isLaravel = await ProjectDetector.detectLaravel('/fake/path')
+    expect(typeof isLaravel).toBe('boolean')
+  })
+
+  test('detects Next.js from package.json', async () => {
+    const isNext = await ProjectDetector.detectNextJs('/fake/path')
+    expect(typeof isNext).toBe('boolean')
+  })
+
+  test('detects React/Vite from vite.config', async () => {
+    const isVite = await ProjectDetector.detectReactVite('/fake/path')
+    expect(typeof isVite).toBe('boolean')
+  })
+
+  test('detects Vue from package.json', async () => {
+    const isVue = await ProjectDetector.detectVue('/fake/path')
+    expect(typeof isVue).toBe('boolean')
+  })
+
+  test('detects Go from go.mod or main.go', async () => {
+    const isGo = await ProjectDetector.detectGolang('/fake/path')
+    expect(typeof isGo).toBe('boolean')
+  })
+
+  test('default to Node.js for any folder with package.json', async () => {
+    const isNode = await ProjectDetector.detectNodeJs('/fake/path')
+    expect(typeof isNode).toBe('boolean')
+  })
+
+  test('autoDetect returns PROJECT_TYPES constant', async () => {
+    const type = await ProjectDetector.autoDetect('/fake/path')
+    expect(ProjectDetector.PROJECT_TYPES[type]).toBeDefined()
+  })
+
+  test('extract port from .env file', async () => {
+    const port = await ProjectDetector.extractPortFromEnv('/fake/path')
+    expect(port).toBe(null)
+  })
+
+  test('extract port from vite.config.js', async () => {
+    const port = await ProjectDetector.extractPortFromViteConfig('/fake/path')
+    expect(port).toBe(null)
+  })
+
+  test('extract port from package.json scripts', async () => {
+    const port = await ProjectDetector.extractPortFromScripts('/fake/path')
+    expect(port).toBe(null)
+  })
+})

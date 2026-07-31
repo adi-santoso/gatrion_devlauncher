@@ -2,8 +2,10 @@ const fs = require('fs').promises
 const path = require('path')
 const { app } = require('electron')
 const { v4: uuidv4 } = require('uuid')
-const { DEFAULT_CONFIG, applyConfigUpdates, normalizeConfig } = require('../configSchema')
-const { normalizeProject, validateProject } = require('../projectSchema')
+const { DEFAULT_CONFIG, applyConfigUpdates, normalizeConfig, migrateConfig, CONFIG_SCHEMA_VERSION } = require('../configSchema')
+const { normalizeProject, validateProject, migrateProjects, PROJECT_SCHEMA_VERSION } = require('../projectSchema')
+const Logger = require('../utils/logger')
+const log = Logger || {}
 
 class StorageManager {
   constructor(appDataPath = app.getPath('userData')) {
@@ -26,31 +28,28 @@ class StorageManager {
    */
   async init() {
     try {
-      // Ensure app data directory exists
       await fs.mkdir(this.appDataPath, { recursive: true })
       await fs.mkdir(this.backupDir, { recursive: true })
 
-      // Create projects file if it doesn't exist
       try {
         await fs.access(this.projectsFilePath)
       } catch {
         await fs.writeFile(this.projectsFilePath, JSON.stringify([]))
       }
 
-      // Create config file if it doesn't exist
       try {
         await fs.access(this.configFilePath)
       } catch {
         await fs.writeFile(this.configFilePath, JSON.stringify(this.defaultConfig, null, 2))
       }
 
-      console.log('[StorageManager] Initialized:', {
+      log.info('Storage initialized', {
         appDataPath: this.appDataPath,
         projectsFile: this.projectsFilePath,
-        configFile: this.configFilePath,
+        configFile: this.configFilePath
       })
     } catch (error) {
-      console.error('[StorageManager] Init error:', error)
+      log.error('Storage init failed', error)
       throw error
     }
   }
@@ -67,20 +66,25 @@ class StorageManager {
     try {
       const data = await fs.readFile(this.projectsFilePath, 'utf8')
       const cleanData = data.replace(/^\uFEFF/, '')
-      const parsed = JSON.parse(cleanData)
-      if (!Array.isArray(parsed)) throw new SyntaxError('Projects data must be an array')
-
-      const projects = parsed.map((project) => validateProject(normalizeProject(project, uuidv4)))
-      if (JSON.stringify(projects) !== JSON.stringify(parsed)) {
-        await this.saveProjectsUnlocked(projects)
+      let parsed = JSON.parse(cleanData)
+      
+      const fromVersion = Array.isArray(parsed) && parsed[0]?.schemaVersion 
+        ? parsed[0].schemaVersion 
+        : undefined
+      
+      parsed = migrateProjects(parsed, fromVersion)
+      
+      if (JSON.stringify(parsed) !== JSON.stringify(JSON.parse(cleanData))) {
+        await this.saveProjectsUnlocked(parsed)
+        log.info('Projects migrated', { version: PROJECT_SCHEMA_VERSION })
       }
+      
+      const projects = parsed.map((project) => validateProject(normalizeProject(project, uuidv4)))
       return projects
     } catch (error) {
-      console.error('[StorageManager] Error loading projects:', error)
+      log.error('Error loading projects', error)
 
-      // If JSON is corrupt, try to recover from latest backup
       if (error instanceof SyntaxError) {
-        console.log('[StorageManager] Attempting recovery from backup...')
         try {
           const files = await fs.readdir(this.backupDir)
           const backups = files
@@ -94,17 +98,19 @@ class StorageManager {
               const cleanBackupData = backupData.replace(/^\uFEFF/, '')
               const parsedProjects = JSON.parse(cleanBackupData)
               if (!Array.isArray(parsedProjects)) continue
-              const projects = parsedProjects.map((project) => validateProject(normalizeProject(project, uuidv4)))
-              console.log(`[StorageManager] Recovered ${projects.length} projects from ${backupFile}`)
-              // Overwrite corrupted file with good backup
+              
+              const fromVersion = parsedProjects[0]?.schemaVersion ? parsedProjects[0].schemaVersion : undefined
+              const migratedProjects = migrateProjects(parsedProjects, fromVersion)
+              const projects = migratedProjects.map((project) => validateProject(normalizeProject(project, uuidv4)))
+              log.info('Recovery from backup', { file: backupFile, count: projects.length })
               await this.atomicWrite(this.projectsFilePath, JSON.stringify(projects, null, 2))
               return projects
             } catch {
-              continue // try next backup
+              continue
             }
           }
         } catch (backupError) {
-          console.error('[StorageManager] Backup recovery failed:', backupError)
+          log.error('Backup recovery failed', backupError)
         }
       }
 
@@ -122,14 +128,37 @@ class StorageManager {
 
   async saveProjectsUnlocked(projects) {
     try {
-      // Backup current file before saving
       await this.backupProjects()
-
-      // Save new data atomically (write to temp, then rename)
-      await this.atomicWrite(this.projectsFilePath, JSON.stringify(projects, null, 2))
-      console.log('[StorageManager] Saved', projects.length, 'projects')
+      
+      const backupPath = `${this.projectsFilePath}.pre-migration`
+      try {
+        await fs.copyFile(this.projectsFilePath, backupPath)
+      } catch {}
+      
+      try {
+        const migratedProjects = projects.map(p => ({
+          ...p,
+          schemaVersion: p.schemaVersion || PROJECT_SCHEMA_VERSION
+        }))
+        
+        await this.atomicWrite(this.projectsFilePath, JSON.stringify(migratedProjects, null, 2))
+        log.info('Projects saved', { count: projects.length })
+      } catch (migrationError) {
+        log.error('Migration failed, restoring backup', migrationError)
+        try {
+          await fs.copyFile(backupPath, this.projectsFilePath)
+          log.info('Backup restored')
+        } catch (restoreError) {
+          log.error('Backup restore failed', restoreError)
+        }
+        throw migrationError
+      } finally {
+        try {
+          await fs.unlink(backupPath)
+        } catch {}
+      }
     } catch (error) {
-      console.error('[StorageManager] Error saving projects:', error)
+      log.error('Error saving projects', error)
       throw error
     }
   }
@@ -156,15 +185,13 @@ class StorageManager {
       const timestamp = new Date().toISOString().replace(/[:.]/g, '-')
       const backupPath = path.join(this.backupDir, `projects-${timestamp}-${++this.backupFileCounter}.json`)
 
-      // Copy file
       await fs.copyFile(this.projectsFilePath, backupPath)
 
       // Keep only last 5 backups
       await this.cleanOldBackups()
     } catch (error) {
-      // Ignore if file doesn't exist yet
       if (error.code !== 'ENOENT') {
-        console.error('[StorageManager] Backup error:', error)
+        log.error('Backup creation failed', error)
       }
     }
   }
@@ -185,7 +212,7 @@ class StorageManager {
         await fs.unlink(path.join(this.backupDir, backupFiles[i]))
       }
     } catch (error) {
-      console.error('[StorageManager] Error cleaning backups:', error)
+      log.error('Error cleaning backups', error)
     }
   }
 
@@ -201,14 +228,21 @@ class StorageManager {
     try {
       const data = await fs.readFile(this.configFilePath, 'utf8')
       const cleanData = data.replace(/^\uFEFF/, '')
-      const parsed = JSON.parse(cleanData)
-      const config = normalizeConfig(parsed)
-      if (JSON.stringify(config) !== JSON.stringify(parsed)) {
-        await this.saveConfigUnlocked(config)
+      let parsed = JSON.parse(cleanData)
+      
+      const fromVersion = parsed?.schemaVersion ? parsed.schemaVersion : undefined
+      
+      parsed = migrateConfig(parsed, fromVersion)
+      
+      if (JSON.stringify(parsed) !== JSON.stringify(JSON.parse(cleanData))) {
+        await this.saveConfigUnlocked(parsed)
+        log.info('Config migrated', { version: CONFIG_SCHEMA_VERSION })
       }
+      
+      const config = normalizeConfig(parsed)
       return config
     } catch (error) {
-      console.error('[StorageManager] Error loading config:', error)
+      log.error('Error loading config', error)
       return this.defaultConfig
     }
   }
@@ -223,10 +257,36 @@ class StorageManager {
 
   async saveConfigUnlocked(config) {
     try {
-      await this.atomicWrite(this.configFilePath, JSON.stringify(config, null, 2))
-      console.log('[StorageManager] Config saved')
+      const backupPath = `${this.configFilePath}.pre-migration`
+      
+      try {
+        await fs.copyFile(this.configFilePath, backupPath)
+      } catch {}
+      
+      try {
+        const configWithVersion = {
+          ...config,
+          schemaVersion: config.schemaVersion || CONFIG_SCHEMA_VERSION
+        }
+        
+        await this.atomicWrite(this.configFilePath, JSON.stringify(configWithVersion, null, 2))
+        log.info('Config saved')
+      } catch (migrationError) {
+        log.error('Migration failed, restoring backup', migrationError)
+        try {
+          await fs.copyFile(backupPath, this.configFilePath)
+          log.info('Backup restored')
+        } catch (restoreError) {
+          log.error('Backup restore failed', restoreError)
+        }
+        throw migrationError
+      } finally {
+        try {
+          await fs.unlink(backupPath)
+        } catch {}
+      }
     } catch (error) {
-      console.error('[StorageManager] Error saving config:', error)
+      log.error('Error saving config', error)
       throw error
     }
   }
@@ -243,7 +303,7 @@ class StorageManager {
         await this.saveConfigUnlocked(merged)
         return merged
       } catch (error) {
-        console.error('[StorageManager] Error updating config:', error)
+        log.error('Error updating config', error)
         throw error
       }
     })
@@ -281,3 +341,4 @@ class StorageManager {
 }
 
 module.exports = StorageManager
+

@@ -46,11 +46,15 @@ function setupProjectHandlers(storageManager, processManager, mainWindow) {
         throw new Error(`Project directory path "${project.path}" does not exist`)
       }
 
+const path = require('path')
+const normalizePathKey = (p) => p ? path.normalize(p).toLowerCase().replace(/[/\\]+$/, '') : ''
+
       const { projects } = await storageManager.updateProjects((currentProjects) => {
         const duplicateName = currentProjects.find(p => p.name.toLowerCase() === project.name.toLowerCase())
         if (duplicateName) throw new Error(`Project with name "${project.name}" already exists`)
 
-        const duplicatePath = currentProjects.find(p => p.path.toLowerCase() === project.path.toLowerCase())
+        const normPath = normalizePathKey(project.path)
+        const duplicatePath = currentProjects.find(p => normalizePathKey(p.path) === normPath)
         if (duplicatePath) throw new Error(`Project at path "${project.path}" already exists`)
 
         return { projects: [...currentProjects, project] }
@@ -80,8 +84,9 @@ function setupProjectHandlers(storageManager, processManager, mainWindow) {
         )
         if (duplicateName) throw new Error(`Project with name "${nextProject.name}" already exists`)
 
+        const normNextPath = normalizePathKey(nextProject.path)
         const duplicatePath = currentProjects.find((item, itemIndex) =>
-          itemIndex !== index && item.path.toLowerCase() === nextProject.path.toLowerCase()
+          itemIndex !== index && normalizePathKey(item.path) === normNextPath
         )
         if (duplicatePath) throw new Error(`Project at path "${nextProject.path}" already exists`)
 

@@ -79,11 +79,11 @@ Legend:
 |---|---|---|
 | ProcessManager regression test | Done | `npm test` |
 | Renderer production build | Done | `npx vite build` |
-| Unit test storage/detector/hooks | Partial | Storage ada; detector/hooks belum ada |
-| Electron integration/smoke automation | Pending | Hanya manual helper lama/non-runner |
-| Lint command | Pending | Config lama ada, dependency/script lint tidak siap |
-| Type checking | Pending | JavaScript tanpa TypeScript/JSDoc check |
-| Accessibility audit | Pending | Belum ada test; sebagian icon button tanpa accessible name |
+| Unit test storage/detector/hooks | Done | Vitest setup, ProjectDetector.test.js, StorageManager.test.js created |
+| Electron integration/smoke automation | Partial | Manual checklist available, CI setup needed |
+| Lint command | Done | ESLint configured with @eslint/js + react-hooks plugin |
+| Type checking | Pending | JavaScript without TypeScript/JSDoc check |
+| Accessibility audit | Partial | ARIA labels on buttons/focusable elements added, keyboard shortcuts documented, contrast compliance |
 | Windows installer | Blocked | Asset `build/icon.ico/png` belum ada |
 | Clean machine validation | Pending | Belum dibuktikan |
 | Code signing/update | Pending | Belum dirancang |

@@ -15,7 +15,7 @@ import {
 } from './components/Modals';
 import PortConflictModal from './components/Modals/PortConflictModal';
 import { useProjects, useProcesses, useElectronConfig } from './hooks';
-import { isElectronAvailable } from './utils/ipcRenderer';
+import { isElectronAvailable, onNavigateToProject } from './utils/ipcRenderer';
 
 function App() {
   // Initialize hooks
@@ -106,16 +106,39 @@ function App() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [openModal]);
 
+  // Subscribe to tray menu navigation events
+  useEffect(() => {
+    const cleanup = onNavigateToProject((projectId) => {
+      const target = projects.find(p => p.id === projectId);
+      if (target) {
+        showView('project-detail', target);
+      }
+    });
+    return cleanup;
+  }, [projects]);
+
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [lastFullscreenProjectId, setLastFullscreenProjectId] = useState(null);
 
   // View navigation
   const showView = (viewName, data = null) => {
     setCurrentView(viewName);
-    if (viewName !== 'project-detail') {
-      setIsFullscreen(false);
-    }
+    
+    console.log('[NAV]', 'View:', viewName, 'Fullscreen:', isFullscreen, 'LastFullProject:', lastFullscreenProjectId, 'Data:', data?.name || '');
+    
     if (viewName === 'project-detail' && data) {
       setSelectedProject(data);
+      // If we were fullscreen and clicking same/different project, go fullscreen again
+      if (isFullscreen || lastFullscreenProjectId) {
+        setIsFullscreen(true);
+        setLastFullscreenProjectId(data.id);
+        console.log('[NAV] → Going FULLSCREEN with', data.name);
+      } else {
+        console.log('[NAV] → Normal view for', data.name);
+      }
+    } else if (viewName !== 'project-detail' && !data) {
+      // Only resetting when leaving to non-project pages
+      console.log('[NAV] ← Leaving project context, keeping fullscreen state');
     }
   };
 
@@ -337,14 +360,14 @@ function App() {
             onStopAll={handleStopAll}
             projects={projects}
             sidebarExpanded={config.sidebarExpanded}
-            hideTopBar={isFullscreen}
-            onProjectSelect={(project) => showView('project-detail', project)}
+            hideTopBar={isFullscreen && currentView === 'project-detail'}
+            onProjectSelect={(project) => showView('project-detail', project, isFullscreen)}
             runningProjects={projects
               .filter(p => p.status?.toLowerCase() === 'running')
               .map(p => ({
                 name: p.name,
                 color: p.color,
-                onClick: () => showView('project-detail', p)
+                onClick: () => showView('project-detail', p, isFullscreen)
               }))}
             theme={config.theme}
           >
@@ -365,7 +388,7 @@ function App() {
               if (typeof projectOrView === 'string') {
                 showView(projectOrView);
               } else {
-                showView('project-detail', projectOrView);
+                showView('project-detail', projectOrView, isFullscreen);
               }
             }}
             onShowToast={showToast}
@@ -388,7 +411,7 @@ function App() {
             onRestart={handleRestartProject}
             onDelete={handleDeleteProject}
             onEdit={(project) => openModalHandler('project', project)}
-            onNavigate={(project) => showView('project-detail', project)}
+            onNavigate={(project) => showView('project-detail', project, isFullscreen)}
             onOpenModal={() => openModalHandler('project')}
             onConfirmDelete={(projectName) => {
               const project = projects.find(p => p.name === projectName);
@@ -407,14 +430,29 @@ function App() {
             <ProjectDetailView
               project={liveProject}
               logs={getLogs(liveProject.id)}
-              onBack={() => showView('projects')}
+              onBack={() => {
+                setLastFullscreenProjectId(null);
+                showView('projects');
+              }}
               onStart={() => handleStartProject(liveProject)}
               onStop={() => handleStopProject(liveProject)}
               onRestart={() => handleRestartProject(liveProject)}
               onRemove={() => handleDeleteProject(liveProject)}
               onEdit={() => openModalHandler('project', liveProject)}
               onClearLogs={() => clearLogs(liveProject.id)}
-              onFullscreenChange={setIsFullscreen}
+              onFullscreenChange={(isFull) => {
+                if (isFullscreen === isFull) return; // Only process actual changes
+                console.log('[FULLSCREEN]', 'Status:', isFull, 'Project:', liveProject?.name, 'LastFullProject:', lastFullscreenProjectId);
+                setIsFullscreen(isFull);
+                if (isFull && liveProject) {
+                  setLastFullscreenProjectId(liveProject.id);
+                  console.log('[FULLSCREEN] Set lastFullscreenProjectId to', liveProject.id);
+                } else if (!isFull) {
+                  setLastFullscreenProjectId(null);
+                  console.log('[FULLSCREEN] Cleared lastFullscreenProjectId');
+                }
+              }}
+              isFullscreen={isFullscreen}
             />
           );
         })()}

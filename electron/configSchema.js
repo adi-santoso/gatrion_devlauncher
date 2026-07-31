@@ -16,6 +16,64 @@ const DEFAULT_CONFIG = {
   },
 }
 
+const CONFIG_SCHEMA_VERSION = 1
+
+function migrateConfig(config, fromVersion) {
+  if (!config || typeof config !== 'object' || Array.isArray(config)) return DEFAULT_CONFIG
+  
+  let migrated = { ...config }
+  
+  if (fromVersion === undefined || fromVersion === 0) {
+    // Migrate old notification fields
+    if (migrated.notifyOnStart !== undefined && !migrated.notifications?.onStart) {
+      migrated.notifications = {
+        ...migrated.notifications,
+        onStart: migrated.notifyOnStart,
+      }
+    }
+    
+    if (migrated.notifyOnCrash !== undefined && !migrated.notifications?.onError) {
+      migrated.notifications = {
+        ...migrated.notifications,
+        onError: migrated.notifyOnCrash,
+      }
+    }
+    
+    if (migrated.notificationSound !== undefined && !migrated.notifications?.sound) {
+      migrated.notifications = {
+        ...migrated.notifications,
+        sound: migrated.notificationSound,
+      }
+    }
+    
+    // Migrate old terminal fields
+    if (migrated.terminalFontSize !== undefined && !migrated.terminal?.fontSize) {
+      migrated.terminal = {
+        ...migrated.terminal,
+        fontSize: migrated.terminalFontSize,
+      }
+    }
+    
+    if (migrated.terminalMaxLines !== undefined && !migrated.terminal?.maxLines) {
+      migrated.terminal = {
+        ...migrated.terminal,
+        maxLines: migrated.terminalMaxLines,
+      }
+    }
+    
+    if (migrated.terminalAutoScroll !== undefined && !migrated.terminal?.autoScroll) {
+      migrated.terminal = {
+        ...migrated.terminal,
+        autoScroll: migrated.terminalAutoScroll,
+      }
+    }
+  }
+  
+  migrated.schemaVersion = CONFIG_SCHEMA_VERSION
+  
+  return migrated
+}
+
 function booleanOr(value, fallback) {
   return typeof value === 'boolean' ? value : fallback
 }
@@ -25,28 +83,36 @@ function integerOr(value, fallback, min, max) {
 }
 
 function normalizeConfig(config = {}) {
-  if (!config || typeof config !== 'object' || Array.isArray(config)) config = {}
-  const notifications = config.notifications && typeof config.notifications === 'object'
-    ? config.notifications
+  if (!config || typeof config !== 'object' || Array.isArray(config)) return { ...DEFAULT_CONFIG, schemaVersion: CONFIG_SCHEMA_VERSION }
+  
+  const migrated = migrateConfig(config, config.schemaVersion)
+  
+  if (migrated.schemaVersion !== CONFIG_SCHEMA_VERSION) {
+    console.warn(`[configSchema] Config version mismatch: ${migrated.schemaVersion} vs ${CONFIG_SCHEMA_VERSION}`)
+  }
+  
+  const notifications = migrated.notifications && typeof migrated.notifications === 'object'
+    ? migrated.notifications
     : {}
-  const terminal = config.terminal && typeof config.terminal === 'object' ? config.terminal : {}
+  const terminal = migrated.terminal && typeof migrated.terminal === 'object' ? migrated.terminal : {}
 
   return {
-    theme: config.theme === 'light' ? 'light' : 'dark',
-    sidebarExpanded: booleanOr(config.sidebarExpanded, DEFAULT_CONFIG.sidebarExpanded),
-    startOnBoot: booleanOr(config.startOnBoot, DEFAULT_CONFIG.startOnBoot),
-    minimizeToTray: booleanOr(config.minimizeToTray, DEFAULT_CONFIG.minimizeToTray),
-    autoStartProjects: booleanOr(config.autoStartProjects, DEFAULT_CONFIG.autoStartProjects),
+    theme: migrated.theme === 'light' ? 'light' : 'dark',
+    sidebarExpanded: booleanOr(migrated.sidebarExpanded, DEFAULT_CONFIG.sidebarExpanded),
+    startOnBoot: booleanOr(migrated.startOnBoot, DEFAULT_CONFIG.startOnBoot),
+    minimizeToTray: booleanOr(migrated.minimizeToTray, DEFAULT_CONFIG.minimizeToTray),
+    autoStartProjects: booleanOr(migrated.autoStartProjects, DEFAULT_CONFIG.autoStartProjects),
     notifications: {
-      onStart: booleanOr(notifications.onStart, booleanOr(config.notifyOnStart, DEFAULT_CONFIG.notifications.onStart)),
-      onError: booleanOr(notifications.onError, booleanOr(config.notifyOnCrash, DEFAULT_CONFIG.notifications.onError)),
-      sound: booleanOr(notifications.sound, booleanOr(config.notificationSound, DEFAULT_CONFIG.notifications.sound)),
+      onStart: booleanOr(notifications.onStart, booleanOr(migrated.notifyOnStart, DEFAULT_CONFIG.notifications.onStart)),
+      onError: booleanOr(notifications.onError, booleanOr(migrated.notifyOnCrash, DEFAULT_CONFIG.notifications.onError)),
+      sound: booleanOr(notifications.sound, booleanOr(migrated.notificationSound, DEFAULT_CONFIG.notifications.sound)),
     },
     terminal: {
-      fontSize: integerOr(terminal.fontSize, integerOr(config.terminalFontSize, DEFAULT_CONFIG.terminal.fontSize, 8, 32), 8, 32),
-      maxLines: integerOr(terminal.maxLines, integerOr(config.terminalMaxLines, DEFAULT_CONFIG.terminal.maxLines, 100, 10000), 100, 10000),
-      autoScroll: booleanOr(terminal.autoScroll, booleanOr(config.terminalAutoScroll, DEFAULT_CONFIG.terminal.autoScroll)),
+      fontSize: integerOr(terminal.fontSize, integerOr(migrated.terminalFontSize, DEFAULT_CONFIG.terminal.fontSize, 8, 32), 8, 32),
+      maxLines: integerOr(terminal.maxLines, integerOr(migrated.terminalMaxLines, DEFAULT_CONFIG.terminal.maxLines, 100, 10000), 100, 10000),
+      autoScroll: booleanOr(terminal.autoScroll, booleanOr(migrated.terminalAutoScroll, DEFAULT_CONFIG.terminal.autoScroll)),
     },
+    schemaVersion: CONFIG_SCHEMA_VERSION,
   }
 }
 
@@ -97,4 +163,4 @@ function applyConfigUpdates(current, updates) {
   return normalized
 }
 
-module.exports = { DEFAULT_CONFIG, applyConfigUpdates, normalizeConfig }
+module.exports = { DEFAULT_CONFIG, CONFIG_SCHEMA_VERSION, applyConfigUpdates, normalizeConfig, migrateConfig }

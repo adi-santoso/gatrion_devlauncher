@@ -9,8 +9,42 @@ const PROJECT_TYPES = {
 }
 
 const PROJECT_FIELDS = new Set([
-  'name', 'path', 'type', 'port', 'startCommand', 'envVars', 'emoji', 'color', 'autoStart',
+  'name', 'path', 'type', 'port', 'startCommand', 'envVars', 'emoji', 'color', 'autoStart', 'schemaVersion',
 ])
+
+const PROJECT_SCHEMA_VERSION = 1
+
+function migrateProjects(projects, fromVersion) {
+  if (!Array.isArray(projects)) return projects
+  
+  const migrated = projects.map(project => {
+    let migratedProject = { ...project }
+    
+    if (fromVersion === undefined || fromVersion === 0) {
+      if (project.env && !project.envVars) {
+        migratedProject.envVars = Array.isArray(project.env) 
+          ? project.env 
+          : Object.entries(project.env).map(([key, value]) => ({ key, value }))
+      }
+      
+      if (!project.createdAt) {
+        migratedProject.createdAt = new Date().toISOString()
+      }
+      
+      if (!project.id) {
+        migratedProject.schemaVersion = PROJECT_SCHEMA_VERSION
+      }
+    }
+    
+    if (!migratedProject.schemaVersion) {
+      migratedProject.schemaVersion = PROJECT_SCHEMA_VERSION
+    }
+    
+    return migratedProject
+  })
+  
+  return migrated
+}
 
 function normalizeType(value) {
   if (typeof value !== 'string') return 'CUSTOM'
@@ -52,6 +86,10 @@ function normalizeProject(project, createId) {
   const id = typeof project?.id === 'string' && project.id.trim()
     ? project.id.trim()
     : createId?.()
+  
+  const normalizedVersion = typeof project.schemaVersion === 'number' 
+    ? project.schemaVersion 
+    : PROJECT_SCHEMA_VERSION
 
   return {
     id,
@@ -70,8 +108,9 @@ function normalizeProject(project, createId) {
       ? project.color
       : metadata.color,
     autoStart: project?.autoStart === true,
-    createdAt: typeof project?.createdAt === 'string' ? project.createdAt : null,
+    createdAt: typeof project?.createdAt === 'string' ? project.createdAt : new Date().toISOString(),
     lastRun: typeof project?.lastRun === 'string' ? project.lastRun : null,
+    schemaVersion: normalizedVersion,
   }
 }
 
@@ -97,6 +136,7 @@ function sanitizeProjectChanges(input) {
   }
   if (changes.type !== undefined && !PROJECT_TYPES[changes.type]) throw new Error('Project type is invalid')
   if (changes.port !== undefined && !Number.isInteger(changes.port)) throw new Error('Port must be an integer')
+  if (changes.schemaVersion !== undefined && !Number.isInteger(changes.schemaVersion)) throw new Error('schemaVersion must be an integer')
   if (changes.autoStart !== undefined && typeof changes.autoStart !== 'boolean') throw new Error('autoStart must be a boolean')
   if (changes.envVars !== undefined && !Array.isArray(changes.envVars)) throw new Error('Environment variables must be an array')
   if (Array.isArray(changes.envVars)) {
@@ -164,6 +204,8 @@ function redactSensitiveEnv(envInput) {
 
 module.exports = {
   PROJECT_TYPES,
+  PROJECT_SCHEMA_VERSION,
+  migrateProjects,
   envVarsToObject,
   normalizeProject,
   normalizeType,

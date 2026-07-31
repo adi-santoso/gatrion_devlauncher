@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useElectronConfig } from '../../hooks/useElectronConfig';
 import UpdateBanner from './UpdateBanner';
 import Sidebar from './Sidebar';
 import TopBar from './TopBar';
@@ -17,13 +18,23 @@ const MainLayout = ({
   projects = [],
   runningProjects = [],
   onProjectSelect,
-  sidebarExpanded = true,
   hideTopBar = false
 }) => {
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(!sidebarExpanded);
+  const { config, loading } = useElectronConfig();
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(!config?.sidebarExpanded);
+
+  useEffect(() => {
+    if (!loading && config?.sidebarExpanded !== undefined) {
+      setSidebarCollapsed(!config.sidebarExpanded);
+    }
+  }, [config?.sidebarExpanded, loading]);
 
   const handleToggleCollapse = () => {
-    setSidebarCollapsed(!sidebarCollapsed);
+    const newCollapsed = !sidebarCollapsed;
+    setSidebarCollapsed(newCollapsed);
+    if (config) {
+      config.updateSingle('sidebarExpanded', !newCollapsed);
+    }
   };
 
   const handleCommandPalette = () => {

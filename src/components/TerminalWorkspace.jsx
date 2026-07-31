@@ -10,7 +10,7 @@ export default function TerminalWorkspace({ projects = [], getLogs, onClearLogs 
     : activeProjects.flatMap((project) => getLogs(project.id).map((log) => ({
         ...(typeof log === 'object' && log ? log : { message: String(log) }),
         message: `[${project.name}] ${typeof log === 'object' && log ? log.message ?? log.text ?? '' : log}`,
-      })));
+      })) || []);
 
   return (
     <div className="view mx-auto max-w-[1400px]">

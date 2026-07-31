@@ -272,6 +272,13 @@ export const onProjectsUpdated = (callback) => {
   return window.electron.onProjectsUpdated(callback);
 };
 
+export const onNavigateToProject = (callback) => {
+  if (!isElectron()) {
+    return () => {};
+  }
+  return window.electron.onNavigateToProject(callback);
+};
+
 // ==================== Utility ====================
 
 export const isElectronAvailable = isElectron;

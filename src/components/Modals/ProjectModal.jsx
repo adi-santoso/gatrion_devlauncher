@@ -355,13 +355,15 @@ const ProjectModal = ({ isOpen, onClose, onSave, project = null }) => {
             <div>
               <div className="flex items-center justify-between mb-1.5">
                 <label className="text-xs text-ink-soft">Environment variables</label>
-                <button
-                  onClick={addEnvVar}
-                  type="button"
-                  className="text-[11px] font-medium text-accent hover:text-accent-hover flex items-center gap-1"
-                >
-                  + Add variable
-                </button>
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={addEnvVar}
+                    type="button"
+                    className="text-[11px] font-medium text-accent hover:text-accent-hover flex items-center gap-1"
+                  >
+                    + Add variable
+                  </button>
+                </div>
               </div>
               <div className="space-y-2">
                 {formData.envVars.map((envVar, index) => (

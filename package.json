@@ -12,7 +12,16 @@
     "build": "vite build && electron-builder",
     "build:win": "vite build && electron-builder --win --x64",
     "test": "node test-process-manager.js && node test-schema.js && node test-storage-manager.js && node test-security-hardening.js",
+    "test:unit": "vitest run",
+    "test:e2e": "echo 'E2E tests setup pending - use Playwright or Cypress'",
+    "test:coverage": "vitest run --coverage",
+    "test:watch": "vitest",
+    "lint": "eslint . --ext .js,.jsx",
+    "lint:fix": "eslint . --ext .js,.jsx --fix",
     "preview": "vite preview"
+  },
+  "engines": {
+    "node": ">=20.0.0"
   },
   "keywords": [
     "electron",
@@ -32,11 +41,21 @@
     "zustand": "^5.0.14"
   },
   "devDependencies": {
+    "@eslint/js": "^9.39.5",
+    "@testing-library/dom": "^10.4.1",
+    "@testing-library/jest-dom": "^7.0.0",
+    "@testing-library/react": "^16.3.2",
+    "@testing-library/user-event": "^14.6.1",
     "@vitejs/plugin-react": "^6.0.3",
+    "@vitest/coverage-v8": "^4.1.10",
     "concurrently": "^10.0.3",
     "cross-env": "^10.1.0",
     "electron-builder": "^26.15.3",
+    "eslint": "^9.39.5",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "jsdom": "^27.0.1",
     "vite": "^8.1.5",
+    "vitest": "^3.2.7",
     "wait-on": "^9.0.10"
   }
 }
