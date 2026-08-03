@@ -195,6 +195,14 @@ function App() {
     if (result.success) {
       showToast('success', `${project.name} started successfully`);
       addActivity('success', project.name, 'started', project.port ? `port ${project.port}` : '');
+      
+      // Auto-reset workspace action if all starting projects are now running
+      setTimeout(() => {
+        const stillStarting = projects.filter(p => p.status?.toLowerCase() === 'starting').length;
+        if (stillStarting === 0 && workspaceAction === 'starting') {
+          setWorkspaceAction('idle');
+        }
+      }, 1500);
     } else {
       showToast('error', result.error || `Failed to start ${project.name}`);
       addActivity('danger', project.name, 'failed to start');
@@ -203,6 +211,15 @@ function App() {
 
   const handleStopProject = async (project) => {
     const result = await stopProjectProcess(project.id);
+    
+    // Check if stopping complete
+    setTimeout(() => {
+      const stillRunning = projects.filter(p => p.status?.toLowerCase() === 'running').length;
+      if (stillRunning === 0 && workspaceAction === 'stopping') {
+        setWorkspaceAction('idle');
+      }
+    }, 1000);
+    
     if (result.success) {
       showToast('info', `${project.name} stopped`);
       addActivity('faint', project.name, 'stopped');

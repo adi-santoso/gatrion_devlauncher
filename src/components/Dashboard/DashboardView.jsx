@@ -33,57 +33,96 @@ export default function DashboardView({
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [sortBy, setSortBy] = useState('name');
+  const [workspaceAction, setWorkspaceAction] = useState('idle'); // 'idle', 'starting', 'stopping'
+  const [actionProgress, setActionProgress] = useState({ started: 0, total: 0 });
 
-  const runningProjects = projects.filter((p) => p.status?.toLowerCase() === 'running');
-  const startingProjects = projects.filter((p) => p.status?.toLowerCase() === 'starting');
-  const stoppedProjects = projects.filter((p) => p.status?.toLowerCase() === 'stopped');
-  const erroredProjects = projects.filter((p) => p.status?.toLowerCase() === 'error');
-  
-  const filteredProjects = useMemo(() => {
-    let result = [...projects];
+  // Calculate system-wide stats from running projects
+  const systemStats = useMemo(() => {
+    const runningProjects = projects.filter(p => p.status?.toLowerCase() === 'running');
     
-    if (searchQuery) {
-      const query = searchQuery.toLowerCase();
-      result = result.filter(p => 
-        p.name?.toLowerCase().includes(query) ||
-        p.type?.toLowerCase().includes(query) ||
-        p.stack?.toLowerCase().includes(query)
-      );
-    }
+    let totalCpu = 0;
+    let totalMemory = 0;
+    let runningCount = 0;
     
-    if (statusFilter !== 'all') {
-      result = result.filter(p => p.status?.toLowerCase() === statusFilter);
-    }
-    
-    result.sort((a, b) => {
-      switch (sortBy) {
-        case 'name': return a.name.localeCompare(b.name);
-        case 'status': return (a.status || '').localeCompare(b.status || '');
-        case 'cpu': return (b.cpu ?? 0) - (a.cpu ?? 0);
-        case 'memory': return (b.memory ?? 0) - (a.memory ?? 0);
-        default: return 0;
+    runningProjects.forEach(p => {
+      if (p.cpu != null) {
+        totalCpu += parseFloat(p.cpu) || 0;
       }
+      if (p.memory != null) {
+        totalMemory += parseFloat(p.memory) || 0;
+      }
+      runningCount++;
     });
     
-    return result;
-  }, [projects, searchQuery, statusFilter, sortBy]);
+    return {
+      cpu: runningCount > 0 ? (totalCpu / runningCount).toFixed(1) : null,
+      memory: runningCount > 0 ? Math.round(totalMemory) : null,
+      runningCount
+    };
+  }, [projects]);
+
+  // Track action progress based on project status changes
+  useEffect(() => {
+    if (workspaceAction === 'starting') {
+      const startingCount = projects.filter(p => p.status?.toLowerCase() === 'starting').length;
+      const runningCount = projects.filter(p => p.status?.toLowerCase() === 'running').length;
+      
+      if (runningCount > actionProgress.started) {
+        setActionProgress(prev => ({ ...prev, started: runningCount }));
+      }
+      
+      // Auto-reset when all are starting/running
+      const startingOrRunning = startingCount + runningCount;
+      if (startingOrRunning >= actionProgress.total && startingOrRunning > 0) {
+        setWorkspaceAction('idle');
+      }
+    } else if (workspaceAction === 'stopping') {
+      const stoppedCount = projects.filter(p => 
+        ['stopped', 'error'].includes(p.status?.toLowerCase())
+      ).length;
+      
+      if (stoppedCount > actionProgress.started) {
+        setActionProgress(prev => ({ ...prev, started: stoppedCount }));
+      }
+      
+      // Auto-reset when all stopped
+      if (stoppedCount >= runningProjects.length && stoppedCount > 0) {
+        setWorkspaceAction('idle');
+      }
+    }
+  }, [projects, workspaceAction, actionProgress.started, actionProgress.total, runningProjects.length]);
 
   const activeCount = runningProjects.length + startingProjects.length;
   const errorCount = erroredProjects.length;
+
 
   const logs = latestOutput.slice(-8).map(formatLog);
   const dateLabel = new Intl.DateTimeFormat(undefined, { weekday: 'long', day: 'numeric', month: 'long' }).format(new Date());
 
   const startWorkspace = () => {
-    if (onStartAll) onStartAll();
-    else projects
-      .filter(p => !['running', 'starting'].includes(p.status?.toLowerCase()))
-      .forEach(p => onStart?.(p));
+    const projectsToStart = projects.filter(p => !['running', 'starting'].includes(p.status?.toLowerCase()));
+    
+    if (onStartAll) {
+      setWorkspaceAction('starting');
+      setActionProgress({ started: 0, total: projectsToStart.length });
+      onStartAll();
+    } else {
+      setWorkspaceAction('starting');
+      setActionProgress({ started: 0, total: projectsToStart.length });
+      projectsToStart.forEach(project => onStart?.(project));
+    }
   };
 
   const stopWorkspace = () => {
-    if (onStopAll) onStopAll();
-    else runningProjects.forEach(p => onStop?.(p));
+    if (onStopAll) {
+      setWorkspaceAction('stopping');
+      setActionProgress({ started: 0, total: runningProjects.length });
+      onStopAll();
+    } else {
+      setWorkspaceAction('stopping');
+      setActionProgress({ started: 0, total: runningProjects.length });
+      runningProjects.forEach(project => onStop?.(project));
+    }
   };
 
   return (
@@ -95,12 +134,51 @@ export default function DashboardView({
           <p className="mt-1 text-xs text-ink-soft">Manage and monitor all your projects in one place.</p>
         </div>
         <div className="flex gap-2">
-          <button type="button" onClick={stopWorkspace} disabled={!onStopAll && !onStop} className="rounded-lg border border-border bg-surface-2 px-3 py-2 text-xs font-semibold text-ink-soft hover:text-ink disabled:cursor-not-allowed disabled:opacity-50">
-            Stop all
-          </button>
-          <button type="button" onClick={startWorkspace} disabled={!onStartAll && !onStart} className="rounded-lg border border-accent bg-accent px-3 py-2 text-xs font-semibold text-white hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-50">
-            Start workspace
-          </button>
+          {workspaceAction === 'starting' ? (
+            <button type="button" disabled className="rounded-lg bg-blue-500/20 px-3 py-2 text-xs font-semibold text-blue-500 cursor-wait flex items-center gap-2">
+              <svg className="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+              Starting {actionProgress.started}/{actionProgress.total}...
+            </button>
+          ) : workspaceAction === 'stopping' ? (
+            <button type="button" disabled className="rounded-lg bg-yellow-500/20 px-3 py-2 text-xs font-semibold text-yellow-500 cursor-wait flex items-center gap-2">
+              <svg className="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+              Stopping {actionProgress.started}/{actionProgress.total}...
+            </button>
+          ) : runningProjects.length > 0 ? (
+            <>
+              <button 
+                type="button" 
+                onClick={stopWorkspace} 
+                disabled={!onStopAll && !onStop} 
+                className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs font-semibold text-red-500 hover:bg-red-500/20 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Stop all
+              </button>
+              <button 
+                type="button" 
+                onClick={startWorkspace} 
+                disabled={!onStartAll && !onStart} 
+                className="rounded-lg border border-blue-500/30 bg-blue-500/10 px-3 py-2 text-xs font-semibold text-blue-500 hover:bg-blue-500/20 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Start workspace
+              </button>
+            </>
+          ) : (
+            <button 
+              type="button" 
+              onClick={startWorkspace} 
+              disabled={!onStartAll && !onStart} 
+              className="rounded-lg bg-accent px-3 py-2 text-xs font-semibold text-white hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Start workspace
+            </button>
+          )}
         </div>
       </header>
 
@@ -135,8 +213,29 @@ export default function DashboardView({
         </div>
         <div className="p-4">
           <span className="font-mono text-[9px] font-semibold uppercase tracking-wider text-ink-faint">System</span>
-          <p className="mt-1 font-display text-sm font-bold text-ink-soft">CPU / RAM</p>
-          <span className="text-[10px] text-ink-faint">Available when running</span>
+          {systemStats.runningCount > 0 ? (
+            <>
+              <div className="mt-1 flex items-baseline gap-2">
+                <p className={`font-display text-sm font-bold ${
+                  systemStats.cpu != null && parseFloat(systemStats.cpu) > 80 
+                    ? 'text-red-500 dark:text-red-400' 
+                    : 'text-ink-soft'
+                }`}>
+                  CPU: {systemStats.cpu}%
+                </p>
+              </div>
+              <div className="mt-0.5 flex items-baseline gap-2">
+                <p className="font-display text-sm font-bold text-blue-500 dark:text-blue-400">
+                  RAM: {systemStats.memory} MB
+                </p>
+              </div>
+            </>
+          ) : (
+            <>
+              <p className="mt-1 font-display text-sm font-bold text-ink-soft">CPU / RAM</p>
+              <span className="text-[10px] text-ink-faint">Available when running</span>
+            </>
+          )}
         </div>
       </section>
 
