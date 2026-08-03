@@ -7,6 +7,7 @@ const TrayManager = require('./managers/TrayManager')
 const { setupProcessHandlers } = require('./handlers/processHandlers')
 const { setupProjectHandlers } = require('./handlers/projectHandlers')
 const { setupDesktopHandlers } = require('./handlers/desktopHandlers')
+const { assertTrustedIpcEvent } = require('./utils/ipcSecurity')
 
 let mainWindow
 let processManager
@@ -28,6 +29,16 @@ function createWindow() {
     },
     icon: path.join(__dirname, '../build/icon.png'),
   })
+
+  mainWindow.webContents.on('will-navigate', (event, url) => {
+    const trusted = app.isPackaged
+      ? url === `file://${path.join(__dirname, '../dist-react/index.html').replace(/\\/g, '/')}`
+      : url.startsWith('http://localhost:5173/')
+    if (!trusted) event.preventDefault()
+  })
+  mainWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
+
+  if (trayManager) trayManager.setWindow(mainWindow)
 
   // Load the app
   const isDev = !app.isPackaged
@@ -98,9 +109,10 @@ async function initialize() {
   setupDesktopHandlers()
 
   // Listen to process events for native notifications & tray updates
-  processManager.on('status-change', (data) => {
+  processManager.on('status-change', async (data) => {
     trayManager.updateContextMenu()
-    if (data.status === 'error' && Notification.isSupported()) {
+    const currentConfig = await storageManager.loadConfig().catch(() => null)
+    if (data.status === 'error' && currentConfig?.notifications?.onError && Notification.isSupported()) {
       new Notification({
         title: 'DevLauncher - Project Crash',
         body: `Project "${data.projectId}" encountered an error.`
@@ -111,15 +123,33 @@ async function initialize() {
   // Apply OS startup settings
   const config = await storageManager.loadConfig()
   await applyOSSettings(config)
+  if (config.autoStartProjects) {
+    const projects = await storageManager.loadProjects()
+    for (const project of projects.filter((item) => item.autoStart)) {
+      processManager.startProcess(
+        project.id,
+        project.path,
+        project.startCommand,
+        Object.fromEntries(project.envVars.map((item) => [item.key, item.value])),
+        project.port
+      ).catch((error) => console.error(`[App] Failed to auto-start ${project.name}:`, error))
+    }
+  }
 
   // Setup config handler
-  ipcMain.handle('get-config', async () => {
-    const currentConfig = await storageManager.loadConfig()
-    return { success: true, config: currentConfig }
+  ipcMain.handle('get-config', async (event) => {
+    try {
+      assertTrustedIpcEvent(event)
+      const currentConfig = await storageManager.loadConfig()
+      return { success: true, config: currentConfig }
+    } catch (error) {
+      return { success: false, error: error.message }
+    }
   })
 
   ipcMain.handle('update-config', async (event, updates) => {
     try {
+      assertTrustedIpcEvent(event)
       const updatedConfig = await storageManager.updateConfig(updates)
       await applyOSSettings(updatedConfig)
       return { success: true, config: updatedConfig }
@@ -131,6 +161,7 @@ async function initialize() {
   // Setup project detection handler
   ipcMain.handle('detect-project-type', async (event, projectPath) => {
     try {
+      assertTrustedIpcEvent(event)
       const result = await projectDetector.detectProjectType(projectPath)
       return result
     } catch (error) {

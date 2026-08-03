@@ -114,7 +114,7 @@ export default function ProjectCard({ project, onStop, onRestart, onNavigate }) 
               </div>
               <strong className="font-mono text-sm font-bold text-blue-500 dark:text-blue-400 block">
                 {memory != null 
-                  ? (typeof memory === 'number' ? `${(memory / 1024 / 1024).toFixed(1)} MB` : String(memory)) 
+                  ? (typeof memory === 'number' ? `${memory.toFixed(1)} MB` : String(memory))
                   : 'N/A'}
               </strong>
               {memory != null && typeof memory === 'number' && (

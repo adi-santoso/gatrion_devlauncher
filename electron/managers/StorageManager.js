@@ -33,13 +33,15 @@ class StorageManager {
 
       try {
         await fs.access(this.projectsFilePath)
-      } catch {
+      } catch (error) {
+        if (error.code !== 'ENOENT') throw error
         await fs.writeFile(this.projectsFilePath, JSON.stringify([]))
       }
 
       try {
         await fs.access(this.configFilePath)
-      } catch {
+      } catch (error) {
+        if (error.code !== 'ENOENT') throw error
         await fs.writeFile(this.configFilePath, JSON.stringify(this.defaultConfig, null, 2))
       }
 
@@ -64,58 +66,30 @@ class StorageManager {
 
   async loadProjectsUnlocked() {
     try {
-      const data = await fs.readFile(this.projectsFilePath, 'utf8')
-      const cleanData = data.replace(/^\uFEFF/, '')
-      let parsed = JSON.parse(cleanData)
-      
-      const fromVersion = Array.isArray(parsed) && parsed[0]?.schemaVersion 
-        ? parsed[0].schemaVersion 
-        : undefined
-      
-      parsed = migrateProjects(parsed, fromVersion)
-      
-      if (JSON.stringify(parsed) !== JSON.stringify(JSON.parse(cleanData))) {
-        await this.saveProjectsUnlocked(parsed)
+      const { parsed, projects } = await this.readProjectsFile(this.projectsFilePath)
+      if (JSON.stringify(projects) !== JSON.stringify(parsed)) {
+        await this.atomicWrite(this.projectsFilePath, JSON.stringify(projects, null, 2))
         log.info('Projects migrated', { version: PROJECT_SCHEMA_VERSION })
       }
-      
-      const projects = parsed.map((project) => validateProject(normalizeProject(project, uuidv4)))
       return projects
     } catch (error) {
       log.error('Error loading projects', error)
-
-      if (error instanceof SyntaxError) {
-        try {
-          const files = await fs.readdir(this.backupDir)
-          const backups = files
-            .filter(f => f.startsWith('projects-') && f.endsWith('.json'))
-            .sort()
-            .reverse()
-
-          for (const backupFile of backups) {
-            try {
-              const backupData = await fs.readFile(path.join(this.backupDir, backupFile), 'utf8')
-              const cleanBackupData = backupData.replace(/^\uFEFF/, '')
-              const parsedProjects = JSON.parse(cleanBackupData)
-              if (!Array.isArray(parsedProjects)) continue
-              
-              const fromVersion = parsedProjects[0]?.schemaVersion ? parsedProjects[0].schemaVersion : undefined
-              const migratedProjects = migrateProjects(parsedProjects, fromVersion)
-              const projects = migratedProjects.map((project) => validateProject(normalizeProject(project, uuidv4)))
-              log.info('Recovery from backup', { file: backupFile, count: projects.length })
-              await this.atomicWrite(this.projectsFilePath, JSON.stringify(projects, null, 2))
-              return projects
-            } catch {
-              continue
-            }
-          }
-        } catch (backupError) {
-          log.error('Backup recovery failed', backupError)
-        }
-      }
-
-      return []
+      if (error.code && !['ENOENT'].includes(error.code)) throw error
+      const recovered = await this.recoverBackup('projects', (filePath) => this.readProjectsFile(filePath))
+      if (!recovered) throw error
+      await this.atomicWrite(this.projectsFilePath, JSON.stringify(recovered.projects, null, 2))
+      return recovered.projects
     }
+  }
+
+  async readProjectsFile(filePath) {
+    const data = await fs.readFile(filePath, 'utf8')
+    const parsed = JSON.parse(data.replace(/^\uFEFF/, ''))
+    if (!Array.isArray(parsed)) throw new Error('Projects data must be an array')
+    const fromVersion = parsed[0]?.schemaVersion
+    const migrated = migrateProjects(parsed, fromVersion)
+    const projects = migrated.map((project) => validateProject(normalizeProject(project, uuidv4)))
+    return { parsed, projects }
   }
 
   /**
@@ -128,6 +102,8 @@ class StorageManager {
 
   async saveProjectsUnlocked(projects) {
     try {
+      if (!Array.isArray(projects)) throw new Error('Projects data must be an array')
+      const validatedProjects = projects.map((project) => validateProject(normalizeProject(project, uuidv4)))
       await this.backupProjects()
       
       const backupPath = `${this.projectsFilePath}.pre-migration`
@@ -136,7 +112,7 @@ class StorageManager {
       } catch {}
       
       try {
-        const migratedProjects = projects.map(p => ({
+        const migratedProjects = validatedProjects.map(p => ({
           ...p,
           schemaVersion: p.schemaVersion || PROJECT_SCHEMA_VERSION
         }))
@@ -226,25 +202,27 @@ class StorageManager {
 
   async loadConfigUnlocked() {
     try {
-      const data = await fs.readFile(this.configFilePath, 'utf8')
-      const cleanData = data.replace(/^\uFEFF/, '')
-      let parsed = JSON.parse(cleanData)
-      
-      const fromVersion = parsed?.schemaVersion ? parsed.schemaVersion : undefined
-      
-      parsed = migrateConfig(parsed, fromVersion)
-      
-      if (JSON.stringify(parsed) !== JSON.stringify(JSON.parse(cleanData))) {
-        await this.saveConfigUnlocked(parsed)
+      const { parsed, config } = await this.readConfigFile(this.configFilePath)
+      if (JSON.stringify(config) !== JSON.stringify(parsed)) {
+        await this.atomicWrite(this.configFilePath, JSON.stringify(config, null, 2))
         log.info('Config migrated', { version: CONFIG_SCHEMA_VERSION })
       }
-      
-      const config = normalizeConfig(parsed)
       return config
     } catch (error) {
       log.error('Error loading config', error)
-      return this.defaultConfig
+      if (error.code && !['ENOENT'].includes(error.code)) throw error
+      const recovered = await this.recoverBackup('config', (filePath) => this.readConfigFile(filePath))
+      if (!recovered) throw error
+      await this.atomicWrite(this.configFilePath, JSON.stringify(recovered.config, null, 2))
+      return recovered.config
     }
+  }
+
+  async readConfigFile(filePath) {
+    const data = await fs.readFile(filePath, 'utf8')
+    const parsed = JSON.parse(data.replace(/^\uFEFF/, ''))
+    const migrated = migrateConfig(parsed, parsed?.schemaVersion)
+    return { parsed, config: normalizeConfig(migrated) }
   }
 
   /**
@@ -257,6 +235,8 @@ class StorageManager {
 
   async saveConfigUnlocked(config) {
     try {
+      const normalizedConfig = normalizeConfig(config)
+      await this.backupFile('config', this.configFilePath)
       const backupPath = `${this.configFilePath}.pre-migration`
       
       try {
@@ -265,8 +245,8 @@ class StorageManager {
       
       try {
         const configWithVersion = {
-          ...config,
-          schemaVersion: config.schemaVersion || CONFIG_SCHEMA_VERSION
+          ...normalizedConfig,
+          schemaVersion: CONFIG_SCHEMA_VERSION
         }
         
         await this.atomicWrite(this.configFilePath, JSON.stringify(configWithVersion, null, 2))
@@ -337,6 +317,37 @@ class StorageManager {
       await fs.unlink(tmpPath).catch(() => {})
       throw error
     }
+  }
+
+  async backupFile(prefix, filePath) {
+    try {
+      await fs.access(filePath)
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-')
+      const backupPath = path.join(this.backupDir, `${prefix}-${timestamp}-${++this.backupFileCounter}.json`)
+      await fs.copyFile(filePath, backupPath)
+      const files = (await fs.readdir(this.backupDir))
+        .filter((file) => file.startsWith(`${prefix}-`) && file.endsWith('.json'))
+        .sort()
+        .reverse()
+      for (const file of files.slice(5)) await fs.unlink(path.join(this.backupDir, file))
+    } catch (error) {
+      if (error.code !== 'ENOENT') throw error
+    }
+  }
+
+  async recoverBackup(prefix, reader) {
+    const files = (await fs.readdir(this.backupDir))
+      .filter((file) => file.startsWith(`${prefix}-`) && file.endsWith('.json'))
+      .sort()
+      .reverse()
+    for (const file of files) {
+      try {
+        const recovered = await reader(path.join(this.backupDir, file))
+        log.info('Recovery from backup', { file })
+        return recovered
+      } catch {}
+    }
+    return null
   }
 }
 

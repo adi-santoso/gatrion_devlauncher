@@ -19,27 +19,32 @@ const DEFAULT_CONFIG = {
 const CONFIG_SCHEMA_VERSION = 1
 
 function migrateConfig(config, fromVersion) {
-  if (!config || typeof config !== 'object' || Array.isArray(config)) return DEFAULT_CONFIG
+  if (!config || typeof config !== 'object' || Array.isArray(config)) {
+    throw new Error('Config data must be an object')
+  }
+  if (Number.isInteger(fromVersion) && fromVersion > CONFIG_SCHEMA_VERSION) {
+    throw new Error(`Unsupported config schema version: ${fromVersion}`)
+  }
   
   let migrated = { ...config }
   
   if (fromVersion === undefined || fromVersion === 0) {
     // Migrate old notification fields
-    if (migrated.notifyOnStart !== undefined && !migrated.notifications?.onStart) {
+    if (migrated.notifyOnStart !== undefined && migrated.notifications?.onStart === undefined) {
       migrated.notifications = {
         ...migrated.notifications,
         onStart: migrated.notifyOnStart,
       }
     }
     
-    if (migrated.notifyOnCrash !== undefined && !migrated.notifications?.onError) {
+    if (migrated.notifyOnCrash !== undefined && migrated.notifications?.onError === undefined) {
       migrated.notifications = {
         ...migrated.notifications,
         onError: migrated.notifyOnCrash,
       }
     }
     
-    if (migrated.notificationSound !== undefined && !migrated.notifications?.sound) {
+    if (migrated.notificationSound !== undefined && migrated.notifications?.sound === undefined) {
       migrated.notifications = {
         ...migrated.notifications,
         sound: migrated.notificationSound,
@@ -47,21 +52,21 @@ function migrateConfig(config, fromVersion) {
     }
     
     // Migrate old terminal fields
-    if (migrated.terminalFontSize !== undefined && !migrated.terminal?.fontSize) {
+    if (migrated.terminalFontSize !== undefined && migrated.terminal?.fontSize === undefined) {
       migrated.terminal = {
         ...migrated.terminal,
         fontSize: migrated.terminalFontSize,
       }
     }
     
-    if (migrated.terminalMaxLines !== undefined && !migrated.terminal?.maxLines) {
+    if (migrated.terminalMaxLines !== undefined && migrated.terminal?.maxLines === undefined) {
       migrated.terminal = {
         ...migrated.terminal,
         maxLines: migrated.terminalMaxLines,
       }
     }
     
-    if (migrated.terminalAutoScroll !== undefined && !migrated.terminal?.autoScroll) {
+    if (migrated.terminalAutoScroll !== undefined && migrated.terminal?.autoScroll === undefined) {
       migrated.terminal = {
         ...migrated.terminal,
         autoScroll: migrated.terminalAutoScroll,
@@ -83,8 +88,6 @@ function integerOr(value, fallback, min, max) {
 }
 
 function normalizeConfig(config = {}) {
-  if (!config || typeof config !== 'object' || Array.isArray(config)) return { ...DEFAULT_CONFIG, schemaVersion: CONFIG_SCHEMA_VERSION }
-  
   const migrated = migrateConfig(config, config.schemaVersion)
   
   if (migrated.schemaVersion !== CONFIG_SCHEMA_VERSION) {

@@ -74,6 +74,13 @@ async function run() {
   manager.clearLogs('long-running')
   assert.deepEqual(manager.getLogs('long-running'), [])
 
+  if (process.platform === 'win32') {
+    const resources = await manager.getProcessResources(runningStatus.pid)
+    assert.ok(resources, 'Windows process resources should be available')
+    assert.ok(resources.memory > 0, 'Windows memory usage should be greater than zero')
+    assert.ok(resources.cpu >= 0 && resources.cpu <= 100, 'Windows CPU usage should be a percentage')
+  }
+
   await manager.stopProcess('long-running')
   assert.equal(manager.getProcessStatus('long-running').status, manager.STATUS.STOPPED)
   assert.equal(manager.getProcessStatus('long-running').pid, null)

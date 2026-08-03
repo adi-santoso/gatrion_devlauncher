@@ -36,38 +36,10 @@ export const useProcesses = (projects = [], onProjectUpdate) => {
   // Start a project
   const startProject = useCallback(async (projectId) => {
     try {
-      // Find project data to get path, command, and env
       const project = projects.find(p => p.id === projectId);
       if (!project) {
         return { success: false, error: 'Project not found' };
       }
-
-      // Validate required fields
-      if (!project.path) {
-        return { success: false, error: 'Project path is missing' };
-      }
-      if (!project.startCommand) {
-        return { success: false, error: 'Start command is missing' };
-      }
-
-      // Convert envVars array to object format
-      // From: [{key: 'NODE_ENV', value: 'development'}]
-      // To: {NODE_ENV: 'development'}
-      const envObject = {};
-      if (Array.isArray(project.envVars)) {
-        project.envVars.forEach(env => {
-          if (env.key && env.key.trim()) {
-            envObject[env.key] = env.value || '';
-          }
-        });
-      }
-
-      console.log('[useProcesses] Starting project:', {
-        projectId,
-        path: project.path,
-        command: project.startCommand,
-        env: envObject
-      });
 
       // Update local status immediately BEFORE IPC call for responsive UI
       setProcessStatuses(prev => ({
@@ -80,13 +52,7 @@ export const useProcesses = (projects = [], onProjectUpdate) => {
         onProjectUpdate(projectId, { status: 'starting' });
       }
 
-      const response = await ipc.startProject(
-        projectId,
-        project.path,
-        project.startCommand,
-        envObject,
-        project.port
-      );
+      const response = await ipc.startProject(projectId);
 
       if (response.success) {
         setProcessStatuses(prev => {
@@ -184,36 +150,10 @@ export const useProcesses = (projects = [], onProjectUpdate) => {
   // Restart a project
   const restartProject = useCallback(async (projectId) => {
     try {
-      // Find project data to get path, command, and env
       const project = projects.find(p => p.id === projectId);
       if (!project) {
         return { success: false, error: 'Project not found' };
       }
-
-      // Validate required fields
-      if (!project.path) {
-        return { success: false, error: 'Project path is missing' };
-      }
-      if (!project.startCommand) {
-        return { success: false, error: 'Start command is missing' };
-      }
-
-      // Convert envVars array to object format
-      const envObject = {};
-      if (Array.isArray(project.envVars)) {
-        project.envVars.forEach(env => {
-          if (env.key && env.key.trim()) {
-            envObject[env.key] = env.value || '';
-          }
-        });
-      }
-
-      console.log('[useProcesses] Restarting project:', {
-        projectId,
-        path: project.path,
-        command: project.startCommand,
-        env: envObject
-      });
 
       // Update local status immediately BEFORE IPC call for responsive UI
       setProcessStatuses(prev => ({
@@ -225,13 +165,7 @@ export const useProcesses = (projects = [], onProjectUpdate) => {
         onProjectUpdate(projectId, { status: 'starting' });
       }
 
-      const response = await ipc.restartProject(
-        projectId,
-        project.path,
-        project.startCommand,
-        envObject,
-        project.port
-      );
+      const response = await ipc.restartProject(projectId);
 
       if (response.success) {
         return { success: true };
@@ -265,12 +199,24 @@ export const useProcesses = (projects = [], onProjectUpdate) => {
   const startAll = useCallback(async () => {
     try {
       const response = await ipc.startAllProjects();
+      if (Array.isArray(response)) {
+        for (const result of response) {
+          if (!result.projectId) continue;
+          const status = result.success ? (result.status || 'starting').toLowerCase() : 'error';
+          setProcessStatuses(prev => ({ ...prev, [result.projectId]: status }));
+          onProjectUpdate?.(result.projectId, {
+            status,
+            ...(result.pid != null && { pid: result.pid }),
+            ...(!result.success && { errorMessage: result.error || 'Failed to start project' })
+          });
+        }
+      }
       return response;
     } catch (err) {
       console.error('Error starting all projects:', err);
       return { success: false, error: err.message };
     }
-  }, []);
+  }, [onProjectUpdate]);
 
   // Stop all projects
   const stopAll = useCallback(async () => {
@@ -488,10 +434,16 @@ export const useProcesses = (projects = [], onProjectUpdate) => {
           const metrics = await ipc.getProcessMetrics(p.id);
           if (metrics && metrics.pid) {
             // Only notify if metrics or uptime actually changed
-            if (p.uptime !== metrics.uptime || p.metrics?.memoryMb !== metrics.memoryMb) {
+            if (
+              p.uptime !== metrics.uptime ||
+              p.metrics?.memoryMb !== metrics.memoryMb ||
+              p.metrics?.cpuPercent !== metrics.cpuPercent
+            ) {
               onProjectUpdateRef.current?.(p.id, {
                 uptime: metrics.uptime,
-                metrics
+                metrics,
+                cpu: metrics.cpuPercent ?? p.cpu ?? null,
+                memory: metrics.memoryMb ?? p.memory ?? null
               });
             }
           }

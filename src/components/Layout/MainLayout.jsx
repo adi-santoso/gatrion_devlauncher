@@ -20,7 +20,7 @@ const MainLayout = ({
   onProjectSelect,
   hideTopBar = false
 }) => {
-  const { config, loading } = useElectronConfig();
+  const { config, loading, updateSingle } = useElectronConfig();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(!config?.sidebarExpanded);
 
   useEffect(() => {
@@ -32,9 +32,7 @@ const MainLayout = ({
   const handleToggleCollapse = () => {
     const newCollapsed = !sidebarCollapsed;
     setSidebarCollapsed(newCollapsed);
-    if (config) {
-      config.updateSingle('sidebarExpanded', !newCollapsed);
-    }
+    updateSingle('sidebarExpanded', !newCollapsed);
   };
 
   const handleCommandPalette = () => {

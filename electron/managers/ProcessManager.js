@@ -1,5 +1,6 @@
 const { spawn, exec } = require('child_process')
 const net = require('net')
+const os = require('os')
 const path = require('path')
 const util = require('util')
 const { EventEmitter } = require('events')
@@ -316,8 +317,8 @@ class ProcessManager extends EventEmitter {
         pid,
         uptime: uptimeStr,
         uptimeSec,
-        memoryMb: processData.cachedMemoryMb,
-        cpuPercent: null
+        memoryMb: processData.memory ?? processData.cachedMemoryMb,
+        cpuPercent: processData.cpu ?? null
       }
     }
 
@@ -328,8 +329,8 @@ class ProcessManager extends EventEmitter {
         pid,
         uptime: uptimeStr,
         uptimeSec,
-        memoryMb: processData.cachedMemoryMb || null,
-        cpuPercent: null
+        memoryMb: processData.memory ?? processData.cachedMemoryMb ?? null,
+        cpuPercent: processData.cpu ?? null
       }
     }
 
@@ -357,8 +358,8 @@ class ProcessManager extends EventEmitter {
       pid,
       uptime: uptimeStr,
       uptimeSec,
-      memoryMb: processData.cachedMemoryMb || null,
-      cpuPercent: null
+      memoryMb: processData.memory ?? processData.cachedMemoryMb ?? null,
+      cpuPercent: processData.cpu ?? null
     }
   }
 
@@ -555,7 +556,8 @@ class ProcessManager extends EventEmitter {
    * Returns { cpu: number (percentage), memory: number (MB) } or null if not found
    */
   async getProcessResources(pid) {
-    if (!pid || pid === 'null') return null
+    const numericPid = Number(pid)
+    if (!Number.isInteger(numericPid) || numericPid <= 0) return null
     
     try {
       // Use tasklist /FO CSV /FI "PID eq <pid>" on Windows PowerShell
@@ -563,10 +565,7 @@ class ProcessManager extends EventEmitter {
         timeout: 3000 
       })
       
-      console.log('[ProcessManager] tasklist output:', stdout.trim())
-      
-      // Parse CSV output: "PID","Image","Memory Usage"
-      // Example: 1234,"node.exe",45678912
+      // Standard tasklist CSV: image name, PID, session name, session number, memory usage.
       const lines = stdout.trim().split('\n').filter(l => l.trim() && !l.includes('INFO'))
       if (lines.length === 0) return null
       
@@ -591,46 +590,43 @@ class ProcessManager extends EventEmitter {
       }
       parts.push(current)
       
-      if (parts.length < 3) {
+      if (parts.length < 5) {
         console.warn('[ProcessManager] Not enough columns in tasklist output:', parts)
         return null
       }
       
-      const [pidStr, image, memoryStr] = parts
+      const [image, pidStr, , , memoryStr] = parts
+      const numericMemory = memoryStr.replace(/[^0-9]/g, '')
       
-      if (!pidStr || !memoryStr || !Number(memoryStr)) {
+      if (!pidStr || !numericMemory || !Number(numericMemory)) {
         console.warn('[ProcessManager] Invalid memory value:', memoryStr)
         return null
       }
       
-      const memoryKB = parseInt(memoryStr, 10)
+      const memoryKB = parseInt(numericMemory, 10)
       const memoryMB = memoryKB / 1024
       
-      // Calculate CPU - use simple estimation based on working set
-      // For more accurate CPU%, we would need to sample twice with delta
       let cpuPercent = 0
       try {
-        // Try wmic for CPU percentage
-        const { stdout: wmicOut } = await execAsync(
-          `wmic path win32_process where "ProcessId=${pid}" get CPU /FORMAT:CSV`,
+        const { stdout: firstSample } = await execAsync(
+          `powershell.exe -NoProfile -Command "$p=Get-Process -Id ${numericPid} -ErrorAction Stop; Write-Output ($p.CPU.ToString([Globalization.CultureInfo]::InvariantCulture))"`,
           { timeout: 3000 }
         )
-        const wmicLines = wmicOut.trim().split('\n').filter(l => l.trim())
-        if (wmicLines.length >= 2) {
-          const cpuValue = parseFloat(wmicLines[1].replace(/[^0-9.]/g, ''))
-          if (!isNaN(cpuValue)) {
-            cpuPercent = Math.min(100, Math.max(0, cpuValue))
-          }
+        const firstCpu = Number.parseFloat(firstSample.trim())
+        const firstTime = Date.now()
+        await new Promise((resolve) => setTimeout(resolve, 250))
+        const { stdout: secondSample } = await execAsync(
+          `powershell.exe -NoProfile -Command "$p=Get-Process -Id ${numericPid} -ErrorAction Stop; Write-Output ($p.CPU.ToString([Globalization.CultureInfo]::InvariantCulture))"`,
+          { timeout: 3000 }
+        )
+        const secondCpu = Number.parseFloat(secondSample.trim())
+        const elapsedSeconds = (Date.now() - firstTime) / 1000
+        if (Number.isFinite(firstCpu) && Number.isFinite(secondCpu) && elapsedSeconds > 0) {
+          cpuPercent = Math.min(100, Math.max(0, ((secondCpu - firstCpu) / elapsedSeconds) * 100 / Math.max(1, os.cpus().length)))
         }
-      } catch (wmicErr) {
-        console.log('[ProcessManager] WMIC not available, CPU will show 0%')
+      } catch {
+        // The process can exit between samples; memory data remains useful.
       }
-      
-      console.log('[ProcessManager] Resources for PID', pid, ':', { 
-        cpu: cpuPercent.toFixed(1) + '%', 
-        memory: memoryMB.toFixed(1) + 'MB',
-        image 
-      })
       
       return {
         pid: parseInt(pidStr, 10),
@@ -704,35 +700,29 @@ class ProcessManager extends EventEmitter {
       clearInterval(this.resourceMonitorInterval)
     }
     
-    this.resourceMonitorInterval = setInterval(() => {
-      const statsUpdates = {}
-      
+    this.resourceMonitorInterval = setInterval(async () => {
+      const entries = []
       for (const [projectId, processData] of this.processes.entries()) {
         if (processData.status !== this.STATUS.RUNNING || !processData.pid) {
           continue
         }
-        
-        this.getProjectStats(projectId)
-          .then(stats => {
-            if (stats) {
-              statsUpdates[projectId] = stats
-              // Update local processData with stats
-              processData.cpu = stats.cpu
-              processData.memory = stats.memory
-              
-              // Emit update for IPC handlers
-              this.emit('resource-update', {
-                projectId,
-                stats
-              })
-            }
-          })
-          .catch(err => {
-            log.warn('ProcessManager', `Failed to get stats for ${projectId}:`, err.message)
-          })
+        entries.push(this.getProjectStats(projectId)
+          .then((stats) => ({ projectId, processData, stats }))
+          .catch((error) => {
+            log.warn('ProcessManager', `Failed to get stats for ${projectId}:`, error.message)
+            return null
+          }))
       }
-      
-      // Also emit batch update for efficiency
+
+      const statsUpdates = {}
+      for (const result of await Promise.all(entries)) {
+        if (!result?.stats) continue
+        const { projectId, processData, stats } = result
+        statsUpdates[projectId] = stats
+        processData.cpu = stats.cpu
+        processData.memory = stats.memory
+        this.emit('resource-update', { projectId, stats })
+      }
       if (Object.keys(statsUpdates).length > 0) {
         this.emit('resources-batch', statsUpdates)
       }

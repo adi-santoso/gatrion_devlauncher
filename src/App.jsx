@@ -15,7 +15,8 @@ import {
 } from './components/Modals';
 import PortConflictModal from './components/Modals/PortConflictModal';
 import { useProjects, useProcesses, useElectronConfig } from './hooks';
-import { isElectronAvailable, onNavigateToProject } from './utils/ipcRenderer';
+import { checkPortConflict, isElectronAvailable, onNavigateToProject } from './utils/ipcRenderer';
+import { summarizeWorkspaceStart } from './utils/workspaceResults';
 
 function App() {
   // Initialize hooks
@@ -178,10 +179,10 @@ function App() {
   const [portConflictTarget, setPortConflictTarget] = useState(null);
 
   // Project actions
-  const handleStartProject = async (project, force = false) => {
-    if (!force && project?.port && isElectronAvailable()) {
+  const handleStartProject = async (project) => {
+    if (project?.port && isElectronAvailable()) {
       try {
-        const conflict = await ipc.checkPortConflict(project.port);
+        const conflict = await checkPortConflict(project.port);
         if (conflict && conflict.inUse && !conflict.isManaged) {
           setPortConflictTarget({ project, conflictData: { ...conflict, port: project.port } });
           return;
@@ -196,13 +197,6 @@ function App() {
       showToast('success', `${project.name} started successfully`);
       addActivity('success', project.name, 'started', project.port ? `port ${project.port}` : '');
       
-      // Auto-reset workspace action if all starting projects are now running
-      setTimeout(() => {
-        const stillStarting = projects.filter(p => p.status?.toLowerCase() === 'starting').length;
-        if (stillStarting === 0 && workspaceAction === 'starting') {
-          setWorkspaceAction('idle');
-        }
-      }, 1500);
     } else {
       showToast('error', result.error || `Failed to start ${project.name}`);
       addActivity('danger', project.name, 'failed to start');
@@ -211,14 +205,6 @@ function App() {
 
   const handleStopProject = async (project) => {
     const result = await stopProjectProcess(project.id);
-    
-    // Check if stopping complete
-    setTimeout(() => {
-      const stillRunning = projects.filter(p => p.status?.toLowerCase() === 'running').length;
-      if (stillRunning === 0 && workspaceAction === 'stopping') {
-        setWorkspaceAction('idle');
-      }
-    }, 1000);
     
     if (result.success) {
       showToast('info', `${project.name} stopped`);
@@ -240,19 +226,33 @@ function App() {
     }
   };
 
-  const handleStartAll = async () => {
-    showToast('info', 'Starting all projects...');
-    const result = await startAll();
-    const failures = Array.isArray(result) ? result.filter(item => !item.success) : [];
-    if (result?.error) {
-      showToast('error', result.error);
-    } else if (failures.length > 0) {
-      showToast('error', `${failures.length} project(s) failed to start`);
-    } else {
-      showToast('success', 'Issued start command for all projects');
-      addActivity('success', 'All projects', 'started');
+  const handleStartAll = async (requestedProjects) => {
+    const projectsToStart = requestedProjects || projects.filter(project =>
+      !['running', 'starting'].includes(project.status?.toLowerCase())
+    );
+    if (projectsToStart.length === 0) {
+      showToast('info', 'All workspace projects are already running');
+      return [];
     }
+    const result = await startAll();
+    const summary = summarizeWorkspaceStart(result, projectsToStart);
+    if (summary.type === 'error') showToast(summary.type, summary.message);
+    if (!Array.isArray(result)) return result;
+    const targetIds = new Set(projectsToStart.map((project) => project.id));
+    return result.filter((item) => targetIds.has(item.projectId));
   };
+
+  const handleWorkspaceActionComplete = useCallback(({ action, completed, failed }) => {
+    if (action === 'starting') {
+      if (failed > 0) {
+        showToast('warning', `Workspace ready with issues: ${completed} running, ${failed} failed`);
+        addActivity('warning', 'Workspace', 'started with issues', `${completed} running, ${failed} failed`);
+      } else {
+        showToast('success', `Workspace ready: ${completed} project(s) running`);
+        addActivity('success', 'Workspace', 'ready', `${completed} project(s)`);
+      }
+    }
+  }, []);
 
   const handleStopAll = async () => {
     showToast('info', 'Stopping all projects...');
@@ -347,8 +347,8 @@ function App() {
         // Handle project navigation and project-specific commands
         if (command.projectId || (command.id && command.id.startsWith('project-'))) {
           const targetId = command.projectId || command.id.replace('project-', '');
-          setSelectedProjectId(targetId);
-          showView('project-detail');
+          const project = projects.find((item) => item.id === targetId);
+          if (project) showView('project-detail', project);
         } else if (command.id && command.id.startsWith('start-')) {
           const projectName = command.id.replace('start-', '');
           const project = projects.find(p => p.name === projectName);
@@ -375,6 +375,7 @@ function App() {
             onOpenModal={openModalHandler}
             onStartAll={handleStartAll}
             onStopAll={handleStopAll}
+            onWorkspaceActionComplete={handleWorkspaceActionComplete}
             projects={projects}
             sidebarExpanded={config.sidebarExpanded}
             hideTopBar={isFullscreen && currentView === 'project-detail'}
@@ -529,11 +530,6 @@ function App() {
           isOpen={!!portConflictTarget}
           conflictData={portConflictTarget.conflictData}
           onClose={() => setPortConflictTarget(null)}
-          onProceed={() => {
-            const prj = portConflictTarget.project;
-            setPortConflictTarget(null);
-            handleStartProject(prj, true);
-          }}
           onEditPort={() => {
             const prj = portConflictTarget.project;
             setPortConflictTarget(null);

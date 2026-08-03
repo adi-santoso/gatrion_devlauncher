@@ -105,12 +105,12 @@ export const detectProjectType = async (projectPath) => {
 
 // ==================== Process APIs ====================
 
-export const startProject = async (projectId, projectPath, command, env = {}, port = null) => {
+export const startProject = async (projectId) => {
   if (!isElectron()) {
     console.warn('[IPC] Running in browser mode - mock startProject called');
     return { success: true, projectId, status: 'running' };
   }
-  return window.electron.startProject(projectId, projectPath, command, env, port);
+  return window.electron.startProject(projectId);
 };
 
 export const stopProject = async (projectId) => {
@@ -121,12 +121,12 @@ export const stopProject = async (projectId) => {
   return window.electron.stopProject(projectId);
 };
 
-export const restartProject = async (projectId, projectPath, command, env = {}, port = null) => {
+export const restartProject = async (projectId) => {
   if (!isElectron()) {
     console.warn('[IPC] Running in browser mode - mock restartProject called');
     return { success: true, projectId, status: 'running' };
   }
-  return window.electron.restartProject(projectId, projectPath, command, env, port);
+  return window.electron.restartProject(projectId);
 };
 
 export const startAllProjects = async () => {

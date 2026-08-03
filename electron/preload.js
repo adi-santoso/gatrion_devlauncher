@@ -10,9 +10,9 @@ contextBridge.exposeInMainWorld('electron', {
   getProjects: () => ipcRenderer.invoke('get-projects'),
 
   // Process Management
-  startProject: (projectId, projectPath, command, env, port) => ipcRenderer.invoke('start-project', projectId, projectPath, command, env, port),
+  startProject: (projectId) => ipcRenderer.invoke('start-project', projectId),
   stopProject: (projectId) => ipcRenderer.invoke('stop-project', projectId),
-  restartProject: (projectId, projectPath, command, env, port) => ipcRenderer.invoke('restart-project', projectId, projectPath, command, env, port),
+  restartProject: (projectId) => ipcRenderer.invoke('restart-project', projectId),
   startAllProjects: () => ipcRenderer.invoke('start-all-projects'),
   stopAllProjects: () => ipcRenderer.invoke('stop-all-projects'),
   getProcessStatus: (projectId) => ipcRenderer.invoke('get-process-status', projectId),

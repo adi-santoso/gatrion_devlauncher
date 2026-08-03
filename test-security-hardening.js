@@ -1,5 +1,5 @@
 const assert = require('assert')
-const { redactSensitiveEnv, isSensitiveKey, sanitizeProjectChanges } = require('./electron/projectSchema')
+const { redactSensitiveEnv, isSensitiveKey, sanitizeProjectChanges, toRendererProject } = require('./electron/projectSchema')
 
 function runSecurityTests() {
   console.log('[Security Hardening Test] Starting verification...')
@@ -19,8 +19,9 @@ function runSecurityTests() {
   ]
   const redactedArray = redactSensitiveEnv(envArray)
   assert.strictEqual(redactedArray[0].value, 'production', 'Non-sensitive env should remain unchanged')
-  assert.strictEqual(redactedArray[1].value, '••••••••', 'DB_PASSWORD value must be masked')
-  assert.strictEqual(redactedArray[2].value, '••••••••', 'VITE_API_KEY value must be masked')
+  assert.strictEqual(redactedArray[1].value, '', 'DB_PASSWORD value must not reach the renderer')
+  assert.strictEqual(redactedArray[1].unchanged, true, 'Stored secrets must be retained unless edited')
+  assert.strictEqual(redactedArray[2].value, '', 'VITE_API_KEY value must not reach the renderer')
 
   const envObject = {
     PUBLIC_URL: 'http://localhost:3000',
@@ -29,6 +30,11 @@ function runSecurityTests() {
   const redactedObject = redactSensitiveEnv(envObject)
   assert.strictEqual(redactedObject.PUBLIC_URL, 'http://localhost:3000')
   assert.strictEqual(redactedObject.JWT_SECRET, '••••••••')
+
+  const project = { id: 'safe', envVars: envArray }
+  const rendererProject = toRendererProject(project)
+  assert.strictEqual(JSON.stringify(rendererProject).includes('super_secret_123'), false)
+  assert.strictEqual(project.envVars[1].value, 'super_secret_123', 'Redaction must not mutate stored data')
 
   // Test 3: Allowlist Sanitization (update-project fields)
   assert.throws(() => {
@@ -51,6 +57,14 @@ function runSecurityTests() {
   })
   assert.strictEqual(validChanges.name, 'New Name')
   assert.strictEqual(validChanges.port, 5173)
+
+  const retainedSecret = sanitizeProjectChanges({
+    envVars: [{ key: 'DB_PASSWORD', value: '', secret: true, unchanged: true }]
+  })
+  assert.strictEqual(retainedSecret.envVars[0].unchanged, true)
+  assert.throws(() => {
+    sanitizeProjectChanges({ envVars: [{ key: 'DB_PASSWORD', value: '', unexpected: true }] })
+  }, /Unsupported environment variable field/)
 
   // Test 4: URL Scheme Restriction Simulation
   const validateUrl = (url) => {

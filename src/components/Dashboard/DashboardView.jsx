@@ -1,6 +1,7 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import ProjectCard from './ProjectCard';
 import CrashBanner from '../ProjectDetail/CrashBanner';
+import { getWorkspaceControlMode } from '../../utils/workspaceResults';
 
 const stripAnsi = (value) => typeof value === 'string'
   ? value.replace(/[\u001b\u009b][[()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-ORZcf-nqry=><]/g, '')
@@ -28,13 +29,30 @@ export default function DashboardView({
   onStart,
   onRestart,
   onStartAll,
-  onStopAll
+  onStopAll,
+  onWorkspaceActionComplete
 }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [sortBy, setSortBy] = useState('name');
   const [workspaceAction, setWorkspaceAction] = useState('idle'); // 'idle', 'starting', 'stopping'
-  const [actionProgress, setActionProgress] = useState({ started: 0, total: 0 });
+  const [workspaceTargets, setWorkspaceTargets] = useState([]);
+  const [workspaceInitialFailures, setWorkspaceInitialFailures] = useState(0);
+  const runningProjects = projects.filter((project) => project.status?.toLowerCase() === 'running');
+  const startingProjects = projects.filter((project) => project.status?.toLowerCase() === 'starting');
+  const stoppedProjects = projects.filter((project) => project.status?.toLowerCase() === 'stopped');
+  const erroredProjects = projects.filter((project) => project.status?.toLowerCase() === 'error');
+  const filteredProjects = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase();
+    return projects
+      .filter((project) => !query || [project.name, project.type, project.stack]
+        .some((value) => value?.toLowerCase().includes(query)))
+      .filter((project) => statusFilter === 'all' || project.status?.toLowerCase() === statusFilter)
+      .sort((left, right) => {
+        if (sortBy === 'cpu' || sortBy === 'memory') return (Number(right[sortBy]) || 0) - (Number(left[sortBy]) || 0);
+        return String(left[sortBy] || '').localeCompare(String(right[sortBy] || ''));
+      });
+  }, [projects, searchQuery, statusFilter, sortBy]);
 
   // Calculate system-wide stats from running projects
   const systemStats = useMemo(() => {
@@ -61,67 +79,82 @@ export default function DashboardView({
     };
   }, [projects]);
 
-  // Track action progress based on project status changes
-  useEffect(() => {
-    if (workspaceAction === 'starting') {
-      const startingCount = projects.filter(p => p.status?.toLowerCase() === 'starting').length;
-      const runningCount = projects.filter(p => p.status?.toLowerCase() === 'running').length;
-      
-      if (runningCount > actionProgress.started) {
-        setActionProgress(prev => ({ ...prev, started: runningCount }));
-      }
-      
-      // Auto-reset when all are starting/running
-      const startingOrRunning = startingCount + runningCount;
-      if (startingOrRunning >= actionProgress.total && startingOrRunning > 0) {
-        setWorkspaceAction('idle');
-      }
-    } else if (workspaceAction === 'stopping') {
-      const stoppedCount = projects.filter(p => 
-        ['stopped', 'error'].includes(p.status?.toLowerCase())
-      ).length;
-      
-      if (stoppedCount > actionProgress.started) {
-        setActionProgress(prev => ({ ...prev, started: stoppedCount }));
-      }
-      
-      // Auto-reset when all stopped
-      if (stoppedCount >= runningProjects.length && stoppedCount > 0) {
-        setWorkspaceAction('idle');
-      }
-    }
-  }, [projects, workspaceAction, actionProgress.started, actionProgress.total, runningProjects.length]);
-
   const activeCount = runningProjects.length + startingProjects.length;
   const errorCount = erroredProjects.length;
+  const workspaceControlMode = getWorkspaceControlMode(projects, workspaceAction);
+
+  useEffect(() => {
+    if (workspaceAction === 'idle' || workspaceTargets.length === 0) return;
+    const targetProjects = workspaceTargets
+      .map((id) => projects.find((project) => project.id === id))
+      .filter(Boolean);
+    if (targetProjects.length !== workspaceTargets.length) {
+      setWorkspaceAction('idle');
+      setWorkspaceTargets([]);
+      setWorkspaceInitialFailures(0);
+      return;
+    }
+
+    const terminalStatuses = workspaceAction === 'starting'
+      ? ['running', 'error', 'stopped']
+      : ['stopped', 'error'];
+    if (targetProjects.every((project) => terminalStatuses.includes(project.status?.toLowerCase()))) {
+      const failedTargets = workspaceAction === 'starting'
+        ? targetProjects.filter((project) => ['error', 'stopped'].includes(project.status?.toLowerCase())).length
+        : targetProjects.filter((project) => project.status?.toLowerCase() === 'error').length;
+      const failed = failedTargets + workspaceInitialFailures;
+      onWorkspaceActionComplete?.({
+        action: workspaceAction,
+        completed: targetProjects.length - failedTargets,
+        failed,
+      });
+      setWorkspaceAction('idle');
+      setWorkspaceTargets([]);
+      setWorkspaceInitialFailures(0);
+    }
+  }, [projects, workspaceAction, workspaceTargets, workspaceInitialFailures, onWorkspaceActionComplete]);
 
 
   const logs = latestOutput.slice(-8).map(formatLog);
   const dateLabel = new Intl.DateTimeFormat(undefined, { weekday: 'long', day: 'numeric', month: 'long' }).format(new Date());
 
-  const startWorkspace = () => {
+  const startWorkspace = async () => {
     const projectsToStart = projects.filter(p => !['running', 'starting'].includes(p.status?.toLowerCase()));
-    
-    if (onStartAll) {
-      setWorkspaceAction('starting');
-      setActionProgress({ started: 0, total: projectsToStart.length });
-      onStartAll();
-    } else {
-      setWorkspaceAction('starting');
-      setActionProgress({ started: 0, total: projectsToStart.length });
-      projectsToStart.forEach(project => onStart?.(project));
+    if (projectsToStart.length === 0) return;
+
+    setWorkspaceAction('starting');
+    try {
+      const result = onStartAll
+        ? await onStartAll(projectsToStart)
+        : await Promise.all(projectsToStart.map(project => onStart?.(project)));
+      const acceptedIds = Array.isArray(result)
+        ? result.filter((item) => item.success).map((item) => item.projectId)
+        : projectsToStart.map((project) => project.id);
+      setWorkspaceInitialFailures(Array.isArray(result) ? result.filter((item) => !item.success).length : 0);
+      if (acceptedIds.length > 0) setWorkspaceTargets(acceptedIds);
+      else {
+        setWorkspaceAction('idle');
+        setWorkspaceInitialFailures(0);
+      }
+    } catch {
+      setWorkspaceAction('idle');
+      setWorkspaceTargets([]);
+      setWorkspaceInitialFailures(0);
     }
   };
 
-  const stopWorkspace = () => {
-    if (onStopAll) {
-      setWorkspaceAction('stopping');
-      setActionProgress({ started: 0, total: runningProjects.length });
-      onStopAll();
-    } else {
-      setWorkspaceAction('stopping');
-      setActionProgress({ started: 0, total: runningProjects.length });
-      runningProjects.forEach(project => onStop?.(project));
+  const stopWorkspace = async () => {
+    if (runningProjects.length === 0) return;
+
+    setWorkspaceAction('stopping');
+    setWorkspaceTargets(runningProjects.map((project) => project.id));
+    try {
+      if (onStopAll) await onStopAll(runningProjects);
+      else await Promise.all(runningProjects.map(project => onStop?.(project)));
+    } catch {
+      setWorkspaceAction('idle');
+      setWorkspaceTargets([]);
+      setWorkspaceInitialFailures(0);
     }
   };
 
@@ -134,28 +167,37 @@ export default function DashboardView({
           <p className="mt-1 text-xs text-ink-soft">Manage and monitor all your projects in one place.</p>
         </div>
         <div className="flex gap-2">
-          {workspaceAction === 'starting' ? (
+          {workspaceControlMode === 'starting' ? (
             <button type="button" disabled className="rounded-lg bg-blue-500/20 px-3 py-2 text-xs font-semibold text-blue-500 cursor-wait flex items-center gap-2">
               <svg className="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
               </svg>
-              Starting {actionProgress.started}/{actionProgress.total}...
+              Starting workspace...
             </button>
-          ) : workspaceAction === 'stopping' ? (
+          ) : workspaceControlMode === 'stopping' ? (
             <button type="button" disabled className="rounded-lg bg-yellow-500/20 px-3 py-2 text-xs font-semibold text-yellow-500 cursor-wait flex items-center gap-2">
               <svg className="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
               </svg>
-              Stopping {actionProgress.started}/{actionProgress.total}...
+              Stopping workspace...
             </button>
-          ) : runningProjects.length > 0 ? (
+          ) : workspaceControlMode === 'all-active' ? (
+            <button
+              type="button"
+              onClick={stopWorkspace}
+              disabled={!onStopAll && !onStop}
+              className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs font-semibold text-red-500 hover:bg-red-500/20 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Stop all
+            </button>
+          ) : workspaceControlMode === 'partial' ? (
             <>
               <button 
                 type="button" 
                 onClick={stopWorkspace} 
-                disabled={!onStopAll && !onStop} 
+                disabled={runningProjects.length === 0 || (!onStopAll && !onStop)}
                 className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs font-semibold text-red-500 hover:bg-red-500/20 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 Stop all
@@ -163,17 +205,17 @@ export default function DashboardView({
               <button 
                 type="button" 
                 onClick={startWorkspace} 
-                disabled={!onStartAll && !onStart} 
+                disabled={(!onStartAll && !onStart) || projects.every(p => ['running', 'starting'].includes(p.status?.toLowerCase()))}
                 className="rounded-lg border border-blue-500/30 bg-blue-500/10 px-3 py-2 text-xs font-semibold text-blue-500 hover:bg-blue-500/20 disabled:cursor-not-allowed disabled:opacity-50"
               >
-                Start workspace
+                Start remaining
               </button>
             </>
           ) : (
             <button 
               type="button" 
               onClick={startWorkspace} 
-              disabled={!onStartAll && !onStart} 
+              disabled={(!onStartAll && !onStart) || projects.length === 0}
               className="rounded-lg bg-accent px-3 py-2 text-xs font-semibold text-white hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-50"
             >
               Start workspace

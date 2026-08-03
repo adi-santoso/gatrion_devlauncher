@@ -3,7 +3,6 @@ const fs = require('fs').promises
 const os = require('os')
 const path = require('path')
 const StorageManager = require('./electron/managers/StorageManager')
-const { DEFAULT_CONFIG } = require('./electron/configSchema')
 
 function project(id) {
   return {
@@ -56,7 +55,14 @@ async function run() {
     assert.doesNotThrow(() => JSON.parse(require('fs').readFileSync(storage.projectsFilePath, 'utf8')))
 
     await fs.writeFile(storage.configFilePath, '{broken json', 'utf8')
-    assert.deepEqual(await storage.loadConfig(), DEFAULT_CONFIG)
+    const recoveredConfig = await storage.loadConfig()
+    assert.equal(recoveredConfig.notifications.sound, true)
+    assert.equal(recoveredConfig.terminal.maxLines, 1000)
+
+    await fs.writeFile(storage.projectsFilePath, '{}', 'utf8')
+    const recoveredInvalidShape = await storage.loadProjects()
+    assert.equal(recoveredInvalidShape.length, 1)
+    assert.equal(recoveredInvalidShape[0].id, 'recoverable')
 
     const entries = await fs.readdir(tempDir)
     assert.equal(entries.some((entry) => entry.endsWith('.tmp')), false)

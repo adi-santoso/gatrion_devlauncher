@@ -1,5 +1,6 @@
 const { ipcMain } = require('electron')
 const { envVarsToObject } = require('../projectSchema')
+const { assertTrustedIpcEvent } = require('../utils/ipcSecurity')
 
 /**
  * Setup process-related IPC handlers
@@ -20,6 +21,26 @@ function setupProcessHandlers(processManager, storageManager, mainWindow) {
     }
   }
 
+  const loadPersistedProject = async (projectId) => {
+    if (typeof projectId !== 'string' || !projectId.trim()) {
+      throw new Error('Project ID is required')
+    }
+
+    const projects = await storageManager.loadProjects()
+    const project = projects.find((item) => item.id === projectId)
+    if (!project) throw new Error(`Project ${projectId} not found`)
+    return project
+  }
+
+  const secureHandle = (channel, handler) => ipcMain.handle(channel, async (event, ...args) => {
+    try {
+      assertTrustedIpcEvent(event)
+      return await handler(event, ...args)
+    } catch (error) {
+      return { success: false, error: error.message }
+    }
+  })
+
   // Listen for process status-change events and forward to renderer
   if (processManager && typeof processManager.on === 'function') {
     processManager.on('status-change', (data) => {
@@ -28,14 +49,15 @@ function setupProcessHandlers(processManager, storageManager, mainWindow) {
   }
 
   // Start a project
-  ipcMain.handle('start-project', async (event, projectId, projectPath, command, env = {}, port = null) => {
+  secureHandle('start-project', async (event, projectId) => {
     try {
+      const project = await loadPersistedProject(projectId)
       const result = await processManager.startProcess(
-        projectId,
-        projectPath,
-        command,
-        env,
-        port,
+        project.id,
+        project.path,
+        project.startCommand,
+        envVarsToObject(project.envVars),
+        project.port,
         // onLog callback
         (projectId, log) => {
           safeSend('process-log', projectId, log)
@@ -56,7 +78,7 @@ function setupProcessHandlers(processManager, storageManager, mainWindow) {
       )
 
       // Send initial status
-      safeSend('process-status', projectId, processManager.getProcessStatus(projectId))
+      safeSend('process-status', project.id, processManager.getProcessStatus(project.id))
 
       return { success: true, ...result }
     } catch (error) {
@@ -65,7 +87,7 @@ function setupProcessHandlers(processManager, storageManager, mainWindow) {
   })
 
   // Stop a project
-  ipcMain.handle('stop-project', async (event, projectId, force = false) => {
+  secureHandle('stop-project', async (event, projectId, force = false) => {
     try {
       const stopPromise = processManager.stopProcess(projectId, force)
       safeSend('process-status', projectId, processManager.getProcessStatus(projectId))
@@ -78,14 +100,15 @@ function setupProcessHandlers(processManager, storageManager, mainWindow) {
   })
 
   // Restart a project
-  ipcMain.handle('restart-project', async (event, projectId, projectPath, command, env = {}, port = null) => {
+  secureHandle('restart-project', async (event, projectId) => {
     try {
+      const project = await loadPersistedProject(projectId)
       const result = await processManager.restartProcess(
-        projectId,
-        projectPath,
-        command,
-        env,
-        port,
+        project.id,
+        project.path,
+        project.startCommand,
+        envVarsToObject(project.envVars),
+        project.port,
         (projectId, log) => {
           safeSend('process-log', projectId, log)
         },
@@ -102,7 +125,7 @@ function setupProcessHandlers(processManager, storageManager, mainWindow) {
         }
       )
 
-      safeSend('process-status', projectId, processManager.getProcessStatus(projectId))
+      safeSend('process-status', project.id, processManager.getProcessStatus(project.id))
 
       return { success: true, ...result }
     } catch (error) {
@@ -111,38 +134,34 @@ function setupProcessHandlers(processManager, storageManager, mainWindow) {
   })
 
   // Get process status
-  ipcMain.handle('get-process-status', async (event, projectId) => {
+  secureHandle('get-process-status', async (event, projectId) => {
     return processManager.getProcessStatus(projectId)
   })
 
   // Check port conflict
-  ipcMain.handle('check-port-conflict', async (event, port) => {
+  secureHandle('check-port-conflict', async (event, port) => {
     return processManager.findPortOwner(port)
   })
 
   // Get process metrics (uptime, memory MB)
-  ipcMain.handle('get-process-metrics', async (event, projectId) => {
+  secureHandle('get-process-metrics', async (event, projectId) => {
     return processManager.getProcessMetrics(projectId)
   })
 
   // Get logs
-  ipcMain.handle('get-logs', async (event, projectId, limit = 1000) => {
+  secureHandle('get-logs', async (event, projectId, limit = 1000) => {
     return processManager.getLogs(projectId, limit)
   })
 
   // Clear logs
-  ipcMain.handle('clear-logs', async (event, projectId) => {
+  secureHandle('clear-logs', async (event, projectId) => {
     processManager.clearLogs(projectId)
     return { success: true }
   })
 
   // Start all projects
-  ipcMain.handle('start-all-projects', async (event, projects) => {
-    let projectList = projects
-    if ((!projectList || !Array.isArray(projectList)) && storageManager) {
-      projectList = await storageManager.loadProjects()
-    }
-    projectList = projectList || []
+  secureHandle('start-all-projects', async () => {
+    const projectList = await storageManager.loadProjects()
 
     const results = []
     for (const project of projectList) {
@@ -183,7 +202,7 @@ function setupProcessHandlers(processManager, storageManager, mainWindow) {
   })
 
   // Stop all projects
-  ipcMain.handle('stop-all-projects', async (event) => {
+  secureHandle('stop-all-projects', async (event) => {
     try {
       await processManager.stopAllProcesses()
       return { success: true }

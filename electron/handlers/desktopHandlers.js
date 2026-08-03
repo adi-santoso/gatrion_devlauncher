@@ -1,11 +1,13 @@
 const { ipcMain, shell } = require('electron');
 
 const fs = require('fs');
+const { assertTrustedIpcEvent } = require('../utils/ipcSecurity');
 
 function setupDesktopHandlers() {
   // Open external URL in default OS browser
   ipcMain.handle('open-external-url', async (event, url) => {
     try {
+      assertTrustedIpcEvent(event);
       if (!url || typeof url !== 'string') {
         return { success: false, error: 'Invalid URL parameter' };
       }
@@ -32,6 +34,7 @@ function setupDesktopHandlers() {
   // Reveal item/folder in Windows File Explorer
   ipcMain.handle('reveal-in-explorer', async (event, targetPath) => {
     try {
+      assertTrustedIpcEvent(event);
       if (!targetPath || typeof targetPath !== 'string') {
         return { success: false, error: 'Invalid path parameter' };
       }
@@ -49,6 +52,7 @@ function setupDesktopHandlers() {
   // Open directory path in default OS application or Code editor
   ipcMain.handle('open-in-editor', async (event, targetPath) => {
     try {
+      assertTrustedIpcEvent(event);
       if (!targetPath || typeof targetPath !== 'string') {
         return { success: false, error: 'Invalid path parameter' };
       }

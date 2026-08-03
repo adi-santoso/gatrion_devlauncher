@@ -40,6 +40,10 @@ class TrayManager {
     }
   }
 
+  setWindow(mainWindow) {
+    this.mainWindow = mainWindow;
+  }
+
   toggleWindow() {
     if (!this.mainWindow) return;
     if (this.mainWindow.isVisible()) {
@@ -57,7 +61,7 @@ class TrayManager {
       const projects = await this.storageManager.loadProjects();
       const runningProjects = projects.filter(p => {
         const status = this.processManager.getStatus(p.id);
-        return status && (status.status === 'running' || status.status === 'starting');
+        return status && (status.status === 'RUNNING' || status.status === 'STARTING');
       });
 
       const menuTemplate = [

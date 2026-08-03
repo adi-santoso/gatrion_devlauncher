@@ -4,7 +4,6 @@ export default function PortConflictModal({
   isOpen,
   onClose,
   conflictData,
-  onProceed,
   onEditPort
 }) {
   if (!isOpen || !conflictData) return null;
@@ -72,16 +71,6 @@ export default function PortConflictModal({
               ⚙️ Change Port
             </button>
           )}
-          <button
-            type="button"
-            onClick={() => {
-              onClose();
-              onProceed?.();
-            }}
-            className="px-4 py-2 rounded-lg bg-warning/20 hover:bg-warning/30 text-warning border border-warning/30 text-xs font-semibold transition-colors"
-          >
-            Proceed Anyway
-          </button>
         </div>
       </div>
     </div>

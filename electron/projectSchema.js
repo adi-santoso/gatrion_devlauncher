@@ -144,6 +144,9 @@ function sanitizeProjectChanges(input) {
       if (!item || typeof item !== 'object' || Array.isArray(item) || typeof item.key !== 'string' || (item.value != null && typeof item.value !== 'string')) {
         throw new Error('Each environment variable must contain string key and value fields')
       }
+      const unknownEnvField = Object.keys(item).find((key) => !['key', 'value', 'secret', 'unchanged'].includes(key))
+      if (unknownEnvField) throw new Error(`Unsupported environment variable field: ${unknownEnvField}`)
+      if (item.unchanged !== undefined && typeof item.unchanged !== 'boolean') throw new Error('Environment unchanged marker must be a boolean')
     }
   }
   return changes
@@ -188,7 +191,7 @@ function redactSensitiveEnv(envInput) {
     return envInput.map((item) => {
       if (!item || typeof item !== 'object') return item
       if (isSensitiveKey(item.key)) {
-        return { ...item, value: '••••••••' }
+        return { key: item.key, value: '', secret: true, unchanged: true }
       }
       return item
     })
@@ -202,6 +205,10 @@ function redactSensitiveEnv(envInput) {
   return envInput
 }
 
+function toRendererProject(project) {
+  return { ...project, envVars: redactSensitiveEnv(project.envVars) }
+}
+
 module.exports = {
   PROJECT_TYPES,
   PROJECT_SCHEMA_VERSION,
@@ -213,4 +220,5 @@ module.exports = {
   validateProject,
   redactSensitiveEnv,
   isSensitiveKey,
+  toRendererProject,
 }

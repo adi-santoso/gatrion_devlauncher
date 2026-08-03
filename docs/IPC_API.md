@@ -94,7 +94,7 @@ Path tidak valid:
 
 ## Process API
 
-### `startProject(projectId, projectPath, command, env)`
+### `startProject(projectId)`
 
 Channel: `start-project`
 
@@ -103,7 +103,7 @@ Channel: `start-project`
 { success: false, error: '...' }
 ```
 
-`env` object di-merge ke `process.env`. Command dijalankan melalui shell.
+Main process mengambil path, command, port, dan environment dari project yang sudah divalidasi di storage. Renderer tidak dapat menentukan command eksekusi. Environment project di-merge ke `process.env` dan command tersimpan dijalankan melalui shell.
 
 ### `stopProject(projectId)`
 
@@ -119,11 +119,11 @@ Renderer bridge tidak mengekspos parameter `force`, walau handler menerima argum
 
 Status `STOPPING` dikirim sebelum promise selesai.
 
-### `restartProject(projectId, projectPath, command, env)`
+### `restartProject(projectId)`
 
 Channel: `restart-project`
 
-Jika process `RUNNING`, backend stop, tunggu satu detik, lalu start ulang.
+Jika process `RUNNING`, backend stop, tunggu satu detik, lalu start ulang memakai konfigurasi terbaru dari storage.
 
 ```js
 { success: true, pid: 1234 }
@@ -134,7 +134,7 @@ Jika process `RUNNING`, backend stop, tunggu satu detik, lalu start ulang.
 
 Channel: `start-all-projects`
 
-Preload tidak mengirim daftar, sehingga handler membaca project dari storage. Project tanpa `startCommand`/`command` dilewati dan tidak masuk results.
+Handler selalu membaca project dari storage dan mengabaikan object project tambahan dari caller. Project yang gagal dijalankan tetap masuk ke results dengan `success: false`.
 
 ```js
 [

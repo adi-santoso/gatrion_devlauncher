@@ -98,7 +98,7 @@ const ProjectModal = ({ isOpen, onClose, onSave, project = null }) => {
     setFormData((prev) => ({
       ...prev,
       envVars: prev.envVars.map((envVar, envIndex) =>
-        envIndex === index ? { ...envVar, [field]: value } : envVar
+        envIndex === index ? { ...envVar, [field]: value, unchanged: false } : envVar
       )
     }));
   };
@@ -376,10 +376,10 @@ const ProjectModal = ({ isOpen, onClose, onSave, project = null }) => {
                       className="w-1/3 bg-surface-3 border border-border rounded-lg px-2.5 py-1.5 text-xs font-mono text-ink placeholder:text-ink-faint focus:outline-none focus:ring-2 focus:ring-accent/40"
                     />
                     <input
-                      type="text"
+                      type={envVar.secret ? 'password' : 'text'}
                       value={envVar.value}
                       onChange={(e) => handleEnvVarChange(index, 'value', e.target.value)}
-                      placeholder="value"
+                      placeholder={envVar.unchanged ? 'Stored value unchanged' : 'value'}
                       className="flex-1 bg-surface-3 border border-border rounded-lg px-2.5 py-1.5 text-xs font-mono text-ink placeholder:text-ink-faint focus:outline-none focus:ring-2 focus:ring-accent/40"
                     />
                     <button

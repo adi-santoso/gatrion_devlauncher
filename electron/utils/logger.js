@@ -14,7 +14,7 @@ try {
   MAIN_LOG_FILE = path.join(LOG_DIR, 'devlauncher-main.log')
 }
 
-let logStream = null
+let writeQueue = Promise.resolve()
 
 async function ensureLogDir() {
   try {
@@ -105,24 +105,30 @@ function isProduction() {
 
 const Logger = {
   info(module, message, metadata) {
-    writeLog('INFO', module, message, metadata)
+    return enqueueLog('INFO', module, message, metadata)
   },
   
   warn(module, message, metadata) {
-    writeLog('WARN', module, message, metadata)
+    return enqueueLog('WARN', module, message, metadata)
   },
   
   error(module, message, metadata) {
-    writeLog('ERROR', module, message, metadata)
+    return enqueueLog('ERROR', module, message, metadata)
   },
   
   debug(module, message, metadata) {
-    writeLog('DEBUG', module, message, metadata)
+    return enqueueLog('DEBUG', module, message, metadata)
   },
   
   fatal(module, message, metadata) {
-    writeLog('FATAL', module, message, metadata)
+    return enqueueLog('FATAL', module, message, metadata)
   }
+}
+
+function enqueueLog(level, module, message, metadata) {
+  const result = writeQueue.then(() => writeLog(level, module, message, metadata))
+  writeQueue = result.catch(() => {})
+  return result
 }
 
 module.exports = Logger

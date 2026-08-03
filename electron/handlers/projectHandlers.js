@@ -1,9 +1,14 @@
 const fs = require('fs')
+const path = require('path')
 const { ipcMain, dialog } = require('electron')
 const { v4: uuidv4 } = require('uuid')
-const { normalizeProject, sanitizeProjectChanges, validateProject } = require('../projectSchema')
+const { normalizeProject, sanitizeProjectChanges, toRendererProject, validateProject } = require('../projectSchema')
 const Logger = require('../utils/logger')
 const log = Logger || { info: () => {}, warn: () => {}, error: () => {} }
+const { assertTrustedIpcEvent } = require('../utils/ipcSecurity')
+const normalizePathKey = (projectPath) => projectPath
+  ? path.normalize(projectPath).toLowerCase().replace(/[/\\]+$/, '')
+  : ''
 
 /**
  * Setup project-related IPC handlers
@@ -47,8 +52,9 @@ function setupProjectHandlers(storageManager, processManager, mainWindow) {
   // Get all projects
   ipcMain.handle('get-projects', async (event) => {
     try {
+      assertTrustedIpcEvent(event)
       const projects = await storageManager.loadProjects()
-      return { success: true, projects }
+      return { success: true, projects: projects.map(toRendererProject) }
     } catch (error) {
       return { success: false, error: error.message, projects: [] }
     }
@@ -57,7 +63,11 @@ function setupProjectHandlers(storageManager, processManager, mainWindow) {
   // Add a project
   ipcMain.handle('add-project', async (event, projectData) => {
     try {
+      assertTrustedIpcEvent(event)
       const changes = sanitizeProjectChanges(projectData)
+      if (changes.envVars?.some((item) => item.unchanged)) {
+        throw new Error('New environment variables cannot retain a stored value')
+      }
       const project = validateProject(normalizeProject({
         ...changes,
         id: uuidv4(),
@@ -68,9 +78,6 @@ function setupProjectHandlers(storageManager, processManager, mainWindow) {
       if (!fs.existsSync(project.path)) {
         throw new Error(`Project directory path "${project.path}" does not exist`)
       }
-
-const path = require('path')
-const normalizePathKey = (p) => p ? path.normalize(p).toLowerCase().replace(/[/\\]+$/, '') : ''
 
       const { projects } = await storageManager.updateProjects((currentProjects) => {
         const duplicateName = currentProjects.find(p => p.name.toLowerCase() === project.name.toLowerCase())
@@ -84,9 +91,9 @@ const normalizePathKey = (p) => p ? path.normalize(p).toLowerCase().replace(/[/\
       })
 
       // Notify renderer of update
-      safeSend('projects-updated', projects)
+      safeSend('projects-updated', projects.map(toRendererProject))
 
-      return { success: true, project }
+      return { success: true, project: toRendererProject(project) }
     } catch (error) {
       console.error('[projectHandlers] Error adding project:', error)
       return { success: false, error: error.message }
@@ -96,11 +103,20 @@ const normalizePathKey = (p) => p ? path.normalize(p).toLowerCase().replace(/[/\
   // Update a project
   ipcMain.handle('update-project', async (event, projectId, updates) => {
     try {
+      assertTrustedIpcEvent(event)
       const changes = sanitizeProjectChanges(updates)
       const { projects, value: project } = await storageManager.updateProjects((currentProjects) => {
         const index = currentProjects.findIndex((item) => item.id === projectId)
         if (index === -1) throw new Error(`Project ${projectId} not found`)
 
+        if (changes.envVars) {
+          changes.envVars = changes.envVars.map((item) => {
+            if (!item.unchanged) return { key: item.key, value: item.value }
+            const existing = currentProjects[index].envVars.find((env) => env.key === item.key)
+            if (!existing) throw new Error(`Cannot retain missing environment variable: ${item.key}`)
+            return existing
+          })
+        }
         const nextProject = validateProject(normalizeProject({ ...currentProjects[index], ...changes }))
         const duplicateName = currentProjects.find((item, itemIndex) =>
           itemIndex !== index && item.name.toLowerCase() === nextProject.name.toLowerCase()
@@ -119,9 +135,9 @@ const normalizePathKey = (p) => p ? path.normalize(p).toLowerCase().replace(/[/\
       })
 
       // Notify renderer of update
-      safeSend('projects-updated', projects)
+      safeSend('projects-updated', projects.map(toRendererProject))
 
-      return { success: true, project }
+      return { success: true, project: toRendererProject(project) }
     } catch (error) {
       console.error('[projectHandlers] Error updating project:', error)
       return { success: false, error: error.message }
@@ -131,6 +147,7 @@ const normalizePathKey = (p) => p ? path.normalize(p).toLowerCase().replace(/[/\
   // Delete a project
   ipcMain.handle('delete-project', async (event, projectId) => {
     try {
+      assertTrustedIpcEvent(event)
       const processStatus = processManager.getProcessStatus(projectId)
       if (
         processStatus.status === processManager.STATUS.RUNNING ||
@@ -148,7 +165,7 @@ const normalizePathKey = (p) => p ? path.normalize(p).toLowerCase().replace(/[/\
       })
 
       // Notify renderer of update
-      safeSend('projects-updated', projects)
+      safeSend('projects-updated', projects.map(toRendererProject))
 
       return { success: true }
     } catch (error) {
@@ -160,6 +177,7 @@ const normalizePathKey = (p) => p ? path.normalize(p).toLowerCase().replace(/[/\
   // Browse folder
   ipcMain.handle('browse-folder', async (event) => {
     try {
+      assertTrustedIpcEvent(event)
       const result = await dialog.showOpenDialog({
         properties: ['openDirectory'],
         title: 'Select Project Folder',
