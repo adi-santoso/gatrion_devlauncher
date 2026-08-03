@@ -9,10 +9,10 @@ const PROJECT_TYPES = {
 }
 
 const PROJECT_FIELDS = new Set([
-  'name', 'path', 'type', 'port', 'startCommand', 'envVars', 'emoji', 'color', 'autoStart', 'schemaVersion',
+  'name', 'path', 'type', 'port', 'startCommand', 'commands', 'envVars', 'emoji', 'color', 'autoStart', 'schemaVersion',
 ])
 
-const PROJECT_SCHEMA_VERSION = 1
+const PROJECT_SCHEMA_VERSION = 2
 
 function migrateProjects(projects, fromVersion) {
   if (!Array.isArray(projects)) return projects
@@ -83,6 +83,15 @@ function normalizeProject(project, createId) {
   const type = normalizeType(project?.type)
   const metadata = PROJECT_TYPES[type]
   const parsedPort = project?.port == null || project.port === '' ? null : Number(project.port)
+  const legacyCommand = typeof project?.startCommand === 'string' && project.startCommand.trim()
+    ? project.startCommand.trim()
+    : typeof project?.command === 'string' ? project.command.trim() : ''
+  const commands = normalizeCommands(project?.commands, legacyCommand, parsedPort)
+  const primaryCommand = commands.find((item) => item.primary) || commands[0]
+  if (primaryCommand) {
+    primaryCommand.command = legacyCommand || primaryCommand.command
+    primaryCommand.port = parsedPort === null || Number.isInteger(parsedPort) ? parsedPort : primaryCommand.port
+  }
   const id = typeof project?.id === 'string' && project.id.trim()
     ? project.id.trim()
     : createId?.()
@@ -96,10 +105,9 @@ function normalizeProject(project, createId) {
     name: typeof project?.name === 'string' ? project.name.trim() : '',
     path: typeof project?.path === 'string' ? project.path.trim() : '',
     type,
-    port: parsedPort === null || Number.isInteger(parsedPort) ? parsedPort : null,
-    startCommand: typeof project?.startCommand === 'string' && project.startCommand.trim()
-      ? project.startCommand.trim()
-      : typeof project?.command === 'string' ? project.command.trim() : '',
+    port: primaryCommand?.port === null || Number.isInteger(primaryCommand?.port) ? primaryCommand.port : null,
+    startCommand: primaryCommand?.command || legacyCommand,
+    commands,
     envVars: normalizeEnvVars(project?.envVars, project?.env),
     emoji: typeof project?.emoji === 'string' && project.emoji.trim()
       ? project.emoji.trim()
@@ -110,7 +118,7 @@ function normalizeProject(project, createId) {
     autoStart: project?.autoStart === true,
     createdAt: typeof project?.createdAt === 'string' ? project.createdAt : new Date().toISOString(),
     lastRun: typeof project?.lastRun === 'string' ? project.lastRun : null,
-    schemaVersion: normalizedVersion,
+    schemaVersion: Math.max(normalizedVersion, PROJECT_SCHEMA_VERSION),
   }
 }
 
@@ -135,7 +143,20 @@ function sanitizeProjectChanges(input) {
     }
   }
   if (changes.type !== undefined && !PROJECT_TYPES[changes.type]) throw new Error('Project type is invalid')
-  if (changes.port !== undefined && !Number.isInteger(changes.port)) throw new Error('Port must be an integer')
+  if (changes.port !== undefined && changes.port !== null && !Number.isInteger(changes.port)) throw new Error('Port must be an integer or null')
+  if (changes.commands !== undefined && !Array.isArray(changes.commands)) throw new Error('Project commands must be an array')
+  if (Array.isArray(changes.commands)) {
+    for (const item of changes.commands) {
+      if (!item || typeof item !== 'object' || Array.isArray(item)) throw new Error('Each project command must be an object')
+      const unknownCommandField = Object.keys(item).find((key) => !['id', 'name', 'command', 'port', 'primary'].includes(key))
+      if (unknownCommandField) throw new Error(`Unsupported project command field: ${unknownCommandField}`)
+      if (typeof item.id !== 'string' || typeof item.name !== 'string' || typeof item.command !== 'string') {
+        throw new Error('Each project command must contain string id, name, and command fields')
+      }
+      if (item.port !== null && item.port !== undefined && !Number.isInteger(item.port)) throw new Error('Project command port must be an integer or null')
+      if (item.primary !== undefined && typeof item.primary !== 'boolean') throw new Error('Project command primary must be a boolean')
+    }
+  }
   if (changes.schemaVersion !== undefined && !Number.isInteger(changes.schemaVersion)) throw new Error('schemaVersion must be an integer')
   if (changes.autoStart !== undefined && typeof changes.autoStart !== 'boolean') throw new Error('autoStart must be a boolean')
   if (changes.envVars !== undefined && !Array.isArray(changes.envVars)) throw new Error('Environment variables must be an array')
@@ -161,6 +182,19 @@ function validateProject(project) {
     throw new Error('Port must be an integer between 1 and 65535')
   }
   if (!project.startCommand) throw new Error('Start command is required')
+  if (!Array.isArray(project.commands) || project.commands.length === 0) throw new Error('At least one project command is required')
+  const commandIds = new Set()
+  let primaryCommands = 0
+  for (const command of project.commands) {
+    if (!command.id || !command.name || !command.command) throw new Error('Project command id, name, and command are required')
+    if (commandIds.has(command.id)) throw new Error(`Duplicate project command: ${command.id}`)
+    commandIds.add(command.id)
+    if (command.primary) primaryCommands += 1
+    if (command.port !== null && (!Number.isInteger(command.port) || command.port < 1 || command.port > 65535)) {
+      throw new Error('Project command port must be an integer between 1 and 65535')
+    }
+  }
+  if (primaryCommands !== 1) throw new Error('Project must have exactly one primary command')
   if (!Array.isArray(project.envVars)) throw new Error('Environment variables must be an array')
 
   const keys = new Set()
@@ -205,6 +239,20 @@ function redactSensitiveEnv(envInput) {
   return envInput
 }
 
+function normalizeCommands(commands, startCommand, port) {
+  const source = Array.isArray(commands) && commands.length > 0
+    ? commands
+    : [{ id: 'main', name: 'Application', command: startCommand, port, primary: true }]
+  const hasPrimary = source.some((item) => item?.primary === true)
+  return source.map((item, index) => ({
+    id: typeof item?.id === 'string' && item.id.trim() ? item.id.trim() : `command-${index + 1}`,
+    name: typeof item?.name === 'string' && item.name.trim() ? item.name.trim() : `Command ${index + 1}`,
+    command: typeof item?.command === 'string' ? item.command.trim() : '',
+    port: item?.port == null || item.port === '' ? null : Number(item.port),
+    primary: item?.primary === true || (!hasPrimary && index === 0),
+  }))
+}
+
 function toRendererProject(project) {
   return { ...project, envVars: redactSensitiveEnv(project.envVars) }
 }
@@ -214,6 +262,7 @@ module.exports = {
   PROJECT_SCHEMA_VERSION,
   migrateProjects,
   envVarsToObject,
+  normalizeCommands,
   normalizeProject,
   normalizeType,
   sanitizeProjectChanges,

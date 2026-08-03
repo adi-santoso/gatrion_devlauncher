@@ -16,6 +16,10 @@ Module._load = originalLoad
 async function run() {
   const project = {
     id: 'trusted-id', path: 'C:/trusted', startCommand: 'npm start',
+    commands: [
+      { id: 'app', name: 'App', command: 'npm start', port: 3000, primary: true },
+      { id: 'assets', name: 'Assets', command: 'npm run dev', port: 5173, primary: false },
+    ],
     envVars: [{ key: 'TOKEN', value: 'secret' }], port: 3000,
   }
   const calls = []
@@ -33,11 +37,11 @@ async function run() {
   const maliciousArgs = ['C:/malicious', 'del /s /q C:\\*', { TOKEN: 'attacker' }, 1]
   const started = await handlers.get('start-project')(event, project.id, ...maliciousArgs)
   assert.equal(started.success, true)
-  assert.deepEqual(calls[0].slice(0, 5), [project.id, project.path, project.startCommand, { TOKEN: 'secret' }, project.port])
+  assert.deepEqual(calls[0].slice(0, 5), [project.id, project.path, project.commands, { TOKEN: 'secret' }, project.port])
 
   const restarted = await handlers.get('restart-project')(event, project.id, ...maliciousArgs)
   assert.equal(restarted.success, true)
-  assert.deepEqual(calls[1].slice(0, 5), [project.id, project.path, project.startCommand, { TOKEN: 'secret' }, project.port])
+  assert.deepEqual(calls[1].slice(0, 5), [project.id, project.path, project.commands, { TOKEN: 'secret' }, project.port])
 
   const missing = await handlers.get('start-project')(event, 'missing')
   assert.equal(missing.success, false)
@@ -56,6 +60,7 @@ async function run() {
   const all = await handlers.get('start-all-projects')(event, injected)
   assert.equal(all[0].projectId, project.id)
   assert.equal(calls[2][1], project.path)
+  assert.deepEqual(calls[2][2], project.commands)
 
   console.log('Process handler checks passed')
 }

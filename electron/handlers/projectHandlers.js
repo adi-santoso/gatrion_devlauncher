@@ -9,6 +9,15 @@ const { assertTrustedIpcEvent } = require('../utils/ipcSecurity')
 const normalizePathKey = (projectPath) => projectPath
   ? path.normalize(projectPath).toLowerCase().replace(/[/\\]+$/, '')
   : ''
+const assertProjectDirectory = (projectPath) => {
+  let stats
+  try {
+    stats = fs.statSync(projectPath)
+  } catch {
+    throw new Error(`Project directory path "${projectPath}" does not exist`)
+  }
+  if (!stats.isDirectory()) throw new Error(`Project path "${projectPath}" must be a directory`)
+}
 
 /**
  * Setup project-related IPC handlers
@@ -75,9 +84,7 @@ function setupProjectHandlers(storageManager, processManager, mainWindow) {
         lastRun: null,
       }))
 
-      if (!fs.existsSync(project.path)) {
-        throw new Error(`Project directory path "${project.path}" does not exist`)
-      }
+      assertProjectDirectory(project.path)
 
       const { projects } = await storageManager.updateProjects((currentProjects) => {
         const duplicateName = currentProjects.find(p => p.name.toLowerCase() === project.name.toLowerCase())
@@ -118,6 +125,7 @@ function setupProjectHandlers(storageManager, processManager, mainWindow) {
           })
         }
         const nextProject = validateProject(normalizeProject({ ...currentProjects[index], ...changes }))
+        assertProjectDirectory(nextProject.path)
         const duplicateName = currentProjects.find((item, itemIndex) =>
           itemIndex !== index && item.name.toLowerCase() === nextProject.name.toLowerCase()
         )

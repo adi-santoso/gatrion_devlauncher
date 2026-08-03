@@ -28,6 +28,13 @@ async function run() {
   await assert.rejects(manager.startProcess('', '.', 'node --version'), /Project ID is required/)
   await assert.rejects(manager.startProcess('missing-command', '.', ''), /Start command is required/)
   await assert.rejects(manager.startProcess('bad-port', '.', 'node --version', {}, 0), /Port must be an integer/)
+  await assert.rejects(manager.startProcess('missing-primary', '.', [
+    { id: 'one', name: 'One', command: 'node --version', port: null, primary: false },
+  ]), /exactly one primary/)
+  await assert.rejects(manager.startProcess('duplicate-port', '.', [
+    { id: 'one', name: 'One', command: 'node --version', port: 3000, primary: true },
+    { id: 'two', name: 'Two', command: 'node --version', port: 3000, primary: false },
+  ]), /configured more than once/)
 
   const occupiedServer = net.createServer()
   const occupiedPort = await listen(occupiedServer)
@@ -84,6 +91,25 @@ async function run() {
   await manager.stopProcess('long-running')
   assert.equal(manager.getProcessStatus('long-running').status, manager.STATUS.STOPPED)
   assert.equal(manager.getProcessStatus('long-running').pid, null)
+
+  await manager.startProcess('composite', '.', [
+    { id: 'app', name: 'App', command: 'node -e "setInterval(() => {}, 1000)"', port: null, primary: true },
+    { id: 'assets', name: 'Assets', command: 'node -e "setInterval(() => {}, 1000)"', port: null, primary: false },
+  ])
+  await waitForStatus(manager, 'composite', manager.STATUS.RUNNING)
+  const compositeStatus = manager.getProcessStatus('composite')
+  assert.equal(compositeStatus.commands.length, 2)
+  assert.ok(compositeStatus.commands.every((item) => item.pid))
+  await manager.stopProcess('composite')
+  assert.equal(manager.getProcessStatus('composite').status, manager.STATUS.STOPPED)
+  assert.ok(manager.getProcessStatus('composite').commands.every((item) => item.pid === null))
+
+  await manager.startProcess('composite-failure', '.', [
+    { id: 'app', name: 'App', command: 'node -e "setInterval(() => {}, 1000)"', port: null, primary: true },
+    { id: 'assets', name: 'Assets', command: 'node -e "setTimeout(() => process.exit(9), 100)"', port: null, primary: false },
+  ])
+  await waitForStatus(manager, 'composite-failure', manager.STATUS.ERROR)
+  assert.match(manager.getProcessStatus('composite-failure').error, /Assets exited with code 9/)
 
   console.log('ProcessManager checks passed')
 }

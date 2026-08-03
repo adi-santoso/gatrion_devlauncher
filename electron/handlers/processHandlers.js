@@ -55,7 +55,7 @@ function setupProcessHandlers(processManager, storageManager, mainWindow) {
       const result = await processManager.startProcess(
         project.id,
         project.path,
-        project.startCommand,
+        project.commands || project.startCommand,
         envVarsToObject(project.envVars),
         project.port,
         // onLog callback
@@ -106,7 +106,7 @@ function setupProcessHandlers(processManager, storageManager, mainWindow) {
       const result = await processManager.restartProcess(
         project.id,
         project.path,
-        project.startCommand,
+        project.commands || project.startCommand,
         envVarsToObject(project.envVars),
         project.port,
         (projectId, log) => {
@@ -166,8 +166,8 @@ function setupProcessHandlers(processManager, storageManager, mainWindow) {
     const results = []
     for (const project of projectList) {
       try {
-        const cmd = project.startCommand
-        if (!cmd) {
+        const cmd = project.commands || project.startCommand
+        if (!cmd || (Array.isArray(cmd) && cmd.length === 0)) {
           results.push({ projectId: project.id, success: false, error: 'Start command is missing' })
           continue
         }

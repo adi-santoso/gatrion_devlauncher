@@ -1,237 +1,195 @@
-import React, { useState, useEffect } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useProjects } from '../../hooks';
 
-/**
- * ProjectModal - Add/edit project modal with form fields
- * Lines 920-970 from template
- */
+const EMPTY_PROJECT = {
+  name: '',
+  path: '',
+  type: 'CUSTOM',
+  port: '',
+  startCommand: '',
+  commands: [],
+  envVars: [],
+  autoStart: false,
+  emoji: '⚙️',
+  color: '#6B7280',
+};
+
+const TYPE_METADATA = {
+  REACT_VITE: { emoji: '⚛️', color: '#61DAFB' },
+  NEXTJS: { emoji: '⚡', color: '#000000' },
+  VUE: { emoji: '🟢', color: '#42B883' },
+  LARAVEL: { emoji: '🔴', color: '#FF2D20' },
+  GOLANG: { emoji: '🐹', color: '#00ADD8' },
+  NODEJS: { emoji: '🟩', color: '#339933' },
+  CUSTOM: { emoji: '⚙️', color: '#6B7280' },
+};
+
 const ProjectModal = ({ isOpen, onClose, onSave, project = null }) => {
   const { browseFolder, detectProjectType } = useProjects();
-
-  const [formData, setFormData] = useState({
-    name: '',
-    path: '',
-    type: 'REACT_VITE',
-    port: '5173',
-    startCommand: 'npm run dev',
-    envVars: [{ key: 'NODE_ENV', value: 'development' }],
-    autoStart: false,
-    emoji: '⚛️',
-    color: '#61DAFB',
-  });
-
-  const [detectedType, setDetectedType] = useState(null);
+  const detectionId = useRef(0);
+  const [formData, setFormData] = useState(EMPTY_PROJECT);
+  const [detection, setDetection] = useState(null);
   const [isDetecting, setIsDetecting] = useState(false);
-  const [detectedMetadata, setDetectedMetadata] = useState(null);
+  const [showAdvanced, setShowAdvanced] = useState(false);
   const [errors, setErrors] = useState({});
   const [isSaving, setIsSaving] = useState(false);
+  const isEditing = Boolean(project);
 
   useEffect(() => {
+    detectionId.current += 1;
     if (project) {
       setFormData({
         name: project.name || '',
         path: project.path || '',
-        type: project.type || 'REACT_VITE',
-        port: String(project.port || 5173),
-        startCommand: project.startCommand || 'npm run dev',
-        envVars: project.envVars || [{ key: 'NODE_ENV', value: 'development' }],
+        type: project.type || 'CUSTOM',
+        port: project.port == null ? '' : String(project.port),
+        startCommand: project.startCommand || '',
+        commands: project.commands || [],
+        envVars: project.envVars || [],
         autoStart: project.autoStart || false,
-        emoji: project.emoji || '⚛️',
-        color: project.color || '#61DAFB',
+        emoji: project.emoji || '⚙️',
+        color: project.color || '#6B7280',
       });
+      setShowAdvanced(true);
     } else {
-      setFormData({
-        name: '',
-        path: '',
-        type: 'REACT_VITE',
-        port: '5173',
-        startCommand: 'npm run dev',
-        envVars: [{ key: 'NODE_ENV', value: 'development' }],
-        autoStart: false,
-        emoji: '⚛️',
-        color: '#61DAFB',
-      });
-      setDetectedType(null);
-      setDetectedMetadata(null);
+      setFormData(EMPTY_PROJECT);
+      setShowAdvanced(false);
     }
+    setDetection(null);
+    setIsDetecting(false);
     setErrors({});
     setIsSaving(false);
   }, [project, isOpen]);
 
+  const clearError = (field) => {
+    setErrors((previous) => {
+      if (!previous[field]) return previous;
+      const next = { ...previous };
+      delete next[field];
+      return next;
+    });
+  };
+
   const handleChange = (field, value) => {
-    setFormData((prev) => ({ ...prev, [field]: value }));
-
-    // Clear error for this field when user starts typing
-    if (errors[field]) {
-      setErrors((prev) => {
-        const newErrors = { ...prev };
-        delete newErrors[field];
-        return newErrors;
-      });
-    }
-
-    // Update emoji and color when type changes manually
-    if (field === 'type') {
-      const typeToMetadata = {
-        REACT_VITE: { emoji: '⚛️', color: '#61DAFB' },
-        NEXTJS: { emoji: '⚡', color: '#000000' },
-        VUE: { emoji: '🟢', color: '#42B883' },
-        LARAVEL: { emoji: '🔴', color: '#FF2D20' },
-        GOLANG: { emoji: '🐹', color: '#00ADD8' },
-        NODEJS: { emoji: '🟩', color: '#339933' },
-        CUSTOM: { emoji: '⚙️', color: '#6B7280' },
-      };
-
-      const metadata = typeToMetadata[value];
-      if (metadata) {
-        setFormData((prev) => ({
-          ...prev,
-          [field]: value,
-          emoji: metadata.emoji,
-          color: metadata.color,
-        }));
+    setFormData((previous) => {
+      if (field === 'startCommand' || field === 'port') {
+        const commands = previous.commands.map((item) => item.primary
+          ? { ...item, [field === 'startCommand' ? 'command' : 'port']: field === 'port' ? (value.trim() ? Number(value) : null) : value }
+          : item);
+        return { ...previous, [field]: value, commands };
       }
+      if (field !== 'type') return { ...previous, [field]: value };
+      return { ...previous, type: value, ...TYPE_METADATA[value] };
+    });
+    clearError(field);
+  };
+
+  const analyzeFolder = async (projectPath) => {
+    const currentDetectionId = ++detectionId.current;
+    setIsDetecting(true);
+    setDetection(null);
+    setErrors((previous) => ({ ...previous, detection: undefined, path: undefined }));
+
+    try {
+      const result = await detectProjectType(projectPath);
+      if (currentDetectionId !== detectionId.current) return;
+      if (!result.success) {
+        setErrors((previous) => ({ ...previous, detection: result.error || 'Could not analyze project' }));
+        return;
+      }
+
+      setDetection(result);
+      setFormData((previous) => ({
+        ...previous,
+        path: projectPath,
+        name: result.projectName || previous.name,
+        type: result.type || 'CUSTOM',
+        port: result.defaultPort == null ? '' : String(result.defaultPort),
+        startCommand: result.defaultCommand || '',
+        commands: result.commands || [],
+        emoji: result.icon || TYPE_METADATA.CUSTOM.emoji,
+        color: result.color || TYPE_METADATA.CUSTOM.color,
+      }));
+      if (!result.defaultCommand) setShowAdvanced(true);
+    } catch (error) {
+      if (currentDetectionId === detectionId.current) {
+        setErrors((previous) => ({ ...previous, detection: error.message || 'Could not analyze project' }));
+      }
+    } finally {
+      if (currentDetectionId === detectionId.current) setIsDetecting(false);
     }
-  };
-
-  const handleEnvVarChange = (index, field, value) => {
-    setFormData((prev) => ({
-      ...prev,
-      envVars: prev.envVars.map((envVar, envIndex) =>
-        envIndex === index ? { ...envVar, [field]: value, unchanged: false } : envVar
-      )
-    }));
-  };
-
-  const addEnvVar = () => {
-    setFormData((prev) => ({
-      ...prev,
-      envVars: [...prev.envVars, { key: '', value: '' }],
-    }));
-  };
-
-  const removeEnvVar = (index) => {
-    const newEnvVars = formData.envVars.filter((_, i) => i !== index);
-    setFormData((prev) => ({ ...prev, envVars: newEnvVars }));
   };
 
   const handleBrowse = async () => {
     try {
       const response = await browseFolder();
-
-      if (response.success && response.path) {
-        // Update path in form
-        handleChange('path', response.path);
-
-        // Extract project name from path (last folder name)
-        const pathParts = response.path.replace(/\\/g, '/').split('/');
-        const folderName = pathParts[pathParts.length - 1];
-        if (!formData.name) {
-          handleChange('name', folderName);
-        }
-
-        // Auto-detect project type
-        setIsDetecting(true);
-        const detectionResult = await detectProjectType(response.path);
-        setIsDetecting(false);
-
-        if (detectionResult.success && detectionResult.type) {
-          setDetectedType(detectionResult.name);
-
-          // Store detection metadata for emoji and color
-          setDetectedMetadata({
-            emoji: detectionResult.icon,
-            color: detectionResult.color,
-          });
-
-          // Map detected type key to form type options (backend returns NEXTJS, REACT_VITE, etc.)
-          const typeMap = {
-            'NEXTJS': 'NEXTJS',
-            'REACT_VITE': 'REACT_VITE',
-            'VUE': 'VUE',
-            'LARAVEL': 'LARAVEL',
-            'GOLANG': 'GOLANG',
-            'NODEJS': 'NODEJS',
-            'CUSTOM': 'CUSTOM',
-          };
-
-          if (typeMap[detectionResult.type]) {
-            handleChange('type', typeMap[detectionResult.type]);
-          }
-
-          // Update emoji and color from detection
-          handleChange('emoji', detectionResult.icon);
-          handleChange('color', detectionResult.color);
-
-          // Set default port based on detection result
-          if (detectionResult.defaultPort) {
-            handleChange('port', String(detectionResult.defaultPort));
-          }
-
-          // Set default start command based on detection result
-          if (detectionResult.defaultCommand) {
-            handleChange('startCommand', detectionResult.defaultCommand);
-          }
-        } else {
-          setDetectedType(null);
-          setDetectedMetadata(null);
-        }
+      if (response.success && response.path) await analyzeFolder(response.path);
+      if (!response.success && !response.canceled && response.error) {
+        setErrors((previous) => ({ ...previous, detection: response.error }));
       }
-    } catch (err) {
-      console.error('Error browsing folder:', err);
-      setDetectedType(null);
-      setIsDetecting(false);
+    } catch (error) {
+      setErrors((previous) => ({ ...previous, detection: error.message || 'Could not browse folders' }));
     }
+  };
+
+  const handleEnvVarChange = (index, field, value) => {
+    setFormData((previous) => ({
+      ...previous,
+      envVars: previous.envVars.map((envVar, envIndex) => (
+        envIndex === index ? { ...envVar, [field]: value, unchanged: false } : envVar
+      )),
+    }));
   };
 
   const validateForm = () => {
-    const newErrors = {};
-
-    // Required fields
-    if (!formData.name.trim()) {
-      newErrors.name = 'Project name is required';
+    const nextErrors = {};
+    if (!formData.name.trim()) nextErrors.name = 'Project name is required';
+    if (!formData.path.trim()) nextErrors.path = 'Project path is required';
+    if (formData.port.trim()) {
+      const port = Number(formData.port);
+      if (!Number.isInteger(port) || port < 1 || port > 65535) {
+        nextErrors.port = 'Port must be between 1-65535';
+      }
     }
-
-    if (!formData.path.trim()) {
-      newErrors.path = 'Project path is required';
+    if (!formData.startCommand.trim()) nextErrors.startCommand = 'Start command is required';
+    for (const command of formData.commands.filter((item) => !item.primary)) {
+      if (!command.command.trim()) nextErrors.commands = `${command.name} command is required`;
+      if (command.port !== null && command.port !== '') {
+        const commandPort = Number(command.port);
+        if (!Number.isInteger(commandPort) || commandPort < 1 || commandPort > 65535) nextErrors.commands = `${command.name} port must be between 1-65535`;
+      }
     }
-
-    if (!formData.port.trim()) {
-      newErrors.port = 'Port is required';
-    } else if (isNaN(formData.port) || parseInt(formData.port) < 1 || parseInt(formData.port) > 65535) {
-      newErrors.port = 'Port must be between 1-65535';
-    }
-
-    if (!formData.startCommand.trim()) {
-      newErrors.startCommand = 'Start command is required';
-    }
-
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
+    setErrors(nextErrors);
+    if (Object.keys(nextErrors).length) setShowAdvanced(true);
+    return Object.keys(nextErrors).length === 0;
   };
 
   const handleSubmit = async () => {
-    // Validate form first
-    if (!validateForm()) {
-      return;
-    }
-
-    // Don't include runtime fields (status, uptime, idleTime)
-    // Those are managed by process manager, not stored
+    if (!validateForm()) return;
     setIsSaving(true);
     try {
-      const result = await onSave({ ...formData, port: Number(formData.port) });
+      const result = await onSave({
+        ...formData,
+        port: formData.port.trim() ? Number(formData.port) : null,
+        commands: formData.commands.map((item) => ({
+          ...item,
+          port: item.port == null || item.port === '' ? null : Number(item.port),
+        })),
+      });
       if (!result?.success && result?.error) {
-        setErrors((prev) => ({ ...prev, form: result.error }));
+        setErrors((previous) => ({ ...previous, form: result.error }));
       }
     } catch (error) {
-      setErrors((prev) => ({ ...prev, form: error.message || 'Failed to save project' }));
+      setErrors((previous) => ({ ...previous, form: error.message || 'Failed to save project' }));
     } finally {
       setIsSaving(false);
     }
   };
 
   if (!isOpen) return null;
+
+  const hasSelectedFolder = Boolean(formData.path);
+  const showConfiguration = isEditing || showAdvanced;
 
   return (
     <div id="projectModal" className="fixed inset-0 z-50">
@@ -240,195 +198,155 @@ const ProjectModal = ({ isOpen, onClose, onSave, project = null }) => {
         <div className="w-full max-w-lg bg-surface border border-border rounded-xl shadow-card max-h-[85vh] flex flex-col">
           <div className="flex items-center justify-between px-5 py-4 border-b border-border shrink-0">
             <div>
-              <h3 className="font-display font-bold text-sm">
-                {project ? 'Edit Project' : 'Add Project'}
-              </h3>
+              <h3 className="font-display font-bold text-sm">{isEditing ? 'Edit Project' : 'Add Project'}</h3>
               <p className="text-xs text-ink-faint mt-0.5">
-                Register a project folder to launch and monitor.
+                {isEditing ? 'Update project launch configuration.' : 'Choose a folder and Gatrion will configure it.'}
               </p>
             </div>
-            <button
-              onClick={onClose}
-              className="w-8 h-8 flex items-center justify-center rounded-lg text-ink-faint hover:text-ink hover:bg-surface-3 transition-colors"
-            >
-              ✕
-            </button>
+            <button type="button" onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-lg text-ink-faint hover:text-ink hover:bg-surface-3 transition-colors">✕</button>
           </div>
-          <div className="px-5 py-4 space-y-4 overflow-y-auto">
-            <div>
-              <label className="text-xs text-ink-soft mb-1.5 block">
-                Project name <span className="text-danger">*</span>
-              </label>
-              <input
-                type="text"
-                placeholder="e.g. storefront-web"
-                value={formData.name}
-                onChange={(e) => handleChange('name', e.target.value)}
-                className={`w-full bg-surface-3 border rounded-lg px-3 py-2 text-sm text-ink placeholder:text-ink-faint focus:outline-none focus:ring-2 focus:ring-accent/40 ${
-                  errors.name ? 'border-danger' : 'border-border'
-                }`}
-              />
-              {errors.name && (
-                <p className="text-[11px] text-danger mt-1">{errors.name}</p>
-              )}
-            </div>
-            <div>
-              <label className="text-xs text-ink-soft mb-1.5 block">
-                Project path <span className="text-danger">*</span>
-              </label>
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  placeholder="C:/projects/storefront-web"
-                  value={formData.path}
-                  onChange={(e) => handleChange('path', e.target.value)}
-                  className={`flex-1 bg-surface-3 border rounded-lg px-3 py-2 text-sm font-mono text-ink placeholder:text-ink-faint focus:outline-none focus:ring-2 focus:ring-accent/40 ${
-                    errors.path ? 'border-danger' : 'border-border'
-                  }`}
-                />
-                <button
-                  onClick={handleBrowse}
-                  disabled={isDetecting}
-                  className="px-3 py-2 rounded-lg bg-surface-3 border border-border text-xs font-medium text-ink-soft hover:text-ink hover:bg-surface-2 transition-colors shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {isDetecting ? 'Detecting...' : 'Browse…'}
+
+          <div className="px-5 py-5 space-y-4 overflow-y-auto">
+            {!isEditing && !hasSelectedFolder && (
+              <div className="rounded-xl border border-dashed border-border bg-surface-2/50 px-6 py-9 text-center">
+                <div className="mx-auto mb-4 w-12 h-12 rounded-xl bg-accent/10 border border-accent/20 flex items-center justify-center text-2xl">⌁</div>
+                <p className="text-sm font-semibold text-ink">Select your project folder</p>
+                <p className="text-xs text-ink-faint mt-1.5 max-w-xs mx-auto leading-relaxed">
+                  Framework, package manager, start command, and port will be detected automatically.
+                </p>
+                <button type="button" onClick={handleBrowse} disabled={isDetecting} className="mt-5 px-4 py-2.5 rounded-lg bg-accent hover:bg-accent-hover text-white text-sm font-semibold shadow-glow transition-colors disabled:opacity-50">
+                  {isDetecting ? 'Analyzing Project...' : 'Browse Project Folder'}
                 </button>
               </div>
-              {errors.path && (
-                <p className="text-[11px] text-danger mt-1">{errors.path}</p>
-              )}
-              {detectedType && (
-                <p className="text-[11px] text-success mt-1.5">✓ Detected: {detectedType} project</p>
-              )}
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="text-xs text-ink-soft mb-1.5 block">Project type</label>
-                <select
-                  value={formData.type}
-                  onChange={(e) => handleChange('type', e.target.value)}
-                  className="w-full bg-surface-3 border border-border rounded-lg px-3 py-2 text-sm text-ink focus:outline-none focus:ring-2 focus:ring-accent/40"
-                >
-                  <option value="REACT_VITE">⚛️ React (Vite)</option>
-                  <option value="NEXTJS">⚡ Next.js</option>
-                  <option value="VUE">🟢 Vue.js</option>
-                  <option value="LARAVEL">🔴 Laravel</option>
-                  <option value="GOLANG">🐹 Go</option>
-                  <option value="NODEJS">🟩 Node.js</option>
-                  <option value="CUSTOM">⚙️ Custom</option>
-                </select>
-              </div>
-              <div>
-                <label className="text-xs text-ink-soft mb-1.5 block">
-                  Port <span className="text-danger">*</span>
-                </label>
-                <input
-                  type="text"
-                  placeholder="5173"
-                  value={formData.port}
-                  onChange={(e) => handleChange('port', e.target.value)}
-                  className={`w-full bg-surface-3 border rounded-lg px-3 py-2 text-sm font-mono text-ink placeholder:text-ink-faint focus:outline-none focus:ring-2 focus:ring-accent/40 ${
-                    errors.port ? 'border-danger' : 'border-border'
-                  }`}
-                />
-                {errors.port && (
-                  <p className="text-[11px] text-danger mt-1">{errors.port}</p>
-                )}
-              </div>
-            </div>
-            <div>
-              <label className="text-xs text-ink-soft mb-1.5 block">
-                Start command <span className="text-danger">*</span>
-              </label>
-              <input
-                type="text"
-                value={formData.startCommand}
-                onChange={(e) => handleChange('startCommand', e.target.value)}
-                className={`w-full bg-surface-3 border rounded-lg px-3 py-2 text-sm font-mono text-ink focus:outline-none focus:ring-2 focus:ring-accent/40 ${
-                  errors.startCommand ? 'border-danger' : 'border-border'
-                }`}
-              />
-              {errors.startCommand && (
-                <p className="text-[11px] text-danger mt-1">{errors.startCommand}</p>
-              )}
-            </div>
-            <div>
-              <div className="flex items-center justify-between mb-1.5">
-                <label className="text-xs text-ink-soft">Environment variables</label>
-                <div className="flex items-center gap-3">
-                  <button
-                    onClick={addEnvVar}
-                    type="button"
-                    className="text-[11px] font-medium text-accent hover:text-accent-hover flex items-center gap-1"
-                  >
-                    + Add variable
-                  </button>
+            )}
+
+            {!isEditing && hasSelectedFolder && (
+              <div className="rounded-xl border border-border bg-surface-2 overflow-hidden">
+                <div className="p-4 flex items-start gap-3">
+                  <div className="w-10 h-10 rounded-lg bg-surface-3 border border-border flex items-center justify-center text-xl shrink-0">{formData.emoji}</div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold text-ink truncate">{formData.name}</p>
+                        <p className="text-[11px] text-success mt-0.5">Detected as {detection?.name || 'Custom project'}</p>
+                      </div>
+                      <button type="button" onClick={handleBrowse} disabled={isDetecting} className="text-[11px] font-medium text-accent hover:text-accent-hover shrink-0">
+                        {isDetecting ? 'Analyzing...' : 'Change folder'}
+                      </button>
+                    </div>
+                    <p className="text-[11px] font-mono text-ink-faint truncate mt-2">{formData.path}</p>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 border-t border-border text-xs">
+                  <div className="px-4 py-3 border-r border-border">
+                    <p className="text-[10px] uppercase tracking-wider text-ink-faint">Package manager</p>
+                    <p className="text-ink mt-1 font-mono">{detection?.packageManager || 'Not required'}</p>
+                  </div>
+                  <div className="px-4 py-3">
+                    <p className="text-[10px] uppercase tracking-wider text-ink-faint">Port</p>
+                    <p className="text-ink mt-1 font-mono">{formData.port || 'Not monitored'}</p>
+                  </div>
+                  <div className="col-span-2 px-4 py-3 border-t border-border">
+                    <p className="text-[10px] uppercase tracking-wider text-ink-faint">Start command</p>
+                    <p className={`mt-1 font-mono ${formData.startCommand ? 'text-ink' : 'text-warning'}`}>{formData.startCommand || 'Needs configuration'}</p>
+                  </div>
+                  {formData.commands.length > 1 && formData.commands.filter((item) => !item.primary).map((item) => (
+                    <div key={item.id} className="col-span-2 px-4 py-3 border-t border-border">
+                      <p className="text-[10px] uppercase tracking-wider text-ink-faint">{item.name}</p>
+                      <p className="text-ink mt-1 font-mono">{item.command}</p>
+                      <p className="text-[11px] text-ink-faint mt-1">{item.port ? `Port ${item.port}` : 'No port monitoring'}</p>
+                    </div>
+                  ))}
                 </div>
               </div>
-              <div className="space-y-2">
-                {formData.envVars.map((envVar, index) => (
-                  <div key={index} className="flex gap-2 items-center">
-                    <input
-                      type="text"
-                      value={envVar.key}
-                      onChange={(e) => handleEnvVarChange(index, 'key', e.target.value)}
-                      placeholder="KEY"
-                      className="w-1/3 bg-surface-3 border border-border rounded-lg px-2.5 py-1.5 text-xs font-mono text-ink placeholder:text-ink-faint focus:outline-none focus:ring-2 focus:ring-accent/40"
-                    />
-                    <input
-                      type={envVar.secret ? 'password' : 'text'}
-                      value={envVar.value}
-                      onChange={(e) => handleEnvVarChange(index, 'value', e.target.value)}
-                      placeholder={envVar.unchanged ? 'Stored value unchanged' : 'value'}
-                      className="flex-1 bg-surface-3 border border-border rounded-lg px-2.5 py-1.5 text-xs font-mono text-ink placeholder:text-ink-faint focus:outline-none focus:ring-2 focus:ring-accent/40"
-                    />
-                    <button
-                      onClick={() => removeEnvVar(index)}
-                      type="button"
-                      className="w-7 h-7 shrink-0 flex items-center justify-center rounded-lg text-ink-faint hover:text-danger hover:bg-danger/10"
-                    >
-                      ✕
-                    </button>
+            )}
+
+            {isDetecting && hasSelectedFolder && <p className="text-xs text-accent">Analyzing project configuration...</p>}
+            {errors.detection && <p className="text-xs text-danger">{errors.detection}</p>}
+            {detection?.warnings?.map((warning) => <p key={warning} className="text-[11px] text-warning">{warning}</p>)}
+
+            {!isEditing && hasSelectedFolder && (
+              <button type="button" onClick={() => setShowAdvanced((value) => !value)} className="w-full flex items-center justify-between py-1 text-xs font-medium text-ink-soft hover:text-ink">
+                <span>Advanced Settings</span>
+                <span>{showAdvanced ? '−' : '+'}</span>
+              </button>
+            )}
+
+            {showConfiguration && (
+              <div className="space-y-4 pt-1">
+                <div>
+                  <label className="text-xs text-ink-soft mb-1.5 block">Project name <span className="text-danger">*</span></label>
+                  <input type="text" value={formData.name} onChange={(event) => handleChange('name', event.target.value)} className={`w-full bg-surface-3 border rounded-lg px-3 py-2 text-sm text-ink focus:outline-none focus:ring-2 focus:ring-accent/40 ${errors.name ? 'border-danger' : 'border-border'}`} />
+                  {errors.name && <p className="text-[11px] text-danger mt-1">{errors.name}</p>}
+                </div>
+                <div>
+                  <label className="text-xs text-ink-soft mb-1.5 block">Project path <span className="text-danger">*</span></label>
+                  <div className="flex gap-2">
+                    <input type="text" value={formData.path} onChange={(event) => handleChange('path', event.target.value)} className={`flex-1 bg-surface-3 border rounded-lg px-3 py-2 text-sm font-mono text-ink focus:outline-none focus:ring-2 focus:ring-accent/40 ${errors.path ? 'border-danger' : 'border-border'}`} />
+                    <button type="button" onClick={handleBrowse} disabled={isDetecting} className="px-3 py-2 rounded-lg bg-surface-3 border border-border text-xs font-medium text-ink-soft hover:text-ink disabled:opacity-50">Browse...</button>
+                  </div>
+                  {errors.path && <p className="text-[11px] text-danger mt-1">{errors.path}</p>}
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-xs text-ink-soft mb-1.5 block">Project type</label>
+                    <select value={formData.type} onChange={(event) => handleChange('type', event.target.value)} className="w-full bg-surface-3 border border-border rounded-lg px-3 py-2 text-sm text-ink focus:outline-none focus:ring-2 focus:ring-accent/40">
+                      <option value="REACT_VITE">⚛️ React (Vite)</option><option value="NEXTJS">⚡ Next.js</option><option value="VUE">🟢 Vue.js</option><option value="LARAVEL">🔴 Laravel</option><option value="GOLANG">🐹 Go</option><option value="NODEJS">🟩 Node.js</option><option value="CUSTOM">⚙️ Custom</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-xs text-ink-soft mb-1.5 block">Port <span className="text-ink-faint">(optional)</span></label>
+                    <input type="text" placeholder="No port monitoring" value={formData.port} onChange={(event) => handleChange('port', event.target.value)} className={`w-full bg-surface-3 border rounded-lg px-3 py-2 text-sm font-mono text-ink focus:outline-none focus:ring-2 focus:ring-accent/40 ${errors.port ? 'border-danger' : 'border-border'}`} />
+                    {errors.port && <p className="text-[11px] text-danger mt-1">{errors.port}</p>}
+                  </div>
+                </div>
+                <div>
+                  <label className="text-xs text-ink-soft mb-1.5 block">Start command <span className="text-danger">*</span></label>
+                  <input type="text" value={formData.startCommand} onChange={(event) => handleChange('startCommand', event.target.value)} className={`w-full bg-surface-3 border rounded-lg px-3 py-2 text-sm font-mono text-ink focus:outline-none focus:ring-2 focus:ring-accent/40 ${errors.startCommand ? 'border-danger' : 'border-border'}`} />
+                  {errors.startCommand && <p className="text-[11px] text-danger mt-1">{errors.startCommand}</p>}
+                </div>
+                {formData.commands.filter((item) => !item.primary).map((item) => (
+                  <div key={item.id} className="rounded-lg border border-border bg-surface-2 p-3 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <p className="text-xs font-semibold text-ink">{item.name}</p>
+                      <span className="text-[10px] uppercase tracking-wider text-accent">Additional process</span>
+                    </div>
+                    <input type="text" value={item.command} onChange={(event) => setFormData((previous) => ({ ...previous, commands: previous.commands.map((command) => command.id === item.id ? { ...command, command: event.target.value } : command) }))} className="w-full bg-surface-3 border border-border rounded-lg px-3 py-2 text-sm font-mono text-ink focus:outline-none focus:ring-2 focus:ring-accent/40" />
+                    <input type="text" placeholder="No port monitoring" value={item.port ?? ''} onChange={(event) => setFormData((previous) => ({ ...previous, commands: previous.commands.map((command) => command.id === item.id ? { ...command, port: event.target.value } : command) }))} className="w-full bg-surface-3 border border-border rounded-lg px-3 py-2 text-sm font-mono text-ink focus:outline-none focus:ring-2 focus:ring-accent/40" />
                   </div>
                 ))}
+                {errors.commands && <p className="text-[11px] text-danger">{errors.commands}</p>}
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="text-xs text-ink-soft">Environment variables</label>
+                    <button type="button" onClick={() => setFormData((previous) => ({ ...previous, envVars: [...previous.envVars, { key: '', value: '' }] }))} className="text-[11px] font-medium text-accent hover:text-accent-hover">+ Add variable</button>
+                  </div>
+                  <div className="space-y-2">
+                    {formData.envVars.map((envVar, index) => (
+                      <div key={`${envVar.key}-${index}`} className="flex gap-2 items-center">
+                        <input type="text" value={envVar.key} onChange={(event) => handleEnvVarChange(index, 'key', event.target.value)} placeholder="KEY" className="w-1/3 bg-surface-3 border border-border rounded-lg px-2.5 py-1.5 text-xs font-mono text-ink focus:outline-none focus:ring-2 focus:ring-accent/40" />
+                        <input type={envVar.secret ? 'password' : 'text'} value={envVar.value} onChange={(event) => handleEnvVarChange(index, 'value', event.target.value)} placeholder={envVar.unchanged ? 'Stored value unchanged' : 'value'} className="flex-1 bg-surface-3 border border-border rounded-lg px-2.5 py-1.5 text-xs font-mono text-ink focus:outline-none focus:ring-2 focus:ring-accent/40" />
+                        <button type="button" onClick={() => setFormData((previous) => ({ ...previous, envVars: previous.envVars.filter((_, envIndex) => envIndex !== index) }))} className="w-7 h-7 shrink-0 flex items-center justify-center rounded-lg text-ink-faint hover:text-danger hover:bg-danger/10">✕</button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <div className="flex items-center justify-between pt-1">
+                  <div><p className="text-xs text-ink">Start on app launch</p><p className="text-[11px] text-ink-faint">Auto-run this project when Gatrion opens.</p></div>
+                  <button type="button" onClick={() => handleChange('autoStart', !formData.autoStart)} className={`w-9 h-5 rounded-full relative shrink-0 ${formData.autoStart ? 'bg-accent' : 'bg-surface-3 border border-border'}`}><span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-transform ${formData.autoStart ? 'right-0.5' : 'left-0.5'}`}></span></button>
+                </div>
               </div>
-            </div>
-            <div className="flex items-center justify-between pt-1">
-              <div>
-                <p className="text-xs text-ink">Start on app launch</p>
-                <p className="text-[11px] text-ink-faint">
-                  Auto-run this project when DevLauncher opens.
-                </p>
-              </div>
-              <button
-                onClick={() => handleChange('autoStart', !formData.autoStart)}
-                className={`w-9 h-5 rounded-full relative shrink-0 ${
-                  formData.autoStart ? 'bg-accent' : 'bg-surface-3 border border-border'
-                }`}
-              >
-                <span
-                  className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-transform ${
-                    formData.autoStart ? 'right-0.5' : 'left-0.5'
-                  }`}
-                ></span>
-              </button>
-            </div>
+            )}
           </div>
+
           <div className="flex items-center justify-end gap-2 px-5 py-4 border-t border-border shrink-0">
             {errors.form && <p className="mr-auto text-xs text-danger">{errors.form}</p>}
-            <button
-              onClick={onClose}
-              className="px-3.5 py-2 rounded-lg text-ink-soft hover:text-ink hover:bg-surface-3 text-sm font-medium transition-colors"
-            >
-              Cancel
-            </button>
-            <button
-              onClick={handleSubmit}
-              disabled={isSaving}
-              className="px-3.5 py-2 rounded-lg bg-accent hover:bg-accent-hover text-white text-sm font-semibold shadow-glow transition-colors disabled:opacity-50"
-            >
-              {isSaving ? 'Saving…' : 'Save Project'}
-            </button>
+            <button type="button" onClick={onClose} className="px-3.5 py-2 rounded-lg text-ink-soft hover:text-ink hover:bg-surface-3 text-sm font-medium transition-colors">Cancel</button>
+            {(isEditing || hasSelectedFolder) && (
+              <button type="button" onClick={handleSubmit} disabled={isSaving || isDetecting} className="px-3.5 py-2 rounded-lg bg-accent hover:bg-accent-hover text-white text-sm font-semibold shadow-glow transition-colors disabled:opacity-50">
+                {isSaving ? 'Saving...' : isEditing ? 'Save Changes' : 'Add Project'}
+              </button>
+            )}
           </div>
         </div>
       </div>

@@ -5,9 +5,9 @@ const stripAnsi = (value) => String(value ?? '')
 
 const normalizeLog = (log) => {
   if (typeof log === 'string' || typeof log === 'number' || typeof log === 'boolean') {
-    return { message: stripAnsi(log), level: 'info', timestamp: null };
+    return { message: stripAnsi(log), level: 'info', timestamp: null, commandName: null };
   }
-  if (!log || typeof log !== 'object') return { message: '', level: 'info', timestamp: null };
+  if (!log || typeof log !== 'object') return { message: '', level: 'info', timestamp: null, commandName: null };
 
   let message = log.message ?? log.text ?? log.data ?? log.output ?? '';
   if (message instanceof Error) message = message.message;
@@ -17,7 +17,8 @@ const normalizeLog = (log) => {
   return {
     message: stripAnsi(message),
     level: String(log.level ?? log.type ?? log.stream ?? 'info').toLowerCase(),
-    timestamp: log.timestamp ?? log.time ?? null
+    timestamp: log.timestamp ?? log.time ?? null,
+    commandName: log.commandName ?? null
   };
 };
 
@@ -26,7 +27,7 @@ export default function LogsTab({ logs = [], autoScroll = true, onAutoScrollChan
   const outputRef = useRef(null);
   const normalizedLogs = (Array.isArray(logs) ? logs : [logs]).map(normalizeLog);
   const query = filter.trim().toLowerCase();
-  const visibleLogs = normalizedLogs.filter((log) => !query || `${log.level} ${log.message}`.toLowerCase().includes(query));
+  const visibleLogs = normalizedLogs.filter((log) => !query || `${log.commandName || ''} ${log.level} ${log.message}`.toLowerCase().includes(query));
 
   useEffect(() => {
     if (autoScroll && outputRef.current) outputRef.current.scrollTop = outputRef.current.scrollHeight;
@@ -50,6 +51,7 @@ export default function LogsTab({ logs = [], autoScroll = true, onAutoScrollChan
             const time = parsedTime && !Number.isNaN(parsedTime.getTime()) ? parsedTime.toLocaleTimeString() : '';
             return <p key={`${log.timestamp || 'log'}-${index}`} className={`whitespace-pre-wrap break-words ${getLogColor(log.level)}`}>
               {time && <span className="text-ink-faint mr-1.5">{time}</span>}
+              {log.commandName && <span className="text-accent mr-1.5">[{log.commandName}]</span>}
               {log.level !== 'info' && <span className="mr-1.5">[{log.level.toUpperCase()}]</span>}{log.message}
             </p>;
           })}

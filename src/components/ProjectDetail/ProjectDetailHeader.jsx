@@ -1,4 +1,3 @@
-import React from 'react';
 import * as ipc from '../../utils/ipcRenderer';
 
 const statusClasses = {
@@ -146,6 +145,22 @@ export default function ProjectDetailHeader({ project, onStart, onStop, onRestar
           <span className="truncate max-w-xs">Cmd: <code className="text-ink-soft">{project.startCommand}</code></span>
         )}
       </div>
+      {project?.processCommands?.length > 1 && (
+        <div className="grid gap-2 sm:grid-cols-2 pt-1">
+          {project.processCommands.map((command) => (
+            <div key={command.id} className="flex items-center justify-between gap-3 rounded-lg border border-border bg-surface-2 px-3 py-2 text-[11px]">
+              <div className="min-w-0">
+                <p className="font-semibold text-ink">{command.name}</p>
+                <p className="font-mono text-ink-faint truncate">{command.command}</p>
+              </div>
+              <div className="text-right shrink-0">
+                <p className={command.status === 'RUNNING' ? 'text-success' : command.status === 'ERROR' ? 'text-danger' : 'text-warning'}>{command.status}</p>
+                <p className="font-mono text-ink-faint">{command.port ? `:${command.port}` : ''}{command.pid ? ` PID ${command.pid}` : ''}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </header>
   );
 }

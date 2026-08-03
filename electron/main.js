@@ -129,7 +129,7 @@ async function initialize() {
       processManager.startProcess(
         project.id,
         project.path,
-        project.startCommand,
+        project.commands || project.startCommand,
         Object.fromEntries(project.envVars.map((item) => [item.key, item.value])),
         project.port
       ).catch((error) => console.error(`[App] Failed to auto-start ${project.name}:`, error))

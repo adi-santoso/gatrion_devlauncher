@@ -34,6 +34,24 @@ const migratedWithoutPort = validateProject(normalizeProject({
 }))
 assert.equal(migratedWithoutPort.port, null)
 assert.equal(normalizeProject({ ...migrated, port: '' }).port, null)
+assert.deepEqual(sanitizeProjectChanges({ port: null }), { port: null })
+assert.deepEqual(migrated.commands, [
+  { id: 'main', name: 'Application', command: 'npm run dev', port: 5173, primary: true },
+])
+
+const composite = validateProject(normalizeProject({
+  ...migrated,
+  commands: [
+    { id: 'app', name: 'Laravel', command: 'php artisan serve', port: 8000, primary: true },
+    { id: 'assets', name: 'Frontend assets', command: 'npm run dev', port: 5173, primary: false },
+  ],
+  startCommand: 'php artisan serve',
+  port: 8000,
+}))
+assert.equal(composite.commands.length, 2)
+assert.equal(composite.startCommand, 'php artisan serve')
+assert.throws(() => validateProject({ ...composite, commands: composite.commands.map((item) => ({ ...item, primary: true })) }), /exactly one primary/)
+assert.throws(() => sanitizeProjectChanges({ commands: [{ id: 'app', name: 'App', command: 'npm start', pid: 1 }] }), /Unsupported project command field: pid/)
 
 assert.throws(() => sanitizeProjectChanges({ id: 'changed' }), /Unsupported project field: id/)
 assert.throws(() => sanitizeProjectChanges({ type: 'React (Vite)' }), /Project type is invalid/)

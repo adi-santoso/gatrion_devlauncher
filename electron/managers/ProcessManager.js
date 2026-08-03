@@ -46,12 +46,22 @@ class ProcessManager extends EventEmitter {
     if (!projectPath) {
       throw new Error('Project path is required')
     }
-    if (!command || !command.trim()) {
-      throw new Error('Start command is required')
+    const commands = Array.isArray(command)
+      ? command.map((item) => ({ ...item }))
+      : [{ id: 'main', name: 'Application', command, port, primary: true }]
+    if (!commands.length || commands.some((item) => !item.command || !item.command.trim())) throw new Error('Start command is required')
+    const commandIds = new Set()
+    const ports = new Set()
+    for (const item of commands) {
+      if (!item.id || commandIds.has(item.id)) throw new Error(`Duplicate process command: ${item.id || '(missing id)'}`)
+      commandIds.add(item.id)
+      if (item.port !== null && item.port !== undefined) {
+        if (!Number.isInteger(item.port) || item.port < 1 || item.port > 65535) throw new Error('Port must be an integer between 1 and 65535')
+        if (ports.has(item.port)) throw new Error(`Port ${item.port} is configured more than once`)
+        ports.add(item.port)
+      }
     }
-    if (port !== null && (!Number.isInteger(port) || port < 1 || port > 65535)) {
-      throw new Error('Port must be an integer between 1 and 65535')
-    }
+    if (commands.filter((item) => item.primary).length !== 1) throw new Error('Process commands require exactly one primary command')
 
     // Check if already running or starting
     if (this.processes.has(projectId)) {
@@ -61,117 +71,125 @@ class ProcessManager extends EventEmitter {
       }
     }
 
-    if (port !== null && await this.isPortOpen(port)) {
-      throw new Error(`Port ${port} is already in use`)
-    }
+    for (const item of commands) if (item.port !== null && item.port !== undefined && await this.isPortOpen(item.port)) throw new Error(`Port ${item.port} is already in use`)
 
     try {
-      log.info('ProcessManager', 'Starting process', { projectId, projectPath, command })
+      log.info('ProcessManager', 'Starting process', { projectId, projectPath, commands })
 
-      this.processes.set(projectId, {
+      const processData = {
         pid: null,
         status: this.STATUS.STARTING,
         startedAt: Date.now(),
         logs: [],
-        command,
+        command: commands.find((item) => item.primary)?.command || commands[0].command,
         projectPath,
-        port,
-      })
+        port: commands.find((item) => item.primary)?.port ?? null,
+        runId: Symbol(projectId),
+        commands: new Map(),
+        onExit,
+        onError,
+        onReady,
+      }
+      this.processes.set(projectId, processData)
       this.emit('status-change', { projectId, status: 'starting' })
 
-      const childProcess = spawn(command, {
-        cwd: projectPath,
-        env: { ...process.env, ...env },
-        shell: true,
-        detached: process.platform !== 'win32',
-        windowsHide: false,
-      })
-
-      log.info('ProcessManager', 'Process spawned', { pid: childProcess.pid })
-
-      // Update with PID
-      const processData = this.processes.get(projectId)
-      processData.pid = childProcess.pid
-      processData.process = childProcess
-      if (port === null) {
-        processData.status = this.STATUS.RUNNING
-        log.info('ProcessManager', 'Process status updated', { status: 'RUNNING' })
-        this.emit('status-change', { projectId, status: 'running' })
-      }
-
-      // Handle stdout
-      childProcess.stdout.on('data', (data) => {
-        const logLine = data.toString()
-        const log = this.addLog(projectId, logLine, 'stdout')
-        if (onLog) onLog(projectId, log)
-      })
-
-      // Handle stderr
-      childProcess.stderr.on('data', (data) => {
-        const logLine = data.toString()
-        const log = this.addLog(projectId, logLine, 'stderr')
-        if (onLog) onLog(projectId, log)
-      })
-
-      // Handle process exit
-      childProcess.on('exit', (code, signal) => {
-        log.info('ProcessManager', 'Process exited', { projectId, code, signal })
-        const processData = this.processes.get(projectId)
-        if (processData) {
-          const previousStatus = processData.status
-          const stoppedByUser = previousStatus === this.STATUS.STOPPING
-          processData.status = previousStatus === this.STATUS.ERROR
-            ? this.STATUS.ERROR
-            : stoppedByUser || code === 0 ? this.STATUS.STOPPED : this.STATUS.ERROR
-          processData.pid = null
-          processData.exitCode = code
-          processData.exitSignal = signal
-          if (processData.status === this.STATUS.ERROR && previousStatus !== this.STATUS.ERROR) {
-            processData.error = signal ? `Exited with signal ${signal}` : `Exited with code ${code}`
-          }
-          this.emit('status-change', { projectId, status: processData.status.toLowerCase() })
+      const spawnCommand = (descriptor) => new Promise((resolve, reject) => {
+        const childProcess = spawn(descriptor.command, { cwd: projectPath, env: { ...process.env, ...env }, shell: true, detached: process.platform !== 'win32', windowsHide: false })
+        const child = { ...descriptor, status: this.STATUS.STARTING, process: childProcess, pid: childProcess.pid, ready: descriptor.port === null || descriptor.port === undefined }
+        processData.commands.set(descriptor.id, child)
+        if (descriptor.primary) { processData.pid = child.pid; processData.process = childProcess }
+        const handleOutput = (data, type) => {
+          const entry = this.addLog(projectId, data.toString(), type, descriptor.id, descriptor.name)
+          if (onLog) onLog(projectId, entry)
         }
-        if (onExit) onExit(projectId, code, signal)
+        childProcess.stdout?.on('data', (data) => handleOutput(data, 'stdout'))
+        childProcess.stderr?.on('data', (data) => handleOutput(data, 'stderr'))
+        childProcess.once('error', (error) => {
+          this.failComposite(projectId, processData.runId, child, error, onError)
+          reject(error)
+        })
+        childProcess.once('exit', (code, signal) => this.handleChildExit(projectId, processData.runId, child, code, signal, onExit, onError))
+        childProcess.once('spawn', () => resolve(child))
       })
 
-      // Handle errors
-      childProcess.on('error', (error) => {
-        log.error('ProcessManager', 'Process error', { projectId, error: error.message })
-        const processData = this.processes.get(projectId)
-        if (processData) {
-          processData.status = this.STATUS.ERROR
-          processData.error = error.message
-          this.addLog(projectId, `Error: ${error.message}`, 'error')
-          this.emit('status-change', { projectId, status: 'error' })
-        }
-        if (onError) onError(projectId, error)
-      })
-
-      if (port !== null) {
-        this.waitForPort(projectId, port)
-          .then((ready) => {
-            if (ready && onReady) onReady(projectId)
-          })
-          .catch((error) => {
-            const current = this.processes.get(projectId)
-            if (!current || current.status !== this.STATUS.STARTING) return
-            current.status = this.STATUS.ERROR
-            current.error = error.message
-            this.addLog(projectId, error.message, 'error')
-            if (onError) onError(projectId, error)
-            this.killProcessTree(childProcess, true).catch(() => {})
-          })
-      }
-
-      return { success: true, pid: childProcess.pid, status: processData.status }
+      await Promise.all(commands.map(spawnCommand))
+      this.waitForCompositeReady(projectId, processData.runId)
+      return { success: true, pid: processData.pid, status: processData.status, commands: this.getCommandSnapshot(processData) }
     } catch (error) {
-      this.processes.set(projectId, {
-        pid: null,
-        status: this.STATUS.ERROR,
-        error: error.message,
-        logs: [],
-      })
+      const current = this.processes.get(projectId)
+      if (current?.runId) {
+        this.failComposite(projectId, current.runId, null, error, onError)
+      } else {
+        this.processes.set(projectId, { pid: null, status: this.STATUS.ERROR, error: error.message, logs: [] })
+      }
       throw error
+    }
+  }
+
+  getCommandSnapshot(processData) {
+    return [...(processData?.commands?.values() || [])].map((item) => ({ id: item.id, name: item.name, command: item.command, port: item.port ?? null, primary: item.primary, status: item.status, pid: item.pid, ready: item.ready }))
+  }
+
+  async waitForCompositeReady(projectId, runId) {
+    const data = this.processes.get(projectId)
+    if (!data || data.runId !== runId) return
+    try {
+      await Promise.all([...data.commands.values()].filter((item) => item.port !== null && item.port !== undefined).map(async (item) => {
+        const ready = await this.waitForPort(projectId, item.port, 30000, runId, item.id)
+        if (!ready) return
+        item.ready = true
+        item.status = this.STATUS.RUNNING
+      }))
+      const current = this.processes.get(projectId)
+      if (!current || current.runId !== runId || current.status !== this.STATUS.STARTING) return
+      current.status = this.STATUS.RUNNING
+      for (const item of current.commands.values()) if (item.status === this.STATUS.STARTING) item.status = this.STATUS.RUNNING
+      this.emit('status-change', { projectId, status: 'running' })
+      if (current.onReady) current.onReady(projectId)
+    } catch (error) {
+      this.failComposite(projectId, runId, null, error, data.onError)
+    }
+  }
+
+  handleChildExit(projectId, runId, child, code, signal, onExit, onError) {
+    const data = this.processes.get(projectId)
+    if (!data || data.runId !== runId) return
+    child.pid = null
+    child.exitCode = code
+    child.exitSignal = signal
+    if (child.primary) {
+      data.exitCode = code
+      data.exitSignal = signal
+      data.pid = null
+    }
+    const intentional = data.status === this.STATUS.STOPPING
+    if (data.status === this.STATUS.ERROR && child.status !== this.STATUS.ERROR) {
+      child.status = this.STATUS.STOPPED
+      return
+    }
+    if (!intentional && (data.commands.size > 1 || code !== 0)) {
+      this.failComposite(projectId, runId, child, new Error(`${child.name} exited with ${signal ? `signal ${signal}` : `code ${code}`}`), onError)
+      return
+    }
+    child.status = intentional || code === 0 ? this.STATUS.STOPPED : this.STATUS.ERROR
+    const allStopped = [...data.commands.values()].every((item) => item.status === this.STATUS.STOPPED)
+    if (allStopped) data.status = this.STATUS.STOPPED
+    this.emit('status-change', { projectId, status: data.status.toLowerCase() })
+    if (onExit && (data.commands.size === 1 || allStopped)) onExit(projectId, code, signal)
+  }
+
+  failComposite(projectId, runId, failedChild, error, onError) {
+    const data = this.processes.get(projectId)
+    if (!data || data.runId !== runId || data.status === this.STATUS.ERROR || data.status === this.STATUS.STOPPING) return
+    data.status = this.STATUS.ERROR
+    data.error = error.message
+    if (failedChild) failedChild.status = this.STATUS.ERROR
+    this.addLog(projectId, error.message, 'error', failedChild?.id, failedChild?.name)
+    this.emit('status-change', { projectId, status: 'error' })
+    if (onError) onError(projectId, error)
+    for (const child of data.commands.values()) {
+      if (child.process && child.pid) this.killProcessTree(child.process, true).catch(() => {})
+      if (child !== failedChild) child.status = this.STATUS.STOPPING
     }
   }
 
@@ -194,16 +212,18 @@ class ProcessManager extends EventEmitter {
     return false
   }
 
-  async waitForPort(projectId, port, timeout = 30000) {
+  async waitForPort(projectId, port, timeout = 30000, runId = null, commandId = null) {
     const deadline = Date.now() + timeout
     while (Date.now() < deadline) {
       const processData = this.processes.get(projectId)
-      if (!processData || processData.status !== this.STATUS.STARTING) {
+      if (!processData || processData.status !== this.STATUS.STARTING || (runId && processData.runId !== runId)) {
         return false
       }
       if (await this.isPortOpen(port)) {
-        processData.status = this.STATUS.RUNNING
-        this.emit('status-change', { projectId, status: 'running' })
+        if (!commandId) {
+          processData.status = this.STATUS.RUNNING
+          this.emit('status-change', { projectId, status: 'running' })
+        }
         return true
       }
       await new Promise((resolve) => setTimeout(resolve, 250))
@@ -374,53 +394,40 @@ class ProcessManager extends EventEmitter {
     }
 
     const processData = this.processes.get(projectId)
-    if (processData.status !== this.STATUS.RUNNING && processData.status !== this.STATUS.STARTING) {
+    if (![this.STATUS.RUNNING, this.STATUS.STARTING, this.STATUS.ERROR].includes(processData.status)) {
       throw new Error(`Project ${projectId} is not running (status: ${processData.status})`)
     }
 
     processData.status = this.STATUS.STOPPING
 
     try {
-      const { process: childProcess } = processData
+      this.emit('status-change', { projectId, status: 'stopping' })
+      const children = processData.commands
+        ? [...processData.commands.values()].filter((item) => item.process && item.pid)
+        : [{ id: 'main', name: 'Application', process: processData.process, pid: processData.pid }].filter((item) => item.process && item.pid)
+      if (children.length === 0) {
+        processData.status = this.STATUS.STOPPED
+        processData.pid = null
+        return { success: true, forced: false }
+      }
 
-      return await new Promise((resolve, reject) => {
-        let settled = false
-        const finish = (result, error) => {
-          if (settled) return
-          settled = true
-          clearTimeout(timeout)
-          if (error) reject(error)
-          else resolve(result)
+      await Promise.all(children.map(async (child) => {
+        child.status = this.STATUS.STOPPING
+        try {
+          await this.killProcessTree(child.process, force)
+        } catch (error) {
+          if (force) throw error
+          this.addLog(projectId, `Graceful shutdown failed: ${error.message}`, 'system', child.id, child.name)
+          await this.killProcessTree(child.process, true)
         }
-
-        const timeout = setTimeout(() => {
-          this.killProcessTree(childProcess, true)
-            .then(() => {
-              this.addLog(projectId, 'Force killed after timeout', 'system')
-              finish({ success: true, forced: true })
-            })
-            .catch((error) => finish(null, error))
-        }, force ? 1000 : 5000)
-
-        childProcess.once('exit', () => {
-          processData.status = this.STATUS.STOPPED
-          processData.pid = null
-          finish({ success: true, forced: force })
-        })
-
-        this.killProcessTree(childProcess, force)
-          .then(() => {
-            this.addLog(
-              projectId,
-              force ? 'Process force killed' : 'Shutting down gracefully',
-              'system'
-            )
-          })
-          .catch((error) => {
-            if (force) finish(null, error)
-            else this.addLog(projectId, `Graceful shutdown failed: ${error.message}`, 'system')
-          })
-      })
+        child.status = this.STATUS.STOPPED
+        child.pid = null
+      }))
+      processData.status = this.STATUS.STOPPED
+      processData.pid = null
+      this.addLog(projectId, force ? 'Processes force killed' : 'Processes stopped', 'system')
+      this.emit('status-change', { projectId, status: 'stopped' })
+      return { success: true, forced: force }
     } catch (error) {
       processData.status = this.STATUS.ERROR
       processData.error = error.message
@@ -476,6 +483,7 @@ class ProcessManager extends EventEmitter {
       exitCode: processData.exitCode,
       error: processData.error,
       port: processData.port,
+      commands: this.getCommandSnapshot(processData),
     }
   }
 
@@ -489,7 +497,7 @@ class ProcessManager extends EventEmitter {
    * @param {string} logLine - Log line
    * @param {string} type - Log type (stdout, stderr, error, system)
    */
-  addLog(projectId, logLine, type = 'stdout') {
+  addLog(projectId, logLine, type = 'stdout', commandId = null, commandName = null) {
     if (!this.processes.has(projectId)) return
 
     const processData = this.processes.get(projectId)
@@ -503,6 +511,8 @@ class ProcessManager extends EventEmitter {
       timestamp,
       type,
       message: cleanLine,
+      commandId,
+      commandName,
     }
     processData.logs.push(log)
 
@@ -764,10 +774,8 @@ class ProcessManager extends EventEmitter {
       // Stop if running
       if (this.processes.has(projectId)) {
         const processData = this.processes.get(projectId)
-        if (processData.status === this.STATUS.RUNNING || processData.status === this.STATUS.STARTING) {
+        if ([this.STATUS.RUNNING, this.STATUS.STARTING, this.STATUS.ERROR].includes(processData.status)) {
           await this.stopProcess(projectId, false)
-          // Wait a bit for cleanup
-          await new Promise((resolve) => setTimeout(resolve, 1000))
         }
       }
 
@@ -794,7 +802,7 @@ class ProcessManager extends EventEmitter {
   async stopAllProcesses() {
     const promises = []
     this.processes.forEach((processData, projectId) => {
-      if (processData.status === this.STATUS.RUNNING || processData.status === this.STATUS.STARTING) {
+      if ([this.STATUS.RUNNING, this.STATUS.STARTING, this.STATUS.ERROR].includes(processData.status)) {
         promises.push(this.stopProcess(projectId, false))
       }
     })

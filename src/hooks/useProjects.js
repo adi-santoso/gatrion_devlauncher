@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import * as ipc from '../utils/ipcRenderer';
+import { upsertProject } from '../utils/projectState';
 
 /**
  * useProjects Hook
@@ -42,7 +43,7 @@ export const useProjects = () => {
       const response = await ipc.addProject(projectData);
 
       if (response.success) {
-        setProjects(prev => [...prev, { ...response.project, status: 'stopped' }]);
+        setProjects(prev => upsertProject(prev, { ...response.project, status: 'stopped' }));
         return { success: true, project: response.project };
       } else {
         return { success: false, error: response.error || 'Failed to add project' };
@@ -140,7 +141,8 @@ export const useProjects = () => {
             status: p.status,
             pid: p.pid,
             uptime: p.uptime,
-            errorMessage: p.errorMessage
+            errorMessage: p.errorMessage,
+            processCommands: p.processCommands
           };
         });
 
@@ -150,7 +152,8 @@ export const useProjects = () => {
           status: statusMap[p.id]?.status || 'stopped',
           pid: statusMap[p.id]?.pid,
           uptime: statusMap[p.id]?.uptime,
-          errorMessage: statusMap[p.id]?.errorMessage
+          errorMessage: statusMap[p.id]?.errorMessage,
+          processCommands: statusMap[p.id]?.processCommands || []
         }));
       });
     });

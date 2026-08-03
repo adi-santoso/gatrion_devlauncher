@@ -121,7 +121,7 @@ class TrayManager {
                   await this.processManager.startProcess(
                     p.id,
                     p.path,
-                    p.startCommand,
+                    p.commands || p.startCommand,
                     envObj,
                     p.port,
                     (projectId, log) => safeSend('process-log', projectId, log),

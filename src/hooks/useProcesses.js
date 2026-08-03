@@ -20,7 +20,8 @@ const runtimeUpdate = (status) => {
     pid: details.pid ?? null,
     startedAt: details.startedAt ?? null,
     uptime: active ? formatUptime(details.startedAt) : null,
-    errorMessage: details.error || null
+    errorMessage: details.error || null,
+    processCommands: details.commands || []
   };
 };
 
@@ -386,25 +387,12 @@ export const useProcesses = (projects = [], onProjectUpdate) => {
 
   // Subscribe to process exits
   useEffect(() => {
-    const cleanup = ipc.onProcessExit((projectId, code) => {
+    const cleanup = ipc.onProcessExit(async (projectId, code) => {
       console.log(`[Process Exit] Project ${projectId} exited with code:`, code);
-
-      const status = code === 0 ? 'stopped' : 'error';
-
-      setProcessStatuses(prev => ({
-        ...prev,
-        [projectId]: status
-      }));
-
-      if (onProjectUpdate) {
-        onProjectUpdate(projectId, {
-          status,
-          pid: null,
-          uptime: null,
-          metrics: null,
-          ...(code !== 0 && { errorMessage: `exit code ${code}` })
-        });
-      }
+      const snapshot = await ipc.getProcessStatus(projectId);
+      const update = runtimeUpdate(snapshot);
+      setProcessStatuses(prev => ({ ...prev, [projectId]: update.status }));
+      onProjectUpdate?.(projectId, update);
     });
 
     return cleanup;
