@@ -7,7 +7,7 @@ export default function CrashBanner({
   onDismiss
 }) {
   return (
-    <div className="flex items-start gap-3 bg-danger/10 border border-danger/25 rounded-xl px-4 py-3">
+    <div role="alert" className="relative flex items-start gap-3 rounded-xl border border-danger/25 bg-danger/10 px-4 py-3 pr-10 shadow-sm">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-danger shrink-0 mt-0.5">
         <circle cx="12" cy="12" r="10"/>
         <path d="M12 8v4M12 16h.01"/>
@@ -18,20 +18,25 @@ export default function CrashBanner({
           <p className="text-xs text-ink-faint mt-0.5">{timestamp}</p>
         )}
       </div>
-      <button
-        onClick={onRestart}
-        className="text-xs font-medium px-3 py-1.5 rounded-lg bg-danger text-white shrink-0"
-      >
-        Restart
-      </button>
-      <button
+      {onRestart && (
+        <button
+          type="button"
+          onClick={onRestart}
+          className="shrink-0 rounded-lg bg-danger px-3 py-1.5 text-xs font-medium text-white hover:brightness-110"
+        >
+          Restart
+        </button>
+      )}
+      {onDismiss && <button
+        type="button"
         onClick={onDismiss}
-        className="text-ink-faint hover:text-ink shrink-0"
+        aria-label="Dismiss error"
+        className="absolute right-3 top-3 rounded p-1 text-ink-faint hover:bg-danger/10 hover:text-ink"
       >
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
           <path d="M18 6L6 18M6 6l12 12"/>
         </svg>
-      </button>
+      </button>}
     </div>
   );
 }

@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import ProjectCard from './ProjectCard';
 import CrashBanner from '../ProjectDetail/CrashBanner';
 import { getWorkspaceControlMode } from '../../utils/workspaceResults';
@@ -23,6 +23,8 @@ const logTimestamp = (log) => {
   return Number.isFinite(timestamp) ? timestamp : 0;
 };
 
+const errorSignature = (project) => `${project.startedAt || 'unknown'}:${project.errorMessage || 'unknown-error'}`;
+
 export default function DashboardView({
   recentActivity = [],
   projects = [],
@@ -42,11 +44,22 @@ export default function DashboardView({
   const [workspaceAction, setWorkspaceAction] = useState('idle'); // 'idle', 'starting', 'stopping'
   const [workspaceTargets, setWorkspaceTargets] = useState([]);
   const [workspaceInitialFailures, setWorkspaceInitialFailures] = useState(0);
+  const [dismissedErrors, setDismissedErrors] = useState({});
   const runningProjects = projects.filter((project) => project.status?.toLowerCase() === 'running');
   const startingProjects = projects.filter((project) => project.status?.toLowerCase() === 'starting');
   const stoppingProjects = projects.filter((project) => project.status?.toLowerCase() === 'stopping');
   const stoppedProjects = projects.filter((project) => project.status?.toLowerCase() === 'stopped');
   const erroredProjects = projects.filter((project) => project.status?.toLowerCase() === 'error');
+  const visibleErrors = erroredProjects.filter((project) => dismissedErrors[project.id] !== errorSignature(project));
+  const activeErrorIds = JSON.stringify(erroredProjects.map((project) => project.id));
+
+  useEffect(() => {
+    const activeIds = new Set(JSON.parse(activeErrorIds));
+    setDismissedErrors((current) => {
+      const retained = Object.fromEntries(Object.entries(current).filter(([id]) => activeIds.has(id)));
+      return Object.keys(retained).length === Object.keys(current).length ? current : retained;
+    });
+  }, [activeErrorIds]);
   const filteredProjects = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
     return projects
@@ -230,6 +243,24 @@ export default function DashboardView({
         </div>
       </header>
 
+      {/* Workspace Alerts */}
+      {visibleErrors.length > 0 && (
+        <section aria-label="Workspace errors" className="mb-5 space-y-2">
+          {visibleErrors.map((project) => (
+            <CrashBanner
+              key={project.id}
+              message={`Project "${project.name}" could not start or exited unexpectedly.`}
+              timestamp={project.errorMessage ? `Details: ${project.errorMessage}` : null}
+              onRestart={() => onRestart?.(project)}
+              onDismiss={() => setDismissedErrors((current) => ({
+                ...current,
+                [project.id]: errorSignature(project),
+              }))}
+            />
+          ))}
+        </section>
+      )}
+
       {/* Stats Grid */}
       <section className="grid overflow-hidden rounded-xl border border-border bg-surface/80 sm:grid-cols-2 lg:grid-cols-5">
         <div className="border-b border-border p-4 sm:border-r xl:border-b-0">
@@ -286,20 +317,6 @@ export default function DashboardView({
           )}
         </div>
       </section>
-
-      {/* Crash Banners */}
-      {erroredProjects.length > 0 && (
-        <div className="mb-6 space-y-2">
-          {erroredProjects.map((project) => (
-            <CrashBanner
-              key={project.id}
-              message={`Project "${project.name}" encountered an error or exited unexpectedly.`}
-              timestamp={project.errorMessage ? `Details: ${project.errorMessage}` : null}
-              onRestart={() => onRestart?.(project)}
-            />
-          ))}
-        </div>
-      )}
 
       {/* Search & Filters */}
       <section className="mt-6 mb-4">
