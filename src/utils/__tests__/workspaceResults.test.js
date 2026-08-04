@@ -51,6 +51,10 @@ describe('getWorkspaceControlMode', () => {
     expect(getWorkspaceControlMode([{ status: 'running' }, { status: 'starting' }])).toBe('all-active')
   })
 
+  it('treats stopping projects as active until shutdown completes', () => {
+    expect(getWorkspaceControlMode([{ status: 'stopping' }, { status: 'stopped' }])).toBe('partial')
+  })
+
   it('keeps the explicit action state while startup is pending', () => {
     expect(getWorkspaceControlMode([{ status: 'stopped' }], 'starting')).toBe('starting')
   })

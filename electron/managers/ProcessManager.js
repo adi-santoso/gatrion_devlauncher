@@ -66,8 +66,8 @@ class ProcessManager extends EventEmitter {
     // Check if already running or starting
     if (this.processes.has(projectId)) {
       const processData = this.processes.get(projectId)
-      if (processData.status === this.STATUS.RUNNING || processData.status === this.STATUS.STARTING) {
-        throw new Error(`Project ${projectId} is already running`)
+      if ([this.STATUS.RUNNING, this.STATUS.STARTING, this.STATUS.STOPPING].includes(processData.status)) {
+        throw new Error(`Project ${projectId} is already active`)
       }
     }
 
@@ -686,18 +686,58 @@ class ProcessManager extends EventEmitter {
   async getProjectStats(projectId) {
     const processData = this.processes.get(projectId)
     if (!processData || !processData.pid) return null
-    
-    // Get memory from tasklist + CPU estimation
-    const resources = await this.getProcessResources(processData.pid)
-    
+
+    const pids = processData.commands
+      ? [...new Set([...processData.commands.values()].map((command) => command.pid).filter(Boolean))]
+      : [processData.pid]
+    const resources = await this.getProcessTreeResources(pids)
+
     if (!resources) {
       console.log('[ProcessManager] No resources found for project', projectId, '(PID:', processData.pid + ')')
       return null
     }
-    
+
     return {
-      ...resources,
+      pid: processData.pid,
+      memory: resources.memory,
+      cpu: resources.cpu,
       lastUpdated: Date.now()
+    }
+  }
+
+  async getProcessTreeResources(rootPids) {
+    const roots = [...new Set(rootPids.map(Number).filter((pid) => Number.isInteger(pid) && pid > 0))]
+    if (roots.length === 0) return null
+    if (process.platform !== 'win32') {
+      const samples = (await Promise.all(roots.map((pid) => this.getProcessResources(pid)))).filter(Boolean)
+      if (samples.length === 0) return null
+      return {
+        memory: samples.reduce((total, sample) => total + sample.memory, 0),
+        cpu: Math.min(100, samples.reduce((total, sample) => total + sample.cpu, 0)),
+      }
+    }
+
+    const script = [
+      `$roots=@(${roots.join(',')})`,
+      '$rows=Get-CimInstance Win32_Process | Select-Object ProcessId,ParentProcessId',
+      "$ids=New-Object 'System.Collections.Generic.HashSet[int]'",
+      '$roots | ForEach-Object { [void]$ids.Add([int]$_) }',
+      'do { $added=$false; foreach($row in $rows) { if($ids.Contains([int]$row.ParentProcessId) -and $ids.Add([int]$row.ProcessId)) { $added=$true } } } while($added)',
+      '$first=@{}; Get-Process -Id @($ids) -ErrorAction SilentlyContinue | ForEach-Object { $first[$_.Id]=$_.CPU }',
+      '$started=[DateTime]::UtcNow; Start-Sleep -Milliseconds 250',
+      '$elapsed=([DateTime]::UtcNow-$started).TotalSeconds; $memory=0.0; $cpu=0.0',
+      'Get-Process -Id @($ids) -ErrorAction SilentlyContinue | ForEach-Object { $memory+=$_.WorkingSet64; if($first.ContainsKey($_.Id) -and $null -ne $_.CPU) { $cpu+=($_.CPU-$first[$_.Id]) } }',
+      `[PSCustomObject]@{memory=($memory/1MB);cpu=[Math]::Min(100,[Math]::Max(0,($cpu/$elapsed)*100/${Math.max(1, os.cpus().length)}))} | ConvertTo-Json -Compress`,
+    ].join('; ')
+
+    try {
+      const { stdout } = await execAsync(`powershell.exe -NoProfile -Command "${script}"`, { timeout: 5000 })
+      const resources = JSON.parse(stdout.trim())
+      if (!Number.isFinite(resources.memory) || !Number.isFinite(resources.cpu)) return null
+      return resources
+    } catch (error) {
+      log.warn('ProcessManager', 'Failed to sample process tree:', error.message)
+      return null
     }
   }
 

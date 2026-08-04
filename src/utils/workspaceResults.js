@@ -27,7 +27,7 @@ export function getWorkspaceControlMode(projects, workspaceAction = 'idle') {
   if (projects.length === 0) return 'empty'
 
   const statuses = projects.map((project) => project.status?.toLowerCase())
-  const activeCount = statuses.filter((status) => status === 'running' || status === 'starting').length
+  const activeCount = statuses.filter((status) => status === 'running' || status === 'starting' || status === 'stopping').length
   if (activeCount === projects.length) return 'all-active'
   if (activeCount > 0) return 'partial'
   return 'stopped'

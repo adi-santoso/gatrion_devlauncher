@@ -228,13 +228,13 @@ function App() {
 
   const handleStartAll = async (requestedProjects) => {
     const projectsToStart = requestedProjects || projects.filter(project =>
-      !['running', 'starting'].includes(project.status?.toLowerCase())
+      !['running', 'starting', 'stopping'].includes(project.status?.toLowerCase())
     );
     if (projectsToStart.length === 0) {
-      showToast('info', 'All workspace projects are already running');
+      showToast('info', 'All workspace projects are already active');
       return [];
     }
-    const result = await startAll();
+    const result = await startAll(projectsToStart.map((project) => project.id));
     const summary = summarizeWorkspaceStart(result, projectsToStart);
     if (summary.type === 'error') showToast(summary.type, summary.message);
     if (!Array.isArray(result)) return result;
@@ -375,7 +375,6 @@ function App() {
             onOpenModal={openModalHandler}
             onStartAll={handleStartAll}
             onStopAll={handleStopAll}
-            onWorkspaceActionComplete={handleWorkspaceActionComplete}
             projects={projects}
             sidebarExpanded={config.sidebarExpanded}
             hideTopBar={isFullscreen && currentView === 'project-detail'}
@@ -393,10 +392,11 @@ function App() {
         {currentView === 'dashboard' && (
           <DashboardView
             projects={projects}
-            activities={activities}
             recentActivity={activities}
-            latestOutputProject={projects.find((project) => getLogs(project.id).length)?.name}
-            latestOutput={getLogs(projects.find((project) => getLogs(project.id).length)?.id)}
+            latestOutput={projects.flatMap((project) => getLogs(project.id).map((log) => ({
+              ...(typeof log === 'string' ? { message: log } : log),
+              projectName: project.name,
+            })))}
             onStart={handleStartProject}
             onStop={handleStopProject}
             onRestart={handleRestartProject}
@@ -413,6 +413,7 @@ function App() {
             onOpenModal={openModalHandler}
             onStartAll={handleStartAll}
             onStopAll={handleStopAll}
+            onWorkspaceActionComplete={handleWorkspaceActionComplete}
           />
         )}
 

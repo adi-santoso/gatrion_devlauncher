@@ -13,16 +13,20 @@ const formatLog = (log) => {
   return {
     message: stripAnsi(log.message ?? log.text ?? String(log)),
     time: log.timestamp ? new Date(log.timestamp).toLocaleTimeString() : (log.time || ''),
-    type: (log.type || log.level || '').toLowerCase()
+    type: (log.type || log.level || '').toLowerCase(),
+    projectName: log.projectName || ''
   };
 };
 
+const logTimestamp = (log) => {
+  const timestamp = typeof log === 'object' && log?.timestamp ? Date.parse(log.timestamp) : 0;
+  return Number.isFinite(timestamp) ? timestamp : 0;
+};
+
 export default function DashboardView({
-  activities,
   recentActivity = [],
   projects = [],
   latestOutput = [],
-  latestOutputProject,
   onOpenModal,
   onNavigate,
   onStop,
@@ -40,6 +44,7 @@ export default function DashboardView({
   const [workspaceInitialFailures, setWorkspaceInitialFailures] = useState(0);
   const runningProjects = projects.filter((project) => project.status?.toLowerCase() === 'running');
   const startingProjects = projects.filter((project) => project.status?.toLowerCase() === 'starting');
+  const stoppingProjects = projects.filter((project) => project.status?.toLowerCase() === 'stopping');
   const stoppedProjects = projects.filter((project) => project.status?.toLowerCase() === 'stopped');
   const erroredProjects = projects.filter((project) => project.status?.toLowerCase() === 'error');
   const filteredProjects = useMemo(() => {
@@ -73,13 +78,13 @@ export default function DashboardView({
     });
     
     return {
-      cpu: runningCount > 0 ? (totalCpu / runningCount).toFixed(1) : null,
+      cpu: runningCount > 0 ? Math.min(100, totalCpu).toFixed(1) : null,
       memory: runningCount > 0 ? Math.round(totalMemory) : null,
       runningCount
     };
   }, [projects]);
 
-  const activeCount = runningProjects.length + startingProjects.length;
+  const activeCount = runningProjects.length + startingProjects.length + stoppingProjects.length;
   const errorCount = erroredProjects.length;
   const workspaceControlMode = getWorkspaceControlMode(projects, workspaceAction);
 
@@ -115,11 +120,11 @@ export default function DashboardView({
   }, [projects, workspaceAction, workspaceTargets, workspaceInitialFailures, onWorkspaceActionComplete]);
 
 
-  const logs = latestOutput.slice(-8).map(formatLog);
+  const logs = [...latestOutput].sort((left, right) => logTimestamp(left) - logTimestamp(right)).slice(-8).map(formatLog);
   const dateLabel = new Intl.DateTimeFormat(undefined, { weekday: 'long', day: 'numeric', month: 'long' }).format(new Date());
 
   const startWorkspace = async () => {
-    const projectsToStart = projects.filter(p => !['running', 'starting'].includes(p.status?.toLowerCase()));
+    const projectsToStart = projects.filter(p => !['running', 'starting', 'stopping'].includes(p.status?.toLowerCase()));
     if (projectsToStart.length === 0) return;
 
     setWorkspaceAction('starting');
@@ -144,13 +149,14 @@ export default function DashboardView({
   };
 
   const stopWorkspace = async () => {
-    if (runningProjects.length === 0) return;
+    const projectsToStop = projects.filter((project) => ['running', 'starting'].includes(project.status?.toLowerCase()));
+    if (projectsToStop.length === 0) return;
 
     setWorkspaceAction('stopping');
-    setWorkspaceTargets(runningProjects.map((project) => project.id));
+    setWorkspaceTargets(projectsToStop.map((project) => project.id));
     try {
-      if (onStopAll) await onStopAll(runningProjects);
-      else await Promise.all(runningProjects.map(project => onStop?.(project)));
+      if (onStopAll) await onStopAll(projectsToStop);
+      else await Promise.all(projectsToStop.map(project => onStop?.(project)));
     } catch {
       setWorkspaceAction('idle');
       setWorkspaceTargets([]);
@@ -197,7 +203,7 @@ export default function DashboardView({
               <button 
                 type="button" 
                 onClick={stopWorkspace} 
-                disabled={runningProjects.length === 0 || (!onStopAll && !onStop)}
+                disabled={runningProjects.length + startingProjects.length === 0 || (!onStopAll && !onStop)}
                 className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs font-semibold text-red-500 hover:bg-red-500/20 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 Stop all
@@ -205,7 +211,7 @@ export default function DashboardView({
               <button 
                 type="button" 
                 onClick={startWorkspace} 
-                disabled={(!onStartAll && !onStart) || projects.every(p => ['running', 'starting'].includes(p.status?.toLowerCase()))}
+                disabled={(!onStartAll && !onStart) || projects.every(p => ['running', 'starting', 'stopping'].includes(p.status?.toLowerCase()))}
                 className="rounded-lg border border-blue-500/30 bg-blue-500/10 px-3 py-2 text-xs font-semibold text-blue-500 hover:bg-blue-500/20 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 Start remaining
@@ -422,6 +428,7 @@ export default function DashboardView({
             {logs.length > 0 ? logs.map((log, index) => (
               <p key={index} className={`${log.type === 'error' ? 'text-danger' : log.type === 'warn' || log.type === 'warning' ? 'text-warning' : 'text-ink-soft'}`}>
                 {log.time && <span className="mr-2 text-ink-faint">{log.time}</span>}
+                {log.projectName && <span className="mr-2 text-accent">[{log.projectName}]</span>}
                 {log.message}
               </p>
             )) : (

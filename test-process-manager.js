@@ -60,6 +60,33 @@ async function run() {
   manager.processes.delete('readiness-timeout')
   delete manager.isPortOpen
 
+  manager.processes.set('stopping-project', { status: manager.STATUS.STOPPING })
+  await assert.rejects(manager.startProcess('stopping-project', '.', 'node --version'), /already active/)
+  manager.processes.delete('stopping-project')
+
+  manager.processes.set('resource-project', {
+    pid: 101,
+    status: manager.STATUS.RUNNING,
+    commands: new Map([
+      ['app', { pid: 101 }],
+      ['assets', { pid: 202 }],
+    ]),
+  })
+  const originalTreeResources = manager.getProcessTreeResources.bind(manager)
+  let sampledPids
+  manager.getProcessTreeResources = async (pids) => {
+    sampledPids = pids
+    return { cpu: 12.5, memory: 345 }
+  }
+  const projectStats = await manager.getProjectStats('resource-project')
+  assert.deepEqual({ ...projectStats, lastUpdated: 0 }, {
+    pid: 101, cpu: 12.5, memory: 345, lastUpdated: 0,
+  })
+  assert.ok(projectStats.lastUpdated > 0)
+  assert.deepEqual(sampledPids, [101, 202])
+  manager.getProcessTreeResources = originalTreeResources
+  manager.processes.delete('resource-project')
+
   await manager.startProcess('clean-exit', '.', 'node -e "process.exit(0)"')
   await waitForStatus(manager, 'clean-exit', manager.STATUS.STOPPED)
 

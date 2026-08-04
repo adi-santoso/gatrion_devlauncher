@@ -13,7 +13,7 @@ contextBridge.exposeInMainWorld('electron', {
   startProject: (projectId) => ipcRenderer.invoke('start-project', projectId),
   stopProject: (projectId) => ipcRenderer.invoke('stop-project', projectId),
   restartProject: (projectId) => ipcRenderer.invoke('restart-project', projectId),
-  startAllProjects: () => ipcRenderer.invoke('start-all-projects'),
+  startAllProjects: (projectIds) => ipcRenderer.invoke('start-all-projects', projectIds),
   stopAllProjects: () => ipcRenderer.invoke('stop-all-projects'),
   getProcessStatus: (projectId) => ipcRenderer.invoke('get-process-status', projectId),
   checkPortConflict: (port) => ipcRenderer.invoke('check-port-conflict', port),

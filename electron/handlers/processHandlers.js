@@ -160,11 +160,17 @@ function setupProcessHandlers(processManager, storageManager, mainWindow) {
   })
 
   // Start all projects
-  secureHandle('start-all-projects', async () => {
+  secureHandle('start-all-projects', async (event, projectIds) => {
     const projectList = await storageManager.loadProjects()
+    const requestedIds = projectIds === undefined
+      ? null
+      : new Set(Array.isArray(projectIds) ? projectIds.filter((id) => typeof id === 'string') : [])
+    const projectsToStart = requestedIds
+      ? projectList.filter((project) => requestedIds.has(project.id))
+      : projectList
 
     const results = []
-    for (const project of projectList) {
+    for (const project of projectsToStart) {
       try {
         const cmd = project.commands || project.startCommand
         if (!cmd || (Array.isArray(cmd) && cmd.length === 0)) {

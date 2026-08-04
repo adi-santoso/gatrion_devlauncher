@@ -56,11 +56,14 @@ async function run() {
   assert.match(unauthorized.error, /Unauthorized/)
   assert.equal(calls.length, 2)
 
-  const injected = [{ id: 'attacker', path: 'C:/bad', startCommand: 'bad', envVars: [] }]
-  const all = await handlers.get('start-all-projects')(event, injected)
+  const all = await handlers.get('start-all-projects')(event, [project.id])
   assert.equal(all[0].projectId, project.id)
   assert.equal(calls[2][1], project.path)
   assert.deepEqual(calls[2][2], project.commands)
+
+  const injected = await handlers.get('start-all-projects')(event, [{ id: project.id, path: 'C:/bad' }])
+  assert.deepEqual(injected, [])
+  assert.equal(calls.length, 3)
 
   console.log('Process handler checks passed')
 }

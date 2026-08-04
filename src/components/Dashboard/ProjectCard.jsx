@@ -1,10 +1,12 @@
-export default function ProjectCard({ project, onStop, onRestart, onNavigate }) {
+import React from 'react';
+
+export default function ProjectCard({ project, onStart, onStop, onRestart, onNavigate }) {
   const cpu = project.cpu ?? project.cpuUsage;
   const memory = project.memory ?? project.mem ?? project.memoryUsage;
   const status = (project.status || '').toLowerCase();
   const isRunning = status === 'running';
   const isStarting = status === 'starting';
-  const isStopped = status === 'stopped';
+  const isStopping = status === 'stopping';
   const isError = status === 'error';
   const hasLogs = project.logs?.length > 0;
 
@@ -46,8 +48,9 @@ export default function ProjectCard({ project, onStop, onRestart, onNavigate }) 
             : 'bg-gray-100/10 text-gray-600 dark:text-gray-400'
         }`}>
           {isRunning && <><span className="inline-block h-1.5 w-1.5 rounded-full bg-current mr-1"></span>Running</>}
-          {!isRunning && !isStarting && !isError && <><span className="inline-block h-1.5 w-1.5 rounded-sm bg-current mr-1"></span>Stopped</>}
+          {!isRunning && !isStarting && !isStopping && !isError && <><span className="inline-block h-1.5 w-1.5 rounded-sm bg-current mr-1"></span>Stopped</>}
           {isStarting && <><span className="inline-block h-1.5 w-1.5 rounded-full bg-current mr-1 animate-pulse"></span>Starting</>}
+          {isStopping && <><span className="inline-block h-1.5 w-1.5 rounded-full bg-current mr-1 animate-pulse"></span>Stopping</>}
           {isError && <><span className="inline-block h-1.5 w-1.5 rounded-full bg-current mr-1"></span>Error</>}
         </span>
       </div>
@@ -130,7 +133,7 @@ export default function ProjectCard({ project, onStop, onRestart, onNavigate }) 
             </div>
           </div>
 
-        {!hasLogs && !isRunning && !isStarting && (
+        {!hasLogs && !isRunning && !isStarting && !isStopping && (
           <div className="text-center rounded-lg border border-dashed border-border bg-surface/30 px-3 py-2">
             <span className="font-mono text-[9px] text-ink-faint">No live activity</span>
           </div>
@@ -144,10 +147,10 @@ export default function ProjectCard({ project, onStop, onRestart, onNavigate }) 
           >
             Inspect
           </button>
-          {!isRunning && !isStarting && (
+          {!isRunning && !isStarting && !isStopping && (
             <button 
               type="button" 
-              onClick={() => onRestart?.(project)}
+              onClick={() => onStart?.(project)}
               className="rounded-lg bg-accent px-3 py-2 text-[11px] font-semibold text-white transition-colors hover:bg-accent-hover"
             >
               Start
