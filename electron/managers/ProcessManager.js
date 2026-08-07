@@ -113,7 +113,11 @@ class ProcessManager extends EventEmitter {
       })
 
       await Promise.all(commands.map(spawnCommand))
-      this.waitForCompositeReady(projectId, processData.runId)
+      setTimeout(() => {
+        this.waitForCompositeReady(projectId, processData.runId).catch((error) => {
+          this.failComposite(projectId, processData.runId, null, error, onError)
+        })
+      }, 0)
       return { success: true, pid: processData.pid, status: processData.status, commands: this.getCommandSnapshot(processData) }
     } catch (error) {
       const current = this.processes.get(projectId)
@@ -134,12 +138,14 @@ class ProcessManager extends EventEmitter {
     const data = this.processes.get(projectId)
     if (!data || data.runId !== runId) return
     try {
-      await Promise.all([...data.commands.values()].filter((item) => item.port !== null && item.port !== undefined).map(async (item) => {
-        const ready = await this.waitForPort(projectId, item.port, 30000, runId, item.id)
+      const readiness = [...data.commands.values()].map(async (item) => {
+        if (item.port === null || item.port === undefined) return
+        const ready = await this.waitForCommandPort(projectId, item.port, 30000, runId)
         if (!ready) return
         item.ready = true
         item.status = this.STATUS.RUNNING
-      }))
+      })
+      await Promise.all(readiness)
       const current = this.processes.get(projectId)
       if (!current || current.runId !== runId || current.status !== this.STATUS.STARTING) return
       current.status = this.STATUS.RUNNING
@@ -210,6 +216,19 @@ class ProcessManager extends EventEmitter {
     if (await checkHost('localhost')) return true
     if (await checkHost('::1')) return true
     return false
+  }
+
+  async waitForCommandPort(projectId, port, timeout = 30000, runId = null) {
+    const deadline = Date.now() + timeout
+    while (Date.now() < deadline) {
+      const processData = this.processes.get(projectId)
+      if (!processData || processData.status !== this.STATUS.STARTING || (runId && processData.runId !== runId)) {
+        return false
+      }
+      if (await this.isPortOpen(port)) return true
+      await new Promise((resolve) => setTimeout(resolve, 250))
+    }
+    throw new Error(`Timed out waiting for port ${port}`)
   }
 
   async waitForPort(projectId, port, timeout = 30000, runId = null, commandId = null) {

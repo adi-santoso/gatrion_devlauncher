@@ -1,6 +1,7 @@
 const { app, Tray, Menu, nativeImage } = require('electron');
 const path = require('path');
 const fs = require('fs');
+const { resolveLaunchConfig } = require('../handlers/processHandlers');
 
 class TrayManager {
   constructor(mainWindow, processManager, storageManager) {
@@ -118,12 +119,13 @@ class TrayManager {
                   p.envVars.forEach(e => { if (e.key) envObj[e.key] = e.value || ''; });
                 }
                 try {
+                  const launch = resolveLaunchConfig(p);
                   await this.processManager.startProcess(
                     p.id,
                     p.path,
-                    p.commands || p.startCommand,
+                    launch.command,
                     envObj,
-                    p.port,
+                    launch.port,
                     (projectId, log) => safeSend('process-log', projectId, log),
                     (projectId, code, signal) => {
                       safeSend('process-exit', projectId, code, signal);

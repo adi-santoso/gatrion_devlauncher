@@ -2,6 +2,50 @@ const { ipcMain } = require('electron')
 const { envVarsToObject } = require('../projectSchema')
 const { assertTrustedIpcEvent } = require('../utils/ipcSecurity')
 
+const portArguments = /(?:^|\s)(?:--port(?:=|\s+)|-p\s+)\d+\b/i
+const artisanServe = /(?:^|[\\/])artisan\s+serve\b/i
+const phpArtisanServe = /\bphp(?:\.exe)?\s+(?:-[a-zA-Z]\S*\s+)*artisan\s+serve\b/i
+const npmRunScript = /^npm\s+run\s+([A-Za-z0-9:_-]+)\s*$/i
+const packageManagerScript = /^(pnpm|yarn|bun)\s+([A-Za-z0-9:_-]+)\s*$/i
+
+function withRequestedPort(command, port) {
+  if (typeof command !== 'string' || !Number.isInteger(port) || portArguments.test(command)) return command
+  const trimmed = command.trim()
+  if (phpArtisanServe.test(trimmed) || artisanServe.test(trimmed)) return `${trimmed} --port=${port}`
+
+  const npmScript = trimmed.match(npmRunScript)
+  if (npmScript) return `npm run ${npmScript[1]} -- --port=${port}`
+
+  const managedScript = trimmed.match(packageManagerScript)
+  if (managedScript) return `${managedScript[1]} ${managedScript[2]} --port=${port}`
+
+  return command
+}
+
+function resolveLaunchConfig(project) {
+  const requestedPort = Number.isInteger(project?.port) ? project.port : null
+  const source = project?.commands || project?.startCommand
+  if (!Array.isArray(source)) {
+    return {
+      command: typeof source === 'string' ? withRequestedPort(source, requestedPort) : source,
+      port: requestedPort,
+    }
+  }
+
+  const commands = source.map((item) => {
+    const port = Number.isInteger(item?.port) ? item.port : null
+    return { ...item, command: withRequestedPort(item?.command, port), port }
+  })
+  const primary = commands.find((item) => item.primary) || commands[0]
+  if (primary) {
+    const primaryPort = requestedPort ?? primary.port ?? null
+    primary.command = withRequestedPort(primary.command, primaryPort)
+    primary.port = primaryPort
+  }
+
+  return { command: commands, port: primary?.port ?? requestedPort }
+}
+
 /**
  * Setup process-related IPC handlers
  * @param {ProcessManager} processManager - ProcessManager instance
@@ -52,12 +96,13 @@ function setupProcessHandlers(processManager, storageManager, mainWindow) {
   secureHandle('start-project', async (event, projectId) => {
     try {
       const project = await loadPersistedProject(projectId)
+      const launch = resolveLaunchConfig(project)
       const result = await processManager.startProcess(
         project.id,
         project.path,
-        project.commands || project.startCommand,
+        launch.command,
         envVarsToObject(project.envVars),
-        project.port,
+        launch.port,
         // onLog callback
         (projectId, log) => {
           safeSend('process-log', projectId, log)
@@ -103,12 +148,13 @@ function setupProcessHandlers(processManager, storageManager, mainWindow) {
   secureHandle('restart-project', async (event, projectId) => {
     try {
       const project = await loadPersistedProject(projectId)
+      const launch = resolveLaunchConfig(project)
       const result = await processManager.restartProcess(
         project.id,
         project.path,
-        project.commands || project.startCommand,
+        launch.command,
         envVarsToObject(project.envVars),
-        project.port,
+        launch.port,
         (projectId, log) => {
           safeSend('process-log', projectId, log)
         },
@@ -172,7 +218,8 @@ function setupProcessHandlers(processManager, storageManager, mainWindow) {
     const results = []
     for (const project of projectsToStart) {
       try {
-        const cmd = project.commands || project.startCommand
+        const launch = resolveLaunchConfig(project)
+        const cmd = launch.command
         if (!cmd || (Array.isArray(cmd) && cmd.length === 0)) {
           results.push({ projectId: project.id, success: false, error: 'Start command is missing' })
           continue
@@ -182,7 +229,7 @@ function setupProcessHandlers(processManager, storageManager, mainWindow) {
           project.path,
           cmd,
           envVarsToObject(project.envVars),
-          project.port,
+          launch.port,
           (projectId, log) => {
             safeSend('process-log', projectId, log)
           },
@@ -218,4 +265,4 @@ function setupProcessHandlers(processManager, storageManager, mainWindow) {
   })
 }
 
-module.exports = { setupProcessHandlers }
+module.exports = { setupProcessHandlers, resolveLaunchConfig, withRequestedPort }

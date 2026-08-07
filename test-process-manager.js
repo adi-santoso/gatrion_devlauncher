@@ -95,6 +95,7 @@ async function run() {
   assert.equal(manager.getProcessStatus('failed-exit').exitCode, 7)
 
   await manager.startProcess('long-running', '.', 'node -e "setInterval(() => {}, 1000)"')
+  await waitForStatus(manager, 'long-running', manager.STATUS.RUNNING)
   const runningStatus = manager.getProcessStatus('long-running')
   assert.equal(runningStatus.status, manager.STATUS.RUNNING)
   assert.ok(runningStatus.pid)
@@ -137,6 +138,36 @@ async function run() {
   ])
   await waitForStatus(manager, 'composite-failure', manager.STATUS.ERROR)
   assert.match(manager.getProcessStatus('composite-failure').error, /Assets exited with code 9/)
+
+  const staggeredPorts = { app: 0, assets: 0 }
+  manager.processes.set('staggered-readiness', {
+    status: manager.STATUS.STARTING,
+    runId: Symbol('staggered-readiness'),
+    commands: new Map([
+      ['app', { id: 'app', name: 'Laravel', port: null, primary: true, status: manager.STATUS.STARTING, ready: false }],
+      ['assets', { id: 'assets', name: 'Inertia Vue assets', port: null, primary: false, status: manager.STATUS.STARTING, ready: false }],
+    ]),
+    logs: [],
+  })
+  const staggered = manager.processes.get('staggered-readiness')
+  const appPort = 38081
+  const assetsPort = 35173
+  staggered.commands.get('app').port = appPort
+  staggered.commands.get('assets').port = assetsPort
+  staggeredPorts.app = appPort
+  staggeredPorts.assets = assetsPort
+  const staggeredReadyAt = Date.now() + 450
+  manager.isPortOpen = async (port) => {
+    if (port === staggeredPorts.assets) return true
+    if (port === staggeredPorts.app) return Date.now() >= staggeredReadyAt
+    return false
+  }
+  await manager.waitForCompositeReady('staggered-readiness', staggered.runId)
+  const staggeredStatus = manager.getProcessStatus('staggered-readiness')
+  assert.equal(staggeredStatus.status, manager.STATUS.RUNNING)
+  assert.ok(staggeredStatus.commands.every((item) => item.ready && item.status === manager.STATUS.RUNNING))
+  delete manager.isPortOpen
+  manager.processes.delete('staggered-readiness')
 
   console.log('ProcessManager checks passed')
 }
