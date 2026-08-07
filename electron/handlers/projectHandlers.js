@@ -19,6 +19,19 @@ const assertProjectDirectory = (projectPath) => {
   if (!stats.isDirectory()) throw new Error(`Project path "${projectPath}" must be a directory`)
 }
 
+const ENV_FILE_PATTERN = /^\.env(\.[A-Za-z0-9_-]+)*$/
+
+const assertEnvFilePath = (projectPath, fileName) => {
+  if (typeof projectPath !== 'string' || !projectPath.trim()) throw new Error('Project path is required')
+  if (typeof fileName !== 'string' || !ENV_FILE_PATTERN.test(fileName)) {
+    throw new Error('File name must be a .env file (e.g. .env, .env.local)')
+  }
+  const root = path.resolve(projectPath)
+  const target = path.resolve(root, fileName)
+  if (path.dirname(target) !== root) throw new Error('Env file must be inside the project root')
+  return target
+}
+
 /**
  * Setup project-related IPC handlers
  * @param {StorageManager} storageManager - StorageManager instance
@@ -196,6 +209,54 @@ function setupProjectHandlers(storageManager, processManager, mainWindow) {
       }
 
       return { success: true, path: result.filePaths[0] }
+    } catch (error) {
+      return { success: false, error: error.message }
+    }
+  })
+
+  // List .env* files in a project root
+  ipcMain.handle('list-env-files', async (event, projectPath) => {
+    try {
+      assertTrustedIpcEvent(event)
+      assertProjectDirectory(projectPath)
+      const root = path.resolve(projectPath)
+      const entries = await fs.promises.readdir(root, { withFileTypes: true })
+      const files = entries
+        .filter((entry) => entry.isFile() && ENV_FILE_PATTERN.test(entry.name))
+        .map((entry) => entry.name)
+        .sort((a, b) => (a === '.env' ? -1 : b === '.env' ? 1 : a.localeCompare(b)))
+      return { success: true, files }
+    } catch (error) {
+      return { success: false, error: error.message, files: [] }
+    }
+  })
+
+  // Read a single env file
+  ipcMain.handle('read-env-file', async (event, projectPath, fileName) => {
+    try {
+      assertTrustedIpcEvent(event)
+      const target = assertEnvFilePath(projectPath, fileName)
+      const content = await fs.promises.readFile(target, 'utf8')
+      const stats = await fs.promises.stat(target)
+      return { success: true, fileName, content, modifiedAt: stats.mtimeMs }
+    } catch (error) {
+      const missing = error && error.code === 'ENOENT'
+      return { success: false, error: missing ? `File ${fileName} does not exist` : error.message }
+    }
+  })
+
+  // Write a single env file (creates a timestamped backup of the previous file)
+  ipcMain.handle('write-env-file', async (event, projectPath, fileName, content) => {
+    try {
+      assertTrustedIpcEvent(event)
+      if (typeof content !== 'string') throw new Error('Env file content must be a string')
+      const target = assertEnvFilePath(projectPath, fileName)
+      if (fs.existsSync(target)) {
+        const backupName = `${fileName}.backup-${new Date().toISOString().replace(/[:.]/g, '-')}`
+        await fs.promises.copyFile(target, path.join(path.dirname(target), backupName))
+      }
+      await fs.promises.writeFile(target, content, 'utf8')
+      return { success: true, fileName }
     } catch (error) {
       return { success: false, error: error.message }
     }

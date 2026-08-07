@@ -19,7 +19,7 @@ function Tooltip({ children, content, position = 'top' }) {
 
   return (
     <div
-      className="relative inline-flex"
+      className="relative inline-grid place-items-center"
       onMouseEnter={() => setIsVisible(true)}
       onMouseLeave={() => setIsVisible(false)}
     >

@@ -8,7 +8,7 @@ export default function PortConflictModal({
 }) {
   if (!isOpen || !conflictData) return null;
 
-  const { port, pid, processName, isManaged, managedProjectName } = conflictData;
+  const { port, pid, processName, isManaged, managedProjectName, skippedCount, skippedNames } = conflictData;
 
   return (
     <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
@@ -49,6 +49,12 @@ export default function PortConflictModal({
         <p className="text-xs text-ink-faint leading-relaxed">
           Starting this project now may cause network binding errors or unexpected server behavior. How would you like to proceed?
         </p>
+
+        {skippedCount > 1 && Array.isArray(skippedNames) && (
+          <p className="text-[11px] text-warning leading-relaxed bg-warning/10 border border-warning/20 rounded-lg px-3 py-2">
+            {skippedCount} selected projects were skipped because their ports are occupied: {skippedNames.join(', ')}.
+          </p>
+        )}
 
         {/* Action Buttons */}
         <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-border/50">

@@ -79,7 +79,7 @@ export default function ProjectDetailView({
             <LogsTab logs={combinedLogs} autoScroll={autoScroll} onAutoScrollChange={setAutoScroll} onClear={onClearLogs}/>
           </div>
           <div className={activeTab === 'environment' ? 'block' : 'hidden'}>
-            <EnvironmentTab envVars={project?.envVars} onEdit={onEdit}/>
+            <EnvironmentTab project={project} envVars={project?.envVars} onEdit={onEdit}/>
           </div>
           <div className={activeTab === 'settings' ? 'block' : 'hidden'}>
             <SettingsTab project={project} onEdit={onEdit} onRemove={onRemove}/>

@@ -11,7 +11,7 @@ contextBridge.exposeInMainWorld('electron', {
 
   // Process Management
   startProject: (projectId) => ipcRenderer.invoke('start-project', projectId),
-  stopProject: (projectId) => ipcRenderer.invoke('stop-project', projectId),
+  stopProject: (projectId, force) => ipcRenderer.invoke('stop-project', projectId, force),
   restartProject: (projectId) => ipcRenderer.invoke('restart-project', projectId),
   startAllProjects: (projectIds) => ipcRenderer.invoke('start-all-projects', projectIds),
   stopAllProjects: () => ipcRenderer.invoke('stop-all-projects'),
@@ -24,6 +24,11 @@ contextBridge.exposeInMainWorld('electron', {
   // Project Detection
   detectProjectType: (projectPath) => ipcRenderer.invoke('detect-project-type', projectPath),
   browseFolder: () => ipcRenderer.invoke('browse-folder'),
+
+  // Env Files
+  listEnvFiles: (projectPath) => ipcRenderer.invoke('list-env-files', projectPath),
+  readEnvFile: (projectPath, fileName) => ipcRenderer.invoke('read-env-file', projectPath, fileName),
+  writeEnvFile: (projectPath, fileName, content) => ipcRenderer.invoke('write-env-file', projectPath, fileName, content),
 
   // Desktop Integration
   openExternalUrl: (url) => ipcRenderer.invoke('open-external-url', url),

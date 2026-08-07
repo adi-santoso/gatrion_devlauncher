@@ -102,7 +102,7 @@ export const useProcesses = (projects = [], onProjectUpdate) => {
   }, [projects, onProjectUpdate]);
 
   // Stop a project
-  const stopProject = useCallback(async (projectId) => {
+  const stopProject = useCallback(async (projectId, force = false) => {
     setProcessStatuses(prev => ({
       ...prev,
       [projectId]: 'stopping'
@@ -112,7 +112,7 @@ export const useProcesses = (projects = [], onProjectUpdate) => {
     }
 
     try {
-      const response = await ipc.stopProject(projectId);
+      const response = await ipc.stopProject(projectId, force);
 
       if (response.success) {
         setProcessStatuses(prev => ({

@@ -178,17 +178,27 @@ function App() {
 
   const [portConflictTarget, setPortConflictTarget] = useState(null);
 
+  // Returns conflict data when the project's port is occupied by an external process.
+  const findPortConflict = async (project) => {
+    if (!project?.port || !isElectronAvailable()) return null;
+    try {
+      const conflict = await checkPortConflict(project.port);
+      if (conflict && conflict.inUse && !conflict.isManaged) {
+        return { ...conflict, port: project.port };
+      }
+    } catch {
+      // Ignore check error and allow the start attempt to continue
+    }
+    return null;
+  };
+
   // Project actions
-  const handleStartProject = async (project) => {
-    if (project?.port && isElectronAvailable()) {
-      try {
-        const conflict = await checkPortConflict(project.port);
-        if (conflict && conflict.inUse && !conflict.isManaged) {
-          setPortConflictTarget({ project, conflictData: { ...conflict, port: project.port } });
-          return;
-        }
-      } catch {
-        // Ignore check error and continue to start
+  const handleStartProject = async (project, { skipPortCheck = false } = {}) => {
+    if (!skipPortCheck) {
+      const conflict = await findPortConflict(project);
+      if (conflict) {
+        setPortConflictTarget({ project, conflictData: conflict });
+        return { success: false, conflict: true };
       }
     }
 
@@ -196,21 +206,55 @@ function App() {
     if (result.success) {
       showToast('success', `${project.name} started successfully`);
       addActivity('success', project.name, 'started', project.port ? `port ${project.port}` : '');
-      
+
     } else {
       showToast('error', result.error || `Failed to start ${project.name}`);
       addActivity('danger', project.name, 'failed to start');
     }
+    return result;
   };
 
-  const handleStopProject = async (project) => {
-    const result = await stopProjectProcess(project.id);
-    
+  const handleStopProject = async (project, { force = false } = {}) => {
+    const result = await stopProjectProcess(project.id, force);
+
     if (result.success) {
-      showToast('info', `${project.name} stopped`);
-      addActivity('faint', project.name, 'stopped');
+      showToast('info', force ? `${project.name} force stopped` : `${project.name} stopped`);
+      addActivity('faint', project.name, force ? 'force stopped' : 'stopped');
     } else {
       showToast('error', result.error || `Failed to stop ${project.name}`);
+    }
+  };
+
+  // Bulk start with one preflight pass: show a single conflict modal for the first
+  // conflicting project and start the rest. Conflicting projects are skipped so
+  // they do not fail with a bind error.
+  const handleBulkStartProjects = async (targetProjects) => {
+    const startable = [];
+    const skipped = [];
+    for (const project of targetProjects) {
+      const status = (project.status || '').toLowerCase();
+      if (['running', 'starting', 'stopping'].includes(status)) continue;
+      const conflict = await findPortConflict(project);
+      if (conflict) skipped.push({ project, conflict });
+      else startable.push(project);
+    }
+
+    if (skipped.length > 0) {
+      const first = skipped[0];
+      setPortConflictTarget({
+        project: first.project,
+        conflictData: first.conflict,
+        skippedCount: skipped.length,
+        skippedNames: skipped.map((item) => item.project.name),
+      });
+    }
+
+    for (const project of startable) {
+      await handleStartProject(project, { skipPortCheck: true });
+    }
+
+    if (startable.length === 0 && skipped.length === 0) {
+      showToast('info', 'Selected projects are already active');
     }
   };
 
@@ -270,20 +314,37 @@ function App() {
     openModalHandler('confirm', project);
   };
 
+  const handleBulkDeleteProjects = (targetProjects) => {
+    if (!Array.isArray(targetProjects) || targetProjects.length === 0) return;
+    openModalHandler('confirm', targetProjects);
+  };
+
   const confirmDelete = async () => {
-    if (confirmTarget) {
-      const result = await deleteProjectFromStore(confirmTarget.id);
+    if (!confirmTarget) return;
+    const targets = Array.isArray(confirmTarget) ? confirmTarget : [confirmTarget];
+
+    let deleted = 0;
+    let failed = 0;
+    for (const target of targets) {
+      const result = await deleteProjectFromStore(target.id);
       if (result.success) {
-        showToast('success', `${confirmTarget.name || 'Project'} removed from projects`);
-        addActivity('faint', confirmTarget.name || 'Project', 'removed');
-        closeModalHandler();
-        if (currentView === 'project-detail' && selectedProject?.id === confirmTarget.id) {
+        deleted += 1;
+        addActivity('faint', target.name || 'Project', 'removed');
+        if (currentView === 'project-detail' && selectedProject?.id === target.id) {
           showView('projects');
         }
       } else {
-        showToast('error', result.error || 'Failed to delete project');
+        failed += 1;
+        showToast('error', result.error || `Failed to delete ${target.name || 'project'}`);
       }
     }
+
+    if (deleted > 0) {
+      showToast('success', targets.length > 1
+        ? `${deleted} project(s) removed`
+        : `${targets[0].name || 'Project'} removed from projects`);
+    }
+    if (failed === 0) closeModalHandler();
   };
 
   const handleCreateProject = async (projectData) => {
@@ -427,16 +488,14 @@ function App() {
             projects={projects}
             onStart={handleStartProject}
             onStop={handleStopProject}
+            onForceStop={(project) => handleStopProject(project, { force: true })}
             onRestart={handleRestartProject}
             onDelete={handleDeleteProject}
+            onBulkStart={handleBulkStartProjects}
+            onBulkDelete={handleBulkDeleteProjects}
             onEdit={(project) => openModalHandler('project', project)}
             onNavigate={(project) => showView('project-detail', project, isFullscreen)}
             onOpenModal={() => openModalHandler('project')}
-            onConfirmDelete={(projectName) => {
-              const project = projects.find(p => p.name === projectName);
-              if (project) handleDeleteProject(project);
-            }}
-            onShowToast={showToast}
           />
         )}
 
@@ -504,8 +563,10 @@ function App() {
       <ConfirmDialog
         isOpen={openModal === 'confirm'}
         title="Delete Project"
-        message={`Are you sure you want to remove "${confirmTarget?.name || 'this project'}" from your projects? This will not delete the files.`}
-        confirmLabel="Delete"
+        message={Array.isArray(confirmTarget)
+          ? `Are you sure you want to remove ${confirmTarget.length} selected project(s)? This will not delete any files on disk.`
+          : `Are you sure you want to remove "${confirmTarget?.name || 'this project'}" from your projects? This will not delete the files.`}
+        confirmLabel={Array.isArray(confirmTarget) && confirmTarget.length > 1 ? `Delete ${confirmTarget.length} Projects` : 'Delete'}
         confirmVariant="danger"
         onConfirm={confirmDelete}
         onCancel={closeModalHandler}
@@ -529,7 +590,11 @@ function App() {
       {portConflictTarget && (
         <PortConflictModal
           isOpen={!!portConflictTarget}
-          conflictData={portConflictTarget.conflictData}
+          conflictData={{
+            ...portConflictTarget.conflictData,
+            skippedCount: portConflictTarget.skippedCount || 0,
+            skippedNames: portConflictTarget.skippedNames || [],
+          }}
           onClose={() => setPortConflictTarget(null)}
           onEditPort={() => {
             const prj = portConflictTarget.project;

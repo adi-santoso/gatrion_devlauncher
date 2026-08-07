@@ -81,10 +81,34 @@ export const deleteProject = async (projectId) => {
 
 export const browseFolder = async () => {
   if (!isElectron()) {
-    console.warn('[IPC] Running in browser mode - browseFolder not available');
-    return { success: false, error: 'File browser not available in browser mode' };
+    console.warn('[IPC] Running in browser mode - mock browseFolder called');
+    return { success: false, canceled: true };
   }
   return window.electron.browseFolder();
+};
+
+export const listEnvFiles = async (projectPath) => {
+  if (!isElectron()) {
+    console.warn('[IPC] Running in browser mode - mock listEnvFiles called');
+    return { success: true, files: [] };
+  }
+  return window.electron.listEnvFiles(projectPath);
+};
+
+export const readEnvFile = async (projectPath, fileName) => {
+  if (!isElectron()) {
+    console.warn('[IPC] Running in browser mode - mock readEnvFile called');
+    return { success: false, error: 'Electron not available' };
+  }
+  return window.electron.readEnvFile(projectPath, fileName);
+};
+
+export const writeEnvFile = async (projectPath, fileName, content) => {
+  if (!isElectron()) {
+    console.warn('[IPC] Running in browser mode - mock writeEnvFile called');
+    return { success: false, error: 'Electron not available' };
+  }
+  return window.electron.writeEnvFile(projectPath, fileName, content);
 };
 
 export const detectProjectType = async (projectPath) => {
@@ -113,12 +137,12 @@ export const startProject = async (projectId) => {
   return window.electron.startProject(projectId);
 };
 
-export const stopProject = async (projectId) => {
+export const stopProject = async (projectId, force = false) => {
   if (!isElectron()) {
     console.warn('[IPC] Running in browser mode - mock stopProject called');
     return { success: true, projectId, status: 'stopped' };
   }
-  return window.electron.stopProject(projectId);
+  return window.electron.stopProject(projectId, force);
 };
 
 export const restartProject = async (projectId) => {
