@@ -22,7 +22,7 @@ const normalizeLog = (log) => {
   };
 };
 
-export default function LogsTab({ logs = [], autoScroll = true, onAutoScrollChange, onClear }) {
+export default function LogsTab({ logs = [], autoScroll = true, onAutoScrollChange, onClear, fontSize }) {
   const [filter, setFilter] = useState('');
   const outputRef = useRef(null);
   const normalizedLogs = (Array.isArray(logs) ? logs : [logs]).map(normalizeLog);
@@ -44,7 +44,7 @@ export default function LogsTab({ logs = [], autoScroll = true, onAutoScrollChan
           <button type="button" onClick={onClear} disabled={!onClear} className="text-[11px] text-ink-faint hover:text-danger disabled:opacity-40 disabled:cursor-not-allowed">Clear</button>
         </div>
       </div>
-      <div ref={outputRef} className="scan-line bg-[#08090C] px-5 py-4 font-mono text-[12.5px] leading-relaxed h-72 overflow-y-auto">
+      <div ref={outputRef} style={fontSize ? { fontSize: `${fontSize}px` } : undefined} className="scan-line bg-[#08090C] px-5 py-4 font-mono text-[12.5px] leading-relaxed h-72 overflow-y-auto">
         {visibleLogs.length === 0 ? <p className="text-ink-faint italic">{normalizedLogs.length === 0 ? 'No logs captured yet.' : 'No logs match this filter.'}</p>
           : visibleLogs.map((log, index) => {
             const parsedTime = log.timestamp ? new Date(log.timestamp) : null;

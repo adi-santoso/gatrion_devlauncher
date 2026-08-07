@@ -21,6 +21,3 @@ export * from './States';
 
 // Modals Components
 export * from './Modals';
-
-// Demo Components
-export * from './Demo';

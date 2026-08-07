@@ -1,16 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { useElectronConfig } from '../../hooks/useElectronConfig';
-import UpdateBanner from './UpdateBanner';
 import Sidebar from './Sidebar';
 import TopBar from './TopBar';
 
 const MainLayout = ({
   children,
   currentView = 'dashboard',
-  showUpdateBanner = false,
-  updateVersion = 'v1.1.0',
-  onUpdateRestart,
-  onUpdateDismiss,
   onViewChange,
   onOpenModal,
   onStartAll,
@@ -62,14 +57,6 @@ const MainLayout = ({
 
   return (
     <div className="h-screen flex flex-col bg-base text-ink font-sans antialiased">
-      {showUpdateBanner && (
-        <UpdateBanner
-          version={updateVersion}
-          onRestart={onUpdateRestart}
-          onDismiss={onUpdateDismiss}
-        />
-      )}
-
       <div className="flex flex-1 overflow-hidden">
         <Sidebar
           collapsed={sidebarCollapsed}
@@ -86,7 +73,7 @@ const MainLayout = ({
           {!hideTopBar && (
             <TopBar
               title={getTitle()}
-              subtitle="DevLauncher"
+              subtitle="Gatrion"
               onCommandPalette={handleCommandPalette}
             />
           )}

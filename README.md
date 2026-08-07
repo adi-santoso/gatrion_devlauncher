@@ -75,7 +75,7 @@ Lokasi tepat dicetak oleh `StorageManager` saat aplikasi mulai.
 ## Batasan Penting
 
 - Start command dijalankan melalui shell lokal. Tambahkan hanya project dan command yang dipercaya.
-- CPU/RAM monitoring, native tray, startup OS, port conflict resolution, bulk action, edit project, dan beberapa action native belum selesai.
+- CPU/RAM monitoring, native tray, startup OS, port conflict resolution, bulk action, edit project, dan aksi native lain sudah terimplementasi.
 - Asset `build/icon.png` dan `build/icon.ico` belum ada di repository; packaging final membutuhkan keduanya.
 - Target utama Windows x64. macOS/Linux belum diuji.
 

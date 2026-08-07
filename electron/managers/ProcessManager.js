@@ -18,6 +18,7 @@ class ProcessManager extends EventEmitter {
     super()
     this.processes = new Map() // projectId -> process data
     this.nextLogId = 1
+    this.maxLogLines = 1000
     this.STATUS = {
       STOPPED: 'STOPPED',
       STARTING: 'STARTING',
@@ -535,8 +536,8 @@ class ProcessManager extends EventEmitter {
     }
     processData.logs.push(log)
 
-    // Keep only last 1000 log lines
-    if (processData.logs.length > 1000) {
+    // Keep only the most recent log lines (bounded to configured max)
+    if (processData.logs.length > this.maxLogLines) {
       processData.logs.shift()
     }
 
@@ -548,10 +549,10 @@ class ProcessManager extends EventEmitter {
    * @param {string} projectId - Project ID
    * @param {number} limit - Maximum number of logs to return
    */
-  getLogs(projectId, limit = 1000) {
+  getLogs(projectId, limit = this.maxLogLines) {
     if (!this.processes.has(projectId)) return []
     const processData = this.processes.get(projectId)
-    const safeLimit = Number.isInteger(limit) && limit >= 0 ? Math.min(limit, 1000) : 1000
+    const safeLimit = Number.isInteger(limit) && limit >= 0 ? Math.min(limit, this.maxLogLines) : this.maxLogLines
     return safeLimit === 0 ? [] : processData.logs.slice(-safeLimit)
   }
 

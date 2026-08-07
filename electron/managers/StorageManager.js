@@ -13,12 +13,14 @@ class StorageManager {
     this.appDataPath = appDataPath
     this.projectsFilePath = path.join(this.appDataPath, 'projects.json')
     this.configFilePath = path.join(this.appDataPath, 'config.json')
+    this.activitiesFilePath = path.join(this.appDataPath, 'activities.json')
     this.backupDir = path.join(this.appDataPath, 'backups')
 
     // Default config
     this.defaultConfig = DEFAULT_CONFIG
     this.projectQueue = Promise.resolve()
     this.configQueue = Promise.resolve()
+    this.activityQueue = Promise.resolve()
     this.tempFileCounter = 0
     this.backupFileCounter = 0
   }
@@ -285,6 +287,55 @@ class StorageManager {
       } catch (error) {
         log.error('Error updating config', error)
         throw error
+      }
+    })
+  }
+
+  /**
+   * Load persisted activity feed (most recent first)
+   */
+  async loadActivities() {
+    return this.enqueue('activityQueue', async () => {
+      try {
+        const data = await fs.readFile(this.activitiesFilePath, 'utf8')
+        const parsed = JSON.parse(data)
+        return Array.isArray(parsed) ? parsed : []
+      } catch (error) {
+        if (error.code !== 'ENOENT') log.error('Error loading activities', error)
+        return []
+      }
+    })
+  }
+
+  /**
+   * Append activity entries (persisted, capped at 50 entries)
+   * @param {Array} entries - New entries to prepend
+   */
+  async appendActivities(entries) {
+    if (!Array.isArray(entries) || entries.length === 0) return []
+    return this.enqueue('activityQueue', async () => {
+      try {
+        let current = []
+        try {
+          const data = await fs.readFile(this.activitiesFilePath, 'utf8')
+          const parsed = JSON.parse(data)
+          current = Array.isArray(parsed) ? parsed : []
+        } catch (readError) {
+          if (readError.code !== 'ENOENT') throw readError
+        }
+        const stamped = entries.map((entry) => ({
+          type: entry.type || 'faint',
+          project: entry.project || '',
+          message: entry.message || '',
+          detail: entry.detail || '',
+          timestamp: entry.timestamp || new Date().toISOString()
+        }))
+        const next = [...stamped, ...current].slice(0, 50)
+        await this.atomicWrite(this.activitiesFilePath, JSON.stringify(next, null, 2))
+        return next
+      } catch (error) {
+        log.error('Error appending activities', error)
+        return []
       }
     })
   }

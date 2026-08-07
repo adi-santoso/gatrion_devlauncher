@@ -29,10 +29,13 @@ const runtimeUpdate = (status) => {
  * useProcesses Hook
  * Manages process lifecycle and subscribes to process events
  */
-export const useProcesses = (projects = [], onProjectUpdate) => {
+export const useProcesses = (projects = [], onProjectUpdate, options = {}) => {
   const [processStatuses, setProcessStatuses] = useState({});
   const [processLogs, setProcessLogs] = useState({});
   const statusRevisions = useRef({});
+  const maxLines = Number.isInteger(options.maxLines) && options.maxLines > 0 ? options.maxLines : 1000;
+  const maxLinesRef = useRef(maxLines);
+  maxLinesRef.current = maxLines;
 
   // Start a project
   const startProject = useCallback(async (projectId) => {
@@ -230,17 +233,6 @@ export const useProcesses = (projects = [], onProjectUpdate) => {
     }
   }, []);
 
-  // Get process status
-  const getStatus = useCallback(async (projectId) => {
-    try {
-      const response = await ipc.getProcessStatus(projectId);
-      return response;
-    } catch (err) {
-      console.error('Error getting process status:', err);
-      return { success: false, error: err.message };
-    }
-  }, []);
-
   // Get logs for a specific project
   const getLogs = useCallback((projectId) => {
     return processLogs[projectId] || [];
@@ -262,7 +254,6 @@ export const useProcesses = (projects = [], onProjectUpdate) => {
   // Subscribe to process status updates
   useEffect(() => {
     const cleanup = ipc.onProcessStatus((projectId, status) => {
-      console.log(`[Process Status] Project ${projectId}:`, status);
       statusRevisions.current[projectId] = (statusRevisions.current[projectId] || 0) + 1;
 
       const update = runtimeUpdate(status);
@@ -287,7 +278,7 @@ export const useProcesses = (projects = [], onProjectUpdate) => {
         const logs = prev[projectId] || [];
         return {
           ...prev,
-          [projectId]: [...logs, logLine].slice(-1000)
+          [projectId]: [...logs, logLine].slice(-maxLinesRef.current)
         };
       });
     });
@@ -319,11 +310,6 @@ export const useProcesses = (projects = [], onProjectUpdate) => {
   // Subscribe to CPU/Memory resource updates
   useEffect(() => {
     const cleanup = ipc.onResourceUpdate(({ projectId, cpu, memory }) => {
-      console.log(`[Resource Update] Project ${projectId}:`, { 
-        cpu: cpu != null ? cpu.toFixed(1) + '%' : 'N/A', 
-        memory: memory != null ? Math.round(memory) + 'MB' : 'N/A' 
-      });
-      
       // Update the project's CPU and memory in parent component via callback
       if (onProjectUpdate) {
         onProjectUpdate(projectId, {
@@ -372,7 +358,7 @@ export const useProcesses = (projects = [], onProjectUpdate) => {
               if (seen.has(key)) return false;
               seen.add(key);
               return true;
-            }).sort((a, b) => a.timestamp.localeCompare(b.timestamp)).slice(-1000);
+            }).sort((a, b) => a.timestamp.localeCompare(b.timestamp)).slice(-maxLinesRef.current);
             return { ...prev, [project.id]: merged };
           });
         } else {
@@ -387,8 +373,7 @@ export const useProcesses = (projects = [], onProjectUpdate) => {
 
   // Subscribe to process exits
   useEffect(() => {
-    const cleanup = ipc.onProcessExit(async (projectId, code) => {
-      console.log(`[Process Exit] Project ${projectId} exited with code:`, code);
+    const cleanup = ipc.onProcessExit(async (projectId) => {
       const snapshot = await ipc.getProcessStatus(projectId);
       const update = runtimeUpdate(snapshot);
       setProcessStatuses(prev => ({ ...prev, [projectId]: update.status }));
@@ -453,7 +438,6 @@ export const useProcesses = (projects = [], onProjectUpdate) => {
     restartProject,
     startAll,
     stopAll,
-    getStatus,
     getLogs,
     clearLogs
   };

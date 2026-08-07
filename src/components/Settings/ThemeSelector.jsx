@@ -8,7 +8,7 @@ const ThemeSelector = ({ currentTheme = 'dark', onThemeChange }) => {
   return (
     <div className="bg-surface border border-border rounded-xl shadow-card p-5">
       <p className="font-display font-bold text-sm mb-1">Appearance</p>
-      <p className="text-xs text-ink-faint mb-4">Choose how DevLauncher looks.</p>
+      <p className="text-xs text-ink-faint mb-4">Choose how Gatrion looks.</p>
       <div className="grid grid-cols-2 gap-3 max-w-sm">
         <button
           id="themeDarkCard"

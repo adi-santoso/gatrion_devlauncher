@@ -85,10 +85,10 @@ const Sidebar = ({
       aria-label="Main navigation sidebar"
     >
       <div className="h-[66px] flex items-center gap-2.5 px-4 border-b border-border overflow-hidden">
-        <div className="w-[34px] h-[34px] rounded-[10px] bg-accent flex items-center justify-center shadow-glow shrink-0" role="img" aria-label="DevLauncher logo">
+        <div className="w-[34px] h-[34px] rounded-[10px] bg-accent flex items-center justify-center shadow-glow shrink-0" role="img" aria-label="Gatrion logo">
           <svg width="15" height="15" viewBox="0 0 24 24"><path d="M5 3l14 9-14 9z" fill="white" /></svg>
         </div>
-      {!collapsed && <div className="min-w-0"><strong className="block font-display font-extrabold text-sm">DevLauncher</strong><span className="block text-[8px] font-mono uppercase tracking-[0.12em] text-ink-faint">Local workspace</span></div>}
+      {!collapsed && <div className="min-w-0"><strong className="block font-display font-extrabold text-sm">Gatrion</strong><span className="block text-[8px] font-mono uppercase tracking-[0.12em] text-ink-faint">Local workspace</span></div>}
       </div>
 
       <div className="flex-1 overflow-y-auto px-3 py-3.5">

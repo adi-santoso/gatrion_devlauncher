@@ -227,6 +227,18 @@ export const updateConfig = async (updates) => {
   return window.electron.updateConfig(updates);
 };
 
+// ==================== Activity Feed APIs ====================
+
+export const getActivities = async () => {
+  if (!isElectron()) return { success: true, activities: [] };
+  return window.electron.getActivities();
+};
+
+export const appendActivities = async (entries) => {
+  if (!isElectron()) return { success: true };
+  return window.electron.appendActivities(entries);
+};
+
 // ==================== Desktop Integration APIs ====================
 
 export const openExternalUrl = async (url) => {
@@ -315,6 +327,38 @@ export const onResourceUpdate = (callback) => {
     return () => {};
   }
   return window.electron.onResourceUpdate(callback);
+};
+
+// ==================== Interactive Terminal APIs ====================
+
+export const terminalCreate = async (options) => {
+  if (!isElectron()) return { success: false, error: 'Electron not available' };
+  return window.electron.terminalCreate(options);
+};
+
+export const terminalInput = async (id, data) => {
+  if (!isElectron()) return { success: false };
+  return window.electron.terminalInput(id, data);
+};
+
+export const terminalResize = async (id, cols, rows) => {
+  if (!isElectron()) return { success: false };
+  return window.electron.terminalResize(id, cols, rows);
+};
+
+export const terminalKill = async (id) => {
+  if (!isElectron()) return { success: true };
+  return window.electron.terminalKill(id);
+};
+
+export const onTerminalData = (callback) => {
+  if (!isElectron()) return () => {};
+  return window.electron.onTerminalData(callback);
+};
+
+export const onTerminalExit = (callback) => {
+  if (!isElectron()) return () => {};
+  return window.electron.onTerminalExit(callback);
 };
 
 export const isElectronAvailable = isElectron;

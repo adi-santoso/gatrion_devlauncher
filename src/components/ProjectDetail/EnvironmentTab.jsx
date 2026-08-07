@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import * as ipc from '../../utils/ipcRenderer';
+import { ConfirmDialog } from '../Modals';
 
 function highlightLine(line) {
   const trimmed = line.trim();
@@ -26,6 +27,7 @@ function EnvFileSection({ projectPath }) {
   const [editing, setEditing] = useState(false);
   const [notice, setNotice] = useState(null);
   const [loadError, setLoadError] = useState(null);
+  const [pendingSwitch, setPendingSwitch] = useState(null);
 
   const loadFile = useCallback(async (fileName) => {
     if (!fileName) return;
@@ -85,9 +87,18 @@ function EnvFileSection({ projectPath }) {
   };
 
   const handleSelectFile = (fileName) => {
-    if (dirty && !window.confirm(`Discard unsaved changes to ${selectedFile}?`)) return;
+    if (dirty) {
+      setPendingSwitch(fileName);
+      return;
+    }
     setNotice(null);
     setSelectedFile(fileName);
+  };
+
+  const confirmSwitch = () => {
+    setNotice(null);
+    setSelectedFile(pendingSwitch);
+    setPendingSwitch(null);
   };
 
   return (
@@ -179,6 +190,16 @@ function EnvFileSection({ projectPath }) {
           )}
         </>
       )}
+
+      <ConfirmDialog
+        isOpen={pendingSwitch !== null}
+        title="Discard Changes"
+        message={`Discard unsaved changes to ${selectedFile}? This cannot be undone.`}
+        confirmLabel="Discard"
+        confirmVariant="danger"
+        onConfirm={confirmSwitch}
+        onCancel={() => setPendingSwitch(null)}
+      />
     </div>
   );
 }

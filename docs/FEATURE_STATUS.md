@@ -37,9 +37,9 @@ Legend:
 | Real-time stdout/stderr | Done | IPC event ke Project Detail |
 | Backend log limit | Done | Maksimal 1000 entry per process |
 | Frontend log limit | Done | Buffer renderer dibatasi 1000 entry per project |
-| Crash/error status | Partial | Non-zero exit jadi error; UX crash banner masih belum event-driven penuh |
-| CPU/RAM metrics | Pending | Workspace jujur menandai backend monitoring belum tersedia |
-| Port conflict detection | Pending | Demo modal dilepas; backend detector belum ada |
+| Crash/error status | Done | Non-zero exit jadi error; crash banner dismissible per error signature |
+| CPU/RAM metrics | Done | `project-resource-update` push + 4s polling di dashboard |
+| Port conflict detection | Done | `check-port-conflict` + PortConflictModal + bulk preflight |
 
 ## UI
 
@@ -47,17 +47,17 @@ Legend:
 |---|---|---|
 | Workspace dashboard | Done | Status, running projects, latest output, activity, dan lifecycle memakai data nyata |
 | Projects registry | Done | Table, search, filter type/status, lifecycle, edit, delete, dan detail terhubung |
-| Terminals workspace | Partial | Output per project dan aggregate real-time; belum hydrate backend logs setelah reload |
-| Project Detail | Partial | Lifecycle, terminal, environment, dan settings terhubung; embedded App menunggu backend |
+| Terminals workspace | Done | Output per project dan aggregate real-time; hydrate backend logs setelah reload; interactive PTY shell |
+| Project Detail | Done | Lifecycle, terminal, environment (env file viewer/editor), settings, embedded App preview |
 | Stopping state | Done | Detail, dashboard card/table, grid/list |
 | PID cleanup | Done | Null setelah exit/stop |
 | Search/filter/sort | Done | Search, filter type/status, serta sorting (name, status, type, port) sudah terhubung |
 | Bulk start/stop/delete | Done | Multi-select checkbox dan BulkToolbar sudah terpasang |
 | Command palette | Done | Prop, item shape, default actions, dan navigasi project sudah terhubung |
-| Keyboard shortcuts | Partial | Ctrl/Cmd+K, Escape, `?`; shortcut lain hanya didokumentasikan UI |
+| Keyboard shortcuts | Done | Ctrl/Cmd+K, Ctrl+N, Ctrl+Shift+S/X, Escape, `?` semua terimplementasi |
 | Toast | Partial | Bekerja, dua auto-dismiss timer berbeda |
 | Theme | Done | Dark/light disimpan dan diterapkan |
-| Settings | Partial | Theme, sidebar, terminal tersimpan otomatis; setting native yang belum bekerja disembunyikan |
+| Settings | Done | Theme, sidebar, tray, start-on-boot, autoStartProjects, notifications (onStart/onError/sound), terminal (fontSize/maxLines/autoScroll) semua berfungsi |
 
 ## Desktop Integration
 
@@ -80,7 +80,7 @@ Legend:
 | ProcessManager regression test | Done | `npm test` |
 | Renderer production build | Done | `npx vite build` |
 | Unit test storage/detector/hooks | Done | Vitest setup, ProjectDetector.test.js, StorageManager.test.js created |
-| Electron integration/smoke automation | Partial | Manual checklist available, CI setup needed |
+| Electron integration/smoke automation | Done | Playwright E2E (`npm run test:e2e`) launches the app, checks navigation |
 | Lint command | Done | ESLint configured with @eslint/js + react-hooks plugin |
 | Type checking | Pending | JavaScript without TypeScript/JSDoc check |
 | Accessibility audit | Partial | ARIA labels on buttons/focusable elements added, keyboard shortcuts documented, contrast compliance |
@@ -90,12 +90,7 @@ Legend:
 
 ## Known Wiring Gaps
 
-- `CommandPalette` mengharapkan `onItemSelect`, App mengirim `onSelectCommand`.
-- `CommandPalette` memfilter `item.label`, project persisted memakai `name`.
-- `TrayPopup` mengharapkan `runningProjects`, App mengirim `projects`.
-- Tray item mengharapkan `id`, mapping App saat ini tidak menyertakannya.
-- `PortConflictModal` mengharapkan `onClose/onResolve`, App mengirim callback dengan nama lain.
-- `clearLogs` hanya membersihkan state frontend; handler backend tidak terpanggil.
+Tidak ada gap aktif. Semua handler IPC dan push channel terhubung ke renderer.
 
 ## Manual Smoke Checklist
 

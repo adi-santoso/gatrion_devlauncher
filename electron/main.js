@@ -7,6 +7,7 @@ const TrayManager = require('./managers/TrayManager')
 const { setupProcessHandlers } = require('./handlers/processHandlers')
 const { setupProjectHandlers } = require('./handlers/projectHandlers')
 const { setupDesktopHandlers } = require('./handlers/desktopHandlers')
+const { setupTerminalHandlers, killAllTerminals } = require('./handlers/terminalHandlers')
 const { assertTrustedIpcEvent } = require('./utils/ipcSecurity')
 
 let mainWindow
@@ -44,7 +45,9 @@ function createWindow() {
   const isDev = !app.isPackaged
   if (isDev) {
     mainWindow.loadURL('http://localhost:5173')
-    mainWindow.webContents.openDevTools()
+    if (process.env.GATRION_DEVTOOLS === '1') {
+      mainWindow.webContents.openDevTools()
+    }
   } else {
     mainWindow.loadFile(path.join(__dirname, '../dist-react/index.html'))
   }
@@ -107,15 +110,29 @@ async function initialize() {
   setupProcessHandlers(processManager, storageManager, mainWindow)
   setupProjectHandlers(storageManager, processManager, mainWindow)
   setupDesktopHandlers()
+  setupTerminalHandlers(mainWindow)
 
   // Listen to process events for native notifications & tray updates
   processManager.on('status-change', async (data) => {
     trayManager.updateContextMenu()
     const currentConfig = await storageManager.loadConfig().catch(() => null)
-    if (data.status === 'error' && currentConfig?.notifications?.onError && Notification.isSupported()) {
+    const notifications = currentConfig?.notifications || {}
+    if (!Notification.isSupported()) return
+
+    const projects = await storageManager.loadProjects().catch(() => [])
+    const projectName = projects.find((p) => p.id === data.projectId)?.name || data.projectId
+
+    if (data.status === 'error' && notifications.onError) {
       new Notification({
-        title: 'DevLauncher - Project Crash',
-        body: `Project "${data.projectId}" encountered an error.`
+        title: 'Gatrion - Project Crash',
+        body: `Project "${projectName}" encountered an error.`,
+        silent: !notifications.sound
+      }).show()
+    } else if (data.status === 'running' && notifications.onStart) {
+      new Notification({
+        title: 'Gatrion - Project Started',
+        body: `Project "${projectName}" is now running.`,
+        silent: !notifications.sound
       }).show()
     }
   })
@@ -123,6 +140,9 @@ async function initialize() {
   // Apply OS startup settings
   const config = await storageManager.loadConfig()
   await applyOSSettings(config)
+  if (Number.isInteger(config?.terminal?.maxLines) && config.terminal.maxLines > 0) {
+    processManager.maxLogLines = config.terminal.maxLines
+  }
   if (config.autoStartProjects) {
     const projects = await storageManager.loadProjects()
     for (const project of projects.filter((item) => item.autoStart)) {
@@ -152,7 +172,31 @@ async function initialize() {
       assertTrustedIpcEvent(event)
       const updatedConfig = await storageManager.updateConfig(updates)
       await applyOSSettings(updatedConfig)
+      if (Number.isInteger(updatedConfig?.terminal?.maxLines) && updatedConfig.terminal.maxLines > 0) {
+        processManager.maxLogLines = updatedConfig.terminal.maxLines
+      }
       return { success: true, config: updatedConfig }
+    } catch (error) {
+      return { success: false, error: error.message }
+    }
+  })
+
+  // Activity feed persistence
+  ipcMain.handle('get-activities', async (event) => {
+    try {
+      assertTrustedIpcEvent(event)
+      const activities = await storageManager.loadActivities()
+      return { success: true, activities }
+    } catch (error) {
+      return { success: false, error: error.message }
+    }
+  })
+
+  ipcMain.handle('append-activities', async (event, entries) => {
+    try {
+      assertTrustedIpcEvent(event)
+      const activities = await storageManager.appendActivities(entries)
+      return { success: true, activities }
     } catch (error) {
       return { success: false, error: error.message }
     }
@@ -199,6 +243,8 @@ app.on('before-quit', async (event) => {
   }
 
   isQuitting = true
+
+  killAllTerminals()
 
   // Stop resource monitoring first
   if (processManager && processManager.stopResourceMonitoring) {

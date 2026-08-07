@@ -15,7 +15,8 @@ module.exports = [
       globals: {
         alert: 'readonly', Blob: 'readonly', clearInterval: 'readonly', clearTimeout: 'readonly', confirm: 'readonly',
         console: 'readonly', document: 'readonly', module: 'readonly', navigator: 'readonly',
-        process: 'readonly', setInterval: 'readonly', setTimeout: 'readonly', URL: 'readonly', window: 'readonly',
+        process: 'readonly', ResizeObserver: 'readonly', setInterval: 'readonly', setTimeout: 'readonly',
+        URL: 'readonly', window: 'readonly',
       },
     },
     plugins: { 'react-hooks': reactHooks },
@@ -28,7 +29,7 @@ module.exports = [
     },
   },
   {
-    files: ['electron/**/*.js', 'test-*.js', '*.cjs'],
+    files: ['electron/**/*.js', 'test-*.js', '*.cjs', 'playwright.config.js', 'e2e/**/*.js'],
     languageOptions: {
       ecmaVersion: 2022,
       sourceType: 'commonjs',
@@ -36,6 +37,7 @@ module.exports = [
         console: 'readonly', process: 'readonly', Buffer: 'readonly', __dirname: 'readonly',
         require: 'readonly', module: 'readonly', setTimeout: 'readonly', clearTimeout: 'readonly',
         setInterval: 'readonly', clearInterval: 'readonly', URL: 'readonly', fetch: 'readonly',
+        document: 'readonly',
       },
     },
     rules: {

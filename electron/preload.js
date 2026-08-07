@@ -39,6 +39,10 @@ contextBridge.exposeInMainWorld('electron', {
   getConfig: () => ipcRenderer.invoke('get-config'),
   updateConfig: (updates) => ipcRenderer.invoke('update-config', updates),
 
+  // Activity feed persistence
+  getActivities: () => ipcRenderer.invoke('get-activities'),
+  appendActivities: (entries) => ipcRenderer.invoke('append-activities', entries),
+
   // Event Listeners
   onProcessStatus: (callback) => {
     const listener = (event, projectId, status) => callback(projectId, status)
@@ -78,8 +82,19 @@ contextBridge.exposeInMainWorld('electron', {
     return () => ipcRenderer.removeListener('project-resource-update', listener)
   },
 
-  // Remove listeners
-  removeAllListeners: (channel) => {
-    ipcRenderer.removeAllListeners(channel)
+  // Interactive PTY terminal
+  terminalCreate: (options) => ipcRenderer.invoke('terminal-create', options),
+  terminalInput: (id, data) => ipcRenderer.invoke('terminal-input', id, data),
+  terminalResize: (id, cols, rows) => ipcRenderer.invoke('terminal-resize', id, cols, rows),
+  terminalKill: (id) => ipcRenderer.invoke('terminal-kill', id),
+  onTerminalData: (callback) => {
+    const listener = (event, id, data) => callback(id, data)
+    ipcRenderer.on('terminal-data', listener)
+    return () => ipcRenderer.removeListener('terminal-data', listener)
+  },
+  onTerminalExit: (callback) => {
+    const listener = (event, id, exitCode) => callback(id, exitCode)
+    ipcRenderer.on('terminal-exit', listener)
+    return () => ipcRenderer.removeListener('terminal-exit', listener)
   },
 })

@@ -17,10 +17,11 @@ export default function ProjectDetailView({
   onRestart,
   onClearLogs,
   onFullscreenChange,
-  isFullscreen = false
+  isFullscreen = false,
+  terminalConfig
 }) {
   const [activeTab, setActiveTab] = useState('app');
-  const [autoScroll, setAutoScroll] = useState(true);
+  const [autoScroll, setAutoScroll] = useState(terminalConfig?.autoScroll !== false);
   // Use prop instead of local state to sync with parent
   const [fullscreen, setFullscreen] = useState(isFullscreen);
   const combinedLogs = Array.isArray(logs) && logs.length > 0 ? logs : (Array.isArray(project?.logs) ? project.logs : []);
@@ -34,9 +35,7 @@ export default function ProjectDetailView({
 
   // Notify parent component (App.jsx) when fullscreen status changes
   useEffect(() => {
-    console.log('[PDV] Fullscreen state changed to:', fullscreen);
     onFullscreenChange?.(fullscreen);
-    return () => console.log('[PDV] Cleanup');
   }, [fullscreen, onFullscreenChange]);
 
   // ESC key listener to exit fullscreen
@@ -76,7 +75,7 @@ export default function ProjectDetailView({
       {!fullscreen && (
         <>
           <div className={activeTab === 'terminal' ? 'block' : 'hidden'}>
-            <LogsTab logs={combinedLogs} autoScroll={autoScroll} onAutoScrollChange={setAutoScroll} onClear={onClearLogs}/>
+            <LogsTab logs={combinedLogs} autoScroll={autoScroll} onAutoScrollChange={setAutoScroll} onClear={onClearLogs} fontSize={terminalConfig?.fontSize}/>
           </div>
           <div className={activeTab === 'environment' ? 'block' : 'hidden'}>
             <EnvironmentTab project={project} envVars={project?.envVars} onEdit={onEdit}/>

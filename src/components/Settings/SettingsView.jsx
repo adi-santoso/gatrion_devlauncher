@@ -35,7 +35,37 @@ const SettingsView = ({ config, updateConfig }) => {
         <ToggleSwitch
           enabled={!!config.startOnBoot}
           onChange={() => handleChange('startOnBoot', !config.startOnBoot)}
-          label="Start DevLauncher on Windows boot"
+          label="Start Gatrion on Windows boot"
+        />
+        <ToggleSwitch
+          enabled={!!config.autoStartProjects}
+          onChange={() => handleChange('autoStartProjects', !config.autoStartProjects)}
+          label="Auto-start projects marked for auto-start on launch"
+        />
+      </div>
+
+      <div className="bg-surface border border-border rounded-xl shadow-card p-5 space-y-4">
+        <p className="font-display font-bold text-sm">Notifications</p>
+        <ToggleSwitch
+          enabled={config.notifications?.onStart !== false}
+          onChange={() =>
+            updateConfig({ notifications: { onStart: !(config.notifications?.onStart !== false) } })
+          }
+          label="Notify when a project starts"
+        />
+        <ToggleSwitch
+          enabled={config.notifications?.onError !== false}
+          onChange={() =>
+            updateConfig({ notifications: { onError: !(config.notifications?.onError !== false) } })
+          }
+          label="Notify when a project crashes"
+        />
+        <ToggleSwitch
+          enabled={!!config.notifications?.sound}
+          onChange={() =>
+            updateConfig({ notifications: { sound: !config.notifications?.sound } })
+          }
+          label="Play sound with notifications"
         />
       </div>
 

@@ -4,7 +4,7 @@ import { DashboardView } from './components/Dashboard';
 import { ProjectsView } from './components/Projects';
 import { ProjectDetailView } from './components/ProjectDetail';
 import { SettingsView } from './components/Settings';
-import { EmptyState, LoadingSkeleton } from './components/States';
+import { LoadingSkeleton } from './components/States';
 import TerminalWorkspace from './components/TerminalWorkspace';
 import {
   ProjectModal,
@@ -15,7 +15,7 @@ import {
 } from './components/Modals';
 import PortConflictModal from './components/Modals/PortConflictModal';
 import { useProjects, useProcesses, useElectronConfig } from './hooks';
-import { checkPortConflict, isElectronAvailable, onNavigateToProject } from './utils/ipcRenderer';
+import { checkPortConflict, isElectronAvailable, onNavigateToProject, getActivities, appendActivities } from './utils/ipcRenderer';
 import { summarizeWorkspaceStart } from './utils/workspaceResults';
 
 function App() {
@@ -28,7 +28,6 @@ function App() {
   const [selectedProject, setSelectedProject] = useState(null);
 
   // UI state
-  const [showUpdateBanner, setShowUpdateBanner] = useState(false);
   const [openModal, setOpenModal] = useState(null);
   const [toasts, setToasts] = useState([]);
   const [confirmTarget, setConfirmTarget] = useState(null);
@@ -37,17 +36,35 @@ function App() {
   // Activities state
   const [activities, setActivities] = useState([]);
 
+  const formatActivityTime = (timestamp, detail = '') => {
+    const date = new Date(timestamp);
+    const base = Number.isNaN(date.getTime()) ? '' : date.toLocaleString();
+    return `${base}${detail ? ' · ' + detail : ''}`;
+  };
+
   const addActivity = (type, project, message, detail = '') => {
+    const timestamp = new Date().toISOString();
     setActivities(prev => [
-      {
-        type,
-        project,
-        message,
-        time: `Just now${detail ? ' · ' + detail : ''}`
-      },
+      { type, project, message, time: formatActivityTime(timestamp, detail) },
       ...prev.slice(0, 19)
     ]);
+    appendActivities([{ type, project, message, detail, timestamp }]).catch(() => {});
   };
+
+  // Hydrate persisted activity feed once on mount
+  useEffect(() => {
+    let cancelled = false;
+    getActivities().then((result) => {
+      if (cancelled || !result?.success || !Array.isArray(result.activities)) return;
+      setActivities(result.activities.slice(0, 20).map((entry) => ({
+        type: entry.type,
+        project: entry.project,
+        message: entry.message,
+        time: formatActivityTime(entry.timestamp, entry.detail)
+      })));
+    }).catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
 
   // Handle project updates from process events (runtime state only — no IPC persist)
   const handleProjectUpdate = useCallback((projectId, updates) => {
@@ -64,7 +81,7 @@ function App() {
     getLogs,
     clearLogs,
     processLogs
-  } = useProcesses(projects, handleProjectUpdate);
+  } = useProcesses(projects, handleProjectUpdate, { maxLines: config.terminal?.maxLines });
 
   // Check Electron availability on mount
   useEffect(() => {
@@ -85,15 +102,38 @@ function App() {
   useEffect(() => {
     const handleKeyDown = (e) => {
       // Ctrl+K or Cmd+K - Open command palette
-      if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
         e.preventDefault();
         setOpenModal('command');
+        return;
+      }
+
+      // Ctrl+N - Add new project
+      if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === 'n') {
+        e.preventDefault();
+        openModalHandler('project');
+        return;
+      }
+
+      // Ctrl+Shift+S - Start all projects
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 's') {
+        e.preventDefault();
+        handleStartAll();
+        return;
+      }
+
+      // Ctrl+Shift+X - Stop all projects
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'x') {
+        e.preventDefault();
+        handleStopAll();
+        return;
       }
 
       // Escape - Close modals
       if (e.key === 'Escape' && openModal) {
         e.preventDefault();
         closeModalHandler();
+        return;
       }
 
       // ? - Open shortcuts modal
@@ -105,7 +145,7 @@ function App() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [openModal]);
+  }, [openModal, projects]);
 
   // Subscribe to tray menu navigation events
   useEffect(() => {
@@ -124,22 +164,14 @@ function App() {
   // View navigation
   const showView = (viewName, data = null) => {
     setCurrentView(viewName);
-    
-    console.log('[NAV]', 'View:', viewName, 'Fullscreen:', isFullscreen, 'LastFullProject:', lastFullscreenProjectId, 'Data:', data?.name || '');
-    
+
     if (viewName === 'project-detail' && data) {
       setSelectedProject(data);
       // If we were fullscreen and clicking same/different project, go fullscreen again
       if (isFullscreen || lastFullscreenProjectId) {
         setIsFullscreen(true);
         setLastFullscreenProjectId(data.id);
-        console.log('[NAV] → Going FULLSCREEN with', data.name);
-      } else {
-        console.log('[NAV] → Normal view for', data.name);
       }
-    } else if (viewName !== 'project-detail' && !data) {
-      // Only resetting when leaving to non-project pages
-      console.log('[NAV] ← Leaving project context, keeping fullscreen state');
     }
   };
 
@@ -163,7 +195,6 @@ function App() {
   // Toast notifications
   const showToast = (type, message) => {
     const id = Date.now();
-    console.log('[Toast] Showing toast:', { id, type, message });
     setToasts(prev => [...prev, { id, type, message }]);
 
     // Auto-dismiss after 5 seconds
@@ -410,14 +441,6 @@ function App() {
           const targetId = command.projectId || command.id.replace('project-', '');
           const project = projects.find((item) => item.id === targetId);
           if (project) showView('project-detail', project);
-        } else if (command.id && command.id.startsWith('start-')) {
-          const projectName = command.id.replace('start-', '');
-          const project = projects.find(p => p.name === projectName);
-          if (project) handleStartProject(project);
-        } else if (command.id && command.id.startsWith('stop-')) {
-          const projectName = command.id.replace('stop-', '');
-          const project = projects.find(p => p.name === projectName);
-          if (project) handleStopProject(project);
         }
     }
   };
@@ -430,8 +453,6 @@ function App() {
         <>
           <MainLayout
             currentView={currentView}
-            showUpdateBanner={showUpdateBanner}
-            onUpdateDismiss={() => setShowUpdateBanner(false)}
             onViewChange={showView}
             onOpenModal={openModalHandler}
             onStartAll={handleStartAll}
@@ -461,8 +482,6 @@ function App() {
             onStart={handleStartProject}
             onStop={handleStopProject}
             onRestart={handleRestartProject}
-            onDelete={handleDeleteProject}
-            onEdit={(project) => openModalHandler('project', project)}
             onNavigate={(projectOrView) => {
               if (typeof projectOrView === 'string') {
                 showView(projectOrView);
@@ -470,7 +489,6 @@ function App() {
                 showView('project-detail', projectOrView, isFullscreen);
               }
             }}
-            onShowToast={showToast}
             onOpenModal={openModalHandler}
             onStartAll={handleStartAll}
             onStopAll={handleStopAll}
@@ -479,7 +497,7 @@ function App() {
         )}
 
         {currentView === 'terminals' && (
-          <TerminalWorkspace projects={projects} getLogs={getLogs} processLogs={processLogs} onClearLogs={clearLogs} />
+          <TerminalWorkspace projects={projects} getLogs={getLogs} onClearLogs={clearLogs} fontSize={config.terminal?.fontSize} />
         )}
 
         {/* Projects View */}
@@ -518,16 +536,14 @@ function App() {
               onRemove={() => handleDeleteProject(liveProject)}
               onEdit={() => openModalHandler('project', liveProject)}
               onClearLogs={() => clearLogs(liveProject.id)}
+              terminalConfig={config.terminal}
               onFullscreenChange={(isFull) => {
                 if (isFullscreen === isFull) return; // Only process actual changes
-                console.log('[FULLSCREEN]', 'Status:', isFull, 'Project:', liveProject?.name, 'LastFullProject:', lastFullscreenProjectId);
                 setIsFullscreen(isFull);
                 if (isFull && liveProject) {
                   setLastFullscreenProjectId(liveProject.id);
-                  console.log('[FULLSCREEN] Set lastFullscreenProjectId to', liveProject.id);
                 } else if (!isFull) {
                   setLastFullscreenProjectId(null);
-                  console.log('[FULLSCREEN] Cleared lastFullscreenProjectId');
                 }
               }}
               isFullscreen={isFullscreen}
@@ -538,16 +554,6 @@ function App() {
         {/* Settings View */}
         {currentView === 'settings' && (
           <SettingsView config={config} updateConfig={updateElectronConfig} />
-        )}
-
-        {/* Empty State */}
-        {currentView === 'empty' && (
-          <EmptyState
-            title="No Projects Yet"
-            description="Get started by creating your first project or importing an existing one."
-            actionLabel="Create Project"
-            onAction={() => openModalHandler('project')}
-          />
         )}
       </MainLayout>
 

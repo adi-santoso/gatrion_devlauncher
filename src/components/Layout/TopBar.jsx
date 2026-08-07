@@ -1,6 +1,6 @@
 import React from 'react';
 
-const TopBar = ({ title = 'Workspace', subtitle = 'DevLauncher', onCommandPalette }) => (
+const TopBar = ({ title = 'Workspace', subtitle = 'Gatrion', onCommandPalette }) => (
   <header className="h-[50px] shrink-0 border-b border-border flex items-center gap-2.5 px-5 bg-base/80 backdrop-blur">
     <div className="text-[11px] text-ink-faint">
       <span>{subtitle}</span>
