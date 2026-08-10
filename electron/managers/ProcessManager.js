@@ -2,6 +2,7 @@ const { spawn, exec } = require('child_process')
 const net = require('net')
 const os = require('os')
 const path = require('path')
+const fs = require('fs').promises
 const util = require('util')
 const { EventEmitter } = require('events')
 const execAsync = util.promisify(exec)
@@ -19,12 +20,69 @@ class ProcessManager extends EventEmitter {
     this.processes = new Map() // projectId -> process data
     this.nextLogId = 1
     this.maxLogLines = 1000
+    this.logsDir = null
     this.STATUS = {
       STOPPED: 'STOPPED',
       STARTING: 'STARTING',
       RUNNING: 'RUNNING',
       STOPPING: 'STOPPING',
       ERROR: 'ERROR',
+    }
+  }
+
+  setLogsDir(dir) {
+    this.logsDir = dir
+  }
+
+  getLogFilePath(projectId) {
+    if (!this.logsDir) return null
+    const safeId = String(projectId).replace(/[^A-Za-z0-9_-]/g, '_')
+    return path.join(this.logsDir, `${safeId}.jsonl`)
+  }
+
+  async persistLog(projectId, entry) {
+    const filePath = this.getLogFilePath(projectId)
+    if (!filePath) return
+    try {
+      await fs.appendFile(filePath, JSON.stringify(entry) + '\n', 'utf8')
+    } catch {
+      // Non-critical: log persistence should not block process flow
+    }
+  }
+
+  async loadPersistedLogs(projectId, limit = null) {
+    const filePath = this.getLogFilePath(projectId)
+    if (!filePath) return []
+    try {
+      const content = await fs.readFile(filePath, 'utf8')
+      const lines = content.split('\n').filter((line) => line.trim())
+      const parsed = []
+      for (const line of lines) {
+        try {
+          const entry = JSON.parse(line)
+          entry.id = this.nextLogId++
+          parsed.push(entry)
+        } catch {
+          // Skip malformed lines
+        }
+      }
+      const safeLimit = Number.isInteger(limit) && limit > 0 ? Math.min(limit, this.maxLogLines) : this.maxLogLines
+      return parsed.slice(-safeLimit)
+    } catch (error) {
+      if (error.code !== 'ENOENT') log.warn('ProcessManager', `Failed to load persisted logs for ${projectId}:`, error.message)
+      return []
+    }
+  }
+
+  async truncateLogFile(projectId) {
+    const filePath = this.getLogFilePath(projectId)
+    if (!filePath) return
+    try {
+      const content = await fs.readFile(filePath, 'utf8')
+      const lines = content.split('\n').filter((line) => line.trim()).slice(-this.maxLogLines)
+      await fs.writeFile(filePath, lines.join('\n') + '\n', 'utf8')
+    } catch {
+      // Non-critical
     }
   }
 
@@ -77,11 +135,13 @@ class ProcessManager extends EventEmitter {
     try {
       log.info('ProcessManager', 'Starting process', { projectId, projectPath, commands })
 
+      const persistedLogs = await this.loadPersistedLogs(projectId, this.maxLogLines)
+
       const processData = {
         pid: null,
         status: this.STATUS.STARTING,
         startedAt: Date.now(),
-        logs: [],
+        logs: persistedLogs,
         command: commands.find((item) => item.primary)?.command || commands[0].command,
         projectPath,
         port: commands.find((item) => item.primary)?.port ?? null,
@@ -90,6 +150,9 @@ class ProcessManager extends EventEmitter {
         onExit,
         onError,
         onReady,
+        onLog,
+        env,
+        restartCount: 0,
       }
       this.processes.set(projectId, processData)
       this.emit('status-change', { projectId, status: 'starting' })
@@ -150,6 +213,7 @@ class ProcessManager extends EventEmitter {
       const current = this.processes.get(projectId)
       if (!current || current.runId !== runId || current.status !== this.STATUS.STARTING) return
       current.status = this.STATUS.RUNNING
+      current.restartCount = 0
       for (const item of current.commands.values()) if (item.status === this.STATUS.STARTING) item.status = this.STATUS.RUNNING
       this.emit('status-change', { projectId, status: 'running' })
       if (current.onReady) current.onReady(projectId)
@@ -198,6 +262,44 @@ class ProcessManager extends EventEmitter {
       if (child.process && child.pid) this.killProcessTree(child.process, true).catch(() => {})
       if (child !== failedChild) child.status = this.STATUS.STOPPING
     }
+
+    this.maybeAutoRestart(projectId, runId, data)
+  }
+
+  maybeAutoRestart(projectId, runId, data) {
+    if (!this.autoRestartConfig?.enabled) return
+    if (!data.projectPath || !data.command) return
+    const maxRetries = Number.isInteger(this.autoRestartConfig.maxRetries) ? this.autoRestartConfig.maxRetries : 3
+    if (data.restartCount >= maxRetries) {
+      this.addLog(projectId, `Auto-restart disabled: max retries (${maxRetries}) reached`, 'system')
+      return
+    }
+
+    const delay = Number.isInteger(this.autoRestartConfig.delayMs) ? this.autoRestartConfig.delayMs : 2000
+    const backoffDelay = delay * Math.pow(2, data.restartCount)
+    data.restartCount += 1
+
+    this.addLog(projectId, `Auto-restarting in ${Math.round(backoffDelay / 1000)}s (attempt ${data.restartCount}/${maxRetries})...`, 'system')
+
+    setTimeout(() => {
+      const current = this.processes.get(projectId)
+      if (!current || current.runId !== runId || current.status === this.STATUS.STOPPING || current.status === this.STATUS.STOPPED) {
+        return
+      }
+      this.startProcess(
+        projectId,
+        data.projectPath,
+        data.command,
+        data.env || {},
+        data.port,
+        data.onLog,
+        data.onExit,
+        data.onError,
+        data.onReady
+      ).catch((restartError) => {
+        this.addLog(projectId, `Auto-restart failed: ${restartError.message}`, 'error')
+      })
+    }, backoffDelay)
   }
 
   async isPortOpen(port, timeout = 250) {
@@ -541,6 +643,8 @@ class ProcessManager extends EventEmitter {
       processData.logs.shift()
     }
 
+    this.persistLog(projectId, log)
+
     return log
   }
 
@@ -564,6 +668,10 @@ class ProcessManager extends EventEmitter {
     if (!this.processes.has(projectId)) return
     const processData = this.processes.get(projectId)
     processData.logs = []
+    const filePath = this.getLogFilePath(projectId)
+    if (filePath) {
+      fs.writeFile(filePath, '', 'utf8').catch(() => {})
+    }
   }
 
   /**
@@ -861,12 +969,15 @@ class ProcessManager extends EventEmitter {
    */
   async stopAllProcesses() {
     const promises = []
+    const projectIds = []
     this.processes.forEach((processData, projectId) => {
       if ([this.STATUS.RUNNING, this.STATUS.STARTING, this.STATUS.ERROR].includes(processData.status)) {
-        promises.push(this.stopProcess(projectId, false))
+        projectIds.push(projectId)
+        promises.push(this.stopProcess(projectId, false).then(() => ({ projectId, success: true })).catch((error) => ({ projectId, success: false, error: error.message })))
       }
     })
-    return Promise.all(promises)
+    const results = await Promise.all(promises)
+    return results
   }
 }
 

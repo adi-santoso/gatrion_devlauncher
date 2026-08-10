@@ -14,6 +14,12 @@ const DEFAULT_CONFIG = {
     maxLines: 1000,
     autoScroll: true,
   },
+  autoRestart: {
+    enabled: false,
+    maxRetries: 3,
+    delayMs: 2000,
+  },
+  windowBounds: null,
 }
 
 const CONFIG_SCHEMA_VERSION = 1
@@ -98,6 +104,8 @@ function normalizeConfig(config = {}) {
     ? migrated.notifications
     : {}
   const terminal = migrated.terminal && typeof migrated.terminal === 'object' ? migrated.terminal : {}
+  const autoRestart = migrated.autoRestart && typeof migrated.autoRestart === 'object' ? migrated.autoRestart : {}
+  const windowBounds = migrated.windowBounds && typeof migrated.windowBounds === 'object' && !Array.isArray(migrated.windowBounds) ? migrated.windowBounds : null
 
   return {
     theme: migrated.theme === 'light' ? 'light' : 'dark',
@@ -115,6 +123,20 @@ function normalizeConfig(config = {}) {
       maxLines: integerOr(terminal.maxLines, integerOr(migrated.terminalMaxLines, DEFAULT_CONFIG.terminal.maxLines, 100, 10000), 100, 10000),
       autoScroll: booleanOr(terminal.autoScroll, booleanOr(migrated.terminalAutoScroll, DEFAULT_CONFIG.terminal.autoScroll)),
     },
+    autoRestart: {
+      enabled: booleanOr(autoRestart.enabled, DEFAULT_CONFIG.autoRestart.enabled),
+      maxRetries: integerOr(autoRestart.maxRetries, DEFAULT_CONFIG.autoRestart.maxRetries, 0, 10),
+      delayMs: integerOr(autoRestart.delayMs, DEFAULT_CONFIG.autoRestart.delayMs, 500, 60000),
+    },
+    windowBounds: windowBounds && Number.isFinite(windowBounds.width) && Number.isFinite(windowBounds.height)
+      ? {
+          x: Number.isFinite(windowBounds.x) ? windowBounds.x : undefined,
+          y: Number.isFinite(windowBounds.y) ? windowBounds.y : undefined,
+          width: Math.max(400, windowBounds.width),
+          height: Math.max(300, windowBounds.height),
+          maximized: !!windowBounds.maximized,
+        }
+      : null,
     schemaVersion: CONFIG_SCHEMA_VERSION,
   }
 }
@@ -124,12 +146,12 @@ function applyConfigUpdates(current, updates) {
     throw new Error('Config updates must be an object')
   }
 
-  const allowed = new Set(['theme', 'sidebarExpanded', 'startOnBoot', 'minimizeToTray', 'autoStartProjects', 'notifications', 'terminal'])
+  const allowed = new Set(['theme', 'sidebarExpanded', 'startOnBoot', 'minimizeToTray', 'autoStartProjects', 'notifications', 'terminal', 'autoRestart', 'windowBounds'])
   const unknown = Object.keys(updates).find((key) => !allowed.has(key))
   if (unknown) throw new Error(`Unsupported config field: ${unknown}`)
 
-  for (const nestedKey of ['notifications', 'terminal']) {
-    if (updates[nestedKey] !== undefined && (!updates[nestedKey] || typeof updates[nestedKey] !== 'object' || Array.isArray(updates[nestedKey]))) {
+  for (const nestedKey of ['notifications', 'terminal', 'autoRestart', 'windowBounds']) {
+    if (updates[nestedKey] !== undefined && updates[nestedKey] !== null && (!updates[nestedKey] || typeof updates[nestedKey] !== 'object' || Array.isArray(updates[nestedKey]))) {
       throw new Error(`${nestedKey} config must be an object`)
     }
   }
@@ -145,17 +167,26 @@ function applyConfigUpdates(current, updates) {
   if (updates.terminal?.autoScroll !== undefined && typeof updates.terminal.autoScroll !== 'boolean') {
     throw new Error('terminal.autoScroll must be a boolean')
   }
+  if (updates.autoRestart?.enabled !== undefined && typeof updates.autoRestart.enabled !== 'boolean') {
+    throw new Error('autoRestart.enabled must be a boolean')
+  }
 
   const notificationKey = Object.keys(updates.notifications || {}).find((key) => !['onStart', 'onError', 'sound'].includes(key))
   if (notificationKey) throw new Error(`Unsupported notifications field: ${notificationKey}`)
   const terminalKey = Object.keys(updates.terminal || {}).find((key) => !['fontSize', 'maxLines', 'autoScroll'].includes(key))
   if (terminalKey) throw new Error(`Unsupported terminal field: ${terminalKey}`)
+  const autoRestartKey = Object.keys(updates.autoRestart || {}).find((key) => !['enabled', 'maxRetries', 'delayMs'].includes(key))
+  if (autoRestartKey) throw new Error(`Unsupported autoRestart field: ${autoRestartKey}`)
 
   const merged = {
     ...current,
     ...updates,
     notifications: { ...current.notifications, ...(updates.notifications || {}) },
     terminal: { ...current.terminal, ...(updates.terminal || {}) },
+    autoRestart: updates.autoRestart !== undefined && updates.autoRestart !== null
+      ? { ...current.autoRestart, ...updates.autoRestart }
+      : current.autoRestart,
+    windowBounds: updates.windowBounds !== undefined ? updates.windowBounds : current.windowBounds,
   }
   const normalized = normalizeConfig(merged)
 

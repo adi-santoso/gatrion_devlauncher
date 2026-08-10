@@ -13,7 +13,9 @@ export const useElectronConfig = () => {
     minimizeToTray: true,
     autoStartProjects: false,
     notifications: { onStart: true, onError: true, sound: false },
-    terminal: { fontSize: 14, maxLines: 1000, autoScroll: true }
+    terminal: { fontSize: 14, maxLines: 1000, autoScroll: true },
+    autoRestart: { enabled: false, maxRetries: 3, delayMs: 2000 },
+    windowBounds: null,
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);

@@ -332,7 +332,18 @@ function App() {
   const handleStopAll = async () => {
     showToast('info', 'Stopping all projects...');
     const result = await stopAll();
-    if (result && result.error) {
+    if (Array.isArray(result)) {
+      const stopped = result.filter((r) => r.success).length;
+      const failed = result.filter((r) => !r.success).length;
+      if (failed > 0) {
+        showToast('warning', `Stopped ${stopped}, ${failed} failed to stop`);
+      } else if (stopped > 0) {
+        showToast('info', `${stopped} project(s) stopped`);
+      } else {
+        showToast('info', 'No running projects to stop');
+      }
+      addActivity('faint', 'All projects', `stopped${stopped > 0 ? ` (${stopped})` : ''}`);
+    } else if (result && result.error) {
       showToast('error', result.error);
     } else {
       showToast('info', 'All projects stopped');

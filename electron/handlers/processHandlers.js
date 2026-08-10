@@ -257,8 +257,8 @@ function setupProcessHandlers(processManager, storageManager, mainWindow) {
   // Stop all projects
   secureHandle('stop-all-projects', async (event) => {
     try {
-      await processManager.stopAllProcesses()
-      return { success: true }
+      const results = await processManager.stopAllProcesses()
+      return results
     } catch (error) {
       return { success: false, error: error.message }
     }

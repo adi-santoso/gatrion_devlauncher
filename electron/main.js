@@ -1,5 +1,6 @@
 const { app, BrowserWindow, ipcMain, Notification } = require('electron')
 const path = require('path')
+const fs = require('fs').promises
 const ProcessManager = require('./managers/ProcessManager')
 const StorageManager = require('./managers/StorageManager')
 const ProjectDetector = require('./managers/ProjectDetector')
@@ -17,12 +18,21 @@ let projectDetector
 let trayManager
 let isQuitting = false
 
-function createWindow() {
+function createWindow(windowBounds) {
+  const defaults = { width: 1280, height: 800, minWidth: 1024, minHeight: 600 }
+  const bounds = windowBounds && Number.isFinite(windowBounds.width) && Number.isFinite(windowBounds.height)
+    ? {
+        width: Math.max(defaults.minWidth, Math.round(windowBounds.width)),
+        height: Math.max(defaults.minHeight, Math.round(windowBounds.height)),
+        x: Number.isFinite(windowBounds.x) ? Math.round(windowBounds.x) : undefined,
+        y: Number.isFinite(windowBounds.y) ? Math.round(windowBounds.y) : undefined,
+      }
+    : { width: defaults.width, height: defaults.height }
+
   mainWindow = new BrowserWindow({
-    width: 1280,
-    height: 800,
-    minWidth: 1024,
-    minHeight: 600,
+    ...bounds,
+    minWidth: defaults.minWidth,
+    minHeight: defaults.minHeight,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       nodeIntegration: false,
@@ -30,6 +40,24 @@ function createWindow() {
     },
     icon: path.join(__dirname, '../build/icon.png'),
   })
+
+  if (windowBounds?.maximized) {
+    mainWindow.maximize()
+  }
+
+  // Persist window bounds on move/resize
+  const saveBounds = () => {
+    if (!mainWindow || mainWindow.isDestroyed()) return
+    const maximized = mainWindow.isMaximized()
+    const normalBounds = mainWindow.getNormalBounds()
+    storageManager.updateConfig({
+      windowBounds: { x: normalBounds.x, y: normalBounds.y, width: normalBounds.width, height: normalBounds.height, maximized },
+    }).catch(() => {})
+  }
+  mainWindow.on('resize', saveBounds)
+  mainWindow.on('move', saveBounds)
+  mainWindow.on('maximize', saveBounds)
+  mainWindow.on('unmaximize', saveBounds)
 
   mainWindow.webContents.on('will-navigate', (event, url) => {
     const trusted = app.isPackaged
@@ -99,8 +127,19 @@ async function initialize() {
   // Start resource monitoring (every 5 seconds)
   processManager.startResourceMonitoring(5000)
 
+  // Set up log persistence directory
+  const logsDir = path.join(app.getPath('userData'), 'logs')
+  await fs.mkdir(logsDir, { recursive: true }).catch(() => {})
+  processManager.setLogsDir(logsDir)
+
+  // Apply auto-restart config
+  const initialConfig = await storageManager.loadConfig()
+  if (initialConfig?.autoRestart) {
+    processManager.autoRestartConfig = initialConfig.autoRestart
+  }
+
   // Create window
-  createWindow()
+  createWindow(initialConfig?.windowBounds)
 
   // Create native tray
   trayManager = new TrayManager(mainWindow, processManager, storageManager)
@@ -137,13 +176,12 @@ async function initialize() {
     }
   })
 
-  // Apply OS startup settings
-  const config = await storageManager.loadConfig()
-  await applyOSSettings(config)
-  if (Number.isInteger(config?.terminal?.maxLines) && config.terminal.maxLines > 0) {
-    processManager.maxLogLines = config.terminal.maxLines
+  // Apply OS startup settings and auto-start projects
+  await applyOSSettings(initialConfig)
+  if (Number.isInteger(initialConfig?.terminal?.maxLines) && initialConfig.terminal.maxLines > 0) {
+    processManager.maxLogLines = initialConfig.terminal.maxLines
   }
-  if (config.autoStartProjects) {
+  if (initialConfig.autoStartProjects) {
     const projects = await storageManager.loadProjects()
     for (const project of projects.filter((item) => item.autoStart)) {
       processManager.startProcess(
@@ -174,6 +212,9 @@ async function initialize() {
       await applyOSSettings(updatedConfig)
       if (Number.isInteger(updatedConfig?.terminal?.maxLines) && updatedConfig.terminal.maxLines > 0) {
         processManager.maxLogLines = updatedConfig.terminal.maxLines
+      }
+      if (updatedConfig?.autoRestart) {
+        processManager.autoRestartConfig = updatedConfig.autoRestart
       }
       return { success: true, config: updatedConfig }
     } catch (error) {
