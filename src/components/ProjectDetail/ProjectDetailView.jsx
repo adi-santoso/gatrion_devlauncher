@@ -5,6 +5,7 @@ import LogsTab from './LogsTab';
 import EnvironmentTab from './EnvironmentTab';
 import SettingsTab from './SettingsTab';
 import AppPreviewTab from './AppPreviewTab';
+import CustomCommands from './CustomCommands';
 
 export default function ProjectDetailView({
   project,
@@ -75,6 +76,7 @@ export default function ProjectDetailView({
       {!fullscreen && (
         <>
           <div className={activeTab === 'terminal' ? 'block' : 'hidden'}>
+            <CustomCommands project={project}/>
             <LogsTab logs={combinedLogs} autoScroll={autoScroll} onAutoScrollChange={setAutoScroll} onClear={onClearLogs} fontSize={terminalConfig?.fontSize}/>
           </div>
           <div className={activeTab === 'environment' ? 'block' : 'hidden'}>

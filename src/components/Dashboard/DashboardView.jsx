@@ -36,7 +36,11 @@ export default function DashboardView({
   onRestart,
   onStartAll,
   onStopAll,
-  onWorkspaceActionComplete
+  onWorkspaceActionComplete,
+  presets = [],
+  onStartPreset,
+  onDeletePreset,
+  onCreatePreset
 }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
@@ -242,6 +246,27 @@ export default function DashboardView({
           )}
         </div>
       </header>
+
+      {presets.length > 0 && (
+        <div className="mb-4 flex items-center gap-2 flex-wrap">
+          <span className="text-[10px] font-mono uppercase tracking-wider text-ink-faint">Presets:</span>
+          {presets.map((preset) => (
+            <div key={preset.id} className="inline-flex items-center gap-1 rounded-lg border border-border bg-surface-2 px-2.5 py-1">
+              <button type="button" onClick={() => onStartPreset?.(preset)} className="text-[11px] font-medium text-ink-soft hover:text-accent transition-colors">{preset.name}</button>
+              <span className="text-[9px] text-ink-faint">{preset.projectIds?.length || 0}</span>
+              {onDeletePreset && (
+                <button type="button" onClick={() => onDeletePreset(preset)} className="text-ink-faint hover:text-danger ml-0.5" aria-label={`Delete preset ${preset.name}`}>✕</button>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {onCreatePreset && projects.length > 0 && presets.length === 0 && (
+        <div className="mb-4">
+          <button type="button" onClick={onCreatePreset} className="text-[11px] text-accent hover:text-accent-hover">+ Create a workspace preset</button>
+        </div>
+      )}
 
       {/* Workspace Alerts */}
       {visibleErrors.length > 0 && (

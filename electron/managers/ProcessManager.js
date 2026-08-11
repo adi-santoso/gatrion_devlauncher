@@ -21,6 +21,8 @@ class ProcessManager extends EventEmitter {
     this.nextLogId = 1
     this.maxLogLines = 1000
     this.logsDir = null
+    this.customRuns = new Map() // runId -> { projectId, commandId, label, process }
+    this.nextRunId = 1
     this.STATUS = {
       STOPPED: 'STOPPED',
       STARTING: 'STARTING',
@@ -194,8 +196,83 @@ class ProcessManager extends EventEmitter {
     }
   }
 
-  getCommandSnapshot(processData) {
+getCommandSnapshot(processData) {
     return [...(processData?.commands?.values() || [])].map((item) => ({ id: item.id, name: item.name, command: item.command, port: item.port ?? null, primary: item.primary, status: item.status, pid: item.pid, ready: item.ready }))
+  }
+
+  /**
+   * Run a one-off custom command for a project (no readiness/status tracking).
+   * Output is forwarded to the project log buffer and onLog callback.
+   * @param {string} projectId - Project ID
+   * @param {string} projectPath - Working directory
+   * @param {string} commandId - Custom command id
+   * @param {string} label - Custom command label
+   * @param {string} command - Shell command to run
+   * @param {object} env - Environment variables
+   * @param {function} onLog - Callback for log lines
+   * @returns {Promise<{runId: number, pid: number}>}
+   */
+  async runCustomCommand(projectId, projectPath, commandId, label, command, env = {}, onLog) {
+    if (!projectId || !projectPath) throw new Error('Project id and path are required')
+    if (typeof command !== 'string' || !command.trim()) throw new Error('Command is required')
+
+    const runId = this.nextRunId++
+    const childProcess = spawn(command.trim(), {
+      cwd: projectPath,
+      env: { ...process.env, ...env },
+      shell: true,
+      detached: process.platform !== 'win32',
+      windowsHide: false,
+    })
+
+    this.customRuns.set(runId, { projectId, commandId, label: label || commandId, process: childProcess, pid: childProcess.pid })
+
+    // Ensure a process entry exists so logs are captured/persisted for this project
+    if (!this.processes.has(projectId)) {
+      this.processes.set(projectId, { pid: null, status: this.STATUS.STOPPED, logs: [], projectPath })
+    }
+
+    const handleOutput = (data, type) => {
+      const entry = this.addLog(projectId, data.toString(), type, commandId, label || commandId)
+      if (onLog) onLog(projectId, entry)
+    }
+    childProcess.stdout?.on('data', (data) => handleOutput(data, 'stdout'))
+    childProcess.stderr?.on('data', (data) => handleOutput(data, 'stderr'))
+
+    childProcess.once('error', (error) => {
+      this.customRuns.delete(runId)
+      this.addLog(projectId, `Custom command failed: ${error.message}`, 'error', commandId, label)
+      if (onLog) onLog(projectId, { id: this.nextLogId - 1 || this.nextLogId, timestamp: new Date().toISOString(), type: 'error', message: `Custom command failed: ${error.message}`, commandId, commandName: label })
+    })
+
+    childProcess.once('exit', (code, signal) => {
+      this.customRuns.delete(runId)
+      this.addLog(projectId, `Custom command exited with ${signal ? `signal ${signal}` : `code ${code}`}`, 'system', commandId, label)
+      if (onLog) onLog(projectId, { id: this.nextLogId - 1 || this.nextLogId, timestamp: new Date().toISOString(), type: 'system', message: `Custom command exited with ${signal ? `signal ${signal}` : `code ${code}`}`, commandId, commandName: label })
+    })
+
+    return { success: true, runId, pid: childProcess.pid }
+  }
+
+  async stopCustomCommand(runId, force = false) {
+    const run = this.customRuns.get(runId)
+    if (!run) throw new Error(`Custom command ${runId} not found`)
+    try {
+      await this.killProcessTree(run.process, force)
+    } finally {
+      this.customRuns.delete(runId)
+    }
+    return { success: true, runId, forced: force }
+  }
+
+  getCustomRunStatus(runId) {
+    const run = this.customRuns.get(runId)
+    return run ? { runId, pid: run.pid, status: 'running' } : { runId, pid: null, status: 'stopped' }
+  }
+
+  async stopAllCustomCommands() {
+    const runIds = [...this.customRuns.keys()]
+    return Promise.all(runIds.map((runId) => this.stopCustomCommand(runId, true).catch(() => ({ runId, success: false }))))
   }
 
   async waitForCompositeReady(projectId, runId) {

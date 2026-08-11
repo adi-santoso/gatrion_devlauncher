@@ -13,7 +13,8 @@ const MainLayout = ({
   projects = [],
   runningProjects = [],
   onProjectSelect,
-  hideTopBar = false
+  hideTopBar = false,
+  onDropFolder
 }) => {
   const { config, loading, updateSingle } = useElectronConfig();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(!config?.sidebarExpanded);
@@ -37,6 +38,31 @@ const MainLayout = ({
   const handleAddProject = () => {
     onOpenModal?.('project');
   };
+
+  useEffect(() => {
+    if (!onDropFolder) return
+    const handleDragOver = (e) => {
+      if (e.dataTransfer?.types?.includes('Files')) {
+        e.preventDefault()
+        e.dataTransfer.dropEffect = 'copy'
+      }
+    }
+    const handleDrop = (e) => {
+      if (!e.dataTransfer?.files?.length) return
+      const file = e.dataTransfer.files[0]
+      const folderPath = file?.path
+      if (folderPath) {
+        e.preventDefault()
+        onDropFolder(folderPath)
+      }
+    }
+    window.addEventListener('dragover', handleDragOver)
+    window.addEventListener('drop', handleDrop)
+    return () => {
+      window.removeEventListener('dragover', handleDragOver)
+      window.removeEventListener('drop', handleDrop)
+    }
+  }, [onDropFolder])
 
   const getTitle = () => {
     switch (currentView) {

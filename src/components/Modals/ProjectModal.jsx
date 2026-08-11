@@ -12,6 +12,9 @@ const EMPTY_PROJECT = {
   autoStart: false,
   emoji: '⚙️',
   color: '#6B7280',
+  tags: [],
+  customCommands: [],
+  dependsOn: [],
 };
 
 const TYPE_METADATA = {
@@ -24,7 +27,7 @@ const TYPE_METADATA = {
   CUSTOM: { emoji: '⚙️', color: '#6B7280' },
 };
 
-const ProjectModal = ({ isOpen, onClose, onSave, project = null }) => {
+const ProjectModal = ({ isOpen, onClose, onSave, project = null, droppedProject = null, allProjects = [] }) => {
   const { browseFolder, detectProjectType } = useProjects();
   const detectionId = useRef(0);
   const [formData, setFormData] = useState(EMPTY_PROJECT);
@@ -37,20 +40,25 @@ const ProjectModal = ({ isOpen, onClose, onSave, project = null }) => {
 
   useEffect(() => {
     detectionId.current += 1;
-    if (project) {
+    const source = project || droppedProject;
+    if (source) {
       setFormData({
-        name: project.name || '',
-        path: project.path || '',
-        type: project.type || 'CUSTOM',
-        port: project.port == null ? '' : String(project.port),
-        startCommand: project.startCommand || '',
-        commands: project.commands || [],
-        envVars: project.envVars || [],
-        autoStart: project.autoStart || false,
-        emoji: project.emoji || '⚙️',
-        color: project.color || '#6B7280',
+        name: source.name || '',
+        path: source.path || '',
+        type: source.type || 'CUSTOM',
+        port: source.port == null ? '' : String(source.port),
+        startCommand: source.startCommand || '',
+        commands: source.commands || [],
+        envVars: source.envVars || [],
+        autoStart: source.autoStart || false,
+        emoji: source.emoji || '⚙️',
+        color: source.color || '#6B7280',
+        tags: source.tags || [],
+        customCommands: source.customCommands || [],
+        dependsOn: source.dependsOn || [],
       });
       setShowAdvanced(true);
+      if (droppedProject && !project) setDetection({ name: source.type || 'CUSTOM' });
     } else {
       setFormData(EMPTY_PROJECT);
       setShowAdvanced(false);
@@ -59,7 +67,7 @@ const ProjectModal = ({ isOpen, onClose, onSave, project = null }) => {
     setIsDetecting(false);
     setErrors({});
     setIsSaving(false);
-  }, [project, isOpen]);
+  }, [project, droppedProject, isOpen]);
 
   const clearError = (field) => {
     setErrors((previous) => {
@@ -335,6 +343,45 @@ const ProjectModal = ({ isOpen, onClose, onSave, project = null }) => {
                   <div><p className="text-xs text-ink">Start on app launch</p><p className="text-[11px] text-ink-faint">Auto-run this project when Gatrion opens.</p></div>
                   <button type="button" onClick={() => handleChange('autoStart', !formData.autoStart)} className={`w-9 h-5 rounded-full relative shrink-0 ${formData.autoStart ? 'bg-accent' : 'bg-surface-3 border border-border'}`}><span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-transform ${formData.autoStart ? 'right-0.5' : 'left-0.5'}`}></span></button>
                 </div>
+                <div>
+                  <label className="text-xs text-ink-soft mb-1.5 block">Tags</label>
+                  <div className="flex gap-2">
+                    <input type="text" placeholder="Add tag..." onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); const val = e.target.value.trim(); if (val && !formData.tags.includes(val)) { setFormData((p) => ({ ...p, tags: [...p.tags, val] })); } e.target.value = ''; } }} className="flex-1 bg-surface-3 border border-border rounded-lg px-2.5 py-1.5 text-xs text-ink focus:outline-none focus:ring-2 focus:ring-accent/40" />
+                  </div>
+                  {formData.tags.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 mt-2">
+                      {formData.tags.map((tag) => (
+                        <span key={tag} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-surface-3 border border-border text-[10px] text-ink-soft">{tag}<button type="button" onClick={() => setFormData((p) => ({ ...p, tags: p.tags.filter((t) => t !== tag) }))} className="text-ink-faint hover:text-danger">✕</button></span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="text-xs text-ink-soft">Custom commands</label>
+                    <button type="button" onClick={() => setFormData((p) => ({ ...p, customCommands: [...p.customCommands, { id: `cmd-${Date.now()}`, label: '', command: '' }] }))} className="text-[11px] font-medium text-accent hover:text-accent-hover">+ Add command</button>
+                  </div>
+                  <div className="space-y-2">
+                    {formData.customCommands.map((cc, idx) => (
+                      <div key={cc.id} className="flex gap-2 items-center">
+                        <input type="text" value={cc.label} onChange={(e) => setFormData((p) => ({ ...p, customCommands: p.customCommands.map((c, i) => i === idx ? { ...c, label: e.target.value } : c) }))} placeholder="Label" className="w-1/3 bg-surface-3 border border-border rounded-lg px-2.5 py-1.5 text-xs text-ink focus:outline-none focus:ring-2 focus:ring-accent/40" />
+                        <input type="text" value={cc.command} onChange={(e) => setFormData((p) => ({ ...p, customCommands: p.customCommands.map((c, i) => i === idx ? { ...c, command: e.target.value } : c) }))} placeholder="npm run build" className="flex-1 bg-surface-3 border border-border rounded-lg px-2.5 py-1.5 text-xs font-mono text-ink focus:outline-none focus:ring-2 focus:ring-accent/40" />
+                        <button type="button" onClick={() => setFormData((p) => ({ ...p, customCommands: p.customCommands.filter((_, i) => i !== idx) }))} className="w-7 h-7 shrink-0 flex items-center justify-center rounded-lg text-ink-faint hover:text-danger hover:bg-danger/10">✕</button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                {allProjects.length > 0 && (
+                  <div>
+                    <label className="text-xs text-ink-soft mb-1.5 block">Depends on</label>
+                    <div className="flex flex-wrap gap-2">
+                      {allProjects.filter((p) => p.id !== project?.id).map((p) => (
+                        <button key={p.id} type="button" onClick={() => setFormData((prev) => ({ ...prev, dependsOn: prev.dependsOn.includes(p.id) ? prev.dependsOn.filter((id) => id !== p.id) : [...prev.dependsOn, p.id] }))} className={`px-2.5 py-1 rounded-md text-[11px] border transition-colors ${formData.dependsOn.includes(p.id) ? 'bg-accent/20 border-accent/40 text-accent' : 'bg-surface-3 border-border text-ink-soft hover:text-ink'}`}>{p.name}</button>
+                      ))}
+                    </div>
+                    <p className="text-[10px] text-ink-faint mt-1">These projects will start before this one.</p>
+                  </div>
+                )}
               </div>
             )}
           </div>

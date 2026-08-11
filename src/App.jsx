@@ -12,10 +12,11 @@ import {
   CommandPalette,
   ShortcutsModal,
   ToastContainer,
+  PresetModal,
 } from './components/Modals';
 import PortConflictModal from './components/Modals/PortConflictModal';
 import { useProjects, useProcesses, useElectronConfig } from './hooks';
-import { checkPortConflict, isElectronAvailable, onNavigateToProject, getActivities, appendActivities } from './utils/ipcRenderer';
+import { checkPortConflict, isElectronAvailable, onNavigateToProject, getActivities, appendActivities, getPresets, savePresets } from './utils/ipcRenderer';
 import { summarizeWorkspaceStart } from './utils/workspaceResults';
 
 function App() {
@@ -35,6 +36,11 @@ function App() {
 
   // Activities state
   const [activities, setActivities] = useState([]);
+
+  // Workspace presets state
+  const [presets, setPresets] = useState([]);
+  const [presetModalOpen, setPresetModalOpen] = useState(false);
+  const [presetToDelete, setPresetToDelete] = useState(null);
 
   const formatActivityTime = (timestamp, detail = '') => {
     const date = new Date(timestamp);
@@ -190,6 +196,7 @@ function App() {
     setOpenModal(null);
     setConfirmTarget(null);
     setEditingProject(null);
+    setDroppedProject(null);
   };
 
   // Toast notifications
@@ -417,6 +424,100 @@ function App() {
     }
   };
 
+  const [droppedProject, setDroppedProject] = useState(null);
+
+  // Drag & drop folder handler — detect type and open ProjectModal
+  const { detectProjectType } = useProjects();
+  const handleDropFolder = async (folderPath) => {
+    openModalHandler('project');
+    setEditingProject(null);
+    const result = await detectProjectType(folderPath);
+    if (result.success) {
+      setDroppedProject({
+        path: folderPath,
+        name: result.projectName || '',
+        type: result.type || 'CUSTOM',
+        port: result.defaultPort == null ? '' : String(result.defaultPort),
+        startCommand: result.defaultCommand || '',
+        commands: result.commands || [],
+        emoji: result.icon || '⚙️',
+        color: result.color || '#6B7280',
+        tags: [],
+        customCommands: [],
+        dependsOn: [],
+      });
+    } else {
+      setDroppedProject({ path: folderPath });
+      showToast('warning', 'Could not auto-detect project type. Please configure manually.');
+    }
+  };
+
+  // Workspace presets
+  const handleStartPreset = async (preset) => {
+    const presetProjects = (preset.projectIds || [])
+      .map((id) => projects.find((p) => p.id === id))
+      .filter(Boolean);
+    if (presetProjects.length === 0) {
+      showToast('info', `Preset "${preset.name}" has no projects`);
+      return;
+    }
+    showToast('info', `Starting preset "${preset.name}"...`);
+    const results = await handleStartAll(presetProjects);
+    if (!Array.isArray(results)) return;
+    const started = results.length;
+    const alreadyActive = presetProjects.length - started;
+    if (started > 0) {
+      showToast('success', `Preset "${preset.name}": ${started} project(s) starting`);
+      addActivity('accent', preset.name, 'preset started', `${started} projects`);
+    } else if (alreadyActive > 0) {
+      showToast('info', `Preset "${preset.name}": all ${alreadyActive} project(s) already active`);
+    }
+  };
+
+  const handleDeletePreset = async (preset) => {
+    setPresetToDelete(preset);
+  };
+
+  const confirmDeletePreset = async () => {
+    if (!presetToDelete) return;
+    const updated = presets.filter((p) => p.id !== presetToDelete.id);
+    setPresets(updated);
+    setPresetToDelete(null);
+    const result = await savePresets(updated);
+    if (result.success) {
+      showToast('info', `Preset "${presetToDelete.name}" removed`);
+      addActivity('faint', presetToDelete.name, 'preset removed');
+    }
+  };
+
+  const handleCreatePreset = async (name, projectIds) => {
+    const newPreset = {
+      id: `preset-${Date.now()}`,
+      name: name.trim(),
+      projectIds,
+      createdAt: new Date().toISOString(),
+    };
+    const updated = [...presets, newPreset];
+    setPresets(updated);
+    const result = await savePresets(updated);
+    if (result.success) {
+      showToast('success', `Preset "${name}" created`);
+      addActivity('accent', name, 'preset created');
+    } else {
+      showToast('error', result.error || 'Failed to save preset');
+    }
+    setPresetModalOpen(false);
+  };
+
+  // Hydrate presets on mount
+  useEffect(() => {
+    getPresets().then((result) => {
+      if (result?.success && Array.isArray(result.presets)) {
+        setPresets(result.presets);
+      }
+    }).catch(() => {});
+  }, []);
+
   // Command palette actions
   const handleCommandSelect = (command) => {
     closeModalHandler();
@@ -472,6 +573,7 @@ function App() {
             sidebarExpanded={config.sidebarExpanded}
             hideTopBar={isFullscreen && currentView === 'project-detail'}
             onProjectSelect={(project) => showView('project-detail', project, isFullscreen)}
+            onDropFolder={handleDropFolder}
             runningProjects={projects
               .filter(p => p.status?.toLowerCase() === 'running')
               .map(p => ({
@@ -504,6 +606,10 @@ function App() {
             onStartAll={handleStartAll}
             onStopAll={handleStopAll}
             onWorkspaceActionComplete={handleWorkspaceActionComplete}
+            presets={presets}
+            onStartPreset={handleStartPreset}
+            onDeletePreset={handleDeletePreset}
+            onCreatePreset={() => setPresetModalOpen(true)}
           />
         )}
 
@@ -574,6 +680,8 @@ function App() {
         onClose={closeModalHandler}
         onSave={handleCreateProject}
         project={editingProject}
+        droppedProject={droppedProject}
+        allProjects={projects}
       />
 
       {/* Confirm Dialog */}
@@ -587,6 +695,17 @@ function App() {
         confirmVariant="danger"
         onConfirm={confirmDelete}
         onCancel={closeModalHandler}
+      />
+
+      {/* Confirm Dialog for preset delete */}
+      <ConfirmDialog
+        isOpen={presetToDelete !== null}
+        title="Delete Preset"
+        message={`Are you sure you want to delete the preset "${presetToDelete?.name || 'this preset'}"?`}
+        confirmLabel="Delete"
+        confirmVariant="danger"
+        onConfirm={confirmDeletePreset}
+        onCancel={() => setPresetToDelete(null)}
       />
 
       {/* Command Palette */}
@@ -622,6 +741,13 @@ function App() {
       )}
 
       {/* Toast Container */}
+      <PresetModal
+        isOpen={presetModalOpen}
+        onClose={() => setPresetModalOpen(false)}
+        projects={projects}
+        onCreate={handleCreatePreset}
+      />
+
       <ToastContainer toasts={toasts} onDismiss={dismissToast} />
     </>
       )}

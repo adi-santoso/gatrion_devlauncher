@@ -52,6 +52,27 @@ function resolveLaunchConfig(project) {
  * @param {StorageManager} storageManager - StorageManager instance
  * @param {BrowserWindow} mainWindow - Main window instance
  */
+function topologicalSort(projects) {
+  const projectMap = new Map(projects.map((p) => [p.id, p]))
+  const visited = new Set()
+  const result = []
+
+  const visit = (project, path) => {
+    if (!project || visited.has(project.id)) return
+    visited.add(project.id)
+    const deps = Array.isArray(project.dependsOn) ? project.dependsOn : []
+    for (const depId of deps) {
+      if (path.has(depId)) continue
+      const dep = projectMap.get(depId)
+      if (dep) visit(dep, new Set([...path, project.id]))
+    }
+    result.push(project)
+  }
+
+  for (const project of projects) visit(project, new Set())
+  return result
+}
+
 function setupProcessHandlers(processManager, storageManager, mainWindow) {
   // Helper to safely send to renderer (skip if window is destroyed or app is quitting)
   const safeSend = (channel, ...args) => {
@@ -205,7 +226,7 @@ function setupProcessHandlers(processManager, storageManager, mainWindow) {
     return { success: true }
   })
 
-  // Start all projects
+  // Start all projects (topologically sorted by dependsOn)
   secureHandle('start-all-projects', async (event, projectIds) => {
     const projectList = await storageManager.loadProjects()
     const requestedIds = projectIds === undefined
@@ -215,8 +236,10 @@ function setupProcessHandlers(processManager, storageManager, mainWindow) {
       ? projectList.filter((project) => requestedIds.has(project.id))
       : projectList
 
+    const sorted = topologicalSort(projectsToStart)
+
     const results = []
-    for (const project of projectsToStart) {
+    for (const project of sorted) {
       try {
         const launch = resolveLaunchConfig(project)
         const cmd = launch.command
@@ -224,6 +247,25 @@ function setupProcessHandlers(processManager, storageManager, mainWindow) {
           results.push({ projectId: project.id, success: false, error: 'Start command is missing' })
           continue
         }
+
+        if (Array.isArray(project.dependsOn) && project.dependsOn.length > 0) {
+          const failedDep = project.dependsOn.find((depId) => {
+            const depResult = results.find((r) => r.projectId === depId)
+            return depResult && !depResult.success
+          })
+          if (failedDep) {
+            results.push({ projectId: project.id, success: false, error: `Dependency ${failedDep.projectId} failed to start` })
+            continue
+          }
+          for (const depId of project.dependsOn) {
+            if (!projectsToStart.some((p) => p.id === depId)) continue
+            const depStatus = processManager.getProcessStatus(depId)
+            if (depStatus?.status?.toLowerCase() !== 'running') {
+              await new Promise((resolve) => setTimeout(resolve, 500))
+            }
+          }
+        }
+
         const result = await processManager.startProcess(
           project.id,
           project.path,
@@ -252,6 +294,48 @@ function setupProcessHandlers(processManager, storageManager, mainWindow) {
       }
     }
     return results
+  })
+
+  // Run a custom command for a project
+  secureHandle('run-custom-command', async (event, projectId, commandId) => {
+    try {
+      const project = await loadPersistedProject(projectId)
+      const customCommand = (Array.isArray(project.customCommands) ? project.customCommands : [])
+        .find((item) => item.id === commandId)
+      if (!customCommand) {
+        return { success: false, error: `Custom command ${commandId} not found` }
+      }
+      const result = await processManager.runCustomCommand(
+        project.id,
+        project.path,
+        customCommand.id,
+        customCommand.label,
+        customCommand.command,
+        envVarsToObject(project.envVars),
+        (pid, log) => {
+          safeSend('process-log', pid, log)
+        }
+      )
+      safeSend('process-status', project.id, processManager.getProcessStatus(project.id))
+      return { success: true, ...result }
+    } catch (error) {
+      return { success: false, error: error.message }
+    }
+  })
+
+  // Stop a running custom command
+  secureHandle('stop-custom-command', async (event, runId) => {
+    try {
+      const result = await processManager.stopCustomCommand(runId, true)
+      return { success: true, ...result }
+    } catch (error) {
+      return { success: false, error: error.message }
+    }
+  })
+
+  // Get custom command run status
+  secureHandle('get-custom-command-status', async (event, runId) => {
+    return processManager.getCustomRunStatus(runId)
   })
 
   // Stop all projects

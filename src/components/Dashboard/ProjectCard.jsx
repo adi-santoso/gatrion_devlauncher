@@ -33,8 +33,13 @@ export default function ProjectCard({ project, onStart, onStop, onRestart, onNav
             <strong className="block truncate font-display text-xs font-bold leading-tight hover:text-accent">
               {project.name}
             </strong>
-            <span className="block truncate font-mono text-[9px] text-ink-faint capitalize">
-              {project.type || project.stack || 'Web Application'}
+            <span className="flex items-center gap-1 truncate">
+              <span className="truncate font-mono text-[9px] text-ink-faint capitalize">
+                {project.type || project.stack || 'Web Application'}
+              </span>
+              {Array.isArray(project.tags) && project.tags.slice(0, 2).map((tag) => (
+                <span key={tag} className="shrink-0 rounded px-1 py-0.5 bg-surface-3 text-[8px] text-ink-faint">{tag}</span>
+              ))}
             </span>
           </button>
         </div>

@@ -187,8 +187,13 @@ export default function ProjectListRow({
             {project.emoji || '📁'}
           </span>
           <span className="min-w-0">
-            <span className="block font-medium text-ink group-hover:text-accent transition-colors">
-              {project.name}
+            <span className="flex items-center gap-1.5">
+              <span className="block font-medium text-ink group-hover:text-accent transition-colors truncate">
+                {project.name}
+              </span>
+              {Array.isArray(project.tags) && project.tags.map((tag) => (
+                <span key={tag} className="shrink-0 inline-flex items-center px-1.5 py-0.5 rounded-md bg-surface-3 border border-border text-[9px] text-ink-faint">{tag}</span>
+              ))}
             </span>
             <span className="block text-[11px] font-mono text-ink-faint max-w-72 truncate">
               {project.path}

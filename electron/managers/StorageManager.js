@@ -14,6 +14,7 @@ class StorageManager {
     this.projectsFilePath = path.join(this.appDataPath, 'projects.json')
     this.configFilePath = path.join(this.appDataPath, 'config.json')
     this.activitiesFilePath = path.join(this.appDataPath, 'activities.json')
+    this.presetsFilePath = path.join(this.appDataPath, 'presets.json')
     this.backupDir = path.join(this.appDataPath, 'backups')
 
     // Default config
@@ -21,6 +22,7 @@ class StorageManager {
     this.projectQueue = Promise.resolve()
     this.configQueue = Promise.resolve()
     this.activityQueue = Promise.resolve()
+    this.presetQueue = Promise.resolve()
     this.tempFileCounter = 0
     this.backupFileCounter = 0
   }
@@ -337,6 +339,38 @@ class StorageManager {
         log.error('Error appending activities', error)
         return []
       }
+    })
+  }
+
+  /**
+   * Load workspace presets
+   */
+  async loadPresets() {
+    return this.enqueue('presetQueue', async () => {
+      try {
+        const data = await fs.readFile(this.presetsFilePath, 'utf8')
+        const parsed = JSON.parse(data)
+        return Array.isArray(parsed) ? parsed : []
+      } catch (error) {
+        if (error.code !== 'ENOENT') log.error('Error loading presets', error)
+        return []
+      }
+    })
+  }
+
+  async savePresets(presets) {
+    return this.enqueue('presetQueue', async () => {
+      if (!Array.isArray(presets)) throw new Error('Presets must be an array')
+      const normalized = presets
+        .filter((p) => p && typeof p === 'object' && typeof p.name === 'string' && p.name.trim())
+        .map((p, index) => ({
+          id: typeof p.id === 'string' && p.id.trim() ? p.id.trim() : `preset-${Date.now()}-${index}`,
+          name: p.name.trim(),
+          projectIds: Array.isArray(p.projectIds) ? p.projectIds.filter((id) => typeof id === 'string') : [],
+          createdAt: typeof p.createdAt === 'string' ? p.createdAt : new Date().toISOString(),
+        }))
+      await this.atomicWrite(this.presetsFilePath, JSON.stringify(normalized, null, 2))
+      return normalized
     })
   }
 

@@ -18,12 +18,17 @@ export default function ProjectsView({
   const [searchQuery, setSearchQuery] = useState('');
   const [typeFilter, setTypeFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [tagFilter, setTagFilter] = useState('all');
   const [sortBy, setSortBy] = useState('name-asc');
   const [selectedIds, setSelectedIds] = useState([]);
   const selectAllRef = useRef(null);
 
   const types = useMemo(
     () => [...new Set(projects.map((project) => project.type).filter(Boolean))].sort(),
+    [projects]
+  );
+  const tags = useMemo(
+    () => [...new Set(projects.flatMap((project) => project.tags || []).filter(Boolean))].sort(),
     [projects]
   );
   const query = searchQuery.trim().toLowerCase();
@@ -34,8 +39,9 @@ export default function ProjectsView({
       .some((value) => String(value || '').toLowerCase().includes(query));
     return matchesSearch
       && (typeFilter === 'all' || project.type === typeFilter)
-      && (statusFilter === 'all' || status === statusFilter);
-  }), [projects, query, typeFilter, statusFilter]);
+      && (statusFilter === 'all' || status === statusFilter)
+      && (tagFilter === 'all' || (Array.isArray(project.tags) && project.tags.includes(tagFilter)));
+  }), [projects, query, typeFilter, statusFilter, tagFilter]);
 
   const sortedProjects = useMemo(() => [...filteredProjects].sort((a, b) => {
     if (sortBy === 'name-asc') return (a.name || '').localeCompare(b.name || '');
@@ -132,6 +138,12 @@ export default function ProjectsView({
           <option value="running">Running</option><option value="starting">Starting</option>
           <option value="stopping">Stopping</option><option value="stopped">Stopped</option><option value="error">Error</option>
         </select>
+        {tags.length > 0 && (
+          <select value={tagFilter} onChange={(event) => setTagFilter(event.target.value)} aria-label="Filter by tag" className="bg-surface-3 border border-border rounded-lg px-3 py-2 text-xs text-ink-soft focus:outline-none">
+            <option value="all">All tags</option>
+            {tags.map((tag) => <option key={tag} value={tag}>{tag}</option>)}
+          </select>
+        )}
         <select value={sortBy} onChange={(event) => setSortBy(event.target.value)} aria-label="Sort by" className="bg-surface-3 border border-border rounded-lg px-3 py-2 text-xs text-ink-soft focus:outline-none ml-auto">
           <option value="name-asc">Sort: Name (A-Z)</option>
           <option value="name-desc">Sort: Name (Z-A)</option>

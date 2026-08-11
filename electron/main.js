@@ -194,6 +194,26 @@ async function initialize() {
     }
   }
 
+  // Workspace presets
+  ipcMain.handle('get-presets', async (event) => {
+    try {
+      assertTrustedIpcEvent(event)
+      return { success: true, presets: await storageManager.loadPresets() }
+    } catch (error) {
+      return { success: false, error: error.message }
+    }
+  })
+
+  ipcMain.handle('save-presets', async (event, presets) => {
+    try {
+      assertTrustedIpcEvent(event)
+      const saved = await storageManager.savePresets(presets)
+      return { success: true, presets: saved }
+    } catch (error) {
+      return { success: false, error: error.message }
+    }
+  })
+
   // Setup config handler
   ipcMain.handle('get-config', async (event) => {
     try {
@@ -223,8 +243,7 @@ async function initialize() {
   })
 
   // Activity feed persistence
-  ipcMain.handle('get-activities', async (event) => {
-    try {
+  ipcMain.handle('get-activities', async (event) => {    try {
       assertTrustedIpcEvent(event)
       const activities = await storageManager.loadActivities()
       return { success: true, activities }
@@ -302,6 +321,7 @@ app.on('before-quit', async (event) => {
 
     try {
       await processManager.stopAllProcesses()
+      await processManager.stopAllCustomCommands()
       console.log('[App] All processes stopped successfully')
     } catch (error) {
       console.error('[App] Error stopping processes on quit:', error)

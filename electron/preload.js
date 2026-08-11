@@ -20,6 +20,9 @@ contextBridge.exposeInMainWorld('electron', {
   getProcessMetrics: (projectId) => ipcRenderer.invoke('get-process-metrics', projectId),
   getLogs: (projectId, limit) => ipcRenderer.invoke('get-logs', projectId, limit),
   clearLogs: (projectId) => ipcRenderer.invoke('clear-logs', projectId),
+  runCustomCommand: (projectId, commandId) => ipcRenderer.invoke('run-custom-command', projectId, commandId),
+  stopCustomCommand: (runId) => ipcRenderer.invoke('stop-custom-command', runId),
+  getCustomCommandStatus: (runId) => ipcRenderer.invoke('get-custom-command-status', runId),
 
   // Project Detection
   detectProjectType: (projectPath) => ipcRenderer.invoke('detect-project-type', projectPath),
@@ -42,6 +45,10 @@ contextBridge.exposeInMainWorld('electron', {
   // Activity feed persistence
   getActivities: () => ipcRenderer.invoke('get-activities'),
   appendActivities: (entries) => ipcRenderer.invoke('append-activities', entries),
+
+  // Workspace presets
+  getPresets: () => ipcRenderer.invoke('get-presets'),
+  savePresets: (presets) => ipcRenderer.invoke('save-presets', presets),
 
   // Event Listeners
   onProcessStatus: (callback) => {

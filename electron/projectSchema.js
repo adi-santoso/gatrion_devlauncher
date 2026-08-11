@@ -10,9 +10,10 @@ const PROJECT_TYPES = {
 
 const PROJECT_FIELDS = new Set([
   'name', 'path', 'type', 'port', 'startCommand', 'commands', 'envVars', 'emoji', 'color', 'autoStart', 'schemaVersion',
+  'tags', 'customCommands', 'dependsOn',
 ])
 
-const PROJECT_SCHEMA_VERSION = 2
+const PROJECT_SCHEMA_VERSION = 3
 
 function migrateProjects(projects, fromVersion) {
   if (!Array.isArray(projects)) return projects
@@ -118,6 +119,9 @@ function normalizeProject(project, createId) {
     autoStart: project?.autoStart === true,
     createdAt: typeof project?.createdAt === 'string' ? project.createdAt : new Date().toISOString(),
     lastRun: typeof project?.lastRun === 'string' ? project.lastRun : null,
+    tags: normalizeTags(project?.tags),
+    customCommands: normalizeCustomCommands(project?.customCommands),
+    dependsOn: normalizeDependsOn(project?.dependsOn),
     schemaVersion: Math.max(normalizedVersion, PROJECT_SCHEMA_VERSION),
   }
 }
@@ -159,6 +163,27 @@ function sanitizeProjectChanges(input) {
   }
   if (changes.schemaVersion !== undefined && !Number.isInteger(changes.schemaVersion)) throw new Error('schemaVersion must be an integer')
   if (changes.autoStart !== undefined && typeof changes.autoStart !== 'boolean') throw new Error('autoStart must be a boolean')
+  if (changes.tags !== undefined) {
+    if (!Array.isArray(changes.tags)) throw new Error('Tags must be an array')
+    for (const tag of changes.tags) {
+      if (typeof tag !== 'string' || !tag.trim()) throw new Error('Each tag must be a non-empty string')
+    }
+  }
+  if (changes.customCommands !== undefined) {
+    if (!Array.isArray(changes.customCommands)) throw new Error('Custom commands must be an array')
+    for (const item of changes.customCommands) {
+      if (!item || typeof item !== 'object') throw new Error('Each custom command must be an object')
+      if (typeof item.id !== 'string' || !item.id.trim()) throw new Error('Custom command id is required')
+      if (typeof item.label !== 'string' || !item.label.trim()) throw new Error('Custom command label is required')
+      if (typeof item.command !== 'string' || !item.command.trim()) throw new Error('Custom command is required')
+    }
+  }
+  if (changes.dependsOn !== undefined) {
+    if (!Array.isArray(changes.dependsOn)) throw new Error('dependsOn must be an array')
+    for (const dep of changes.dependsOn) {
+      if (typeof dep !== 'string' || !dep.trim()) throw new Error('Each dependency must be a non-empty string')
+    }
+  }
   if (changes.envVars !== undefined && !Array.isArray(changes.envVars)) throw new Error('Environment variables must be an array')
   if (Array.isArray(changes.envVars)) {
     for (const item of changes.envVars) {
@@ -196,6 +221,9 @@ function validateProject(project) {
   }
   if (primaryCommands !== 1) throw new Error('Project must have exactly one primary command')
   if (!Array.isArray(project.envVars)) throw new Error('Environment variables must be an array')
+  if (!Array.isArray(project.tags)) throw new Error('Tags must be an array')
+  if (!Array.isArray(project.customCommands)) throw new Error('Custom commands must be an array')
+  if (!Array.isArray(project.dependsOn)) throw new Error('dependsOn must be an array')
 
   const keys = new Set()
   for (const item of project.envVars) {
@@ -253,6 +281,34 @@ function normalizeCommands(commands, startCommand, port) {
   }))
 }
 
+function normalizeTags(tags) {
+  if (!Array.isArray(tags)) return []
+  return tags
+    .filter((item) => typeof item === 'string' && item.trim())
+    .map((item) => item.trim())
+    .filter((item, index, arr) => arr.indexOf(item) === index)
+}
+
+function normalizeCustomCommands(customCommands) {
+  if (!Array.isArray(customCommands)) return []
+  return customCommands
+    .filter((item) => item && typeof item === 'object')
+    .map((item) => ({
+      id: typeof item.id === 'string' && item.id.trim() ? item.id.trim() : `cmd-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      label: typeof item.label === 'string' ? item.label.trim() : '',
+      command: typeof item.command === 'string' ? item.command.trim() : '',
+    }))
+    .filter((item) => item.label && item.command)
+}
+
+function normalizeDependsOn(dependsOn) {
+  if (!Array.isArray(dependsOn)) return []
+  return dependsOn
+    .filter((item) => typeof item === 'string' && item.trim())
+    .map((item) => item.trim())
+    .filter((item, index, arr) => arr.indexOf(item) === index)
+}
+
 function toRendererProject(project) {
   return { ...project, envVars: redactSensitiveEnv(project.envVars) }
 }
@@ -263,6 +319,9 @@ module.exports = {
   migrateProjects,
   envVarsToObject,
   normalizeCommands,
+  normalizeTags,
+  normalizeCustomCommands,
+  normalizeDependsOn,
   normalizeProject,
   normalizeType,
   sanitizeProjectChanges,

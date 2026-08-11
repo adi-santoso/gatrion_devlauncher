@@ -203,6 +203,21 @@ export const clearLogs = async (projectId) => {
   return window.electron.clearLogs(projectId);
 };
 
+export const runCustomCommand = async (projectId, commandId) => {
+  if (!isElectron()) return { success: false, error: 'Electron not available' };
+  return window.electron.runCustomCommand(projectId, commandId);
+};
+
+export const stopCustomCommand = async (runId) => {
+  if (!isElectron()) return { success: true };
+  return window.electron.stopCustomCommand(runId);
+};
+
+export const getCustomCommandStatus = async (runId) => {
+  if (!isElectron()) return { runId, pid: null, status: 'stopped' };
+  return window.electron.getCustomCommandStatus(runId);
+};
+
 // ==================== Config APIs ====================
 
 export const getConfig = async () => {
@@ -240,6 +255,18 @@ export const getActivities = async () => {
 export const appendActivities = async (entries) => {
   if (!isElectron()) return { success: true };
   return window.electron.appendActivities(entries);
+};
+
+// ==================== Workspace Preset APIs ====================
+
+export const getPresets = async () => {
+  if (!isElectron()) return { success: true, presets: [] };
+  return window.electron.getPresets();
+};
+
+export const savePresets = async (presets) => {
+  if (!isElectron()) return { success: true, presets };
+  return window.electron.savePresets(presets);
 };
 
 // ==================== Desktop Integration APIs ====================
