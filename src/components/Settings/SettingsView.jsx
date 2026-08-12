@@ -116,6 +116,20 @@ const SettingsView = ({ config, updateConfig, onExportProjects, onImportProjects
       />
 
       <div className="bg-surface border border-border rounded-xl shadow-card p-5 space-y-4">
+        <p className="font-display font-bold text-sm">App Preview</p>
+        <ToggleSwitch
+          enabled={config.preview?.keepAlive !== false}
+          onChange={() =>
+            updateConfig({ preview: { keepAlive: !(config.preview?.keepAlive !== false) } })
+          }
+          label="Keep preview alive when switching pages"
+        />
+        <p className="text-[11px] text-ink-faint">
+          Keeps the embedded app preview mounted (hidden) while you browse other tabs or projects, so open modals, forms, and scroll position are preserved when you come back. Turn off to free memory — the preview will reload each time you return to it.
+        </p>
+      </div>
+
+      <div className="bg-surface border border-border rounded-xl shadow-card p-5 space-y-4">
         <p className="font-display font-bold text-sm">Data</p>
         <p className="text-[11px] text-ink-faint">
           Projects are stored locally in your app data folder. Export a portable JSON backup, or import one on another machine.

@@ -46,8 +46,11 @@ const HighlightedMessage = ({ text, query }) => {
 export default function LogsTab({ logs = [], autoScroll = true, onAutoScrollChange, onClear, fontSize }) {
   const [filter, setFilter] = useState('');
   const [typeFilter, setTypeFilter] = useState('all');
+  // When the user scrolls up to read older lines, stop forcing the view to the
+  // bottom; offer a "jump to latest" affordance instead.
+  const [stickToBottom, setStickToBottom] = useState(true);
   const outputRef = useRef(null);
-  const normalizedLogs = (Array.isArray(logs) ? logs : [logs]).map(normalizeLog);
+  const normalizedLogs = useMemo(() => (Array.isArray(logs) ? logs : [logs]).map(normalizeLog), [logs]);
   const query = filter.trim().toLowerCase();
 
   const visibleLogs = useMemo(() => normalizedLogs.filter((log) => {
@@ -60,9 +63,21 @@ export default function LogsTab({ logs = [], autoScroll = true, onAutoScrollChan
     return levelMatch && text.includes(query);
   }), [normalizedLogs, query, typeFilter]);
 
+  const handleScroll = () => {
+    const el = outputRef.current;
+    if (!el) return;
+    const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 40;
+    setStickToBottom(atBottom);
+  };
+
+  const jumpToLatest = () => {
+    setStickToBottom(true);
+    if (outputRef.current) outputRef.current.scrollTop = outputRef.current.scrollHeight;
+  };
+
   useEffect(() => {
-    if (autoScroll && outputRef.current) outputRef.current.scrollTop = outputRef.current.scrollHeight;
-  }, [autoScroll, visibleLogs.length, filter, typeFilter]);
+    if (autoScroll && stickToBottom && outputRef.current) outputRef.current.scrollTop = outputRef.current.scrollHeight;
+  }, [autoScroll, stickToBottom, visibleLogs.length, filter, typeFilter]);
 
   const getLogColor = (level) => ({ ready: 'text-success', warn: 'text-warning', warning: 'text-warning', error: 'text-danger', stderr: 'text-danger' }[level] || 'text-ink-soft');
 
@@ -85,7 +100,17 @@ export default function LogsTab({ logs = [], autoScroll = true, onAutoScrollChan
           <button type="button" onClick={onClear} disabled={!onClear} className="text-[11px] text-ink-faint hover:text-danger disabled:opacity-40 disabled:cursor-not-allowed">Clear</button>
         </div>
       </div>
-      <div ref={outputRef} style={fontSize ? { fontSize: `${fontSize}px` } : undefined} className="scan-line bg-[#08090C] px-5 py-4 font-mono text-[12.5px] leading-relaxed h-72 overflow-y-auto">
+      <div className="relative">
+        {autoScroll && !stickToBottom && visibleLogs.length > 0 && (
+          <button
+            type="button"
+            onClick={jumpToLatest}
+            className="absolute bottom-3 left-1/2 -translate-x-1/2 z-10 px-3 py-1.5 rounded-full bg-accent text-white text-[11px] font-semibold shadow-glow hover:bg-accent-hover transition-colors"
+          >
+            ↓ Jump to latest
+          </button>
+        )}
+        <div ref={outputRef} onScroll={handleScroll} style={fontSize ? { fontSize: `${fontSize}px` } : undefined} className="scan-line bg-[#08090C] px-5 py-4 font-mono text-[12.5px] leading-relaxed h-72 overflow-y-auto">
         {visibleLogs.length === 0 ? <p className="text-ink-faint italic">{normalizedLogs.length === 0 ? 'No logs captured yet.' : 'No logs match this filter.'}</p>
           : visibleLogs.map((log, index) => {
             const parsedTime = log.timestamp ? new Date(log.timestamp) : null;
@@ -96,6 +121,7 @@ export default function LogsTab({ logs = [], autoScroll = true, onAutoScrollChan
               {log.level !== 'info' && <span className="mr-1.5">[{log.level.toUpperCase()}]</span>}<HighlightedMessage text={log.message} query={filter.trim()} />
             </p>;
           })}
+        </div>
       </div>
     </div>
   );

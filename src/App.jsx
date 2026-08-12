@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { MainLayout } from './components/Layout';
 import { DashboardView } from './components/Dashboard';
 import { ProjectsView } from './components/Projects';
@@ -170,6 +170,18 @@ function App() {
 
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [lastFullscreenProjectId, setLastFullscreenProjectId] = useState(null);
+  // Stable ref + callback so ProjectDetailView's fullscreen effect does not
+  // re-fire on every App render (previously an inline arrow churned the effect).
+  const fullscreenProjectRef = useRef(null);
+  const handleDetailFullscreenChange = useCallback((isFull) => {
+    setIsFullscreen((prev) => (prev === isFull ? prev : isFull));
+    const liveProject = fullscreenProjectRef.current;
+    if (isFull && liveProject) {
+      setLastFullscreenProjectId(liveProject.id);
+    } else if (!isFull) {
+      setLastFullscreenProjectId(null);
+    }
+  }, []);
 
   // View navigation
   const showView = (viewName, data = null) => {
@@ -898,37 +910,40 @@ function App() {
         )}
 
         {/* Project Detail View */}
-        {currentView === 'project-detail' && selectedProject && (() => {
+        {selectedProject && (() => {
           // Always use the latest project data from the projects array
           // so status/log changes are reflected in real-time
           const liveProject = projects.find(p => p.id === selectedProject.id) || selectedProject;
+          fullscreenProjectRef.current = liveProject;
+          const keepAlive = config.preview?.keepAlive !== false;
+          // With keep-alive the view stays mounted (hidden) while browsing other
+          // views, so each project's preview iframe keeps its page state. Without
+          // it we unmount when leaving, matching the old behavior.
+          if (!keepAlive && currentView !== 'project-detail') return null;
+          const hidden = currentView !== 'project-detail';
           return (
-            <ProjectDetailView
-              project={liveProject}
-              logs={getLogs(liveProject.id)}
-              onBack={() => {
-                setLastFullscreenProjectId(null);
-                showView('projects');
-              }}
-              onStart={() => handleStartProject(liveProject)}
-              onStop={() => handleStopProject(liveProject)}
-              onRestart={() => handleRestartProject(liveProject)}
-              onRemove={() => handleDeleteProject(liveProject)}
-              onEdit={() => openModalHandler('project', liveProject)}
-              onDuplicate={() => handleDuplicateProject(liveProject)}
-              onClearLogs={() => clearLogs(liveProject.id)}
-              terminalConfig={config.terminal}
-              onFullscreenChange={(isFull) => {
-                if (isFullscreen === isFull) return; // Only process actual changes
-                setIsFullscreen(isFull);
-                if (isFull && liveProject) {
-                  setLastFullscreenProjectId(liveProject.id);
-                } else if (!isFull) {
+            <div className={hidden ? 'hidden' : ''}>
+              <ProjectDetailView
+                project={liveProject}
+                projects={projects}
+                keepPreviewAlive={keepAlive}
+                logs={getLogs(liveProject.id)}
+                onBack={() => {
                   setLastFullscreenProjectId(null);
-                }
-              }}
-              isFullscreen={isFullscreen}
-            />
+                  showView('projects');
+                }}
+                onStart={() => handleStartProject(liveProject)}
+                onStop={() => handleStopProject(liveProject)}
+                onRestart={() => handleRestartProject(liveProject)}
+                onRemove={() => handleDeleteProject(liveProject)}
+                onEdit={() => openModalHandler('project', liveProject)}
+                onDuplicate={() => handleDuplicateProject(liveProject)}
+                onClearLogs={() => clearLogs(liveProject.id)}
+                terminalConfig={config.terminal}
+                onFullscreenChange={handleDetailFullscreenChange}
+                isFullscreen={isFullscreen}
+              />
+            </div>
           );
         })()}
 

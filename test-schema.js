@@ -74,11 +74,15 @@ const migratedConfig = normalizeConfig({
 
 assert.deepEqual(migratedConfig.notifications, { onStart: false, onError: true, sound: true })
 assert.deepEqual(migratedConfig.terminal, { fontSize: 16, maxLines: 2000, autoScroll: false })
+assert.deepEqual(migratedConfig.preview, { keepAlive: true })
 
 const updatedConfig = applyConfigUpdates(migratedConfig, { notifications: { sound: false } })
 assert.equal(updatedConfig.notifications.onStart, false)
 assert.equal(updatedConfig.notifications.sound, false)
+assert.equal(applyConfigUpdates(migratedConfig, { preview: { keepAlive: false } }).preview.keepAlive, false)
 assert.throws(() => applyConfigUpdates(migratedConfig, { unknown: true }), /Unsupported config field/)
 assert.throws(() => applyConfigUpdates(migratedConfig, { startOnBoot: 'yes' }), /must be a boolean/)
+assert.throws(() => applyConfigUpdates(migratedConfig, { preview: { keepAlive: 'yes' } }), /preview.keepAlive must be a boolean/)
+assert.throws(() => applyConfigUpdates(migratedConfig, { preview: { bogus: true } }), /Unsupported preview field/)
 
 console.log('Schema checks passed')

@@ -44,6 +44,7 @@ const MOCK_CONFIG = {
   notifications: { onStart: true, onError: true, sound: false },
   terminal: { fontSize: 14, maxLines: 1000, autoScroll: true },
   autoRestart: { enabled: false, maxRetries: 3, delayMs: 2000 },
+  preview: { keepAlive: true },
   windowBounds: null,
 };
 
@@ -255,6 +256,7 @@ export const updateConfig = async (updates) => {
         notifications: { ...MOCK_CONFIG.notifications, ...(updates.notifications || {}) },
         terminal: { ...MOCK_CONFIG.terminal, ...(updates.terminal || {}) },
         autoRestart: { ...MOCK_CONFIG.autoRestart, ...(updates.autoRestart || {}) },
+        preview: { ...MOCK_CONFIG.preview, ...(updates.preview || {}) },
       },
     };
   }

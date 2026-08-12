@@ -15,6 +15,7 @@ export const useElectronConfig = () => {
     notifications: { onStart: true, onError: true, sound: false },
     terminal: { fontSize: 14, maxLines: 1000, autoScroll: true },
     autoRestart: { enabled: false, maxRetries: 3, delayMs: 2000 },
+    preview: { keepAlive: true },
     windowBounds: null,
   });
   const [loading, setLoading] = useState(true);

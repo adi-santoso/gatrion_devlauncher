@@ -61,8 +61,13 @@ export default function ProjectDetailHeader({ project, onStart, onStop, onRestar
           {appUrl && (
             <button
               onClick={handleOpenBrowser}
-              title={`Open ${appUrl} in browser`}
-              className="px-3.5 py-2 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-400 text-xs font-semibold border border-emerald-500/30 flex items-center gap-1.5 transition-colors"
+              disabled={status !== 'running'}
+              title={status === 'running' ? `Open ${appUrl} in browser` : 'Start the project to open the app'}
+              className={`px-3.5 py-2 rounded-lg text-emerald-400 text-xs font-semibold border border-emerald-500/30 flex items-center gap-1.5 transition-colors ${
+                status === 'running'
+                  ? 'bg-emerald-500/15 hover:bg-emerald-500/25'
+                  : 'bg-surface-3 opacity-50 cursor-not-allowed'
+              }`}
             >
               🌐 Open App
             </button>
@@ -103,6 +108,13 @@ export default function ProjectDetailHeader({ project, onStart, onStop, onRestar
           ) : busy ? (
             <button disabled className="px-3.5 py-2 rounded-lg bg-warning/10 text-warning border border-warning/20 text-xs font-semibold cursor-wait">
               {status === 'starting' ? 'Starting...' : 'Stopping...'}
+            </button>
+          ) : status === 'error' ? (
+            <button
+              onClick={onRestart}
+              className="px-3.5 py-2 rounded-lg bg-danger/10 hover:bg-danger/20 text-danger border border-danger/25 text-xs font-semibold transition-colors"
+            >
+              ↻ Restart Failed Project
             </button>
           ) : (
             <button

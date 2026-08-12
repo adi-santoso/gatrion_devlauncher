@@ -1,9 +1,20 @@
 import { useState } from 'react';
 import * as ipc from '../../utils/ipcRenderer';
 
+// Module-level store so running custom commands survive unmounting the
+// component (e.g. switching tabs or navigating away and back).
+const runStore = new Map();
+const getRunId = (projectId, commandId) => runStore.get(`${projectId}:${commandId}`) ?? null;
+const setRunId = (projectId, commandId, runId) => {
+  if (runId == null) runStore.delete(`${projectId}:${commandId}`);
+  else runStore.set(`${projectId}:${commandId}`, runId);
+};
+
 export default function CustomCommands({ project }) {
   const commands = Array.isArray(project?.customCommands) ? project.customCommands : [];
-  const [runs, setRuns] = useState({});
+  const [runs, setRuns] = useState(() =>
+    Object.fromEntries(commands.map((cmd) => [cmd.id, getRunId(project.id, cmd.id)]))
+  );
   const [busy, setBusy] = useState(null);
 
   if (commands.length === 0) return null;
@@ -13,6 +24,7 @@ export default function CustomCommands({ project }) {
     try {
       const result = await ipc.runCustomCommand(project.id, cmd.id);
       if (result.success) {
+        setRunId(project.id, cmd.id, result.runId);
         setRuns((prev) => ({ ...prev, [cmd.id]: result.runId }));
       }
     } finally {
@@ -21,7 +33,14 @@ export default function CustomCommands({ project }) {
   };
 
   const handleStop = async (runId) => {
-    await ipc.stopCustomCommand(runId);
+    const result = await ipc.stopCustomCommand(runId);
+    if (result.success) {
+      const cmd = commands.find((c) => runs[c.id] === runId);
+      if (cmd) {
+        setRunId(project.id, cmd.id, null);
+        setRuns((prev) => ({ ...prev, [cmd.id]: null }));
+      }
+    }
   };
 
   return (

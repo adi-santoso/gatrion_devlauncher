@@ -19,6 +19,9 @@ const DEFAULT_CONFIG = {
     maxRetries: 3,
     delayMs: 2000,
   },
+  preview: {
+    keepAlive: true,
+  },
   windowBounds: null,
 }
 
@@ -105,6 +108,7 @@ function normalizeConfig(config = {}) {
     : {}
   const terminal = migrated.terminal && typeof migrated.terminal === 'object' ? migrated.terminal : {}
   const autoRestart = migrated.autoRestart && typeof migrated.autoRestart === 'object' ? migrated.autoRestart : {}
+  const preview = migrated.preview && typeof migrated.preview === 'object' ? migrated.preview : {}
   const windowBounds = migrated.windowBounds && typeof migrated.windowBounds === 'object' && !Array.isArray(migrated.windowBounds) ? migrated.windowBounds : null
 
   return {
@@ -128,6 +132,9 @@ function normalizeConfig(config = {}) {
       maxRetries: integerOr(autoRestart.maxRetries, DEFAULT_CONFIG.autoRestart.maxRetries, 0, 10),
       delayMs: integerOr(autoRestart.delayMs, DEFAULT_CONFIG.autoRestart.delayMs, 500, 60000),
     },
+    preview: {
+      keepAlive: booleanOr(preview.keepAlive, DEFAULT_CONFIG.preview.keepAlive),
+    },
     windowBounds: windowBounds && Number.isFinite(windowBounds.width) && Number.isFinite(windowBounds.height)
       ? {
           x: Number.isFinite(windowBounds.x) ? windowBounds.x : undefined,
@@ -146,11 +153,11 @@ function applyConfigUpdates(current, updates) {
     throw new Error('Config updates must be an object')
   }
 
-  const allowed = new Set(['theme', 'sidebarExpanded', 'startOnBoot', 'minimizeToTray', 'autoStartProjects', 'notifications', 'terminal', 'autoRestart', 'windowBounds'])
+  const allowed = new Set(['theme', 'sidebarExpanded', 'startOnBoot', 'minimizeToTray', 'autoStartProjects', 'notifications', 'terminal', 'autoRestart', 'preview', 'windowBounds'])
   const unknown = Object.keys(updates).find((key) => !allowed.has(key))
   if (unknown) throw new Error(`Unsupported config field: ${unknown}`)
 
-  for (const nestedKey of ['notifications', 'terminal', 'autoRestart', 'windowBounds']) {
+  for (const nestedKey of ['notifications', 'terminal', 'autoRestart', 'preview', 'windowBounds']) {
     if (updates[nestedKey] !== undefined && updates[nestedKey] !== null && (!updates[nestedKey] || typeof updates[nestedKey] !== 'object' || Array.isArray(updates[nestedKey]))) {
       throw new Error(`${nestedKey} config must be an object`)
     }
@@ -170,6 +177,9 @@ function applyConfigUpdates(current, updates) {
   if (updates.autoRestart?.enabled !== undefined && typeof updates.autoRestart.enabled !== 'boolean') {
     throw new Error('autoRestart.enabled must be a boolean')
   }
+  if (updates.preview?.keepAlive !== undefined && typeof updates.preview.keepAlive !== 'boolean') {
+    throw new Error('preview.keepAlive must be a boolean')
+  }
 
   const notificationKey = Object.keys(updates.notifications || {}).find((key) => !['onStart', 'onError', 'sound'].includes(key))
   if (notificationKey) throw new Error(`Unsupported notifications field: ${notificationKey}`)
@@ -177,6 +187,8 @@ function applyConfigUpdates(current, updates) {
   if (terminalKey) throw new Error(`Unsupported terminal field: ${terminalKey}`)
   const autoRestartKey = Object.keys(updates.autoRestart || {}).find((key) => !['enabled', 'maxRetries', 'delayMs'].includes(key))
   if (autoRestartKey) throw new Error(`Unsupported autoRestart field: ${autoRestartKey}`)
+  const previewKey = Object.keys(updates.preview || {}).find((key) => !['keepAlive'].includes(key))
+  if (previewKey) throw new Error(`Unsupported preview field: ${previewKey}`)
 
   const merged = {
     ...current,
@@ -186,6 +198,9 @@ function applyConfigUpdates(current, updates) {
     autoRestart: updates.autoRestart !== undefined && updates.autoRestart !== null
       ? { ...current.autoRestart, ...updates.autoRestart }
       : current.autoRestart,
+    preview: updates.preview !== undefined && updates.preview !== null
+      ? { ...current.preview, ...updates.preview }
+      : current.preview,
     windowBounds: updates.windowBounds !== undefined ? updates.windowBounds : current.windowBounds,
   }
   const normalized = normalizeConfig(merged)

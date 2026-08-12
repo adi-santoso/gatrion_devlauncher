@@ -9,6 +9,8 @@ import CustomCommands from './CustomCommands';
 
 export default function ProjectDetailView({
   project,
+  projects = [],
+  keepPreviewAlive = true,
   logs = [],
   onBack,
   onRemove,
@@ -27,6 +29,15 @@ export default function ProjectDetailView({
   // Use prop instead of local state to sync with parent
   const [fullscreen, setFullscreen] = useState(isFullscreen);
   const combinedLogs = Array.isArray(logs) && logs.length > 0 ? logs : (Array.isArray(project?.logs) ? project.logs : []);
+
+  // With keep-alive, remember every project whose preview we mounted so its
+  // iframe stays alive (hidden) and returns with the same page state.
+  const [visitedIds, setVisitedIds] = useState(() => (project?.id ? [project.id] : []));
+  useEffect(() => {
+    if (keepPreviewAlive && project?.id) {
+      setVisitedIds((prev) => (prev.includes(project.id) ? prev : [...prev, project.id]));
+    }
+  }, [keepPreviewAlive, project?.id]);
 
   // Sync local fullscreen state when prop changes
   useEffect(() => {
@@ -51,6 +62,30 @@ export default function ProjectDetailView({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [fullscreen]);
 
+  // Which previews to keep mounted: with keep-alive, all visited projects
+  // (hidden unless active); otherwise just the current one, only while the
+  // App tab is selected (lazy mount).
+  const previewProjects = keepPreviewAlive && visitedIds.length > 0
+    ? visitedIds.map((id) => projects.find((p) => p.id === id) || { id })
+    : [project];
+
+  const renderPreview = (previewProject) => {
+    const isActive = previewProject.id === project?.id;
+    const visible = isActive && activeTab === 'app';
+    return (
+      <div key={previewProject.id} className={visible ? (fullscreen ? 'h-full flex-1 flex flex-col' : 'block') : 'hidden'}>
+        <AppPreviewTab
+          project={previewProject}
+          onStart={isActive ? onStart : undefined}
+          onEdit={isActive ? onEdit : undefined}
+          onBack={onBack}
+          fullscreen={fullscreen && isActive}
+          onToggleFullscreen={isActive ? () => setFullscreen((prev) => !prev) : undefined}
+        />
+      </div>
+    );
+  };
+
   return (
     <div className={fullscreen ? 'h-full flex-1 flex flex-col p-0 overflow-hidden' : 'view space-y-5'}>
       {!fullscreen && (
@@ -63,15 +98,8 @@ export default function ProjectDetailView({
         </>
       )}
 
-      <div className={activeTab === 'app' ? (fullscreen ? 'h-full flex-1 flex flex-col' : 'block') : 'hidden'}>
-        <AppPreviewTab
-          project={project}
-          onStart={onStart}
-          onEdit={onEdit}
-          onBack={onBack}
-          fullscreen={fullscreen}
-          onToggleFullscreen={() => setFullscreen(prev => !prev)}
-        />
+      <div className={keepPreviewAlive || activeTab === 'app' ? (fullscreen ? 'h-full flex-1 flex flex-col' : 'block') : 'hidden'}>
+        {keepPreviewAlive ? previewProjects.map(renderPreview) : (activeTab === 'app' ? renderPreview(project) : null)}
       </div>
 
       {!fullscreen && (
