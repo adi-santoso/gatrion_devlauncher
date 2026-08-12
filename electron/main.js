@@ -1,6 +1,7 @@
 const { app, BrowserWindow, ipcMain, Notification, session } = require('electron')
 const path = require('path')
 const fs = require('fs').promises
+const https = require('https')
 const ProcessManager = require('./managers/ProcessManager')
 const StorageManager = require('./managers/StorageManager')
 const ProjectDetector = require('./managers/ProjectDetector')
@@ -168,6 +169,56 @@ async function initialize() {
   // Create window
   createWindow(initialConfig?.windowBounds)
 
+    // Prayer reminder: native notifications + city geocoding (renderer CSP blocks external fetch)
+  function setupPrayerHandlers() {
+    ipcMain.handle('app-notify', (event, payload = {}) => {
+      try {
+        assertTrustedIpcEvent(event)
+        if (!Notification.isSupported()) return { success: false, error: 'Notifications are not supported on this system' }
+        new Notification({
+          title: String(payload.title || 'Gatrion'),
+          body: String(payload.body || ''),
+          silent: !!payload.silent,
+        }).show()
+        return { success: true }
+      } catch (error) {
+        return { success: false, error: error.message }
+      }
+    })
+
+    ipcMain.handle('prayer-geocode', async (event, query) => {
+      try {
+        assertTrustedIpcEvent(event)
+        const q = String(query || '').trim()
+        if (!q) return { success: false, error: 'Query is empty' }
+        const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=5`
+        const body = await new Promise((resolve, reject) => {
+          const req = https.get(url, {
+            headers: { 'User-Agent': 'Gatrion/1.0 (desktop project manager)', 'Accept': 'application/json' },
+          }, (res) => {
+            let data = ''
+            res.on('data', (chunk) => { data += chunk })
+            res.on('end', () => resolve(data))
+          })
+          req.setTimeout(10000, () => req.destroy(new Error('Geocoding request timed out')))
+          req.on('error', reject)
+        })
+        const parsed = JSON.parse(body)
+        if (!Array.isArray(parsed)) return { success: false, error: 'Unexpected geocoding response' }
+        const results = parsed
+          .map((item) => ({
+            name: item.display_name || item.name || 'Unknown',
+            latitude: parseFloat(item.lat),
+            longitude: parseFloat(item.lon),
+          }))
+          .filter((item) => Number.isFinite(item.latitude) && Number.isFinite(item.longitude))
+        return { success: true, results }
+      } catch (error) {
+        return { success: false, error: error.message }
+      }
+    })
+  }
+
   // Create native tray
   trayManager = new TrayManager(mainWindow, processManager, storageManager)
   trayManager.init()
@@ -186,6 +237,7 @@ async function initialize() {
   setupTerminalHandlers(mainWindow)
   setupPreviewHandlers(previewManager)
   setupRepoHandlers(storageManager, processManager, mainWindow)
+  setupPrayerHandlers(mainWindow)
 
   // Listen to process events for native notifications & tray updates
   processManager.on('status-change', async (data) => {

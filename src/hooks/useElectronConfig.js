@@ -16,6 +16,17 @@ export const useElectronConfig = () => {
     terminal: { fontSize: 14, maxLines: 1000, autoScroll: true },
     autoRestart: { enabled: false, maxRetries: 3, delayMs: 2000 },
     preview: { keepAlive: true },
+    prayer: {
+      showIn: 'both',
+      method: 'KEMENAG',
+      city: 'Jakarta',
+      latitude: -6.2088,
+      longitude: 106.8456,
+      utcOffset: 7,
+      adjustments: { fajr: 0, dhuhr: 0, asr: 0, maghrib: 0, isha: 0 },
+      notify: true,
+      sound: true,
+    },
     windowBounds: null,
   });
   const [loading, setLoading] = useState(true);

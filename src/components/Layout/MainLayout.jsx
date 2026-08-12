@@ -1,5 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useElectronConfig } from '../../hooks/useElectronConfig';
+import usePrayerTimes, { playPrayerChime } from '../../hooks/usePrayerTimes';
+import { showNotification } from '../../utils/ipcRenderer';
+import { PrayerPanel } from './PrayerWidget';
 import Sidebar from './Sidebar';
 import TopBar from './TopBar';
 
@@ -18,6 +21,28 @@ const MainLayout = ({
 }) => {
   const { config, loading, updateSingle } = useElectronConfig();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(!config?.sidebarExpanded);
+
+  // ---- Prayer reminder widget ----
+  const prayerConfig = config?.prayer;
+  const prayerEnabled = !!(prayerConfig && prayerConfig.showIn !== 'off');
+  const prayerConfigRef = useRef(prayerConfig);
+  prayerConfigRef.current = prayerConfig;
+  const [prayerPanelOpen, setPrayerPanelOpen] = useState(false);
+
+  const handlePrayerTime = useCallback((prayer) => {
+    const cfg = prayerConfigRef.current;
+    if (!cfg) return;
+    if (cfg.notify) {
+      showNotification({
+        title: `Waktu ${prayer.label}`,
+        body: `Sudah masuk waktu ${prayer.label} (${prayer.formatted}) — ${cfg.city || 'Jakarta'}.`,
+        silent: !cfg.sound,
+      });
+    }
+    if (cfg.sound) playPrayerChime();
+  }, []);
+
+  const prayerData = usePrayerTimes(prayerEnabled ? prayerConfig : null, handlePrayerTime);
 
   useEffect(() => {
     if (!loading && config?.sidebarExpanded !== undefined) {
@@ -93,6 +118,9 @@ const MainLayout = ({
           runningProjects={runningProjects}
           onProjectSelect={onProjectSelect || ((project) => onViewChange?.('project-detail', project))}
           onAddProject={handleAddProject}
+          prayer={prayerEnabled ? prayerConfig : null}
+          prayerData={prayerData}
+          onPrayerExpand={() => setPrayerPanelOpen(true)}
         />
 
         <div className="flex-1 flex flex-col min-w-0 h-full">
@@ -101,12 +129,24 @@ const MainLayout = ({
               title={getTitle()}
               subtitle="Gatrion"
               onCommandPalette={handleCommandPalette}
+              prayer={prayerEnabled ? prayerConfig : null}
+              prayerData={prayerData}
+              onPrayerExpand={() => setPrayerPanelOpen(true)}
             />
           )}
 
           <main className={`flex-1 ${hideTopBar ? 'p-0 overflow-hidden flex flex-col' : 'overflow-y-auto bg-[radial-gradient(circle_at_80%_-20%,rgba(124,109,242,0.08),transparent_36%)] ' + (currentView === 'project-detail' ? 'px-4 py-5 sm:px-6' : 'px-4 py-5 sm:px-7 sm:py-7')}`}>
             {children}
           </main>
+
+          {prayerData && (
+            <PrayerPanel
+              open={prayerPanelOpen}
+              data={prayerData}
+              config={prayerConfig}
+              onClose={() => setPrayerPanelOpen(false)}
+            />
+          )}
         </div>
       </div>
     </div>

@@ -1,4 +1,5 @@
 import React from 'react';
+import { PrayerCard, PrayerIcon } from './PrayerWidget';
 
 const navItems = [
   {
@@ -62,7 +63,10 @@ const Sidebar = ({
   runningProjects = [],
   onProjectSelect,
   onAddProject,
-  defaultCollapsed = false
+  defaultCollapsed = false,
+  prayer = null,
+  prayerData = null,
+  onPrayerExpand
 }) => {
   const [isCollapsed, setIsCollapsed] = React.useState(
     collapsed !== undefined ? collapsed : defaultCollapsed
@@ -91,7 +95,7 @@ const Sidebar = ({
       {!collapsed && <div className="min-w-0"><strong className="block font-display font-extrabold text-sm">Gatrion</strong><span className="block text-[8px] font-mono uppercase tracking-[0.12em] text-ink-faint">Local workspace</span></div>}
       </div>
 
-      <div className="flex-1 overflow-y-auto px-3 py-3.5">
+      <div className="flex-1 overflow-y-auto px-3 py-3.5 flex flex-col">
         <nav className="space-y-1">
           {navItems.map((item) => {
             const isActive = activeView === item.id;
@@ -117,6 +121,14 @@ const Sidebar = ({
         <div className="h-px bg-border my-4" />
         <ProjectGroup title="Running now" projects={running} collapsed={isCollapsed} status="running" onProjectSelect={onProjectSelect} />
         <ProjectGroup title="Needs attention" projects={errors} collapsed={isCollapsed} status="error" onProjectSelect={onProjectSelect} />
+
+        {prayer && prayerData && onPrayerExpand && (
+          <div className="mt-auto pt-4">
+            {isCollapsed
+              ? <PrayerIcon data={prayerData} onExpand={onPrayerExpand} />
+              : <PrayerCard data={prayerData} config={prayer} onExpand={onPrayerExpand} />}
+          </div>
+        )}
       </div>
 
       <div className="border-t border-border p-3 space-y-2">

@@ -142,4 +142,8 @@ contextBridge.exposeInMainWorld('electron', {
     ipcRenderer.on('terminal-exit', listener)
     return () => ipcRenderer.removeListener('terminal-exit', listener)
   },
+
+  // Prayer reminder: native notification + city geocoding
+  showNotification: (payload) => ipcRenderer.invoke('app-notify', payload),
+  geocodeCity: (query) => ipcRenderer.invoke('prayer-geocode', query),
 })

@@ -1,6 +1,7 @@
 import React from 'react';
+import { PrayerPill } from './PrayerWidget';
 
-const TopBar = ({ title = 'Workspace', subtitle = 'Gatrion', onCommandPalette }) => (
+const TopBar = ({ title = 'Workspace', subtitle = 'Gatrion', onCommandPalette, prayer = null, prayerData = null, onPrayerExpand }) => (
   <header className="h-[50px] shrink-0 border-b border-border flex items-center gap-2.5 px-5 bg-base/80 backdrop-blur">
     <div className="text-[11px] text-ink-faint">
       <span>{subtitle}</span>
@@ -8,6 +9,9 @@ const TopBar = ({ title = 'Workspace', subtitle = 'Gatrion', onCommandPalette })
       <strong className="font-semibold text-ink">{title}</strong>
     </div>
     <div className="flex-1" />
+    {prayer && prayerData && onPrayerExpand && (
+      <PrayerPill data={prayerData} config={prayer} onExpand={onPrayerExpand} />
+    )}
     <button
       type="button"
       onClick={onCommandPalette}

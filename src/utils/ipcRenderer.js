@@ -45,6 +45,17 @@ const MOCK_CONFIG = {
   terminal: { fontSize: 14, maxLines: 1000, autoScroll: true },
   autoRestart: { enabled: false, maxRetries: 3, delayMs: 2000 },
   preview: { keepAlive: true },
+  prayer: {
+    showIn: 'both',
+    method: 'KEMENAG',
+    city: 'Jakarta',
+    latitude: -6.2088,
+    longitude: 106.8456,
+    utcOffset: 7,
+    adjustments: { fajr: 0, dhuhr: 0, asr: 0, maghrib: 0, isha: 0 },
+    notify: true,
+    sound: true,
+  },
   windowBounds: null,
 };
 
@@ -536,3 +547,13 @@ export const onTerminalExit = (callback) => {
 };
 
 export const isElectronAvailable = isElectron;
+
+export const showNotification = async (payload) => {
+  if (!isElectron()) return { success: true };
+  return window.electron.showNotification(payload);
+};
+
+export const geocodeCity = async (query) => {
+  if (!isElectron()) return { success: false, error: 'Geocoding is only available in the desktop app' };
+  return window.electron.geocodeCity(query);
+};

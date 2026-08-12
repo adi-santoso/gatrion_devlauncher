@@ -22,6 +22,17 @@ const DEFAULT_CONFIG = {
   preview: {
     keepAlive: true,
   },
+  prayer: {
+    showIn: 'both', // 'sidebar' | 'topbar' | 'both' | 'off'
+    method: 'KEMENAG',
+    city: 'Jakarta',
+    latitude: -6.2088,
+    longitude: 106.8456,
+    utcOffset: 7,
+    adjustments: { fajr: 0, dhuhr: 0, asr: 0, maghrib: 0, isha: 0 },
+    notify: true,
+    sound: true,
+  },
   windowBounds: null,
 }
 
@@ -109,6 +120,8 @@ function normalizeConfig(config = {}) {
   const terminal = migrated.terminal && typeof migrated.terminal === 'object' ? migrated.terminal : {}
   const autoRestart = migrated.autoRestart && typeof migrated.autoRestart === 'object' ? migrated.autoRestart : {}
   const preview = migrated.preview && typeof migrated.preview === 'object' ? migrated.preview : {}
+  const prayer = migrated.prayer && typeof migrated.prayer === 'object' ? migrated.prayer : {}
+  const adjustments = prayer.adjustments && typeof prayer.adjustments === 'object' ? prayer.adjustments : {}
   const windowBounds = migrated.windowBounds && typeof migrated.windowBounds === 'object' && !Array.isArray(migrated.windowBounds) ? migrated.windowBounds : null
 
   return {
@@ -135,6 +148,23 @@ function normalizeConfig(config = {}) {
     preview: {
       keepAlive: booleanOr(preview.keepAlive, DEFAULT_CONFIG.preview.keepAlive),
     },
+    prayer: {
+      showIn: ['sidebar', 'topbar', 'both', 'off'].includes(prayer.showIn) ? prayer.showIn : DEFAULT_CONFIG.prayer.showIn,
+      method: ['KEMENAG', 'MWL', 'ISNA', 'Egypt', 'Makkah', 'Karachi'].includes(prayer.method) ? prayer.method : DEFAULT_CONFIG.prayer.method,
+      city: typeof prayer.city === 'string' && prayer.city.trim() ? prayer.city.trim().slice(0, 100) : DEFAULT_CONFIG.prayer.city,
+      latitude: Number.isFinite(prayer.latitude) && prayer.latitude >= -90 && prayer.latitude <= 90 ? prayer.latitude : DEFAULT_CONFIG.prayer.latitude,
+      longitude: Number.isFinite(prayer.longitude) && prayer.longitude >= -180 && prayer.longitude <= 180 ? prayer.longitude : DEFAULT_CONFIG.prayer.longitude,
+      utcOffset: Number.isInteger(prayer.utcOffset) && prayer.utcOffset >= -12 && prayer.utcOffset <= 14 ? prayer.utcOffset : DEFAULT_CONFIG.prayer.utcOffset,
+      adjustments: {
+        fajr: integerOr(adjustments.fajr, DEFAULT_CONFIG.prayer.adjustments.fajr, -60, 60),
+        dhuhr: integerOr(adjustments.dhuhr, DEFAULT_CONFIG.prayer.adjustments.dhuhr, -60, 60),
+        asr: integerOr(adjustments.asr, DEFAULT_CONFIG.prayer.adjustments.asr, -60, 60),
+        maghrib: integerOr(adjustments.maghrib, DEFAULT_CONFIG.prayer.adjustments.maghrib, -60, 60),
+        isha: integerOr(adjustments.isha, DEFAULT_CONFIG.prayer.adjustments.isha, -60, 60),
+      },
+      notify: booleanOr(prayer.notify, DEFAULT_CONFIG.prayer.notify),
+      sound: booleanOr(prayer.sound, DEFAULT_CONFIG.prayer.sound),
+    },
     windowBounds: windowBounds && Number.isFinite(windowBounds.width) && Number.isFinite(windowBounds.height)
       ? {
           x: Number.isFinite(windowBounds.x) ? windowBounds.x : undefined,
@@ -153,11 +183,11 @@ function applyConfigUpdates(current, updates) {
     throw new Error('Config updates must be an object')
   }
 
-  const allowed = new Set(['theme', 'sidebarExpanded', 'startOnBoot', 'minimizeToTray', 'autoStartProjects', 'notifications', 'terminal', 'autoRestart', 'preview', 'windowBounds'])
+  const allowed = new Set(['theme', 'sidebarExpanded', 'startOnBoot', 'minimizeToTray', 'autoStartProjects', 'notifications', 'terminal', 'autoRestart', 'preview', 'prayer', 'windowBounds'])
   const unknown = Object.keys(updates).find((key) => !allowed.has(key))
   if (unknown) throw new Error(`Unsupported config field: ${unknown}`)
 
-  for (const nestedKey of ['notifications', 'terminal', 'autoRestart', 'preview', 'windowBounds']) {
+  for (const nestedKey of ['notifications', 'terminal', 'autoRestart', 'preview', 'prayer', 'windowBounds']) {
     if (updates[nestedKey] !== undefined && updates[nestedKey] !== null && (!updates[nestedKey] || typeof updates[nestedKey] !== 'object' || Array.isArray(updates[nestedKey]))) {
       throw new Error(`${nestedKey} config must be an object`)
     }
@@ -180,6 +210,23 @@ function applyConfigUpdates(current, updates) {
   if (updates.preview?.keepAlive !== undefined && typeof updates.preview.keepAlive !== 'boolean') {
     throw new Error('preview.keepAlive must be a boolean')
   }
+  if (updates.prayer?.showIn !== undefined && !['sidebar', 'topbar', 'both', 'off'].includes(updates.prayer.showIn)) {
+    throw new Error('prayer.showIn must be sidebar, topbar, both, or off')
+  }
+  if (updates.prayer?.method !== undefined && !['KEMENAG', 'MWL', 'ISNA', 'Egypt', 'Makkah', 'Karachi'].includes(updates.prayer.method)) {
+    throw new Error('prayer.method is invalid')
+  }
+  if (updates.prayer?.latitude !== undefined && (!Number.isFinite(updates.prayer.latitude) || updates.prayer.latitude < -90 || updates.prayer.latitude > 90)) {
+    throw new Error('prayer.latitude must be a number between -90 and 90')
+  }
+  if (updates.prayer?.longitude !== undefined && (!Number.isFinite(updates.prayer.longitude) || updates.prayer.longitude < -180 || updates.prayer.longitude > 180)) {
+    throw new Error('prayer.longitude must be a number between -180 and 180')
+  }
+  if (updates.prayer?.utcOffset !== undefined && (!Number.isInteger(updates.prayer.utcOffset) || updates.prayer.utcOffset < -12 || updates.prayer.utcOffset > 14)) {
+    throw new Error('prayer.utcOffset must be an integer between -12 and 14')
+  }
+  if (updates.prayer?.notify !== undefined && typeof updates.prayer.notify !== 'boolean') throw new Error('prayer.notify must be a boolean')
+  if (updates.prayer?.sound !== undefined && typeof updates.prayer.sound !== 'boolean') throw new Error('prayer.sound must be a boolean')
 
   const notificationKey = Object.keys(updates.notifications || {}).find((key) => !['onStart', 'onError', 'sound'].includes(key))
   if (notificationKey) throw new Error(`Unsupported notifications field: ${notificationKey}`)
@@ -189,6 +236,10 @@ function applyConfigUpdates(current, updates) {
   if (autoRestartKey) throw new Error(`Unsupported autoRestart field: ${autoRestartKey}`)
   const previewKey = Object.keys(updates.preview || {}).find((key) => !['keepAlive'].includes(key))
   if (previewKey) throw new Error(`Unsupported preview field: ${previewKey}`)
+  const prayerKey = Object.keys(updates.prayer || {}).find((key) => !['showIn', 'method', 'city', 'latitude', 'longitude', 'utcOffset', 'adjustments', 'notify', 'sound'].includes(key))
+  if (prayerKey) throw new Error(`Unsupported prayer field: ${prayerKey}`)
+  const adjustmentKey = Object.keys(updates.prayer?.adjustments || {}).find((key) => !['fajr', 'dhuhr', 'asr', 'maghrib', 'isha'].includes(key))
+  if (adjustmentKey) throw new Error(`Unsupported prayer.adjustments field: ${adjustmentKey}`)
 
   const merged = {
     ...current,
@@ -201,6 +252,9 @@ function applyConfigUpdates(current, updates) {
     preview: updates.preview !== undefined && updates.preview !== null
       ? { ...current.preview, ...updates.preview }
       : current.preview,
+    prayer: updates.prayer !== undefined && updates.prayer !== null
+      ? { ...current.prayer, ...updates.prayer, adjustments: { ...(current.prayer?.adjustments || {}), ...(updates.prayer?.adjustments || {}) } }
+      : current.prayer,
     windowBounds: updates.windowBounds !== undefined ? updates.windowBounds : current.windowBounds,
   }
   const normalized = normalizeConfig(merged)
@@ -208,6 +262,12 @@ function applyConfigUpdates(current, updates) {
   if (updates.theme !== undefined && !['dark', 'light'].includes(updates.theme)) throw new Error('Theme must be dark or light')
   if (updates.terminal?.fontSize !== undefined && normalized.terminal.fontSize !== updates.terminal.fontSize) throw new Error('Terminal font size must be an integer between 8 and 32')
   if (updates.terminal?.maxLines !== undefined && normalized.terminal.maxLines !== updates.terminal.maxLines) throw new Error('Terminal max lines must be an integer between 100 and 10000')
+  for (const adjustmentKey of ['fajr', 'dhuhr', 'asr', 'maghrib', 'isha']) {
+    if (updates.prayer?.adjustments?.[adjustmentKey] !== undefined
+      && normalized.prayer.adjustments[adjustmentKey] !== updates.prayer.adjustments[adjustmentKey]) {
+      throw new Error(`prayer.adjustments.${adjustmentKey} must be an integer between -60 and 60`)
+    }
+  }
 
   return normalized
 }

@@ -75,6 +75,17 @@ const migratedConfig = normalizeConfig({
 assert.deepEqual(migratedConfig.notifications, { onStart: false, onError: true, sound: true })
 assert.deepEqual(migratedConfig.terminal, { fontSize: 16, maxLines: 2000, autoScroll: false })
 assert.deepEqual(migratedConfig.preview, { keepAlive: true })
+assert.deepEqual(migratedConfig.prayer, {
+  showIn: 'both',
+  method: 'KEMENAG',
+  city: 'Jakarta',
+  latitude: -6.2088,
+  longitude: 106.8456,
+  utcOffset: 7,
+  adjustments: { fajr: 0, dhuhr: 0, asr: 0, maghrib: 0, isha: 0 },
+  notify: true,
+  sound: true,
+})
 
 const updatedConfig = applyConfigUpdates(migratedConfig, { notifications: { sound: false } })
 assert.equal(updatedConfig.notifications.onStart, false)
@@ -84,5 +95,32 @@ assert.throws(() => applyConfigUpdates(migratedConfig, { unknown: true }), /Unsu
 assert.throws(() => applyConfigUpdates(migratedConfig, { startOnBoot: 'yes' }), /must be a boolean/)
 assert.throws(() => applyConfigUpdates(migratedConfig, { preview: { keepAlive: 'yes' } }), /preview.keepAlive must be a boolean/)
 assert.throws(() => applyConfigUpdates(migratedConfig, { preview: { bogus: true } }), /Unsupported preview field/)
+
+// --- prayer config ---
+const prayerUpdated = applyConfigUpdates(migratedConfig, {
+  prayer: { showIn: 'sidebar', method: 'MWL', city: 'Bandung', latitude: -6.9175, longitude: 107.6191, utcOffset: 7, adjustments: { asr: 2 }, notify: false, sound: false },
+})
+assert.equal(prayerUpdated.prayer.showIn, 'sidebar')
+assert.equal(prayerUpdated.prayer.method, 'MWL')
+assert.equal(prayerUpdated.prayer.city, 'Bandung')
+assert.equal(prayerUpdated.prayer.adjustments.asr, 2)
+assert.equal(prayerUpdated.prayer.adjustments.fajr, 0)
+assert.equal(prayerUpdated.prayer.notify, false)
+assert.equal(prayerUpdated.prayer.sound, false)
+assert.throws(() => applyConfigUpdates(migratedConfig, { prayer: { showIn: 'middle' } }), /prayer.showIn must be/)
+assert.throws(() => applyConfigUpdates(migratedConfig, { prayer: { method: 'BOGUS' } }), /prayer.method is invalid/)
+assert.throws(() => applyConfigUpdates(migratedConfig, { prayer: { latitude: 200 } }), /prayer.latitude must be/)
+assert.throws(() => applyConfigUpdates(migratedConfig, { prayer: { utcOffset: 15.5 } }), /prayer.utcOffset must be/)
+assert.throws(() => applyConfigUpdates(migratedConfig, { prayer: { notify: 'yes' } }), /prayer.notify must be a boolean/)
+assert.throws(() => applyConfigUpdates(migratedConfig, { prayer: { bogus: 1 } }), /Unsupported prayer field/)
+assert.throws(() => applyConfigUpdates(migratedConfig, { prayer: { adjustments: { sunrise: 5 } } }), /Unsupported prayer.adjustments field/)
+assert.throws(() => applyConfigUpdates(migratedConfig, { prayer: { adjustments: { fajr: 200 } } }), /prayer.adjustments.fajr must be/)
+
+// normalize clamps invalid values back to defaults
+const clamped = normalizeConfig({ prayer: { showIn: 'wat', latitude: 999, utcOffset: 99, adjustments: { isha: 999 } } })
+assert.equal(clamped.prayer.showIn, 'both')
+assert.equal(clamped.prayer.latitude, -6.2088)
+assert.equal(clamped.prayer.utcOffset, 7)
+assert.equal(clamped.prayer.adjustments.isha, 0)
 
 console.log('Schema checks passed')
