@@ -2,7 +2,7 @@ const fs = require('fs')
 const path = require('path')
 const { ipcMain, dialog } = require('electron')
 const { v4: uuidv4 } = require('uuid')
-const { normalizeProject, sanitizeProjectChanges, toRendererProject, validateProject } = require('../projectSchema')
+const { normalizeProject, sanitizeProjectChanges, toRendererProject, validateProject, migrateProjects } = require('../projectSchema')
 const Logger = require('../utils/logger')
 const log = Logger || { info: () => {}, warn: () => {}, error: () => {} }
 const { assertTrustedIpcEvent } = require('../utils/ipcSecurity')
@@ -191,6 +191,115 @@ function setupProjectHandlers(storageManager, processManager, mainWindow) {
       return { success: true }
     } catch (error) {
       console.error('[projectHandlers] Error deleting project:', error)
+      return { success: false, error: error.message }
+    }
+  })
+
+  // Export projects to a JSON file
+  ipcMain.handle('export-projects', async (event) => {
+    try {
+      assertTrustedIpcEvent(event)
+      const projects = await storageManager.loadProjects()
+      const payload = {
+        app: 'devlauncher',
+        type: 'devlauncher-projects',
+        version: 1,
+        exportedAt: new Date().toISOString(),
+        projects,
+      }
+      const result = await dialog.showSaveDialog({
+        title: 'Export Projects',
+        defaultPath: `devlauncher-projects-${new Date().toISOString().slice(0, 10)}.json`,
+        filters: [{ name: 'DevLauncher projects', extensions: ['json'] }],
+      })
+      if (result.canceled || !result.filePath) {
+        return { success: false, canceled: true }
+      }
+      await fs.promises.writeFile(result.filePath, JSON.stringify(payload, null, 2), 'utf8')
+      log.info('projectHandlers', 'Projects exported', { path: result.filePath, count: projects.length })
+      return { success: true, path: result.filePath, count: projects.length }
+    } catch (error) {
+      log.error('projectHandlers', 'Export projects failed', error)
+      return { success: false, error: error.message }
+    }
+  })
+
+  // Import projects from a JSON file (validates, normalizes, and merges without overwriting existing paths)
+  ipcMain.handle('import-projects', async (event) => {
+    try {
+      assertTrustedIpcEvent(event)
+      const result = await dialog.showOpenDialog({
+        title: 'Import Projects',
+        properties: ['openFile'],
+        filters: [{ name: 'DevLauncher projects', extensions: ['json'] }],
+      })
+      if (result.canceled || result.filePaths.length === 0) {
+        return { success: false, canceled: true }
+      }
+
+      const filePath = result.filePaths[0]
+      const content = await fs.promises.readFile(filePath, 'utf8')
+      const parsed = JSON.parse(content.replace(/^\uFEFF/, ''))
+      const rawProjects = Array.isArray(parsed)
+        ? parsed
+        : parsed && Array.isArray(parsed.projects)
+          ? parsed.projects
+          : null
+      if (!rawProjects) throw new Error('File does not contain a projects array')
+
+      const fromVersion = parsed && Array.isArray(parsed.projects)
+        ? parsed.version
+        : rawProjects[0]?.schemaVersion
+      const migrated = migrateProjects(rawProjects, fromVersion)
+      const candidates = migrated
+        .map((project) => {
+          try {
+            return { project: validateProject(normalizeProject(project, uuidv4)), error: null }
+          } catch (error) {
+            return { project: null, error: `${project?.name || '(unnamed)'}: ${error.message}` }
+          }
+        })
+
+      const added = []
+      const skipped = []
+      await storageManager.updateProjects((currentProjects) => {
+        const existingPaths = new Set(currentProjects.map((project) => normalizePathKey(project.path)))
+        const nextProjects = [...currentProjects]
+        for (const { project, error } of candidates) {
+          if (!project) {
+            skipped.push({ name: error, reason: 'invalid' })
+            continue
+          }
+          try {
+            assertProjectDirectory(project.path)
+          } catch {
+            skipped.push({ name: project.name, reason: 'directory does not exist' })
+            continue
+          }
+          const normPath = normalizePathKey(project.path)
+          if (existingPaths.has(normPath)) {
+            skipped.push({ name: project.name, reason: 'path already exists' })
+            continue
+          }
+          if (currentProjects.some((item) => item.name.toLowerCase() === project.name.toLowerCase())) {
+            skipped.push({ name: project.name, reason: 'name already exists' })
+            continue
+          }
+          existingPaths.add(normPath)
+          nextProjects.push(project)
+          added.push(project)
+        }
+        return { projects: nextProjects }
+      })
+
+      if (added.length > 0) {
+        const projects = await storageManager.loadProjects()
+        safeSend('projects-updated', projects.map(toRendererProject))
+      }
+      log.info('projectHandlers', 'Projects imported', { path: filePath, added: added.length, skipped: skipped.length })
+      return { success: true, added: added.map(toRendererProject), skipped }
+    } catch (error) {
+      log.error('projectHandlers', 'Import projects failed', error)
       return { success: false, error: error.message }
     }
   })

@@ -40,11 +40,17 @@ export default function DashboardView({
   presets = [],
   onStartPreset,
   onDeletePreset,
-  onCreatePreset
+  onRenamePreset,
+  onMovePreset,
+  onCreatePreset,
+  getMetricHistory
 }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [sortBy, setSortBy] = useState('name');
+  const [groupByTag, setGroupByTag] = useState(false);
+  const [editingPresetId, setEditingPresetId] = useState(null);
+  const [presetDraftName, setPresetDraftName] = useState('');
   const [workspaceAction, setWorkspaceAction] = useState('idle'); // 'idle', 'starting', 'stopping'
   const [workspaceTargets, setWorkspaceTargets] = useState([]);
   const [workspaceInitialFailures, setWorkspaceInitialFailures] = useState(0);
@@ -104,6 +110,20 @@ export default function DashboardView({
   const activeCount = runningProjects.length + startingProjects.length + stoppingProjects.length;
   const errorCount = erroredProjects.length;
   const workspaceControlMode = getWorkspaceControlMode(projects, workspaceAction);
+
+  // Group filtered projects by tag when grouping is enabled
+  const groupedProjects = useMemo(() => {
+    if (!groupByTag) return null;
+    const groups = new Map();
+    for (const project of filteredProjects) {
+      const tags = Array.isArray(project.tags) && project.tags.length > 0 ? project.tags : ['untagged'];
+      for (const tag of tags) {
+        if (!groups.has(tag)) groups.set(tag, []);
+        groups.get(tag).push(project);
+      }
+    }
+    return [...groups.entries()];
+  }, [filteredProjects, groupByTag]);
 
   useEffect(() => {
     if (workspaceAction === 'idle' || workspaceTargets.length === 0) return;
@@ -250,10 +270,37 @@ export default function DashboardView({
       {presets.length > 0 && (
         <div className="mb-4 flex items-center gap-2 flex-wrap">
           <span className="text-[10px] font-mono uppercase tracking-wider text-ink-faint">Presets:</span>
-          {presets.map((preset) => (
-            <div key={preset.id} className="inline-flex items-center gap-1 rounded-lg border border-border bg-surface-2 px-2.5 py-1">
-              <button type="button" onClick={() => onStartPreset?.(preset)} className="text-[11px] font-medium text-ink-soft hover:text-accent transition-colors">{preset.name}</button>
+          {presets.map((preset, index) => (
+            <div key={preset.id} className="inline-flex items-center gap-1 rounded-lg border border-border bg-surface-2 px-2 py-1">
+              {editingPresetId === preset.id ? (
+                <>
+                  <input
+                    type="text"
+                    value={presetDraftName}
+                    onChange={(event) => setPresetDraftName(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter') { onRenamePreset?.(preset.id, presetDraftName); setEditingPresetId(null); }
+                      if (event.key === 'Escape') setEditingPresetId(null);
+                    }}
+                    autoFocus
+                    className="w-24 bg-surface-3 border border-border rounded px-1.5 py-0.5 text-[11px] text-ink focus:outline-none"
+                    aria-label={`Rename preset ${preset.name}`}
+                  />
+                  <button type="button" onClick={() => { onRenamePreset?.(preset.id, presetDraftName); setEditingPresetId(null); }} className="text-[10px] text-success" aria-label={`Save preset name ${presetDraftName}`}>✓</button>
+                </>
+              ) : (
+                <button type="button" onClick={() => onStartPreset?.(preset)} className="text-[11px] font-medium text-ink-soft hover:text-accent transition-colors" title={`Start preset ${preset.name}`}>{preset.name}</button>
+              )}
               <span className="text-[9px] text-ink-faint">{preset.projectIds?.length || 0}</span>
+              {onMovePreset && index > 0 && (
+                <button type="button" onClick={() => onMovePreset(preset.id, -1)} className="text-ink-faint hover:text-ink" aria-label={`Move preset ${preset.name} left`}>←</button>
+              )}
+              {onMovePreset && index < presets.length - 1 && (
+                <button type="button" onClick={() => onMovePreset(preset.id, 1)} className="text-ink-faint hover:text-ink" aria-label={`Move preset ${preset.name} right`}>→</button>
+              )}
+              {onRenamePreset && (
+                <button type="button" onClick={() => { setEditingPresetId(preset.id); setPresetDraftName(preset.name); }} className="text-ink-faint hover:text-ink" aria-label={`Rename preset ${preset.name}`}>✎</button>
+              )}
               {onDeletePreset && (
                 <button type="button" onClick={() => onDeletePreset(preset)} className="text-ink-faint hover:text-danger ml-0.5" aria-label={`Delete preset ${preset.name}`}>✕</button>
               )}
@@ -390,6 +437,16 @@ export default function DashboardView({
               <option value="cpu">Sort by CPU</option>
               <option value="memory">Sort by Memory</option>
             </select>
+
+            {/* Group by tag */}
+            <button
+              type="button"
+              onClick={() => setGroupByTag((value) => !value)}
+              className={`rounded-lg border px-3 py-2 text-xs font-medium transition-colors ${groupByTag ? 'border-accent/40 bg-accent/10 text-accent' : 'border-border bg-surface-2 text-ink-soft hover:text-ink'}`}
+              aria-pressed={groupByTag}
+            >
+              Group by tag
+            </button>
           </div>
         </div>
 
@@ -412,47 +469,80 @@ export default function DashboardView({
       </section>
 
       {/* Projects Grid */}
-      <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-        {filteredProjects.map((project) => (
-          <ProjectCard
-            key={project.id || project.name}
-            project={project}
-            onStop={onStop}
-            onStart={onStart}
-            onRestart={onRestart}
-            onNavigate={onNavigate}
-          />
-        ))}
-
-        {/* Empty State */}
-        {filteredProjects.length === 0 && (
-          <div className="col-span-full">
+      {groupedProjects ? (
+        <section className="space-y-6">
+          {groupedProjects.length === 0 && (
             <div className="rounded-xl border border-dashed border-border bg-surface/60 py-12 text-center">
-              <svg className="mx-auto h-12 w-12 text-ink-faint" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
-              </svg>
-              <p className="mt-3 font-display text-sm font-semibold text-ink">No projects found</p>
-              <p className="mt-1 text-xs text-ink-faint">
-                {searchQuery || statusFilter !== 'all' 
-                  ? 'Try adjusting your search or filters' 
-                  : 'Get started by creating your first project'}
-              </p>
-              {!searchQuery && statusFilter === 'all' && (
-                <button
-                  type="button"
-                  onClick={() => onOpenModal?.('project')}
-                  className="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-accent px-4 py-2 text-xs font-semibold text-white hover:bg-accent-hover"
-                >
-                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                  </svg>
-                  Add Project
-                </button>
-              )}
+              <p className="mt-1 text-xs text-ink-faint">No projects match current filters.</p>
             </div>
-          </div>
-        )}
-      </section>
+          )}
+          {groupedProjects.map(([tag, tagProjects]) => (
+            <div key={tag}>
+              <div className="mb-2 flex items-center gap-2">
+                <h3 className="font-mono text-[10px] font-semibold uppercase tracking-wider text-ink-soft">{tag}</h3>
+                <span className="font-mono text-[9px] text-ink-faint">{tagProjects.length}</span>
+                <div className="h-px flex-1 bg-border" />
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                {tagProjects.map((project) => (
+                  <ProjectCard
+                    key={project.id || project.name}
+                    project={project}
+                    onStop={onStop}
+                    onStart={onStart}
+                    onRestart={onRestart}
+                    onNavigate={onNavigate}
+                    getMetricHistory={getMetricHistory}
+                  />
+                ))}
+              </div>
+            </div>
+          ))}
+        </section>
+      ) : (
+        <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          {filteredProjects.map((project) => (
+            <ProjectCard
+              key={project.id || project.name}
+              project={project}
+              onStop={onStop}
+              onStart={onStart}
+              onRestart={onRestart}
+              onNavigate={onNavigate}
+              getMetricHistory={getMetricHistory}
+            />
+          ))}
+
+          {/* Empty State */}
+          {filteredProjects.length === 0 && (
+            <div className="col-span-full">
+              <div className="rounded-xl border border-dashed border-border bg-surface/60 py-12 text-center">
+                <svg className="mx-auto h-12 w-12 text-ink-faint" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                </svg>
+                <p className="mt-3 font-display text-sm font-semibold text-ink">No projects found</p>
+                <p className="mt-1 text-xs text-ink-faint">
+                  {searchQuery || statusFilter !== 'all' 
+                    ? 'Try adjusting your search or filters' 
+                    : 'Get started by creating your first project'}
+                </p>
+                {!searchQuery && statusFilter === 'all' && (
+                  <button
+                    type="button"
+                    onClick={() => onOpenModal?.('project')}
+                    className="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-accent px-4 py-2 text-xs font-semibold text-white hover:bg-accent-hover"
+                  >
+                    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                    </svg>
+                    Add Project
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+        </section>
+      )}
 
       {/* Live Output & Activity */}
       <div className="mb-2.5 mt-8 flex items-center justify-between">

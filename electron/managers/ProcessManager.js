@@ -9,11 +9,6 @@ const execAsync = util.promisify(exec)
 const Logger = require('../utils/logger')
 const log = Logger || { info: () => {}, warn: () => {}, error: () => {} }
 
-// Memory limit constants (in MB)
-const MEMORY_WARNING_THRESHOLD = 1600 // 1.6 GB
-const MEMORY_CRITICAL_THRESHOLD = 3072 // 3 GB
-const CPU_WARNING_THRESHOLD = 80 // percentage
-
 class ProcessManager extends EventEmitter {
   constructor() {
     super()
@@ -147,6 +142,7 @@ class ProcessManager extends EventEmitter {
         command: commands.find((item) => item.primary)?.command || commands[0].command,
         projectPath,
         port: commands.find((item) => item.primary)?.port ?? null,
+        launchCommands: commands,
         runId: Symbol(projectId),
         commands: new Map(),
         onExit,
@@ -343,6 +339,21 @@ getCommandSnapshot(processData) {
     this.maybeAutoRestart(projectId, runId, data)
   }
 
+  async waitForPortsFree(ports, timeout = 10000) {
+    const uniquePorts = [...new Set((ports || []).filter((port) => Number.isInteger(port) && port > 0))]
+    if (uniquePorts.length === 0) return true
+    const deadline = Date.now() + timeout
+    while (Date.now() < deadline) {
+      const occupied = []
+      for (const port of uniquePorts) {
+        if (await this.isPortOpen(port)) occupied.push(port)
+      }
+      if (occupied.length === 0) return true
+      await new Promise((resolve) => setTimeout(resolve, 250))
+    }
+    return false
+  }
+
   maybeAutoRestart(projectId, runId, data) {
     if (!this.autoRestartConfig?.enabled) return
     if (!data.projectPath || !data.command) return
@@ -356,17 +367,34 @@ getCommandSnapshot(processData) {
     const backoffDelay = delay * Math.pow(2, data.restartCount)
     data.restartCount += 1
 
+    // Reuse the full command set (composite projects must restart with every command, not just the primary)
+    const launchCommands = Array.isArray(data.launchCommands) ? data.launchCommands : data.command
+    const portsToFree = Array.isArray(data.launchCommands)
+      ? data.launchCommands.map((item) => item.port).filter((port) => port != null)
+      : data.port != null ? [data.port] : []
+
     this.addLog(projectId, `Auto-restarting in ${Math.round(backoffDelay / 1000)}s (attempt ${data.restartCount}/${maxRetries})...`, 'system')
 
-    setTimeout(() => {
+    setTimeout(async () => {
       const current = this.processes.get(projectId)
       if (!current || current.runId !== runId || current.status === this.STATUS.STOPPING || current.status === this.STATUS.STOPPED) {
         return
       }
+
+      // Wait for the previous process tree to release its ports before relaunching
+      const freed = await this.waitForPortsFree(portsToFree, 10000)
+      const live = this.processes.get(projectId)
+      if (!live || live.runId !== runId || live.status === this.STATUS.STOPPING || live.status === this.STATUS.STOPPED) {
+        return
+      }
+      if (!freed && portsToFree.length > 0) {
+        this.addLog(projectId, `Auto-restart waiting for ports ${portsToFree.join(', ')} to be released`, 'system')
+      }
+
       this.startProcess(
         projectId,
         data.projectPath,
-        data.command,
+        launchCommands,
         data.env || {},
         data.port,
         data.onLog,
@@ -854,36 +882,6 @@ getCommandSnapshot(processData) {
     }
   }
 
-
-  /**
-   * Calculate CPU usage by comparing two samples
-   */
-  async calculateCpuUsage(pid, prevTime = null) {
-    if (!pid) return 0
-    
-    try {
-      // On Windows, use perfmon counter or WMIC
-      // Simpler approach: use wmic process where...
-      const { stdout } = await execAsync(
-        `wmic path win32_process where "ProcessId=${pid}" get CPU,WorkingSetSize /FORMAT:CSV`,
-        { timeout: 3000 }
-      )
-      
-      const lines = stdout.trim().split('\n')
-      if (lines.length < 2) return 0
-      
-      // Parse: CPU,WorkingSetSize
-      const [cpuLine, memLine] = lines
-      const [, cpuValue] = cpuLine.split(',')
-      
-      const currentCpu = parseFloat(cpuValue) || 0
-      const timestamp = Date.now()
-      
-      return currentCpu
-    } catch (err) {
-      return 0
-    }
-  }
 
   /**
    * Get full resource stats including CPU delta calculation

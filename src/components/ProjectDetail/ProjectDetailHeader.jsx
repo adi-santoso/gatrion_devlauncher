@@ -6,7 +6,7 @@ const statusClasses = {
   stopped: 'bg-surface-3 text-ink-faint border-border'
 };
 
-export default function ProjectDetailHeader({ project, onStart, onStop, onRestart, onEdit }) {
+export default function ProjectDetailHeader({ project, onStart, onStop, onRestart, onEdit, onDuplicate }) {
   const status = (project?.status || 'stopped').toLowerCase();
   const busy = status === 'starting' || status === 'stopping';
   const appUrl = Number.isInteger(project?.port) ? `http://localhost:${project.port}` : null;
@@ -119,6 +119,15 @@ export default function ProjectDetailHeader({ project, onStart, onStop, onRestar
           >
             ⚙️ Edit
           </button>
+          {onDuplicate && (
+            <button
+              onClick={onDuplicate}
+              title="Duplicate this project as a new entry"
+              className="px-3 py-2 rounded-lg bg-surface-3 hover:bg-surface-2 text-xs font-medium text-ink-soft hover:text-ink border border-border transition-colors"
+            >
+              ⧉ Duplicate
+            </button>
+          )}
         </div>
       </div>
 

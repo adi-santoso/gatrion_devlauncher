@@ -1,8 +1,20 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
-export default function PresetModal({ isOpen, onClose, projects = [], onCreate }) {
+export default function PresetModal({ isOpen, onClose, projects = [], onCreate, initialSelected = null }) {
   const [name, setName] = useState('');
   const [selected, setSelected] = useState([]);
+
+  // Prefill from an existing selection (e.g. bulk "Save as preset") whenever the modal opens
+  useEffect(() => {
+    if (!isOpen) return;
+    if (Array.isArray(initialSelected)) {
+      const available = new Set(projects.map((project) => project.id));
+      setSelected(initialSelected.filter((id) => available.has(id)));
+    } else {
+      setSelected([]);
+    }
+    setName('');
+  }, [isOpen, initialSelected, projects]);
 
   if (!isOpen) return null;
 
@@ -24,12 +36,13 @@ export default function PresetModal({ isOpen, onClose, projects = [], onCreate }
         <div className="w-full max-w-sm bg-surface border border-border rounded-xl shadow-card p-5">
           <div className="flex items-center justify-between mb-4">
             <h3 className="font-display font-bold text-sm">Create Preset</h3>
-            <button onClick={onClose} className="text-ink-faint hover:text-ink">✕</button>
+            <button onClick={onClose} className="text-ink-faint hover:text-ink" aria-label="Close">✕</button>
           </div>
           <div className="space-y-3">
             <div>
-              <label className="text-xs text-ink-soft mb-1 block">Preset name</label>
+              <label htmlFor="preset-name" className="text-xs text-ink-soft mb-1 block">Preset name</label>
               <input
+                id="preset-name"
                 type="text"
                 value={name}
                 onChange={(e) => setName(e.target.value)}

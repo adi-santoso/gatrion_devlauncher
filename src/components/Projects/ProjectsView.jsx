@@ -13,7 +13,9 @@ export default function ProjectsView({
   onBulkDelete,
   onEdit,
   onNavigate,
-  onOpenModal
+  onOpenModal,
+  onDuplicate,
+  onBulkSavePreset
 }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [typeFilter, setTypeFilter] = useState('all');
@@ -109,9 +111,11 @@ export default function ProjectsView({
           <h1 className="font-display font-bold text-2xl mt-1">Projects</h1>
           <p className="text-sm text-ink-faint mt-1">Configure launch commands and manage local processes.</p>
         </div>
-        <button onClick={onOpenModal} className="px-3.5 py-2 rounded-lg bg-accent hover:bg-accent-hover text-white text-sm font-semibold shadow-glow transition-colors">
-          + Add Project
-        </button>
+        <div className="flex items-center gap-2">
+          <button onClick={onOpenModal} className="px-3.5 py-2 rounded-lg bg-accent hover:bg-accent-hover text-white text-sm font-semibold shadow-glow transition-colors">
+            + Add Project
+          </button>
+        </div>
       </div>
 
       <BulkToolbar
@@ -120,6 +124,7 @@ export default function ProjectsView({
         onBulkStart={handleBulkStartClick}
         onBulkStop={handleBulkStopClick}
         onBulkDelete={handleBulkDeleteClick}
+        onBulkSavePreset={onBulkSavePreset ? () => onBulkSavePreset(selectedIds) : undefined}
       />
 
       <div className="flex items-center gap-2 flex-wrap">
@@ -203,6 +208,7 @@ export default function ProjectsView({
                   onRestart={() => onRestart?.(project)}
                   onEdit={() => onEdit?.(project)}
                   onDelete={() => onDelete?.(project)}
+                  onDuplicate={onDuplicate ? () => onDuplicate?.(project) : undefined}
                   onShowDetail={() => onNavigate?.(project)}
                 />
               ))}

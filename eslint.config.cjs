@@ -49,6 +49,14 @@ module.exports = [
     },
   },
   {
+    // Vitest files inside electron/ use ESM even though the rest of electron/ is CommonJS
+    files: ['electron/**/__tests__/*.test.js'],
+    languageOptions: {
+      ecmaVersion: 2022,
+      sourceType: 'module',
+    },
+  },
+  {
     files: ['vite.config.js', 'vitest.config.js', 'test-setup.js'],
     languageOptions: {
       ecmaVersion: 2022,

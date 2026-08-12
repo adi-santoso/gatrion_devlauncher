@@ -1,8 +1,34 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 
-export default function ProjectCard({ project, onStart, onStop, onRestart, onNavigate }) {
+// Tiny sparkline from a list of numeric samples
+const Sparkline = ({ samples, stroke = '#34d399', height = 22 }) => {
+  const points = useMemo(() => {
+    const values = (samples || []).filter((value) => value != null && Number.isFinite(value));
+    if (values.length < 2) return '';
+    const min = Math.min(...values);
+    const max = Math.max(...values);
+    const span = max - min || 1;
+    const width = 96;
+    return values.map((value, index) => {
+      const x = (index / (values.length - 1)) * width;
+      const y = height - 2 - ((value - min) / span) * (height - 4);
+      return `${x.toFixed(1)},${y.toFixed(1)}`;
+    }).join(' ');
+  }, [samples, height]);
+  if (!points) return null;
+  return (
+    <svg width="96" height={height} viewBox={`0 0 96 ${height}`} className="mt-1 block" aria-hidden="true">
+      <polyline points={points} fill="none" stroke={stroke} strokeWidth="1.5" strokeLinejoin="round" strokeLinecap="round" opacity="0.9" />
+    </svg>
+  );
+};
+
+export default function ProjectCard({ project, onStart, onStop, onRestart, onNavigate, getMetricHistory }) {
   const cpu = project.cpu ?? project.cpuUsage;
   const memory = project.memory ?? project.mem ?? project.memoryUsage;
+  const history = typeof getMetricHistory === 'function' ? getMetricHistory(project.id) : [];
+  const cpuSamples = useMemo(() => history.map((sample) => sample.cpu), [history]);
+  const memorySamples = useMemo(() => history.map((sample) => sample.memory), [history]);
   const status = (project.status || '').toLowerCase();
   const isRunning = status === 'running';
   const isStarting = status === 'starting';
@@ -114,6 +140,7 @@ export default function ProjectCard({ project, onStart, onStop, onRestart, onNav
                   />
                 </div>
               )}
+              {isRunning && <Sparkline samples={cpuSamples} stroke="#34d399" />}
             </div>
             <div className="rounded-lg border border-border bg-surface-2 px-3 py-2.5">
               <div className="mb-1.5 flex items-center justify-between">
@@ -135,6 +162,7 @@ export default function ProjectCard({ project, onStart, onStop, onRestart, onNav
                   />
                 </div>
               )}
+              {isRunning && <Sparkline samples={memorySamples} stroke="#60a5fa" />}
             </div>
           </div>
 

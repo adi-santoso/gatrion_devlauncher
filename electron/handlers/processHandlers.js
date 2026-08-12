@@ -349,4 +349,4 @@ function setupProcessHandlers(processManager, storageManager, mainWindow) {
   })
 }
 
-module.exports = { setupProcessHandlers, resolveLaunchConfig, withRequestedPort }
+module.exports = { setupProcessHandlers, resolveLaunchConfig, withRequestedPort, topologicalSort }

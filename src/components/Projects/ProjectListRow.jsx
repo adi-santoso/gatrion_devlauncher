@@ -65,6 +65,12 @@ const EditIcon = () => (
   </svg>
 );
 
+const DuplicateIcon = () => (
+  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <rect x="9" y="9" width="12" height="12" rx="2" /><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" />
+  </svg>
+);
+
 const FolderIcon = () => (
   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
     <path d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V7z" />
@@ -89,6 +95,7 @@ export default function ProjectListRow({
   onRestart,
   onEdit,
   onDelete,
+  onDuplicate,
   onShowDetail
 }) {
   const status = (project.status || 'stopped').toLowerCase();
@@ -229,6 +236,7 @@ export default function ProjectListRow({
             )}
             <DropdownItem onClick={onShowDetail}><DetailsIcon /> Details</DropdownItem>
             <DropdownItem onClick={onEdit}><EditIcon /> Edit Project</DropdownItem>
+            {onDuplicate && <DropdownItem onClick={onDuplicate}><DuplicateIcon /> Duplicate</DropdownItem>}
             <DropdownItem onClick={handleRevealExplorer}><FolderIcon /> Reveal in Explorer</DropdownItem>
             <DropdownSeparator />
             <DropdownItem danger onClick={onDelete}><TrashIcon /> Delete</DropdownItem>

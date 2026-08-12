@@ -13,6 +13,7 @@ export default function ProjectDetailView({
   onBack,
   onRemove,
   onEdit,
+  onDuplicate,
   onStart,
   onStop,
   onRestart,
@@ -57,7 +58,7 @@ export default function ProjectDetailView({
           <button onClick={onBack} className="text-xs text-ink-faint hover:text-ink flex items-center gap-1 transition-colors">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M15 18l-6-6 6-6"/></svg>Back to Projects
           </button>
-          <ProjectDetailHeader project={project} onStart={onStart} onStop={onStop} onRestart={onRestart} onEdit={onEdit}/>
+          <ProjectDetailHeader project={project} onStart={onStart} onStop={onStop} onRestart={onRestart} onEdit={onEdit} onDuplicate={onDuplicate}/>
           <TabNavigation activeTab={activeTab} onTabChange={setActiveTab}/>
         </>
       )}

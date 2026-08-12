@@ -30,14 +30,14 @@ export default function TerminalWorkspace({ projects = [], getLogs, onClearLogs,
             onClick={() => (shellOpen ? setShellOpen(false) : (setShellKey((k) => k + 1), setShellOpen(true)))}
             className="px-3 py-1.5 rounded-lg bg-surface-3 hover:bg-surface-2 text-xs font-medium transition-colors"
           >
-            {shellOpen ? 'Close shell' : 'Open shell'}
+            {shellOpen ? 'Close shell' : selectedProject ? `Open shell in ${selectedProject.name}` : 'Open shell'}
           </button>
         )}
       </header>
 
       {shellOpen && (
         <div className="mb-5 h-80 rounded-xl border border-border bg-surface shadow-card p-2">
-          <InteractiveTerminal key={shellKey} fontSize={fontSize} onExit={() => {}} />
+          <InteractiveTerminal key={`${shellKey}-${selectedProject?.id || 'root'}`} cwd={selectedProject?.path} fontSize={fontSize} onExit={() => {}} />
         </div>
       )}
       <div className="grid min-h-[520px] overflow-hidden rounded-xl border border-border bg-surface shadow-card md:grid-cols-[190px_minmax(0,1fr)]">

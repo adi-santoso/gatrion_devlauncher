@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, Notification } = require('electron')
+const { app, BrowserWindow, ipcMain, Notification, session } = require('electron')
 const path = require('path')
 const fs = require('fs').promises
 const ProcessManager = require('./managers/ProcessManager')
@@ -17,6 +17,26 @@ let storageManager
 let projectDetector
 let trayManager
 let isQuitting = false
+
+// Content Security Policy — applied to every response (dev and production).
+// Must be registered after `app.whenReady()` because session.defaultSession is
+// only available once the app is ready.
+// Production restricts scripts to self; dev keeps 'unsafe-inline' so the Vite
+// react-refresh preamble and injected styles keep working.
+function applyContentSecurityPolicy() {
+  const CSP = app.isPackaged
+    ? "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' ws://localhost:* http://localhost:*; frame-src http://localhost:* https://localhost:*; object-src 'none'; base-uri 'self'; form-action 'self'"
+    : "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' ws://localhost:* http://localhost:*; frame-src http://localhost:* https://localhost:*; object-src 'none'; base-uri 'self'; form-action 'self'"
+
+  session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
+    callback({
+      responseHeaders: {
+        ...details.responseHeaders,
+        'Content-Security-Policy': [CSP],
+      },
+    })
+  })
+}
 
 function createWindow(windowBounds) {
   const defaults = { width: 1280, height: 800, minWidth: 1024, minHeight: 600 }
@@ -116,6 +136,8 @@ async function applyOSSettings(config) {
 }
 
 async function initialize() {
+  applyContentSecurityPolicy()
+
   // Create managers
   processManager = new ProcessManager()
   storageManager = new StorageManager()

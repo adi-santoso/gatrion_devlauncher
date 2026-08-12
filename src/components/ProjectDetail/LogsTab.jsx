@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 
 const stripAnsi = (value) => String(value ?? '')
   .replace(/[\u001b\u009b][[()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-ORZcf-nqry=><]/g, '');
@@ -22,23 +22,64 @@ const normalizeLog = (log) => {
   };
 };
 
+const LOG_TYPES = [
+  { value: 'all', label: 'All types' },
+  { value: 'stdout', label: 'stdout' },
+  { value: 'stderr', label: 'stderr' },
+  { value: 'error', label: 'error' },
+  { value: 'warn', label: 'warn' },
+  { value: 'system', label: 'system' },
+];
+
+// Render message with <mark> around case-insensitive matches
+const HighlightedMessage = ({ text, query }) => {
+  if (!query) return text;
+  const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const parts = text.split(new RegExp(`(${escaped})`, 'ig'));
+  return parts.map((part, index) => (
+    part.toLowerCase() === query.toLowerCase()
+      ? <mark key={index} className="bg-yellow-500/30 text-inherit rounded-[2px] px-0.5">{part}</mark>
+      : <React.Fragment key={index}>{part}</React.Fragment>
+  ));
+};
+
 export default function LogsTab({ logs = [], autoScroll = true, onAutoScrollChange, onClear, fontSize }) {
   const [filter, setFilter] = useState('');
+  const [typeFilter, setTypeFilter] = useState('all');
   const outputRef = useRef(null);
   const normalizedLogs = (Array.isArray(logs) ? logs : [logs]).map(normalizeLog);
   const query = filter.trim().toLowerCase();
-  const visibleLogs = normalizedLogs.filter((log) => !query || `${log.commandName || ''} ${log.level} ${log.message}`.toLowerCase().includes(query));
+
+  const visibleLogs = useMemo(() => normalizedLogs.filter((log) => {
+    if (typeFilter !== 'all' && log.level !== typeFilter && !(typeFilter === 'warn' && (log.level === 'warning' || log.level === 'warn'))) {
+      return false;
+    }
+    if (!query) return true;
+    const levelMatch = typeFilter === 'all' || log.level === typeFilter;
+    const text = `${log.commandName || ''} ${log.level} ${log.message}`.toLowerCase();
+    return levelMatch && text.includes(query);
+  }), [normalizedLogs, query, typeFilter]);
 
   useEffect(() => {
     if (autoScroll && outputRef.current) outputRef.current.scrollTop = outputRef.current.scrollHeight;
-  }, [autoScroll, logs, filter]);
+  }, [autoScroll, visibleLogs.length, filter, typeFilter]);
 
   const getLogColor = (level) => ({ ready: 'text-success', warn: 'text-warning', warning: 'text-warning', error: 'text-danger', stderr: 'text-danger' }[level] || 'text-ink-soft');
 
   return (
     <div className="bg-surface border border-border rounded-xl shadow-card overflow-hidden">
       <div className="flex items-center justify-between gap-3 px-4 py-2.5 border-b border-border bg-surface-2 flex-wrap">
-        <input type="search" value={filter} onChange={(event) => setFilter(event.target.value)} placeholder="Filter logs..." aria-label="Filter logs" className="bg-surface-3 border border-border rounded-md px-2.5 py-1 text-xs text-ink placeholder:text-ink-faint focus:outline-none w-48"/>
+        <div className="flex items-center gap-2 flex-wrap">
+          <input type="search" value={filter} onChange={(event) => setFilter(event.target.value)} placeholder="Search logs..." aria-label="Search logs" className="bg-surface-3 border border-border rounded-md px-2.5 py-1 text-xs text-ink placeholder:text-ink-faint focus:outline-none w-44"/>
+          <select value={typeFilter} onChange={(event) => setTypeFilter(event.target.value)} aria-label="Filter log type" className="bg-surface-3 border border-border rounded-md px-2 py-1 text-xs text-ink-soft focus:outline-none">
+            {LOG_TYPES.map((type) => <option key={type.value} value={type.value}>{type.label}</option>)}
+          </select>
+          {(query || typeFilter !== 'all') && (
+            <span className="font-mono text-[10px] text-ink-faint" aria-live="polite">
+              {visibleLogs.length} of {normalizedLogs.length}
+            </span>
+          )}
+        </div>
         <div className="flex items-center gap-3">
           <label className="flex items-center gap-1.5 text-[11px] text-ink-faint"><input type="checkbox" checked={autoScroll} onChange={(event) => onAutoScrollChange?.(event.target.checked)} className="w-3 h-3 accent-accent"/>Auto-scroll</label>
           <button type="button" onClick={onClear} disabled={!onClear} className="text-[11px] text-ink-faint hover:text-danger disabled:opacity-40 disabled:cursor-not-allowed">Clear</button>
@@ -52,7 +93,7 @@ export default function LogsTab({ logs = [], autoScroll = true, onAutoScrollChan
             return <p key={`${log.timestamp || 'log'}-${index}`} className={`whitespace-pre-wrap break-words ${getLogColor(log.level)}`}>
               {time && <span className="text-ink-faint mr-1.5">{time}</span>}
               {log.commandName && <span className="text-accent mr-1.5">[{log.commandName}]</span>}
-              {log.level !== 'info' && <span className="mr-1.5">[{log.level.toUpperCase()}]</span>}{log.message}
+              {log.level !== 'info' && <span className="mr-1.5">[{log.level.toUpperCase()}]</span>}<HighlightedMessage text={log.message} query={filter.trim()} />
             </p>;
           })}
       </div>

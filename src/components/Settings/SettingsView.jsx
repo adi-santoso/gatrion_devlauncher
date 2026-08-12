@@ -7,7 +7,7 @@ import TerminalSettings from './TerminalSettings';
  * SettingsView - Full settings view assembly
  * Lines 821-873 from template
  */
-const SettingsView = ({ config, updateConfig }) => {
+const SettingsView = ({ config, updateConfig, onExportProjects, onImportProjects }) => {
 
   const handleChange = async (key, value) => {
     await updateConfig({ [key]: value });
@@ -114,6 +114,29 @@ const SettingsView = ({ config, updateConfig }) => {
           updateConfig({ terminal: { autoScroll: !config.terminal?.autoScroll } })
         }
       />
+
+      <div className="bg-surface border border-border rounded-xl shadow-card p-5 space-y-4">
+        <p className="font-display font-bold text-sm">Data</p>
+        <p className="text-[11px] text-ink-faint">
+          Projects are stored locally in your app data folder. Export a portable JSON backup, or import one on another machine.
+        </p>
+        <div className="flex items-center gap-2 pt-1">
+          <button
+            type="button"
+            onClick={onExportProjects}
+            className="px-3.5 py-2 rounded-lg bg-surface-3 hover:bg-surface-2 text-xs font-medium text-ink-soft hover:text-ink border border-border transition-colors"
+          >
+            ⬇ Export projects…
+          </button>
+          <button
+            type="button"
+            onClick={onImportProjects}
+            className="px-3.5 py-2 rounded-lg bg-surface-3 hover:bg-surface-2 text-xs font-medium text-ink-soft hover:text-ink border border-border transition-colors"
+          >
+            ⬆ Import projects…
+          </button>
+        </div>
+      </div>
 
       <p className="text-right text-[11px] text-ink-faint">Changes save automatically.</p>
     </div>

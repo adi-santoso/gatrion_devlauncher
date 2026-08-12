@@ -28,6 +28,10 @@ contextBridge.exposeInMainWorld('electron', {
   detectProjectType: (projectPath) => ipcRenderer.invoke('detect-project-type', projectPath),
   browseFolder: () => ipcRenderer.invoke('browse-folder'),
 
+  // Export / Import
+  exportProjects: () => ipcRenderer.invoke('export-projects'),
+  importProjects: () => ipcRenderer.invoke('import-projects'),
+
   // Env Files
   listEnvFiles: (projectPath) => ipcRenderer.invoke('list-env-files', projectPath),
   readEnvFile: (projectPath, fileName) => ipcRenderer.invoke('read-env-file', projectPath, fileName),

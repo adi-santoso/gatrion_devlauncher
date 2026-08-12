@@ -33,6 +33,7 @@ export const useProcesses = (projects = [], onProjectUpdate, options = {}) => {
   const [processStatuses, setProcessStatuses] = useState({});
   const [processLogs, setProcessLogs] = useState({});
   const statusRevisions = useRef({});
+  const metricsHistory = useRef({}); // projectId -> [{ t, cpu, memory }] capped at METRIC_SAMPLES
   const maxLines = Number.isInteger(options.maxLines) && options.maxLines > 0 ? options.maxLines : 1000;
   const maxLinesRef = useRef(maxLines);
   maxLinesRef.current = maxLines;
@@ -406,6 +407,19 @@ export const useProcesses = (projects = [], onProjectUpdate, options = {}) => {
         try {
           const metrics = await ipc.getProcessMetrics(p.id);
           if (metrics && metrics.pid) {
+            // Keep a bounded history for sparkline rendering
+            const history = metricsHistory.current[p.id] || [];
+            const sample = {
+              t: Date.now(),
+              cpu: metrics.cpuPercent != null ? Number(metrics.cpuPercent) : null,
+              memory: metrics.memoryMb != null ? Number(metrics.memoryMb) : null,
+            };
+            if (sample.cpu != null || sample.memory != null) {
+              const last = history[history.length - 1];
+              if (!last || last.cpu !== sample.cpu || last.memory !== sample.memory) {
+                metricsHistory.current[p.id] = [...history, sample].slice(-30);
+              }
+            }
             // Only notify if metrics or uptime actually changed
             if (
               p.uptime !== metrics.uptime ||
@@ -430,6 +444,8 @@ export const useProcesses = (projects = [], onProjectUpdate, options = {}) => {
     return () => clearInterval(intervalId);
   }, []);
 
+  const getMetricHistory = useCallback((projectId) => metricsHistory.current[projectId] || [], []);
+
   return {
     processStatuses,
     processLogs,
@@ -439,6 +455,7 @@ export const useProcesses = (projects = [], onProjectUpdate, options = {}) => {
     startAll,
     stopAll,
     getLogs,
-    clearLogs
+    clearLogs,
+    getMetricHistory
   };
 };

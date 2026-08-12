@@ -16,7 +16,7 @@ import {
 } from './components/Modals';
 import PortConflictModal from './components/Modals/PortConflictModal';
 import { useProjects, useProcesses, useElectronConfig } from './hooks';
-import { checkPortConflict, isElectronAvailable, onNavigateToProject, getActivities, appendActivities, getPresets, savePresets } from './utils/ipcRenderer';
+import { checkPortConflict, isElectronAvailable, onNavigateToProject, getActivities, appendActivities, getPresets, savePresets, exportProjects, importProjects } from './utils/ipcRenderer';
 import { summarizeWorkspaceStart } from './utils/workspaceResults';
 
 function App() {
@@ -40,6 +40,7 @@ function App() {
   // Workspace presets state
   const [presets, setPresets] = useState([]);
   const [presetModalOpen, setPresetModalOpen] = useState(false);
+  const [presetModalPreselect, setPresetModalPreselect] = useState(null);
   const [presetToDelete, setPresetToDelete] = useState(null);
 
   const formatActivityTime = (timestamp, detail = '') => {
@@ -86,6 +87,7 @@ function App() {
     stopAll,
     getLogs,
     clearLogs,
+    getMetricHistory,
     processLogs
   } = useProcesses(projects, handleProjectUpdate, { maxLines: config.terminal?.maxLines });
 
@@ -507,6 +509,84 @@ function App() {
       showToast('error', result.error || 'Failed to save preset');
     }
     setPresetModalOpen(false);
+    setPresetModalPreselect(null);
+  };
+
+  // Open preset creation modal, optionally prefilled with a selection
+  const handleSaveSelectionAsPreset = (projectIds) => {
+    setPresetModalPreselect(Array.isArray(projectIds) ? projectIds : null);
+    setPresetModalOpen(true);
+  };
+
+  const handleRenamePreset = async (presetId, newName) => {
+    const name = (newName || '').trim();
+    if (!name) return;
+    const updated = presets.map((preset) => preset.id === presetId ? { ...preset, name } : preset);
+    setPresets(updated);
+    const result = await savePresets(updated);
+    if (result.success) {
+      showToast('info', `Preset renamed to "${name}"`);
+    } else {
+      showToast('error', result.error || 'Failed to rename preset');
+    }
+  };
+
+  const handleMovePreset = async (presetId, direction) => {
+    const index = presets.findIndex((preset) => preset.id === presetId);
+    const target = index + direction;
+    if (index === -1 || target < 0 || target >= presets.length) return;
+    const updated = [...presets];
+    [updated[index], updated[target]] = [updated[target], updated[index]];
+    setPresets(updated);
+    const result = await savePresets(updated);
+    if (!result.success) showToast('error', result.error || 'Failed to reorder presets');
+  };
+
+  // Export / import project registry as JSON
+  const handleExportProjects = async () => {
+    const result = await exportProjects();
+    if (result.success) {
+      showToast('success', `Exported ${result.count} project(s)`);
+      addActivity('accent', 'Projects', 'exported', `${result.count} projects`);
+    } else if (!result.canceled) {
+      showToast('error', result.error || 'Failed to export projects');
+    }
+  };
+
+  const handleImportProjects = async () => {
+    const result = await importProjects();
+    if (result.success) {
+      if (result.added.length > 0) {
+        showToast('success', `Imported ${result.added.length} project(s)`);
+        addActivity('accent', 'Projects', 'imported', `${result.added.length} projects`);
+      } else {
+        const reasons = [...new Set((result.skipped || []).map((item) => item.reason))];
+        showToast('info', result.skipped?.length
+          ? `No new projects imported — ${result.skipped.length} skipped (${reasons.join(', ')})`
+          : 'No projects to import');
+      }
+    } else if (!result.canceled) {
+      showToast('error', result.error || 'Failed to import projects');
+    }
+  };
+
+  // Duplicate a project: prefill the create modal with the source configuration
+  const handleDuplicateProject = (project) => {
+    if (!project) return;
+    const { status, pid, uptime, errorMessage, processCommands, cpu, memory, logs, ...config } = project;
+    setDroppedProject({
+      ...config,
+      id: undefined,
+      name: `${project.name} (copy)`,
+      createdAt: new Date().toISOString(),
+      lastRun: null,
+      tags: Array.isArray(project.tags) ? [...project.tags] : [],
+      customCommands: Array.isArray(project.customCommands) ? project.customCommands.map((item) => ({ ...item })) : [],
+      dependsOn: Array.isArray(project.dependsOn) ? [...project.dependsOn] : [],
+      envVars: Array.isArray(project.envVars) ? project.envVars.map((item) => ({ key: item.key, value: item.value ?? '' })) : [],
+    });
+    setEditingProject(null);
+    openModalHandler('project');
   };
 
   // Hydrate presets on mount
@@ -609,7 +689,10 @@ function App() {
             presets={presets}
             onStartPreset={handleStartPreset}
             onDeletePreset={handleDeletePreset}
+            onRenamePreset={handleRenamePreset}
+            onMovePreset={handleMovePreset}
             onCreatePreset={() => setPresetModalOpen(true)}
+            getMetricHistory={getMetricHistory}
           />
         )}
 
@@ -628,6 +711,8 @@ function App() {
             onDelete={handleDeleteProject}
             onBulkStart={handleBulkStartProjects}
             onBulkDelete={handleBulkDeleteProjects}
+            onBulkSavePreset={handleSaveSelectionAsPreset}
+            onDuplicate={handleDuplicateProject}
             onEdit={(project) => openModalHandler('project', project)}
             onNavigate={(project) => showView('project-detail', project, isFullscreen)}
             onOpenModal={() => openModalHandler('project')}
@@ -652,6 +737,7 @@ function App() {
               onRestart={() => handleRestartProject(liveProject)}
               onRemove={() => handleDeleteProject(liveProject)}
               onEdit={() => openModalHandler('project', liveProject)}
+              onDuplicate={() => handleDuplicateProject(liveProject)}
               onClearLogs={() => clearLogs(liveProject.id)}
               terminalConfig={config.terminal}
               onFullscreenChange={(isFull) => {
@@ -670,7 +756,7 @@ function App() {
 
         {/* Settings View */}
         {currentView === 'settings' && (
-          <SettingsView config={config} updateConfig={updateElectronConfig} />
+          <SettingsView config={config} updateConfig={updateElectronConfig} onExportProjects={handleExportProjects} onImportProjects={handleImportProjects} />
         )}
       </MainLayout>
 
@@ -743,8 +829,9 @@ function App() {
       {/* Toast Container */}
       <PresetModal
         isOpen={presetModalOpen}
-        onClose={() => setPresetModalOpen(false)}
+        onClose={() => { setPresetModalOpen(false); setPresetModalPreselect(null); }}
         projects={projects}
+        initialSelected={presetModalPreselect}
         onCreate={handleCreatePreset}
       />
 

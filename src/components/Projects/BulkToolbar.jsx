@@ -5,7 +5,8 @@ export default function BulkToolbar({
   onClearSelection,
   onBulkStart,
   onBulkStop,
-  onBulkDelete
+  onBulkDelete,
+  onBulkSavePreset
 }) {
   if (selectedCount === 0) return null;
 
@@ -29,6 +30,15 @@ export default function BulkToolbar({
         >
           Stop
         </button>
+        {onBulkSavePreset && (
+          <button
+            onClick={onBulkSavePreset}
+            aria-label="Save selected projects as a preset"
+            className="px-3 py-1.5 rounded-lg bg-accent/15 text-accent text-xs font-medium hover:bg-accent/25 transition-colors"
+          >
+            Save as preset
+          </button>
+        )}
         <button
           onClick={onBulkDelete}
           aria-label="Delete selected projects"

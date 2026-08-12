@@ -14,7 +14,7 @@ Legend:
 | Feature | Status | Catatan |
 |---|---|---|
 | Electron + React startup | Done | Development memuat Vite port 5173 |
-| Secure renderer boundary | Partial | isolation aktif; validasi IPC belum lengkap |
+| Secure renderer boundary | Done | isolation aktif; validasi IPC lengkap; CSP diterapkan main process (dev + production) |
 | Project list/load | Done | JSON di Electron `userData` |
 | Add project | Done | Validation dasar + duplicate name/path |
 | Delete project | Done | Running process dihentikan dulu |
@@ -23,6 +23,11 @@ Legend:
 | Storage backup/recovery | Done | 5 backup project, recovery JSON corrupt |
 | Concurrent storage mutation | Done | Queue project/config + transactional project updates |
 | Config persistence | Done | Schema nested canonical + migrasi key flat lama |
+| Project schema v3 | Done | `tags`, `customCommands`, `dependsOn` + schemaVersion 3 dengan normalisasi/validasi |
+| Tags | Done | Filter di ProjectsView, badge di row/card, grouping dashboard |
+| Drag & drop folder | Done | Drop folder ke window auto-fill ProjectModal via `detectProjectType` |
+| Duplicate project | Done | Prefill modal create dari project existing (config lengkap: tags, customCommands, dependsOn) |
+| Export / Import | Done | JSON portabel via dialog; import merge tanpa menimpa (skip duplikat) |
 
 ## Process
 
@@ -40,6 +45,10 @@ Legend:
 | Crash/error status | Done | Non-zero exit jadi error; crash banner dismissible per error signature |
 | CPU/RAM metrics | Done | `project-resource-update` push + 4s polling di dashboard |
 | Port conflict detection | Done | `check-port-conflict` + PortConflictModal + bulk preflight |
+| Custom commands | Done | `customCommands` per project, run/stop via IPC, output ke log project, dihentikan saat quit |
+| Dependency ordering | Done | `start-all-projects` topological sort berdasarkan `dependsOn` |
+| Auto-restart composite | Done | Restart memakai seluruh commands array + menunggu port lama dilepas |
+| Resource sparkline | Done | History 30 sampel per project, sparkline CPU/RAM di dashboard card |
 
 ## UI
 
@@ -57,6 +66,10 @@ Legend:
 | Keyboard shortcuts | Done | Ctrl/Cmd+K, Ctrl+N, Ctrl+Shift+S/X, Escape, `?` semua terimplementasi |
 | Toast | Partial | Bekerja, dua auto-dismiss timer berbeda |
 | Theme | Done | Dark/light disimpan dan diterapkan |
+| Workspace presets | Done | Create/start/delete, rename inline, reorder (←/→), save-selection-as-preset dari bulk select |
+| Log search & filter | Done | Search + highlight + filter type (stdout/stderr/error/warn/system) di LogsTab dan Terminal workspace |
+| Shell per project | Done | Terminal workspace membuka shell interaktif di folder project terpilih (cwd) |
+| Dashboard group by tag | Done | Toggle "Group by tag" di dashboard (termasuk grup untagged) |
 | Settings | Done | Theme, sidebar, tray, start-on-boot, autoStartProjects, notifications (onStart/onError/sound), terminal (fontSize/maxLines/autoScroll) semua berfungsi |
 
 ## Desktop Integration
@@ -87,6 +100,8 @@ Legend:
 | Windows installer | Blocked | Asset `build/icon.ico/png` belum ada |
 | Clean machine validation | Pending | Belum dibuktikan |
 | Code signing/update | Pending | Belum dirancang |
+| CI pipeline | Done | GitHub Actions Windows: lint, `npm test`, vitest, `vite build`, Playwright e2e |
+| CSP | Done | `Content-Security-Policy` di main process; dev mengizinkan inline script Vite |
 
 ## Known Wiring Gaps
 

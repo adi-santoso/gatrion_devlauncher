@@ -89,6 +89,22 @@ export const browseFolder = async () => {
   return window.electron.browseFolder();
 };
 
+export const exportProjects = async () => {
+  if (!isElectron()) {
+    console.warn('[IPC] Running in browser mode - exportProjects not available');
+    return { success: false, canceled: true };
+  }
+  return window.electron.exportProjects();
+};
+
+export const importProjects = async () => {
+  if (!isElectron()) {
+    console.warn('[IPC] Running in browser mode - importProjects not available');
+    return { success: false, canceled: true };
+  }
+  return window.electron.importProjects();
+};
+
 export const listEnvFiles = async (projectPath) => {
   if (!isElectron()) {
     console.warn('[IPC] Running in browser mode - mock listEnvFiles called');

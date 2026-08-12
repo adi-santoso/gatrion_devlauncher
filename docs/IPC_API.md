@@ -12,7 +12,7 @@ Sebagian besar mutation mengembalikan:
 { success: false, error: 'message' }
 ```
 
-Kontrak belum seragam. `getProcessStatus()` mengembalikan status object langsung dan `startAllProjects()` mengembalikan array.
+Kontrak belum seragam. `getProcessStatus()`, `getProcessMetrics()`, `getCustomCommandStatus()`, `checkPortConflict()`, dan `startAllProjects()`/`stopAllProjects()` mengembalikan bentuk langsung (bukan wrapper `{ success }`).
 
 ## Project API
 
@@ -105,11 +105,11 @@ Channel: `start-project`
 
 Main process mengambil path, command, port, dan environment dari project yang sudah divalidasi di storage. Renderer tidak dapat menentukan command eksekusi. Environment project di-merge ke `process.env` dan command tersimpan dijalankan melalui shell.
 
-### `stopProject(projectId)`
+### `stopProject(projectId, force)`
 
 Channel: `stop-project`
 
-Renderer bridge tidak mengekspos parameter `force`, walau handler menerima argumen internal opsional.
+`force` diekspos di preload (default `false`) dan diteruskan ke `ProcessManager.stopProcess`.
 
 ```js
 { success: true, forced: false }
@@ -163,7 +163,9 @@ Channel: `get-process-status`
   startedAt: 1710000000000,
   logs: [],
   exitCode: undefined,
-  error: undefined
+  error: undefined,
+  port: 5173,
+  commands: [{ id, name, command, port, primary, status, pid, ready }]
 }
 ```
 
@@ -173,7 +175,122 @@ Unknown project:
 { status: 'STOPPED', logs: [] }
 ```
 
-Backend juga mendaftarkan `get-logs` dan `clear-logs`, tetapi preload belum mengeksposnya. `useProcesses.getLogs/clearLogs` hanya bekerja pada state frontend.
+### `getLogs(projectId, limit)` / `clearLogs(projectId)`
+
+Channel: `get-logs` / `clear-logs`
+
+`getLogs` mengembalikan array log terbaru (default 1000 entry, dibatasi `maxLogLines`). `clearLogs` mengosongkan buffer in-memory dan file `.jsonl` yang dipersist.
+
+```js
+// get-logs
+[{ id: 1, timestamp: 'ISO', type: 'stdout', message: '...', commandId: null, commandName: null }]
+// clear-logs
+{ success: true }
+```
+
+### `getProcessMetrics(projectId)`
+
+Channel: `get-process-metrics`
+
+```js
+{ status: 'running', pid: 1234, uptime: '5m 32s', uptimeSec: 332, memoryMb: 128, cpuPercent: 5.2 }
+```
+
+### `runCustomCommand(projectId, commandId)` / `stopCustomCommand(runId)` / `getCustomCommandStatus(runId)`
+
+Channel: `run-custom-command` / `stop-custom-command` / `get-custom-command-status`
+
+Menjalankan perintah one-off dari `project.customCommands`. Output dialirkan ke buffer log project yang sama. Tidak ada readiness/status tracking; gunakan `getCustomCommandStatus` untuk cek run id. Semua custom command dihentikan saat app quit.
+
+```js
+// run-custom-command
+{ success: true, runId: 1, pid: 5678 }
+// stop-custom-command
+{ success: true, runId: 1, forced: true }
+// get-custom-command-status
+{ runId: 1, pid: 5678, status: 'running' } // atau { runId, pid: null, status: 'stopped' }
+```
+
+### `checkPortConflict(port)`
+
+Channel: `check-port-conflict`
+
+```js
+{ inUse: true, pid: 1234, processName: 'node.exe', isManaged: false, managedProjectName: null }
+```
+
+### `startAllProjects(projectIds)`
+
+Channel: `start-all-projects`
+
+Handler selalu membaca project dari storage dan mengurutkannya secara **topological** berdasarkan `dependsOn` (dependency start lebih dulu). Project yang bergantung pada project gagal start akan di-skip dengan error `Dependency ... failed to start`.
+
+```js
+[
+  { projectId: 'id-db', success: true, pid: 1234 },
+  { projectId: 'id-app', success: false, error: 'Dependency id-db failed to start' }
+]
+```
+
+## Export / Import API
+
+### `exportProjects()`
+
+Channel: `export-projects`
+
+Menampilkan dialog simpan dan menulis JSON portabel:
+
+```json
+{
+  "app": "devlauncher",
+  "type": "devlauncher-projects",
+  "version": 1,
+  "exportedAt": "ISO timestamp",
+  "projects": []
+}
+```
+
+```js
+{ success: true, path: 'D:/backup/devlauncher-projects-2026-08-12.json', count: 3 }
+{ success: false, canceled: true }
+```
+
+### `importProjects()`
+
+Channel: `import-projects`
+
+Menampilkan dialog buka, membaca file, memvalidasi/normalisasi tiap entry, lalu menggabungkan ke registry. Entry dengan path duplikat, nama duplikat, direktori tidak ada, atau data invalid **di-skip** (tidak menimpa project existing).
+
+```js
+{
+  success: true,
+  added: [{ id, name, path, ... }],
+  skipped: [{ name: 'app', reason: 'path already exists' }]
+}
+{ success: false, canceled: true }
+```
+
+## Presets & Activities API
+
+### `getPresets()` / `savePresets(presets)`
+
+Channel: `get-presets` / `save-presets`
+
+Preset disimpan wholesale di `presets.json`. `savePresets` menormalisasi dan menyimpan seluruh array (rename/reorder dilakukan renderer lalu dikirim penuh).
+
+```js
+{ success: true, presets: [{ id, name, projectIds: [], createdAt }] }
+```
+
+### `getActivities()` / `appendActivities(entries)`
+
+Channel: `get-activities` / `append-activities`
+
+Activity feed dipersist di `activities.json` (maksimal 50 entry).
+
+```js
+{ success: true, activities: [{ type, project, message, detail, timestamp }] }
+```
 
 ## Config API
 

@@ -11,6 +11,10 @@ Status:
 - **Pending**: belum dikerjakan.
 - **Blocked**: bergantung task lain/asset eksternal.
 
+## Status Update Terbaru
+
+Commit `2153c49` (workspace presets & custom commands) dan lanjutan menyelesaikan: **CSP** (Phase 1), **schema v3 + versioning projects/config** (Phase 8), **automated Electron smoke test + CI** (Phase 9), plus fitur baru: duplicate project, export/import JSON, log search + filter, sparkline resource, grouping by tag, shell per-project, dan preset rename/reorder. Lihat [FEATURE_STATUS.md](FEATURE_STATUS.md).
+
 ## Evaluasi Roadmap Lama
 
 Roadmap lama kuat pada visi UI dan pembagian manager, tetapi mencampur plan, progress, dan completion report. Banyak task diberi klaim selesai sebelum wiring dan test tersedia. Fase baru di bawah mempertahankan tujuan lama, menambahkan security, accessibility, migration, process-tree reliability, release gate, dan clean-machine verification.
@@ -26,8 +30,8 @@ Roadmap lama kuat pada visi UI dan pembagian manager, tetapi mencampur plan, pro
 - [x] Preload bridge untuk API terpilih.
 - [x] electron-builder config NSIS + portable x64.
 - [ ] Tambahkan `build/icon.ico` dan `build/icon.png` valid.
-- [ ] Tetapkan Node.js LTS dalam `engines` dan CI.
-- [ ] Tambahkan CSP production dan development yang sesuai.
+- [x] Tetapkan Node.js LTS dalam `engines` dan CI (Node 20 di GitHub Actions).
+- [x] Tambahkan CSP production dan development yang sesuai (main process `onHeadersReceived`; dev mengizinkan inline Vite).
 - [ ] Validasi macOS behavior atau nyatakan Windows-only secara eksplisit di package/release.
 
 Acceptance criteria:
@@ -186,9 +190,9 @@ Acceptance criteria:
 - [x] Terapkan max log lines setting.
 - [x] Terapkan auto-scroll behavior.
 - [x] Sidebar default collapsed state dari config.
-- [ ] Versioning untuk `projects.json` dengan schemaVersion field.
-- [ ] Versioning untuk `config.json` dengan schemaVersion field.
-- [ ] Backup sebelum migration dan rollback pada gagal (basic implementation ada, perlu enhanced).
+- [x] Versioning untuk `projects.json` dengan schemaVersion field (v3).
+- [x] Versioning untuk `config.json` dengan schemaVersion field (v1).
+- [x] Backup sebelum migration dan rollback pada gagal (pre-migration copy + restore otomatis).
 
 Acceptance criteria:
 
@@ -204,9 +208,9 @@ Acceptance criteria:
 - [x] Unit test StorageManager dengan Vitest.
 - [x] Test project CRUD handler (useProjects.test.js).
 - [x] Test process lifecycle (useProcesses.test.js).
-- [ ] Renderer component/hook tests untuk status transitions (partial).
-- [ ] Automated Electron smoke test.
-- [ ] CI Windows: install, test, build renderer, package.
+- [x] Renderer component/hook tests untuk status transitions (useProjects, useProcesses, komponen dashboard/projects).
+- [x] Automated Electron smoke test (Playwright `npm run test:e2e`).
+- [x] CI Windows: install, lint, `npm test`, vitest, build renderer, e2e (`.github/workflows/ci.yml`).
 - [x] ESLint config/script modern (@eslint/js + react-hooks plugin).
 - [x] Accessibility audit: ARIA labels, focus trap on modals, keyboard navigation documented, color contrast check.
 - [x] Structured logging utility (logs/main.log) di main process.
