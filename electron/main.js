@@ -5,10 +5,12 @@ const ProcessManager = require('./managers/ProcessManager')
 const StorageManager = require('./managers/StorageManager')
 const ProjectDetector = require('./managers/ProjectDetector')
 const TrayManager = require('./managers/TrayManager')
+const PreviewManager = require('./managers/PreviewManager')
 const { setupProcessHandlers } = require('./handlers/processHandlers')
 const { setupProjectHandlers } = require('./handlers/projectHandlers')
 const { setupDesktopHandlers } = require('./handlers/desktopHandlers')
 const { setupTerminalHandlers, killAllTerminals } = require('./handlers/terminalHandlers')
+const { setupPreviewHandlers } = require('./handlers/previewHandlers')
 const { assertTrustedIpcEvent } = require('./utils/ipcSecurity')
 
 let mainWindow
@@ -16,6 +18,7 @@ let processManager
 let storageManager
 let projectDetector
 let trayManager
+let previewManager
 let isQuitting = false
 
 // Content Security Policy — applied to every response (dev and production).
@@ -168,11 +171,16 @@ async function initialize() {
   trayManager = new TrayManager(mainWindow, processManager, storageManager)
   trayManager.init()
 
+  // Embedded preview (WebContentsView) manager
+  previewManager = new PreviewManager()
+  previewManager.setWindow(mainWindow)
+
   // Setup IPC handlers
   setupProcessHandlers(processManager, storageManager, mainWindow)
   setupProjectHandlers(storageManager, processManager, mainWindow)
   setupDesktopHandlers()
   setupTerminalHandlers(mainWindow)
+  setupPreviewHandlers(previewManager)
 
   // Listen to process events for native notifications & tray updates
   processManager.on('status-change', async (data) => {
@@ -338,6 +346,11 @@ app.on('before-quit', async (event) => {
   isQuitting = true
 
   killAllTerminals()
+
+  // Tear down embedded preview views
+  if (previewManager) {
+    previewManager.destroyAll()
+  }
 
   // Stop resource monitoring first
   if (processManager && processManager.stopResourceMonitoring) {

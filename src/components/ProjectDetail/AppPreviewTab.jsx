@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
-import * as ipc from '../../utils/ipcRenderer';
+import React, { useEffect, useRef, useState } from 'react';
 import StackLogo from '../Common/StackLogo';
+import * as ipc from '../../utils/ipcRenderer';
 
 const statusClasses = {
   running: 'text-success bg-success/10 border-success/20',
@@ -10,27 +10,115 @@ const statusClasses = {
   stopped: 'text-ink-faint bg-surface-3 border-border'
 };
 
+const nativeAvailable = () => typeof window !== 'undefined' && window.electron?.previewShow !== undefined;
+
 export default function AppPreviewTab({
   project,
   onStart,
   onEdit,
   onBack,
   fullscreen = false,
-  onToggleFullscreen
+  onToggleFullscreen,
+  active = true,
+  keepAlive = true
 }) {
   const [iframeKey, setIframeKey] = useState(0);
   const [zoomLevel, setZoomLevel] = useState(100);
+  const [nativeMode, setNativeMode] = useState(() => nativeAvailable() && Boolean(project?.port));
+  const [nativeFailed, setNativeFailed] = useState(false);
+  const containerRef = useRef(null);
   const status = (project?.status || 'stopped').toLowerCase();
   const isRunning = status === 'running';
   const appUrl = Number.isInteger(project?.port) ? `http://localhost:${project.port}` : null;
+  const projectId = project?.id;
+
+  const useNative = nativeMode && !nativeFailed && isRunning && appUrl != null;
+
+  // Keep the native view sized/positioned to match the placeholder div. The
+  // renderer owns layout; main positions the WebContentsView at these bounds.
+  useEffect(() => {
+    if (!useNative || !containerRef.current) return undefined;
+
+    const sendBounds = () => {
+      const el = containerRef.current;
+      if (!el) return;
+      const rect = el.getBoundingClientRect();
+      const vw = window.innerWidth;
+      const vh = window.innerHeight;
+      // Clip to the visible viewport (the page may scroll under the view)
+      const x = Math.max(0, rect.left);
+      const y = Math.max(0, rect.top);
+      const right = Math.min(vw, rect.right);
+      const bottom = Math.min(vh, rect.bottom);
+      if (right <= x || bottom <= y) {
+        ipc.previewHide(projectId);
+        return;
+      }
+      ipc.previewSetBounds(projectId, {
+        x, y, width: right - x, height: bottom - y,
+      });
+    };
+
+    const show = async () => {
+      const el = containerRef.current;
+      if (!el) return;
+      const rect = el.getBoundingClientRect();
+      const result = await ipc.previewShow({
+        projectId,
+        url: appUrl,
+        bounds: { x: rect.left, y: rect.top, width: rect.width, height: rect.height },
+      });
+      if (!result?.success) {
+        setNativeFailed(true);
+      }
+    };
+
+    if (useNative && active) show();
+    else ipc.previewHide(projectId);
+
+    const ro = new ResizeObserver(sendBounds);
+    ro.observe(containerRef.current);
+    window.addEventListener('resize', sendBounds);
+    window.addEventListener('scroll', sendBounds, true);
+
+    return () => {
+      ro.disconnect();
+      window.removeEventListener('resize', sendBounds);
+      window.removeEventListener('scroll', sendBounds, true);
+      // If we never owned the native view (project stopped, or this renderer
+      // can't drive it), there is nothing to clean up for this project.
+      if (!nativeAvailable()) return;
+      if (keepAlive) ipc.previewHide(projectId);
+      else ipc.previewDestroy(projectId);
+    };
+  }, [useNative, active, keepAlive, projectId, appUrl]);
+
+  // Apply zoom level to the native view
+  useEffect(() => {
+    if (useNative && zoomLevel !== 100) {
+      ipc.previewZoom(projectId, zoomLevel);
+    }
+  }, [useNative, zoomLevel, projectId]);
 
   const handleReload = () => {
-    setIframeKey((prev) => prev + 1);
+    if (useNative) {
+      ipc.previewReload(projectId);
+    } else {
+      setIframeKey((prev) => prev + 1);
+    }
   };
 
   const handleOpenExternally = () => {
     if (appUrl) {
       ipc.openExternalUrl(appUrl);
+    }
+  };
+
+  const handleClearData = async () => {
+    const result = await ipc.previewClearData(projectId);
+    if (result?.success) {
+      // After clearing storage, reload so the app picks up a fresh session
+      ipc.previewReload(projectId);
     }
   };
 
@@ -88,6 +176,16 @@ export default function AppPreviewTab({
             >
               ↗
             </button>
+            {useNative && (
+              <button
+                type="button"
+                onClick={handleClearData}
+                title="Clear site data (cookies, storage) for this project"
+                className="px-2 py-1 rounded bg-surface-3 hover:bg-surface-2 text-ink-soft hover:text-ink border border-border transition-colors text-xs"
+              >
+                🗑
+              </button>
+            )}
             <button
               type="button"
               onClick={onToggleFullscreen}
@@ -137,6 +235,17 @@ export default function AppPreviewTab({
                 <option value={150}>150%</option>
               </select>
             </div>
+
+            {useNative && (
+              <button
+                type="button"
+                onClick={handleClearData}
+                title="Clear site data (cookies, storage) for this project"
+                className="w-7 h-7 rounded-md flex items-center justify-center text-ink-faint hover:text-ink hover:bg-surface-3 transition-colors text-sm"
+              >
+                🗑
+              </button>
+            )}
 
             <button
               type="button"
@@ -201,18 +310,28 @@ export default function AppPreviewTab({
             </button>
           </div>
         ) : (
-          <iframe
-            key={iframeKey}
-            src={appUrl}
-            title={`${project.name} preview`}
-            style={{ zoom: `${zoomLevel}%` }}
-            className={
-              fullscreen
-                ? 'w-full h-full flex-1 border-0 rounded-none bg-white'
-                : 'w-full h-full min-h-[500px] border-0 rounded-b-lg bg-white'
-            }
-            sandbox="allow-same-origin allow-scripts allow-popups allow-forms"
-          />
+          <div
+            ref={containerRef}
+            className="w-full h-full flex-1 relative overflow-hidden"
+          >
+            {useNative ? (
+              /* The WebContentsView is layered above this empty region by main */
+              <div className="w-full h-full" aria-label={`Native preview of ${project?.name}`} />
+            ) : (
+              <iframe
+                key={iframeKey}
+                src={appUrl}
+                title={`${project.name} preview`}
+                style={{ zoom: `${zoomLevel}%` }}
+                className={
+                  fullscreen
+                    ? 'w-full h-full flex-1 border-0 rounded-none bg-white'
+                    : 'w-full h-full min-h-[500px] border-0 rounded-b-lg bg-white'
+                }
+                sandbox="allow-same-origin allow-scripts allow-popups allow-forms"
+              />
+            )}
+          </div>
         )}
       </div>
     </div>

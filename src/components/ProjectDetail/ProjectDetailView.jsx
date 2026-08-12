@@ -80,6 +80,8 @@ export default function ProjectDetailView({
           onEdit={isActive ? onEdit : undefined}
           onBack={onBack}
           fullscreen={fullscreen && isActive}
+          active={visible}
+          keepAlive={keepPreviewAlive}
           onToggleFullscreen={isActive ? () => setFullscreen((prev) => !prev) : undefined}
         />
       </div>

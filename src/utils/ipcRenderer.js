@@ -377,6 +377,48 @@ export const onResourceUpdate = (callback) => {
   return window.electron.onResourceUpdate(callback);
 };
 
+// ==================== Embedded Preview APIs ====================
+
+export const previewShow = async (payload) => {
+  if (!isElectron()) return { success: false, error: 'Preview requires desktop app' };
+  return window.electron.previewShow(payload);
+};
+
+export const previewHide = async (projectId) => {
+  if (!isElectron()) return { success: true };
+  return window.electron.previewHide(projectId);
+};
+
+export const previewSetBounds = async (projectId, bounds) => {
+  if (!isElectron()) return { success: true };
+  return window.electron.previewSetBounds(projectId, bounds);
+};
+
+export const previewNavigate = async (projectId, url) => {
+  if (!isElectron()) return { success: false, error: 'Preview requires desktop app' };
+  return window.electron.previewNavigate(projectId, url);
+};
+
+export const previewReload = async (projectId) => {
+  if (!isElectron()) return { success: false, error: 'Preview requires desktop app' };
+  return window.electron.previewReload(projectId);
+};
+
+export const previewZoom = async (projectId, zoomLevel) => {
+  if (!isElectron()) return { success: true };
+  return window.electron.previewZoom(projectId, zoomLevel);
+};
+
+export const previewClearData = async (projectId) => {
+  if (!isElectron()) return { success: false, error: 'Preview requires desktop app' };
+  return window.electron.previewClearData(projectId);
+};
+
+export const previewDestroy = async (projectId) => {
+  if (!isElectron()) return { success: true };
+  return window.electron.previewDestroy(projectId);
+};
+
 // ==================== Interactive Terminal APIs ====================
 
 export const terminalCreate = async (options) => {

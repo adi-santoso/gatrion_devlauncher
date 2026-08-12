@@ -93,6 +93,16 @@ contextBridge.exposeInMainWorld('electron', {
     return () => ipcRenderer.removeListener('project-resource-update', listener)
   },
 
+  // Embedded preview (WebContentsView)
+  previewShow: (payload) => ipcRenderer.invoke('preview-show', payload),
+  previewHide: (projectId) => ipcRenderer.invoke('preview-hide', projectId),
+  previewSetBounds: (projectId, bounds) => ipcRenderer.invoke('preview-set-bounds', projectId, bounds),
+  previewNavigate: (projectId, url) => ipcRenderer.invoke('preview-navigate', projectId, url),
+  previewReload: (projectId) => ipcRenderer.invoke('preview-reload', projectId),
+  previewZoom: (projectId, zoomLevel) => ipcRenderer.invoke('preview-zoom', projectId, zoomLevel),
+  previewClearData: (projectId) => ipcRenderer.invoke('preview-clear-data', projectId),
+  previewDestroy: (projectId) => ipcRenderer.invoke('preview-destroy', projectId),
+
   // Interactive PTY terminal
   terminalCreate: (options) => ipcRenderer.invoke('terminal-create', options),
   terminalInput: (id, data) => ipcRenderer.invoke('terminal-input', id, data),
