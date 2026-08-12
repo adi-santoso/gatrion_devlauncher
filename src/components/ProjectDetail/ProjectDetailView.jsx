@@ -7,6 +7,8 @@ import SettingsTab from './SettingsTab';
 import AppPreviewTab from './AppPreviewTab';
 import CustomCommands from './CustomCommands';
 import CrashBanner from './CrashBanner';
+import GitTab from './GitTab';
+import ScriptsTab from './ScriptsTab';
 
 export default function ProjectDetailView({
   project,
@@ -121,6 +123,12 @@ export default function ProjectDetailView({
           <div className={activeTab === 'terminal' ? 'block' : 'hidden'}>
             <CustomCommands project={project}/>
             <LogsTab logs={combinedLogs} autoScroll={autoScroll} onAutoScrollChange={setAutoScroll} onClear={onClearLogs} fontSize={terminalConfig?.fontSize}/>
+          </div>
+          <div className={activeTab === 'git' ? 'block' : 'hidden'}>
+            <GitTab project={project}/>
+          </div>
+          <div className={activeTab === 'scripts' ? 'block' : 'hidden'}>
+            <ScriptsTab project={project}/>
           </div>
           <div className={activeTab === 'environment' ? 'block' : 'hidden'}>
             <EnvironmentTab project={project} envVars={project?.envVars} onEdit={onEdit}/>

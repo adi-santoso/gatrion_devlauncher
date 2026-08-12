@@ -3,6 +3,8 @@ import React from 'react';
 const tabs = [
   { id: 'app', label: 'App' },
   { id: 'terminal', label: 'Terminal' },
+  { id: 'git', label: 'Git' },
+  { id: 'scripts', label: 'Scripts' },
   { id: 'environment', label: 'Environment' },
   { id: 'settings', label: 'Settings' }
 ];

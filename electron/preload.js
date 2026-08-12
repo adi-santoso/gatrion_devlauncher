@@ -37,6 +37,24 @@ contextBridge.exposeInMainWorld('electron', {
   readEnvFile: (projectPath, fileName) => ipcRenderer.invoke('read-env-file', projectPath, fileName),
   writeEnvFile: (projectPath, fileName, content) => ipcRenderer.invoke('write-env-file', projectPath, fileName, content),
 
+  // Git
+  gitStatus: (projectPath) => ipcRenderer.invoke('git-status', projectPath),
+  gitLog: (projectPath, limit) => ipcRenderer.invoke('git-log', projectPath, limit),
+  gitDiff: (projectPath, filePath, staged) => ipcRenderer.invoke('git-diff', projectPath, filePath, staged),
+  gitStage: (projectPath, files) => ipcRenderer.invoke('git-stage', projectPath, files),
+  gitUnstage: (projectPath, files) => ipcRenderer.invoke('git-unstage', projectPath, files),
+  gitCommit: (projectPath, message) => ipcRenderer.invoke('git-commit', projectPath, message),
+  gitPull: (projectPath) => ipcRenderer.invoke('git-pull', projectPath),
+  gitPush: (projectPath) => ipcRenderer.invoke('git-push', projectPath),
+  gitCheckout: (projectPath, branch, createNew) => ipcRenderer.invoke('git-checkout', projectPath, branch, createNew),
+  gitInit: (projectPath) => ipcRenderer.invoke('git-init', projectPath),
+
+  // Package tooling
+  readPackageScripts: (projectPath) => ipcRenderer.invoke('read-package-scripts', projectPath),
+  checkDependencies: (projectPath) => ipcRenderer.invoke('check-dependencies', projectPath),
+  runProjectScript: (projectId, scriptName) => ipcRenderer.invoke('run-project-script', projectId, scriptName),
+  installDependencies: (projectId) => ipcRenderer.invoke('install-dependencies', projectId),
+
   // Desktop Integration
   openExternalUrl: (url) => ipcRenderer.invoke('open-external-url', url),
   revealInExplorer: (targetPath) => ipcRenderer.invoke('reveal-in-explorer', targetPath),

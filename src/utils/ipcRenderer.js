@@ -235,6 +235,80 @@ export const getCustomCommandStatus = async (runId) => {
   return window.electron.getCustomCommandStatus(runId);
 };
 
+// ==================== Git APIs ====================
+
+export const gitStatus = async (projectPath) => {
+  if (!isElectron()) return { success: true, isRepo: false, branch: null, upstream: null, ahead: 0, behind: 0, staged: [], unstaged: [], untracked: [] };
+  return window.electron.gitStatus(projectPath);
+};
+
+export const gitLog = async (projectPath, limit = 15) => {
+  if (!isElectron()) return { success: true, commits: [] };
+  return window.electron.gitLog(projectPath, limit);
+};
+
+export const gitDiff = async (projectPath, filePath, staged = false) => {
+  if (!isElectron()) return { success: true, diff: '' };
+  return window.electron.gitDiff(projectPath, filePath, staged);
+};
+
+export const gitStage = async (projectPath, files) => {
+  if (!isElectron()) return { success: true };
+  return window.electron.gitStage(projectPath, files);
+};
+
+export const gitUnstage = async (projectPath, files) => {
+  if (!isElectron()) return { success: true };
+  return window.electron.gitUnstage(projectPath, files);
+};
+
+export const gitCommit = async (projectPath, message) => {
+  if (!isElectron()) return { success: true };
+  return window.electron.gitCommit(projectPath, message);
+};
+
+export const gitPull = async (projectPath) => {
+  if (!isElectron()) return { success: true };
+  return window.electron.gitPull(projectPath);
+};
+
+export const gitPush = async (projectPath) => {
+  if (!isElectron()) return { success: true };
+  return window.electron.gitPush(projectPath);
+};
+
+export const gitCheckout = async (projectPath, branch, createNew = false) => {
+  if (!isElectron()) return { success: true };
+  return window.electron.gitCheckout(projectPath, branch, createNew);
+};
+
+export const gitInit = async (projectPath) => {
+  if (!isElectron()) return { success: true };
+  return window.electron.gitInit(projectPath);
+};
+
+// ==================== Package Tooling APIs ====================
+
+export const readPackageScripts = async (projectPath) => {
+  if (!isElectron()) return { success: true, hasPackageJson: false, scripts: [] };
+  return window.electron.readPackageScripts(projectPath);
+};
+
+export const checkDependencies = async (projectPath) => {
+  if (!isElectron()) return { success: true, hasPackageJson: false, hasNodeModules: false, lockfile: null, packageManager: 'npm', scriptCount: 0, depCount: 0 };
+  return window.electron.checkDependencies(projectPath);
+};
+
+export const runProjectScript = async (projectId, scriptName) => {
+  if (!isElectron()) return { success: false, error: 'Electron not available' };
+  return window.electron.runProjectScript(projectId, scriptName);
+};
+
+export const installDependencies = async (projectId) => {
+  if (!isElectron()) return { success: false, error: 'Electron not available' };
+  return window.electron.installDependencies(projectId);
+};
+
 // ==================== Config APIs ====================
 
 export const getConfig = async () => {

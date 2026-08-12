@@ -11,6 +11,7 @@ const { setupProjectHandlers } = require('./handlers/projectHandlers')
 const { setupDesktopHandlers } = require('./handlers/desktopHandlers')
 const { setupTerminalHandlers, killAllTerminals } = require('./handlers/terminalHandlers')
 const { setupPreviewHandlers } = require('./handlers/previewHandlers')
+const { setupRepoHandlers } = require('./handlers/repoHandlers')
 const { assertTrustedIpcEvent } = require('./utils/ipcSecurity')
 
 let mainWindow
@@ -184,6 +185,7 @@ async function initialize() {
   setupDesktopHandlers()
   setupTerminalHandlers(mainWindow)
   setupPreviewHandlers(previewManager)
+  setupRepoHandlers(storageManager, processManager, mainWindow)
 
   // Listen to process events for native notifications & tray updates
   processManager.on('status-change', async (data) => {
