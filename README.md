@@ -2,7 +2,9 @@
 
 DevLauncher adalah aplikasi desktop Windows untuk mendaftarkan, menjalankan, menghentikan, dan memantau beberapa project development dari satu UI. Project didukung saat ini: Laravel, Next.js, React/Vite, Vue, Go, Node.js, dan custom command.
 
-Status project: **development / belum production-ready**. CRUD project, deteksi framework, lifecycle process, log real-time, penyimpanan lokal, dan build renderer sudah bekerja. Beberapa kontrol UI masih mock atau belum terhubung; lihat [Feature Status](docs/FEATURE_STATUS.md).
+Fitur utama: lifecycle process (start/stop/restart), log real-time, **preview aplikasi embedded** (native WebContentsView dengan sesi persisten per project), **tab Git** (status/commit/log/branch) dan **script runner** di project detail, workspace presets, command palette, dan **widget pengingat sholat** dengan countdown live (offline, metode Kemenag RI).
+
+Status project: **development / belum production-ready**. CRUD project, deteksi framework, lifecycle process, log real-time, penyimpanan lokal, dan build renderer sudah bekerja. Lihat [Feature Status](docs/FEATURE_STATUS.md) untuk status per fitur dan [Changelog](CHANGELOG.md) untuk riwayat perubahan.
 
 ## Tech Stack
 
@@ -49,6 +51,7 @@ npm run dev:vite
 - [Kontrak IPC](docs/IPC_API.md)
 - [Status fitur aktual](docs/FEATURE_STATUS.md)
 - [Roadmap sampai release](docs/ROADMAP.md)
+- [Changelog](CHANGELOG.md)
 
 ## Struktur Ringkas
 
@@ -77,6 +80,7 @@ Lokasi tepat dicetak oleh `StorageManager` saat aplikasi mulai.
 - Start command dijalankan melalui shell lokal. Tambahkan hanya project dan command yang dipercaya.
 - CPU/RAM monitoring, native tray, startup OS, port conflict resolution, bulk action, edit project, dan aksi native lain sudah terimplementasi.
 - Ikon aplikasi (motif G) digenerate ke `build/` via `npm run icons` (`scripts/generate-icons.js`); folder `build/` di-`.gitignore` sehingga script wajib dijalankan sebelum packaging.
+- Preview project memakai native WebContentsView (sesi persisten per project) dengan fallback iframe bila view native tidak tersedia.
 - Target utama Windows x64. macOS/Linux belum diuji.
 
 ## Lisensi

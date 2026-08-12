@@ -57,7 +57,11 @@ Legend:
 | Workspace dashboard | Done | Status, running projects, latest output, activity, dan lifecycle memakai data nyata |
 | Projects registry | Done | Table, search, filter type/status, lifecycle, edit, delete, dan detail terhubung |
 | Terminals workspace | Done | Output per project dan aggregate real-time; hydrate backend logs setelah reload; interactive PTY shell |
-| Project Detail | Done | Lifecycle, terminal, environment (env file viewer/editor), settings, embedded App preview |
+| Project Detail | Done | Lifecycle, terminal, environment (env file viewer/editor), settings, Git tab, Script runner, embedded App preview |
+| Git integration | Done | Tab Git: status, stage/unstage, commit, log, diff, checkout branch, pull/push, init — via IPC tervalidasi |
+| Script runner | Done | Tab Scripts: jalankan script `package.json` + health check dependency |
+| Animation system | Done | AnimatedModal (entrance + exit), toast slide, sliding tab indicator, theme transition, press feedback, skeleton shimmer |
+| Pengingat Sholat | Done | Widget sidebar/topbar (bisa diatur/dinonaktifkan), countdown live per detik, algoritma PrayTimes offline (Kemenag RI + 5 metode), geocode kota, panel floating expand, notifikasi + suara |
 | Stopping state | Done | Detail, dashboard card/table, grid/list |
 | PID cleanup | Done | Null setelah exit/stop |
 | Search/filter/sort | Done | Search, filter type/status, serta sorting (name, status, type, port) sudah terhubung |
@@ -70,14 +74,14 @@ Legend:
 | Log search & filter | Done | Search + highlight + filter type (stdout/stderr/error/warn/system) di LogsTab dan Terminal workspace |
 | Shell per project | Done | Terminal workspace membuka shell interaktif di folder project terpilih (cwd) |
 | Dashboard group by tag | Done | Toggle "Group by tag" di dashboard (termasuk grup untagged) |
-| Settings | Done | Theme, sidebar, tray, start-on-boot, autoStartProjects, notifications (onStart/onError/sound), terminal (fontSize/maxLines/autoScroll) semua berfungsi |
+| Settings | Done | Theme, sidebar, tray, start-on-boot, autoStartProjects, notifications (onStart/onError/sound), terminal (fontSize/maxLines/autoScroll), pengingat sholat (tampilan/posisi, kota, metode, penyesuaian, notifikasi/suara) semua berfungsi |
 
 ## Desktop Integration
 
 | Feature | Status | Catatan |
 |---|---|---|
 | Browse folder | Done | Electron dialog |
-| Embedded localhost app | Done | Terhubung dengan tab AppPreviewTab & iframe interaktif saat project RUNNING |
+| Embedded localhost app | Done | Tab AppPreview: native WebContentsView dengan sesi persisten per project (cookies/storage bertahan), mode focus (DevTools + prev/next), fallback iframe |
 | Open editor | Done | Buka path folder via `shell.openPath` / IPC |
 | Reveal in Explorer | Done | Buka lokasi folder via `shell.showItemInFolder` / IPC |
 | Install dependencies | Pending | Aksi demo dilepas sampai runner tersedia |

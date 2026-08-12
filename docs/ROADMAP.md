@@ -13,7 +13,7 @@ Status:
 
 ## Status Update Terbaru
 
-Commit `2153c49` (workspace presets & custom commands) dan lanjutan menyelesaikan: **CSP** (Phase 1), **schema v3 + versioning projects/config** (Phase 8), **automated Electron smoke test + CI** (Phase 9), plus fitur baru: duplicate project, export/import JSON, log search + filter, sparkline resource, grouping by tag, shell per-project, **preset v2** (kartu preset, edit modal, staggered start, stop/restart, auto-start saat launch, schema + migrasi presets.json), dan **ikon aplikasi** (motif G, digenerate via `npm run icons`). Lihat [FEATURE_STATUS.md](FEATURE_STATUS.md).
+Perkembangan terbaru (commit `49287e4` dan sebelumnya) menyelesaikan: **preview embedded via native WebContentsView** dengan sesi persisten per project + fallback iframe (Phase preview), **tab Git** (status/commit/log/branch) dan **script runner** di Project Detail, **sistem animasi** menyeluruh (AnimatedModal entrance/exit, toast slide, sliding tab, skeleton), **widget Pengingat Sholat** (offline PrayTimes Kemenag RI, countdown live per detik, panel floating, pengaturan posisi sidebar/topbar), perbaikan **terminal interaktif di build produksi** (`node-pty` → dependencies), serta **layout Settings** grid 2 kolom. Riwayat lengkap di [CHANGELOG.md](../CHANGELOG.md) dan status per fitur di [FEATURE_STATUS.md](FEATURE_STATUS.md).
 
 ## Evaluasi Roadmap Lama
 
