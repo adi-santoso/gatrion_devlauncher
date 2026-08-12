@@ -49,7 +49,8 @@ const SettingsView = ({ config, updateConfig, onExportProjects, onImportProjects
   };
 
   return (
-    <div className="view space-y-5 max-w-2xl">
+    <div className="view mx-auto max-w-5xl">
+      <div className="grid gap-5 lg:grid-cols-2 items-start">
       <ThemeSelector
         currentTheme={config.theme}
         onThemeChange={(theme) => handleChange('theme', theme)}
@@ -319,7 +320,8 @@ const SettingsView = ({ config, updateConfig, onExportProjects, onImportProjects
         <p className="text-[11px] text-ink-faint">Waktu sholat dihitung lokal (offline) menggunakan algoritma PrayTimes. Klik kartu sholat di sidebar/topbar untuk jadwal lengkap.</p>
       </div>
 
-      <p className="text-right text-[11px] text-ink-faint">Changes save automatically.</p>
+      </div>
+      <p className="mt-5 text-right text-[11px] text-ink-faint">Changes save automatically.</p>
     </div>
   );
 };
