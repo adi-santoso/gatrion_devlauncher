@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import * as ipc from '../../utils/ipcRenderer';
 import DropdownMenu, { DropdownItem, DropdownSeparator } from '../Common/DropdownMenu';
 import Tooltip from '../Common/Tooltip';
@@ -96,11 +96,16 @@ export default function ProjectListRow({
   onEdit,
   onDelete,
   onDuplicate,
-  onShowDetail
+  onShowDetail,
+  typeLabel
 }) {
   const status = (project.status || 'stopped').toLowerCase();
   const busy = status === 'starting' || status === 'stopping';
   const [showForceStop, setShowForceStop] = useState(false);
+  const [copiedUrl, setCopiedUrl] = useState(false);
+  const copyTimerRef = useRef(null);
+
+  useEffect(() => () => { if (copyTimerRef.current) clearTimeout(copyTimerRef.current); }, []);
 
   useEffect(() => {
     if (status !== 'stopping') {
@@ -117,6 +122,24 @@ export default function ProjectListRow({
 
   const handleRevealExplorer = () => {
     if (project?.path) ipc.revealInExplorer(project.path);
+  };
+
+  const handleCopyUrl = async () => {
+    if (!project?.port) return;
+    const url = `http://localhost:${project.port}`;
+    try {
+      await navigator.clipboard.writeText(url);
+    } catch {
+      const textarea = document.createElement('textarea');
+      textarea.value = url;
+      document.body.appendChild(textarea);
+      textarea.select();
+      document.execCommand('copy');
+      document.body.removeChild(textarea);
+    }
+    setCopiedUrl(true);
+    if (copyTimerRef.current) clearTimeout(copyTimerRef.current);
+    copyTimerRef.current = setTimeout(() => setCopiedUrl(false), 1500);
   };
 
   const renderLifecycleAction = () => {
@@ -219,8 +242,40 @@ export default function ProjectListRow({
           </p>
         )}
       </td>
-      <td className="px-3 py-3 text-xs font-mono text-ink-soft uppercase">{project.type || 'CUSTOM'}</td>
-      <td className="px-3 py-3 text-xs font-mono text-ink-soft">{project.port == null ? '-' : `:${project.port}`}</td>
+      <td className="px-3 py-3 text-xs font-mono text-ink-soft uppercase">{typeLabel ? typeLabel(project.type) : (project.type || 'CUSTOM')}</td>
+      <td className="px-3 py-3">
+        {project.port == null ? (
+          <span className="text-xs font-mono text-ink-faint">-</span>
+        ) : status === 'running' ? (
+          <span className="inline-flex items-center gap-1">
+            <button
+              type="button"
+              onClick={handleOpenBrowser}
+              title={`Open http://localhost:${project.port}`}
+              className="text-xs font-mono text-accent hover:text-accent-hover underline decoration-dotted underline-offset-2"
+            >
+              :{project.port}
+            </button>
+            <button
+              type="button"
+              onClick={handleCopyUrl}
+              title={copiedUrl ? 'Copied!' : 'Copy URL'}
+              aria-label={`Copy URL for ${project.name}`}
+              className="p-0.5 rounded text-ink-faint hover:text-ink hover:bg-surface-3 transition-colors"
+            >
+              {copiedUrl ? (
+                <span className="text-success text-[10px]">✓</span>
+              ) : (
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                  <rect x="9" y="9" width="12" height="12" rx="2" /><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" />
+                </svg>
+              )}
+            </button>
+          </span>
+        ) : (
+          <span className="text-xs font-mono text-ink-soft">:{project.port}</span>
+        )}
+      </td>
       <td className="px-5 py-3">
         <div className="flex items-center justify-end gap-1.5">
           {renderLifecycleAction()}
@@ -232,7 +287,10 @@ export default function ProjectListRow({
             )}
           >
             {status === 'running' && project.port != null && (
-              <DropdownItem onClick={handleOpenBrowser}><GlobeIcon /> Open in Browser</DropdownItem>
+              <>
+                <DropdownItem onClick={handleOpenBrowser}><GlobeIcon /> Open in Browser</DropdownItem>
+                <DropdownItem onClick={handleCopyUrl}><DuplicateIcon /> Copy URL</DropdownItem>
+              </>
             )}
             <DropdownItem onClick={onShowDetail}><DetailsIcon /> Details</DropdownItem>
             <DropdownItem onClick={onEdit}><EditIcon /> Edit Project</DropdownItem>

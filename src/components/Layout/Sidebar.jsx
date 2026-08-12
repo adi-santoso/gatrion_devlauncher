@@ -119,7 +119,7 @@ const Sidebar = ({
       </div>
 
       <div className="border-t border-border p-3 space-y-2">
-        <button type="button" onClick={onAddProject} aria-label="Add new project" className="w-full flex items-center justify-center gap-2 rounded-lg border border-border bg-surface-2 py-2 text-xs font-semibold text-ink-soft hover:text-ink hover:border-border-hover transition-colors">
+        <button type="button" onClick={onAddProject} aria-label="Add new project" className="w-full flex items-center justify-center gap-2 rounded-lg bg-accent py-2 text-xs font-semibold text-white shadow-glow hover:bg-accent-hover transition-colors">
           <span className="text-base leading-none">+</span>{!isCollapsed && 'Add project'}
         </button>
         {onToggleCollapse && (

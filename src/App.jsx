@@ -265,6 +265,85 @@ function App() {
     } else {
       showToast('error', result.error || `Failed to stop ${project.name}`);
     }
+    return result;
+  };
+
+  // Bulk stop with an aggregated summary instead of N individual toasts
+  const handleBulkStopProjects = async (targetProjects) => {
+    const targets = targetProjects.filter((project) =>
+      ['running', 'starting'].includes(project.status?.toLowerCase())
+    );
+    if (targets.length === 0) {
+      showToast('info', 'No running projects in selection');
+      return;
+    }
+    showToast('info', `Stopping ${targets.length} project(s)...`);
+    const settled = await Promise.allSettled(targets.map((project) => handleStopProject(project)));
+    const stopped = settled.filter((r) => r.status === 'fulfilled' && r.value?.success).length;
+    const failed = settled.length - stopped;
+    if (failed > 0) {
+      showToast('warning', `Stopped ${stopped}, ${failed} failed to stop`);
+    } else {
+      showToast('info', `${stopped} project(s) stopped`);
+    }
+    addActivity('faint', 'Projects', 'bulk stopped', `${stopped} projects`);
+  };
+
+  // Bulk restart: backend restart handles stop+start atomically for running ones,
+  // stopped ones are started directly.
+  const handleBulkRestartProjects = async (targetProjects) => {
+    const running = targetProjects.filter((project) =>
+      ['running', 'starting'].includes(project.status?.toLowerCase())
+    );
+    const idle = targetProjects.filter((project) =>
+      !['running', 'starting', 'stopping'].includes(project.status?.toLowerCase())
+    );
+    const targets = [...running, ...idle];
+    if (targets.length === 0) {
+      showToast('info', 'Nothing to restart in selection');
+      return;
+    }
+    showToast('info', `Restarting ${targets.length} project(s)...`);
+    let restarted = 0;
+    let failed = 0;
+    for (const project of running) {
+      const result = await restartProjectProcess(project.id);
+      if (result?.success) restarted += 1;
+      else failed += 1;
+    }
+    for (const project of idle) {
+      const result = await handleStartProject(project);
+      if (result?.success) restarted += 1;
+      else failed += 1;
+    }
+    if (failed > 0) {
+      showToast('warning', `Restarted ${restarted}, ${failed} failed`);
+    } else {
+      showToast('success', `${restarted} project(s) restarted`);
+    }
+    addActivity('accent', 'Projects', 'bulk restarted', `${restarted} projects`);
+  };
+
+  // Add/remove tags on many projects at once
+  const handleBulkTagEdit = async (targetProjects, tagsToAdd, tagsToRemove) => {
+    const add = (Array.isArray(tagsToAdd) ? tagsToAdd : []).map((t) => t.trim()).filter(Boolean);
+    const remove = new Set((Array.isArray(tagsToRemove) ? tagsToRemove : []).map((t) => t.trim()).filter(Boolean));
+    if (add.length === 0 && remove.size === 0) return;
+
+    let updated = 0;
+    for (const project of targetProjects) {
+      const current = Array.isArray(project.tags) ? project.tags : [];
+      const next = [...new Set([...current.filter((t) => !remove.has(t)), ...add])];
+      if (next.length === current.length && next.every((t, i) => t === current[i])) continue;
+      const result = await updateProjectInStore(project.id, { tags: next });
+      if (result.success) updated += 1;
+    }
+    if (updated > 0) {
+      showToast('success', `Updated tags on ${updated} project(s)`);
+      addActivity('accent', 'Projects', 'bulk tags updated', `${updated} projects`);
+    } else {
+      showToast('info', 'No tag changes needed');
+    }
   };
 
   // Bulk start with one preflight pass: show a single conflict modal for the first
@@ -799,8 +878,11 @@ function App() {
             onRestart={handleRestartProject}
             onDelete={handleDeleteProject}
             onBulkStart={handleBulkStartProjects}
+            onBulkStop={handleBulkStopProjects}
+            onBulkRestart={handleBulkRestartProjects}
             onBulkDelete={handleBulkDeleteProjects}
             onBulkSavePreset={handleSaveSelectionAsPreset}
+            onBulkTagEdit={handleBulkTagEdit}
             onDuplicate={handleDuplicateProject}
             onEdit={(project) => openModalHandler('project', project)}
             onNavigate={(project) => showView('project-detail', project, isFullscreen)}

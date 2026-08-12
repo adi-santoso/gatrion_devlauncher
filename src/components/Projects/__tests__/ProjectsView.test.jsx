@@ -77,4 +77,48 @@ describe('ProjectsView', () => {
     expect(screen.getByRole('button', { name: 'Stop Gamma' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Restart Gamma' })).toBeInTheDocument()
   })
+
+  it('clear filters resets search, type, status, and tag filters', () => {
+    render(<ProjectsView projects={[
+      { id: 'a', name: 'Alpha', path: 'C:/alpha', type: 'NODEJS', status: 'stopped', port: 3000, tags: ['frontend'] },
+      { id: 'b', name: 'Beta', path: 'C:/beta', type: 'LARAVEL', status: 'stopped', port: 8000 },
+    ]} />)
+
+    fireEvent.change(screen.getByLabelText('Filter by tag'), { target: { value: 'frontend' } })
+    fireEvent.change(screen.getByLabelText('Search projects'), { target: { value: 'zzz' } })
+    expect(screen.getByText('No projects match current filters.')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Clear filters' }))
+    expect(screen.queryByText('No projects match current filters.')).not.toBeInTheDocument()
+    expect(screen.getByText('Alpha')).toBeInTheDocument()
+    expect(screen.getByText('Beta')).toBeInTheDocument()
+  })
+
+  it('searches by port, tag, and start command', () => {
+    render(<ProjectsView projects={[
+      { id: 'a', name: 'Alpha', path: 'C:/alpha', type: 'NODEJS', status: 'stopped', port: 3000, tags: ['frontend'], startCommand: 'npm run dev' },
+      { id: 'b', name: 'Beta', path: 'C:/beta', type: 'LARAVEL', status: 'stopped', port: 8000 },
+    ]} />)
+
+    fireEvent.change(screen.getByLabelText('Search projects'), { target: { value: '8000' } })
+    expect(screen.getByText('Beta')).toBeInTheDocument()
+    expect(screen.queryByText('Alpha')).not.toBeInTheDocument()
+
+    fireEvent.change(screen.getByLabelText('Search projects'), { target: { value: 'frontend' } })
+    expect(screen.getByText('Alpha')).toBeInTheDocument()
+    expect(screen.queryByText('Beta')).not.toBeInTheDocument()
+
+    fireEvent.change(screen.getByLabelText('Search projects'), { target: { value: 'npm run dev' } })
+    expect(screen.getByText('Alpha')).toBeInTheDocument()
+    expect(screen.queryByText('Beta')).not.toBeInTheDocument()
+  })
+
+  it('summary chips filter the list by status when clicked', () => {
+    render(<ProjectsView projects={baseProjects} />)
+    fireEvent.click(screen.getByRole('button', { name: /1 running/ }))
+
+    expect(screen.getByText('Gamma')).toBeInTheDocument()
+    expect(screen.queryByText('Alpha')).not.toBeInTheDocument()
+    expect(screen.queryByText('Beta')).not.toBeInTheDocument()
+  })
 })
