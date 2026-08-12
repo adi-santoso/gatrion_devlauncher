@@ -92,7 +92,8 @@ function createWindow(windowBounds) {
   // Load the app
   const isDev = !app.isPackaged
   if (isDev) {
-    mainWindow.loadURL('http://localhost:5173')
+    const devPort = Number(process.env.VITE_DEV_PORT) || 5173
+    mainWindow.loadURL(`http://localhost:${devPort}`)
     if (process.env.GATRION_DEVTOOLS === '1') {
       mainWindow.webContents.openDevTools()
     }

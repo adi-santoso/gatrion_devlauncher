@@ -11,8 +11,9 @@ module.exports = defineConfig({
   },
   webServer: {
     command: 'npm run dev:vite',
-    url: 'http://localhost:5173',
+    url: `http://localhost:${process.env.VITE_DEV_PORT || 5173}`,
     reuseExistingServer: !process.env.CI,
     timeout: 30000,
+    env: { ...process.env },
   },
 });

@@ -153,6 +153,21 @@ kbd {
 [data-theme="light"] .border-border {
   border-color: #E3E6EB !important;
 }
+/* Tailwind v4 bakes opacity-modified colors as literal hex (e.g. bg-base/80 -> #0a0c1099),
+   so the solid-class overrides above don't match them. Cover every opacity variant in use. */
+[data-theme="light"] .bg-base\/80 { background: rgba(243, 244, 246, 0.8) !important; }
+[data-theme="light"] .bg-base\/60 { background: rgba(243, 244, 246, 0.6) !important; }
+[data-theme="light"] .bg-surface\/95 { background: rgba(255, 255, 255, 0.95) !important; }
+[data-theme="light"] .bg-surface\/80 { background: rgba(255, 255, 255, 0.8) !important; }
+[data-theme="light"] .bg-surface\/60 { background: rgba(255, 255, 255, 0.6) !important; }
+[data-theme="light"] .bg-surface\/50 { background: rgba(255, 255, 255, 0.5) !important; }
+[data-theme="light"] .bg-surface\/30 { background: rgba(255, 255, 255, 0.3) !important; }
+[data-theme="light"] .bg-surface-2\/60 { background: rgba(248, 249, 251, 0.6) !important; }
+[data-theme="light"] .bg-surface-2\/50 { background: rgba(248, 249, 251, 0.5) !important; }
+[data-theme="light"] .bg-surface-3\/70 { background: rgba(238, 240, 243, 0.7) !important; }
+[data-theme="light"] .bg-surface-3\/60 { background: rgba(238, 240, 243, 0.6) !important; }
+[data-theme="light"] .bg-surface-3\/30 { background: rgba(238, 240, 243, 0.3) !important; }
+[data-theme="light"] .border-border\/60 { border-color: rgba(227, 230, 235, 0.6) !important; }
 [data-theme="light"] .text-ink {
   color: #14171C !important;
 }

@@ -793,6 +793,13 @@ function App() {
         handleStopAll();
         break;
       default:
+        // Start a workspace preset
+        if (command.presetId || (command.id && command.id.startsWith('preset-'))) {
+          const presetId = command.presetId || command.id.replace('preset-', '');
+          const preset = presets.find((item) => item.id === presetId);
+          if (preset) handleStartPreset(preset);
+          break;
+        }
         // Handle project navigation and project-specific commands
         if (command.projectId || (command.id && command.id.startsWith('project-'))) {
           const targetId = command.projectId || command.id.replace('project-', '');
@@ -970,6 +977,7 @@ function App() {
         isOpen={openModal === 'command'}
         onClose={closeModalHandler}
         projects={projects}
+        presets={presets}
         onSelectCommand={handleCommandSelect}
       />
 

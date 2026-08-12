@@ -2,18 +2,9 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import ProjectListRow from './ProjectListRow';
 import BulkToolbar from './BulkToolbar';
 import BulkTagModal from '../Modals/BulkTagModal';
+import { typeLabel, TYPE_LABELS } from '../../utils/typeLabels';
 
-export const TYPE_LABELS = {
-  LARAVEL: 'Laravel',
-  NEXTJS: 'Next.js',
-  VUE: 'Vue.js',
-  REACT_VITE: 'React (Vite)',
-  GOLANG: 'Go',
-  NODEJS: 'Node.js',
-  CUSTOM: 'Custom',
-};
-
-export const typeLabel = (type) => TYPE_LABELS[type] || type || 'CUSTOM';
+export { TYPE_LABELS, typeLabel };
 
 const STATUS_CHIPS = [
   { key: 'running', label: 'running', className: 'text-success bg-success/10 hover:bg-success/20' },

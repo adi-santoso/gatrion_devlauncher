@@ -17,7 +17,8 @@ export default defineConfig({
     emptyOutDir: true,
   },
   server: {
-    port: 5173,
+    // Overridable so dev/e2e can avoid colliding with other projects on 5173
+    port: Number(process.env.VITE_DEV_PORT) || 5173,
   },
   resolve: {
     alias: {
