@@ -91,6 +91,7 @@ class PreviewManager {
     this.setBounds(projectId, bounds)
     entry.view.setVisible(true)
     this.hideOthers(projectId)
+    console.log(`[Preview] Showing native WebContentsView for ${projectId} at ${url} (${bounds?.width}x${bounds?.height})`)
     return { success: true }
   }
 
