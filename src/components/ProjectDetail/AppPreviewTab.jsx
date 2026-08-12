@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import * as ipc from '../../utils/ipcRenderer';
+import StackLogo from '../Common/StackLogo';
 
 const statusClasses = {
   running: 'text-success bg-success/10 border-success/20',
@@ -54,8 +55,8 @@ export default function AppPreviewTab({
             >
               ‹
             </button>
-            <div className="w-5 h-5 rounded bg-surface-3 border border-border flex items-center justify-center text-xs shrink-0">
-              {project?.emoji || '📁'}
+            <div className="w-5 h-5 rounded bg-surface-3 border border-border flex items-center justify-center text-ink-soft shrink-0">
+              <StackLogo type={project?.type} size={12} />
             </div>
             <span className="font-bold text-ink truncate max-w-[150px] sm:max-w-xs">{project?.name}</span>
             <span className={`inline-flex items-center text-[10px] font-semibold px-2 py-0.5 rounded-full border ${statusClasses[status] || statusClasses.stopped}`}>

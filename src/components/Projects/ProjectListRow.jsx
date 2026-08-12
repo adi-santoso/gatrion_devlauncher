@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import * as ipc from '../../utils/ipcRenderer';
 import DropdownMenu, { DropdownItem, DropdownSeparator } from '../Common/DropdownMenu';
+import StackLogo from '../Common/StackLogo';
 import Tooltip from '../Common/Tooltip';
 
 const statusClasses = {
@@ -213,8 +214,8 @@ export default function ProjectListRow({
       </td>
       <td className="px-3 py-3">
         <button onClick={onShowDetail} className="flex items-center gap-3 text-left group">
-          <span className="w-9 h-9 rounded-lg bg-surface-3 flex items-center justify-center shrink-0 text-base">
-            {project.emoji || '📁'}
+          <span className="w-9 h-9 rounded-lg bg-surface-3 flex items-center justify-center shrink-0 text-ink-soft">
+            <StackLogo type={project.type} size={18} />
           </span>
           <span className="min-w-0">
             <span className="flex items-center gap-1.5">

@@ -1,4 +1,5 @@
 import React, { useMemo } from 'react';
+import StackLogo from '../Common/StackLogo';
 
 // Tiny sparkline from a list of numeric samples
 const Sparkline = ({ samples, stroke = '#34d399', height = 22 }) => {
@@ -49,7 +50,7 @@ export default function ProjectCard({ project, onStart, onStop, onRestart, onNav
                 : 'bg-gradient-to-br from-accent-soft to-accent text-white'
             }`}
           >
-            {project.emoji || project.name?.slice(0, 1)?.toUpperCase() || '?'}
+            <StackLogo type={project.type} size={20} mono />
           </button>
           <button 
             type="button" 

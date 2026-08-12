@@ -29,6 +29,33 @@ async function run() {
     assert.strictEqual(react.defaultCommand, 'pnpm dev')
     assert.strictEqual(react.defaultPort, 4100)
 
+    const nextPath = path.join(root, 'next-app')
+    await fs.mkdir(nextPath)
+    await writeJson(nextPath, 'package.json', {
+      name: '@gatrion/web',
+      scripts: { dev: 'next dev' },
+      dependencies: { next: '14.0.0', react: '^18.0.0' },
+    })
+    const next = await detector.detectProjectType(nextPath)
+    assert.strictEqual(next.type, 'NEXTJS')
+    assert.strictEqual(next.name, 'Next.js')
+    assert.strictEqual(next.defaultCommand, 'npm run dev')
+    assert.strictEqual(next.defaultPort, 3000)
+
+    // Create React App (react-scripts, no Vite) must be React, not a generic Node.js app
+    const reactCraPath = path.join(root, 'cra-app')
+    await fs.mkdir(reactCraPath)
+    await writeJson(reactCraPath, 'package.json', {
+      name: 'legacy-app',
+      scripts: { start: 'react-scripts start' },
+      dependencies: { react: '^18.0.0', 'react-scripts': '5.0.0' },
+    })
+    const cra = await detector.detectProjectType(reactCraPath)
+    assert.strictEqual(cra.type, 'REACT')
+    assert.strictEqual(cra.name, 'React')
+    assert.strictEqual(cra.defaultCommand, 'npm start')
+    assert.strictEqual(cra.defaultPort, 3000)
+
     const vuePath = path.join(root, 'vue-app')
     await fs.mkdir(vuePath)
     await writeJson(vuePath, 'package.json', {

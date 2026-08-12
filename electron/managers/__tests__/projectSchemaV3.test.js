@@ -58,6 +58,26 @@ describe('project schema v3 (tags / customCommands / dependsOn)', () => {
     expect(() => sanitizeProjectChanges({ dependsOn: ['db', 3] })).toThrow(/non-empty string/)
   })
 
+  test('validateProject rejects duplicate ports across commands', () => {
+    // The top-level port is the source of truth for the primary command, so the
+    // duplicate here is between the primary (8000) and the assets command (8000).
+    expect(() => validateProject(normalizeProject({
+      ...base,
+      port: 8000,
+      commands: [
+        { id: 'app', name: 'Laravel', command: 'php artisan serve', port: 8000, primary: true },
+        { id: 'assets', name: 'Assets', command: 'npm run dev', port: 8000, primary: false },
+      ],
+    }))).toThrow(/Duplicate project command port: 8000/)
+  })
+
+  test('normalizeType keeps REACT distinct from REACT_VITE', () => {
+    expect(normalizeProject({ ...base, type: 'REACT' }).type).toBe('REACT')
+    expect(normalizeProject({ ...base, type: 'REACT_VITE' }).type).toBe('REACT_VITE')
+    // Legacy plain-label "React" data predates the REACT type and maps to Vite
+    expect(normalizeProject({ ...base, type: 'React' }).type).toBe('REACT_VITE')
+  })
+
   test('sanitizeProjectChanges accepts valid v3 fields', () => {
     const changes = sanitizeProjectChanges({
       tags: ['frontend'],

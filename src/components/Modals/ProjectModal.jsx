@@ -1,5 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { useProjects } from '../../hooks';
+import DropdownMenu, { DropdownItem } from '../Common/DropdownMenu';
+import StackLogo from '../Common/StackLogo';
+import { typeLabel, TYPE_LABELS } from '../../utils/typeLabels';
 
 const EMPTY_PROJECT = {
   name: '',
@@ -19,6 +22,7 @@ const EMPTY_PROJECT = {
 
 const TYPE_METADATA = {
   REACT_VITE: { emoji: '⚛️', color: '#61DAFB' },
+  REACT: { emoji: '⚛️', color: '#61DAFB' },
   NEXTJS: { emoji: '⚡', color: '#000000' },
   VUE: { emoji: '🟢', color: '#42B883' },
   LARAVEL: { emoji: '🔴', color: '#FF2D20' },
@@ -30,6 +34,9 @@ const TYPE_METADATA = {
 const ProjectModal = ({ isOpen, onClose, onSave, project = null, droppedProject = null, allProjects = [] }) => {
   const { browseFolder, detectProjectType } = useProjects();
   const detectionId = useRef(0);
+  // Tracks the values the detector last wrote, so re-analysis only refills fields
+  // that still hold the previous detection (i.e. were not edited manually).
+  const lastDetected = useRef({});
   const [formData, setFormData] = useState(EMPTY_PROJECT);
   const [detection, setDetection] = useState(null);
   const [isDetecting, setIsDetecting] = useState(false);
@@ -40,6 +47,7 @@ const ProjectModal = ({ isOpen, onClose, onSave, project = null, droppedProject 
 
   useEffect(() => {
     detectionId.current += 1;
+    lastDetected.current = {};
     const source = project || droppedProject;
     if (source) {
       setFormData({
@@ -92,6 +100,17 @@ const ProjectModal = ({ isOpen, onClose, onSave, project = null, droppedProject 
     clearError(field);
   };
 
+  // Apply a detected value only to gaps: in edit mode never touch non-empty
+  // fields (existing config wins); in create mode only fill empty fields or ones
+  // still holding the previous detection (so manual edits are never overwritten).
+  const applyDetection = (previous, field, value) => {
+    if (value == null || value === '') return undefined;
+    const current = previous[field];
+    if (isEditing) return current === '' || current == null ? value : undefined;
+    const untouched = current === '' || current == null || lastDetected.current[field] === current;
+    return untouched ? value : undefined;
+  };
+
   const analyzeFolder = async (projectPath) => {
     const currentDetectionId = ++detectionId.current;
     setIsDetecting(true);
@@ -107,17 +126,29 @@ const ProjectModal = ({ isOpen, onClose, onSave, project = null, droppedProject 
       }
 
       setDetection(result);
-      setFormData((previous) => ({
-        ...previous,
-        path: projectPath,
-        name: result.projectName || previous.name,
-        type: result.type || 'CUSTOM',
-        port: result.defaultPort == null ? '' : String(result.defaultPort),
-        startCommand: result.defaultCommand || '',
-        commands: result.commands || [],
-        emoji: result.icon || TYPE_METADATA.CUSTOM.emoji,
-        color: result.color || TYPE_METADATA.CUSTOM.color,
-      }));
+      setFormData((previous) => {
+        const next = {
+          ...previous,
+          path: projectPath,
+          name: applyDetection(previous, 'name', result.projectName) ?? previous.name,
+          type: applyDetection(previous, 'type', result.type || 'CUSTOM') ?? previous.type,
+          port: applyDetection(previous, 'port', result.defaultPort == null ? '' : String(result.defaultPort)) ?? previous.port,
+          startCommand: applyDetection(previous, 'startCommand', result.defaultCommand) ?? previous.startCommand,
+          commands: applyDetection(previous, 'commands', result.commands) ?? previous.commands,
+          emoji: applyDetection(previous, 'emoji', result.icon) ?? previous.emoji,
+          color: applyDetection(previous, 'color', result.color) ?? previous.color,
+        };
+        lastDetected.current = {
+          name: next.name,
+          type: next.type,
+          port: next.port,
+          startCommand: next.startCommand,
+          commands: next.commands,
+          emoji: next.emoji,
+          color: next.color,
+        };
+        return next;
+      });
       if (!result.defaultCommand) setShowAdvanced(true);
     } catch (error) {
       if (currentDetectionId === detectionId.current) {
@@ -160,12 +191,20 @@ const ProjectModal = ({ isOpen, onClose, onSave, project = null, droppedProject 
       }
     }
     if (!formData.startCommand.trim()) nextErrors.startCommand = 'Start command is required';
-    for (const command of formData.commands.filter((item) => !item.primary)) {
-      if (!command.command.trim()) nextErrors.commands = `${command.name} command is required`;
+    const commandPorts = [];
+    for (const command of formData.commands) {
+      if (!command.command.trim()) nextErrors.commands = `${command.name || 'Command'} command is required`;
       if (command.port !== null && command.port !== '') {
         const commandPort = Number(command.port);
-        if (!Number.isInteger(commandPort) || commandPort < 1 || commandPort > 65535) nextErrors.commands = `${command.name} port must be between 1-65535`;
+        if (!Number.isInteger(commandPort) || commandPort < 1 || commandPort > 65535) {
+          nextErrors.commands = `${command.name} port must be between 1-65535`;
+        } else {
+          commandPorts.push(commandPort);
+        }
       }
+    }
+    if (new Set(commandPorts).size !== commandPorts.length) {
+      nextErrors.commands = 'Each command must use a different port';
     }
     setErrors(nextErrors);
     if (Object.keys(nextErrors).length) setShowAdvanced(true);
@@ -231,12 +270,18 @@ const ProjectModal = ({ isOpen, onClose, onSave, project = null, droppedProject 
             {!isEditing && hasSelectedFolder && (
               <div className="rounded-xl border border-border bg-surface-2 overflow-hidden">
                 <div className="p-4 flex items-start gap-3">
-                  <div className="w-10 h-10 rounded-lg bg-surface-3 border border-border flex items-center justify-center text-xl shrink-0">{formData.emoji}</div>
+                  <div className="w-10 h-10 rounded-lg bg-surface-3 border border-border flex items-center justify-center text-ink-soft shrink-0">
+                    <StackLogo type={formData.type} size={22} />
+                  </div>
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center justify-between gap-3">
                       <div className="min-w-0">
                         <p className="text-sm font-semibold text-ink truncate">{formData.name}</p>
-                        <p className="text-[11px] text-success mt-0.5">Detected as {detection?.name || 'Custom project'}</p>
+                        <p className="text-[11px] text-success mt-0.5">
+                          {detection && formData.type === detection.type
+                            ? `Detected as ${detection.name}`
+                            : `Configured as ${typeLabel(formData.type)}`}
+                        </p>
                       </div>
                       <button type="button" onClick={handleBrowse} disabled={isDetecting} className="text-[11px] font-medium text-accent hover:text-accent-hover shrink-0">
                         {isDetecting ? 'Analyzing...' : 'Change folder'}
@@ -298,9 +343,24 @@ const ProjectModal = ({ isOpen, onClose, onSave, project = null, droppedProject 
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="text-xs text-ink-soft mb-1.5 block">Project type</label>
-                    <select value={formData.type} onChange={(event) => handleChange('type', event.target.value)} className="w-full bg-surface-3 border border-border rounded-lg px-3 py-2 text-sm text-ink focus:outline-none focus:ring-2 focus:ring-accent/40">
-                      <option value="REACT_VITE">⚛️ React (Vite)</option><option value="NEXTJS">⚡ Next.js</option><option value="VUE">🟢 Vue.js</option><option value="LARAVEL">🔴 Laravel</option><option value="GOLANG">🐹 Go</option><option value="NODEJS">🟩 Node.js</option><option value="CUSTOM">⚙️ Custom</option>
-                    </select>
+                    <DropdownMenu
+                      trigger={(
+                        <button type="button" className="w-full flex items-center gap-2 bg-surface-3 border border-border rounded-lg px-3 py-2 text-sm text-ink focus:outline-none focus:ring-2 focus:ring-accent/40">
+                          <StackLogo type={formData.type} size={16} />
+                          <span className="flex-1 text-left">{typeLabel(formData.type)}</span>
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-ink-faint" aria-hidden="true">
+                            <path d="M6 9l6 6 6-6" />
+                          </svg>
+                        </button>
+                      )}
+                    >
+                      {Object.entries(TYPE_LABELS).map(([value, label]) => (
+                        <DropdownItem key={value} onClick={() => handleChange('type', value)}>
+                          <StackLogo type={value} size={14} />
+                          {label}
+                        </DropdownItem>
+                      ))}
+                    </DropdownMenu>
                   </div>
                   <div>
                     <label className="text-xs text-ink-soft mb-1.5 block">Port <span className="text-ink-faint">(optional)</span></label>

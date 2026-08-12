@@ -3,6 +3,7 @@ export const TYPE_LABELS = {
   NEXTJS: 'Next.js',
   VUE: 'Vue.js',
   REACT_VITE: 'React (Vite)',
+  REACT: 'React',
   GOLANG: 'Go',
   NODEJS: 'Node.js',
   CUSTOM: 'Custom',

@@ -1,4 +1,5 @@
 import * as ipc from '../../utils/ipcRenderer';
+import StackLogo from '../Common/StackLogo';
 
 const statusClasses = {
   running: 'bg-success/10 text-success border-success/20', starting: 'bg-warning/10 text-warning border-warning/20',
@@ -34,8 +35,8 @@ export default function ProjectDetailHeader({ project, onStart, onStop, onRestar
       {/* Top Header Row */}
       <div className="flex items-center justify-between flex-wrap gap-4">
         <div className="flex items-center gap-3.5 min-w-0">
-          <div className="w-11 h-11 rounded-xl bg-surface-3 border border-border flex items-center justify-center text-xl shrink-0 shadow-sm">
-            {project?.emoji || '📁'}
+          <div className="w-11 h-11 rounded-xl bg-surface-3 border border-border flex items-center justify-center text-ink-soft shrink-0 shadow-sm">
+            <StackLogo type={project?.type} size={24} />
           </div>
           <div className="min-w-0">
             <div className="flex items-center gap-2.5 flex-wrap">

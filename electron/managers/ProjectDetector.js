@@ -43,6 +43,16 @@ class ProjectDetector {
         icon: '⚛️',
         color: '#61DAFB',
       },
+      // React without Vite (e.g. Create React App / react-scripts) — must come after REACT_VITE
+      // so Vite projects win, and after NEXTJS so Next.js projects are not mislabeled.
+      REACT: {
+        name: 'React',
+        detector: async (projectPath) => this.hasPackage(projectPath, 'react'),
+        defaultCommand: 'npm start',
+        defaultPort: 3000,
+        icon: '⚛️',
+        color: '#61DAFB',
+      },
       GOLANG: {
         name: 'Go',
         detector: async (projectPath) => (
@@ -102,7 +112,7 @@ class ProjectDetector {
         }
       }
 
-      const usesJavaScriptCommand = ['NEXTJS', 'VUE', 'REACT_VITE', 'NODEJS'].includes(matchedType)
+      const usesJavaScriptCommand = ['NEXTJS', 'VUE', 'REACT_VITE', 'REACT', 'NODEJS'].includes(matchedType)
       const startCommand = usesJavaScriptCommand
         ? this.detectStartCommand(packageJson?.scripts, packageManager)
         : matchedConfig.defaultCommand
@@ -191,7 +201,7 @@ class ProjectDetector {
   }
 
   async detectCommands(type, config, packageJson, packageManager, projectPath, primaryPort) {
-    const isJavaScriptProject = ['NEXTJS', 'VUE', 'REACT_VITE', 'NODEJS'].includes(type)
+    const isJavaScriptProject = ['NEXTJS', 'VUE', 'REACT_VITE', 'REACT', 'NODEJS'].includes(type)
     const primaryCommand = type === 'LARAVEL'
       ? { id: 'app', name: 'Laravel', command: config.defaultCommand, port: primaryPort, primary: true }
       : {

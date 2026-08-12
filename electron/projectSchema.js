@@ -2,6 +2,7 @@ const PROJECT_TYPES = {
   LARAVEL: { labels: ['Laravel', '🔴 Laravel'], emoji: '🔴', color: '#FF2D20' },
   NEXTJS: { labels: ['Next.js', '⚡ Next.js'], emoji: '⚡', color: '#000000' },
   REACT_VITE: { labels: ['React', 'React (Vite)', '⚛️ React (Vite)'], emoji: '⚛️', color: '#61DAFB' },
+  REACT: { labels: ['React', '⚛️ React'], emoji: '⚛️', color: '#61DAFB' },
   VUE: { labels: ['Vue', 'Vue.js', '🟢 Vue.js'], emoji: '🟢', color: '#42B883' },
   GOLANG: { labels: ['Go', 'Golang', '🐹 Go'], emoji: '🐹', color: '#00ADD8' },
   NODEJS: { labels: ['Node', 'Node.js', '🟩 Node.js'], emoji: '🟩', color: '#339933' },
@@ -209,6 +210,7 @@ function validateProject(project) {
   if (!project.startCommand) throw new Error('Start command is required')
   if (!Array.isArray(project.commands) || project.commands.length === 0) throw new Error('At least one project command is required')
   const commandIds = new Set()
+  const commandPorts = new Set()
   let primaryCommands = 0
   for (const command of project.commands) {
     if (!command.id || !command.name || !command.command) throw new Error('Project command id, name, and command are required')
@@ -217,6 +219,10 @@ function validateProject(project) {
     if (command.primary) primaryCommands += 1
     if (command.port !== null && (!Number.isInteger(command.port) || command.port < 1 || command.port > 65535)) {
       throw new Error('Project command port must be an integer between 1 and 65535')
+    }
+    if (command.port !== null) {
+      if (commandPorts.has(command.port)) throw new Error(`Duplicate project command port: ${command.port}`)
+      commandPorts.add(command.port)
     }
   }
   if (primaryCommands !== 1) throw new Error('Project must have exactly one primary command')

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
+import StackLogo from '../Common/StackLogo';
 import { typeLabel } from '../../utils/typeLabels';
 
 const Svg = ({ children, size = 15 }) => (
@@ -104,7 +105,7 @@ const CommandPalette = ({
     name: project.name || project.label || '',
     subtitle: project.path || '',
     meta: typeLabel(project.type),
-    icon: project.emoji || project.icon || '📁',
+    icon: <StackLogo type={project.type} size={15} />,
     project,
     searchable: [
       project.name,
