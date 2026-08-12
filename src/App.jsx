@@ -15,6 +15,7 @@ import {
   PresetModal,
 } from './components/Modals';
 import PortConflictModal from './components/Modals/PortConflictModal';
+import { PRESET_COLORS } from './components/Modals/PresetModal';
 import { useProjects, useProcesses, useElectronConfig } from './hooks';
 import { checkPortConflict, isElectronAvailable, onNavigateToProject, getActivities, appendActivities, getPresets, savePresets, exportProjects, importProjects } from './utils/ipcRenderer';
 import { summarizeWorkspaceStart } from './utils/workspaceResults';
@@ -40,6 +41,7 @@ function App() {
   // Workspace presets state
   const [presets, setPresets] = useState([]);
   const [presetModalOpen, setPresetModalOpen] = useState(false);
+  const [presetModalInitial, setPresetModalInitial] = useState(null); // preset being edited (null = create mode)
   const [presetModalPreselect, setPresetModalPreselect] = useState(null);
   const [presetToDelete, setPresetToDelete] = useState(null);
 
@@ -455,25 +457,67 @@ function App() {
   };
 
   // Workspace presets
+  const openPresetModal = (preset = null) => {
+    setPresetModalInitial(preset);
+    setPresetModalPreselect(null);
+    setPresetModalOpen(true);
+  };
+
   const handleStartPreset = async (preset) => {
     const presetProjects = (preset.projectIds || [])
       .map((id) => projects.find((p) => p.id === id))
       .filter(Boolean);
     if (presetProjects.length === 0) {
       showToast('info', `Preset "${preset.name}" has no projects`);
-      return;
+      return [];
+    }
+    const pending = presetProjects.filter((p) =>
+      !['running', 'starting', 'stopping'].includes(p.status?.toLowerCase())
+    );
+    if (pending.length === 0) {
+      showToast('info', `Preset "${preset.name}": all projects already active`);
+      return [];
     }
     showToast('info', `Starting preset "${preset.name}"...`);
-    const results = await handleStartAll(presetProjects);
-    if (!Array.isArray(results)) return;
-    const started = results.length;
-    const alreadyActive = presetProjects.length - started;
-    if (started > 0) {
+    const delayMs = Math.max(0, Math.min(60000, Number(preset.startDelayMs) || 0));
+    const results = await startAll(pending.map((p) => p.id), delayMs);
+    const summary = Array.isArray(results) ? results : [];
+    const started = summary.filter((r) => r.success).length;
+    const failed = summary.filter((r) => !r.success).length;
+    if (failed > 0) {
+      showToast('warning', `Preset "${preset.name}": ${started} starting, ${failed} failed`);
+      addActivity('warning', preset.name, 'preset started with issues', `${started} started, ${failed} failed`);
+    } else if (started > 0) {
       showToast('success', `Preset "${preset.name}": ${started} project(s) starting`);
       addActivity('accent', preset.name, 'preset started', `${started} projects`);
-    } else if (alreadyActive > 0) {
-      showToast('info', `Preset "${preset.name}": all ${alreadyActive} project(s) already active`);
     }
+    return summary;
+  };
+
+  const handleStopPreset = async (preset) => {
+    const targets = (preset.projectIds || [])
+      .map((id) => projects.find((p) => p.id === id))
+      .filter((p) => ['running', 'starting'].includes(p.status?.toLowerCase()));
+    if (targets.length === 0) {
+      showToast('info', `Preset "${preset.name}": nothing to stop`);
+      return [];
+    }
+    showToast('info', `Stopping preset "${preset.name}"...`);
+    const settled = await Promise.allSettled(targets.map((p) => stopProjectProcess(p.id)));
+    const stopped = settled.filter((r) => r.status === 'fulfilled' && r.value?.success).length;
+    const failed = settled.filter((r) => r.status === 'rejected' || (r.status === 'fulfilled' && !r.value?.success)).length;
+    if (failed > 0) {
+      showToast('warning', `Preset "${preset.name}": ${stopped} stopped, ${failed} failed`);
+    } else {
+      showToast('info', `Preset "${preset.name}": ${stopped} project(s) stopped`);
+    }
+    addActivity('faint', preset.name, 'preset stopped', `${stopped} projects`);
+    return settled;
+  };
+
+  const handleRestartPreset = async (preset) => {
+    await handleStopPreset(preset);
+    return handleStartPreset(preset);
   };
 
   const handleDeletePreset = async (preset) => {
@@ -489,46 +533,88 @@ function App() {
     if (result.success) {
       showToast('info', `Preset "${presetToDelete.name}" removed`);
       addActivity('faint', presetToDelete.name, 'preset removed');
+    } else {
+      showToast('error', result.error || 'Failed to remove preset');
     }
   };
 
-  const handleCreatePreset = async (name, projectIds) => {
+  const buildPresetPayload = (data) => ({
+    name: (data.name || '').trim(),
+    description: (data.description || '').trim(),
+    color: data.color || PRESET_COLORS[0],
+    projectIds: Array.isArray(data.projectIds) ? data.projectIds : [],
+    startDelayMs: Math.max(0, Math.min(60000, Number(data.startDelayMs) || 0)),
+    autoStart: data.autoStart === true,
+  });
+
+  const handleCreatePreset = async (data) => {
+    const payload = buildPresetPayload(data);
+    if (!payload.name || payload.projectIds.length === 0) return;
     const newPreset = {
       id: `preset-${Date.now()}`,
-      name: name.trim(),
-      projectIds,
+      ...payload,
       createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
     };
     const updated = [...presets, newPreset];
     setPresets(updated);
     const result = await savePresets(updated);
     if (result.success) {
-      showToast('success', `Preset "${name}" created`);
-      addActivity('accent', name, 'preset created');
+      showToast('success', `Preset "${payload.name}" created`);
+      addActivity('accent', payload.name, 'preset created', `${payload.projectIds.length} projects`);
     } else {
       showToast('error', result.error || 'Failed to save preset');
+      setPresets(presets);
     }
     setPresetModalOpen(false);
+    setPresetModalInitial(null);
     setPresetModalPreselect(null);
+  };
+
+  const handleUpdatePreset = async (presetId, data) => {
+    const payload = buildPresetPayload(data);
+    if (!payload.name || payload.projectIds.length === 0) return;
+    const updated = presets.map((preset) => preset.id === presetId
+      ? { ...preset, ...payload, updatedAt: new Date().toISOString() }
+      : preset);
+    setPresets(updated);
+    const result = await savePresets(updated);
+    if (result.success) {
+      showToast('success', `Preset "${payload.name}" updated`);
+      addActivity('accent', payload.name, 'preset updated');
+    } else {
+      showToast('error', result.error || 'Failed to update preset');
+      setPresets(presets);
+    }
+    setPresetModalOpen(false);
+    setPresetModalInitial(null);
+    setPresetModalPreselect(null);
+  };
+
+  const handleDuplicatePreset = async (preset) => {
+    const copy = {
+      ...preset,
+      id: `preset-${Date.now()}`,
+      name: `${preset.name} (copy)`,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    const updated = [...presets, copy];
+    setPresets(updated);
+    const result = await savePresets(updated);
+    if (result.success) {
+      showToast('success', `Preset "${copy.name}" created`);
+      addActivity('accent', copy.name, 'preset duplicated');
+    } else {
+      showToast('error', result.error || 'Failed to duplicate preset');
+    }
   };
 
   // Open preset creation modal, optionally prefilled with a selection
   const handleSaveSelectionAsPreset = (projectIds) => {
+    setPresetModalInitial(null);
     setPresetModalPreselect(Array.isArray(projectIds) ? projectIds : null);
     setPresetModalOpen(true);
-  };
-
-  const handleRenamePreset = async (presetId, newName) => {
-    const name = (newName || '').trim();
-    if (!name) return;
-    const updated = presets.map((preset) => preset.id === presetId ? { ...preset, name } : preset);
-    setPresets(updated);
-    const result = await savePresets(updated);
-    if (result.success) {
-      showToast('info', `Preset renamed to "${name}"`);
-    } else {
-      showToast('error', result.error || 'Failed to rename preset');
-    }
   };
 
   const handleMovePreset = async (presetId, direction) => {
@@ -688,10 +774,13 @@ function App() {
             onWorkspaceActionComplete={handleWorkspaceActionComplete}
             presets={presets}
             onStartPreset={handleStartPreset}
+            onStopPreset={handleStopPreset}
+            onRestartPreset={handleRestartPreset}
+            onEditPreset={openPresetModal}
+            onDuplicatePreset={handleDuplicatePreset}
             onDeletePreset={handleDeletePreset}
-            onRenamePreset={handleRenamePreset}
             onMovePreset={handleMovePreset}
-            onCreatePreset={() => setPresetModalOpen(true)}
+            onCreatePreset={() => openPresetModal()}
             getMetricHistory={getMetricHistory}
           />
         )}
@@ -826,13 +915,14 @@ function App() {
         />
       )}
 
-      {/* Toast Container */}
+      {/* Preset create/edit modal */}
       <PresetModal
         isOpen={presetModalOpen}
-        onClose={() => { setPresetModalOpen(false); setPresetModalPreselect(null); }}
+        onClose={() => { setPresetModalOpen(false); setPresetModalInitial(null); setPresetModalPreselect(null); }}
         projects={projects}
+        initialPreset={presetModalInitial}
         initialSelected={presetModalPreselect}
-        onCreate={handleCreatePreset}
+        onSubmit={presetModalInitial ? (data) => handleUpdatePreset(presetModalInitial.id, data) : handleCreatePreset}
       />
 
       <ToastContainer toasts={toasts} onDismiss={dismissToast} />

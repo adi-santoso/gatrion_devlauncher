@@ -7,6 +7,50 @@ const { normalizeProject, validateProject, migrateProjects, PROJECT_SCHEMA_VERSI
 const Logger = require('../utils/logger')
 const log = Logger || {}
 
+const PRESET_DEFAULT_COLOR = '#6D5EF5'
+const MAX_STAGGER_DELAY_MS = 60000
+const PRESET_COLOR_PATTERN = /^#[0-9a-fA-F]{3,8}$/
+
+/**
+ * Normalize a workspace preset, migrating legacy shapes (v1: id/name/projectIds/createdAt)
+ * into the v2 shape and sanitizing every field. Returns null for entries without a valid name.
+ * @param {object} preset - Raw preset value
+ * @param {number} index - Position in the list (used for generated ids)
+ */
+function normalizePreset(preset, index = 0) {
+  if (!preset || typeof preset !== 'object' || typeof preset.name !== 'string' || !preset.name.trim()) return null
+
+  const seen = new Set()
+  const projectIds = Array.isArray(preset.projectIds)
+    ? preset.projectIds
+      .filter((id) => typeof id === 'string' && id.trim())
+      .map((id) => id.trim())
+      .filter((id) => {
+        if (seen.has(id)) return false
+        seen.add(id)
+        return true
+      })
+    : []
+
+  const rawDelay = Number(preset.startDelayMs)
+  const startDelayMs = Number.isFinite(rawDelay)
+    ? Math.max(0, Math.min(MAX_STAGGER_DELAY_MS, Math.round(rawDelay)))
+    : 0
+
+  const now = new Date().toISOString()
+  return {
+    id: typeof preset.id === 'string' && preset.id.trim() ? preset.id.trim() : `preset-${Date.now()}-${index}`,
+    name: preset.name.trim(),
+    description: typeof preset.description === 'string' ? preset.description.trim() : '',
+    color: typeof preset.color === 'string' && PRESET_COLOR_PATTERN.test(preset.color.trim()) ? preset.color.trim() : PRESET_DEFAULT_COLOR,
+    projectIds,
+    startDelayMs,
+    autoStart: preset.autoStart === true,
+    createdAt: typeof preset.createdAt === 'string' ? preset.createdAt : now,
+    updatedAt: typeof preset.updatedAt === 'string' ? preset.updatedAt : now,
+  }
+}
+
 class StorageManager {
   constructor(appDataPath = app.getPath('userData')) {
     // Get app data directory
@@ -350,7 +394,7 @@ class StorageManager {
       try {
         const data = await fs.readFile(this.presetsFilePath, 'utf8')
         const parsed = JSON.parse(data)
-        return Array.isArray(parsed) ? parsed : []
+        return Array.isArray(parsed) ? parsed.map(normalizePreset).filter(Boolean) : []
       } catch (error) {
         if (error.code !== 'ENOENT') log.error('Error loading presets', error)
         return []
@@ -361,16 +405,15 @@ class StorageManager {
   async savePresets(presets) {
     return this.enqueue('presetQueue', async () => {
       if (!Array.isArray(presets)) throw new Error('Presets must be an array')
-      const normalized = presets
-        .filter((p) => p && typeof p === 'object' && typeof p.name === 'string' && p.name.trim())
-        .map((p, index) => ({
-          id: typeof p.id === 'string' && p.id.trim() ? p.id.trim() : `preset-${Date.now()}-${index}`,
-          name: p.name.trim(),
-          projectIds: Array.isArray(p.projectIds) ? p.projectIds.filter((id) => typeof id === 'string') : [],
-          createdAt: typeof p.createdAt === 'string' ? p.createdAt : new Date().toISOString(),
-        }))
-      await this.atomicWrite(this.presetsFilePath, JSON.stringify(normalized, null, 2))
-      return normalized
+      const normalized = presets.map(normalizePreset).filter(Boolean)
+      const seenIds = new Set()
+      const unique = normalized.filter((preset) => {
+        if (seenIds.has(preset.id)) return false
+        seenIds.add(preset.id)
+        return true
+      })
+      await this.atomicWrite(this.presetsFilePath, JSON.stringify(unique, null, 2))
+      return unique
     })
   }
 
@@ -437,4 +480,6 @@ class StorageManager {
 }
 
 module.exports = StorageManager
+module.exports.normalizePreset = normalizePreset
+module.exports.PRESET_DEFAULT_COLOR = PRESET_DEFAULT_COLOR
 

@@ -93,7 +93,13 @@ build/icon.ico
 build/icon.png
 ```
 
-Kedua file belum tersedia di repository saat dokumentasi ini dibuat. Tambahkan asset valid sebelum menganggap packaging selesai.
+Generate ketiga asset dengan satu perintah (tanpa dependency tambahan):
+
+```bash
+npm run icons
+```
+
+Script `scripts/generate-icons.js` menulis `build/icon.ico` (256px), `build/icon.png` (512px), dan `build/icon-tray.png` (32px) — tile rounded-square purple gradient dengan monogram "G". Folder `build/` di-`.gitignore`, jadi jalankan `npm run icons` sebelum packaging.
 
 ## Data dan Backup
 

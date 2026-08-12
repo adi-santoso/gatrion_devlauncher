@@ -14,7 +14,11 @@ class TrayManager {
   init() {
     try {
       // Find valid icon file or create native fallback image
-      let iconPath = path.join(__dirname, '../../build/icon.png');
+      // Prefer the dedicated 32px tray icon, then the window icon, then the Vite placeholder.
+      let iconPath = path.join(__dirname, '../../build/icon-tray.png');
+      if (!fs.existsSync(iconPath)) {
+        iconPath = path.join(__dirname, '../../build/icon.png');
+      }
       if (!fs.existsSync(iconPath)) {
         iconPath = path.join(__dirname, '../../public/vite.svg');
       }

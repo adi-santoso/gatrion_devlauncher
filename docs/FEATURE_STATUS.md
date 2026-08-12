@@ -66,7 +66,7 @@ Legend:
 | Keyboard shortcuts | Done | Ctrl/Cmd+K, Ctrl+N, Ctrl+Shift+S/X, Escape, `?` semua terimplementasi |
 | Toast | Partial | Bekerja, dua auto-dismiss timer berbeda |
 | Theme | Done | Dark/light disimpan dan diterapkan |
-| Workspace presets | Done | Create/start/delete, rename inline, reorder (←/→), save-selection-as-preset dari bulk select |
+| Workspace presets | Done | Preset v2: kartu preset dengan badge status, start/stop/restart, edit modal (deskripsi/warna/stagger delay/auto-start), duplicate, reorder, ordered project list, progress start per project |
 | Log search & filter | Done | Search + highlight + filter type (stdout/stderr/error/warn/system) di LogsTab dan Terminal workspace |
 | Shell per project | Done | Terminal workspace membuka shell interaktif di folder project terpilih (cwd) |
 | Dashboard group by tag | Done | Toggle "Group by tag" di dashboard (termasuk grup untagged) |
@@ -97,7 +97,7 @@ Legend:
 | Lint command | Done | ESLint configured with @eslint/js + react-hooks plugin |
 | Type checking | Pending | JavaScript without TypeScript/JSDoc check |
 | Accessibility audit | Partial | ARIA labels on buttons/focusable elements added, keyboard shortcuts documented, contrast compliance |
-| Windows installer | Blocked | Asset `build/icon.ico/png` belum ada |
+| Windows installer | Partial | Ikon aplikasi (motif G, purple gradient) digenerate via `npm run icons` → `build/icon.ico/png/tray`; build NSIS/portable belum dijalankan penuh |
 | Clean machine validation | Pending | Belum dibuktikan |
 | Code signing/update | Pending | Belum dirancang |
 | CI pipeline | Done | GitHub Actions Windows: lint, `npm test`, vitest, `vite build`, Playwright e2e |

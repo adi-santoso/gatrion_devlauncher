@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import ProjectCard from './ProjectCard';
+import PresetCard from './PresetCard';
 import CrashBanner from '../ProjectDetail/CrashBanner';
 import { getWorkspaceControlMode } from '../../utils/workspaceResults';
 
@@ -39,8 +40,11 @@ export default function DashboardView({
   onWorkspaceActionComplete,
   presets = [],
   onStartPreset,
+  onStopPreset,
+  onRestartPreset,
+  onEditPreset,
+  onDuplicatePreset,
   onDeletePreset,
-  onRenamePreset,
   onMovePreset,
   onCreatePreset,
   getMetricHistory
@@ -49,8 +53,7 @@ export default function DashboardView({
   const [statusFilter, setStatusFilter] = useState('all');
   const [sortBy, setSortBy] = useState('name');
   const [groupByTag, setGroupByTag] = useState(false);
-  const [editingPresetId, setEditingPresetId] = useState(null);
-  const [presetDraftName, setPresetDraftName] = useState('');
+  const [presetRunning, setPresetRunning] = useState(null); // presetId currently starting
   const [workspaceAction, setWorkspaceAction] = useState('idle'); // 'idle', 'starting', 'stopping'
   const [workspaceTargets, setWorkspaceTargets] = useState([]);
   const [workspaceInitialFailures, setWorkspaceInitialFailures] = useState(0);
@@ -160,6 +163,21 @@ export default function DashboardView({
   const logs = [...latestOutput].sort((left, right) => logTimestamp(left) - logTimestamp(right)).slice(-8).map(formatLog);
   const dateLabel = new Intl.DateTimeFormat(undefined, { weekday: 'long', day: 'numeric', month: 'long' }).format(new Date());
 
+  // Preset helpers
+  const countPresetTerminal = (preset) => {
+    const ids = preset.projectIds || [];
+    return projects.filter((p) => ids.includes(p.id) && ['running', 'error', 'stopped'].includes(p.status?.toLowerCase())).length;
+  };
+
+  const handlePresetStart = async (preset) => {
+    setPresetRunning(preset.id);
+    try {
+      await onStartPreset?.(preset);
+    } finally {
+      setPresetRunning(null);
+    }
+  };
+
   const startWorkspace = async () => {
     const projectsToStart = projects.filter(p => !['running', 'starting', 'stopping'].includes(p.status?.toLowerCase()));
     if (projectsToStart.length === 0) return;
@@ -267,52 +285,45 @@ export default function DashboardView({
         </div>
       </header>
 
-      {presets.length > 0 && (
-        <div className="mb-4 flex items-center gap-2 flex-wrap">
-          <span className="text-[10px] font-mono uppercase tracking-wider text-ink-faint">Presets:</span>
-          {presets.map((preset, index) => (
-            <div key={preset.id} className="inline-flex items-center gap-1 rounded-lg border border-border bg-surface-2 px-2 py-1">
-              {editingPresetId === preset.id ? (
-                <>
-                  <input
-                    type="text"
-                    value={presetDraftName}
-                    onChange={(event) => setPresetDraftName(event.target.value)}
-                    onKeyDown={(event) => {
-                      if (event.key === 'Enter') { onRenamePreset?.(preset.id, presetDraftName); setEditingPresetId(null); }
-                      if (event.key === 'Escape') setEditingPresetId(null);
-                    }}
-                    autoFocus
-                    className="w-24 bg-surface-3 border border-border rounded px-1.5 py-0.5 text-[11px] text-ink focus:outline-none"
-                    aria-label={`Rename preset ${preset.name}`}
-                  />
-                  <button type="button" onClick={() => { onRenamePreset?.(preset.id, presetDraftName); setEditingPresetId(null); }} className="text-[10px] text-success" aria-label={`Save preset name ${presetDraftName}`}>✓</button>
-                </>
-              ) : (
-                <button type="button" onClick={() => onStartPreset?.(preset)} className="text-[11px] font-medium text-ink-soft hover:text-accent transition-colors" title={`Start preset ${preset.name}`}>{preset.name}</button>
-              )}
-              <span className="text-[9px] text-ink-faint">{preset.projectIds?.length || 0}</span>
-              {onMovePreset && index > 0 && (
-                <button type="button" onClick={() => onMovePreset(preset.id, -1)} className="text-ink-faint hover:text-ink" aria-label={`Move preset ${preset.name} left`}>←</button>
-              )}
-              {onMovePreset && index < presets.length - 1 && (
-                <button type="button" onClick={() => onMovePreset(preset.id, 1)} className="text-ink-faint hover:text-ink" aria-label={`Move preset ${preset.name} right`}>→</button>
-              )}
-              {onRenamePreset && (
-                <button type="button" onClick={() => { setEditingPresetId(preset.id); setPresetDraftName(preset.name); }} className="text-ink-faint hover:text-ink" aria-label={`Rename preset ${preset.name}`}>✎</button>
-              )}
-              {onDeletePreset && (
-                <button type="button" onClick={() => onDeletePreset(preset)} className="text-ink-faint hover:text-danger ml-0.5" aria-label={`Delete preset ${preset.name}`}>✕</button>
-              )}
+      {/* Workspace Presets */}
+      {(presets.length > 0 || onCreatePreset) && (
+        <section className="mb-6" aria-label="Workspace presets">
+          <div className="mb-2 flex items-center justify-between">
+            <h2 className="font-mono text-[10px] font-semibold uppercase tracking-wider text-ink-faint">Workspace Presets</h2>
+            {onCreatePreset && (
+              <button type="button" onClick={onCreatePreset} className="text-[11px] font-medium text-accent hover:text-accent-hover">+ New preset</button>
+            )}
+          </div>
+          {presets.length > 0 ? (
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+              {presets.map((preset, index) => (
+                <PresetCard
+                  key={preset.id}
+                  preset={preset}
+                  index={index}
+                  total={presets.length}
+                  projects={projects}
+                  progress={presetRunning === preset.id
+                    ? { active: true, done: countPresetTerminal(preset), total: preset.projectIds?.length || 0 }
+                    : null}
+                  onStart={handlePresetStart}
+                  onStop={onStopPreset}
+                  onRestart={onRestartPreset}
+                  onEdit={onEditPreset}
+                  onDuplicate={onDuplicatePreset}
+                  onDelete={onDeletePreset}
+                  onMove={onMovePreset}
+                />
+              ))}
             </div>
-          ))}
-        </div>
-      )}
-
-      {onCreatePreset && projects.length > 0 && presets.length === 0 && (
-        <div className="mb-4">
-          <button type="button" onClick={onCreatePreset} className="text-[11px] text-accent hover:text-accent-hover">+ Create a workspace preset</button>
-        </div>
+          ) : (
+            <div className="rounded-xl border border-dashed border-border bg-surface/60 px-4 py-6 text-center">
+              <p className="text-xs text-ink-faint">
+                Start a whole stack with one click — save a group of projects as a workspace preset.
+              </p>
+            </div>
+          )}
+        </section>
       )}
 
       {/* Workspace Alerts */}

@@ -57,6 +57,22 @@ module.exports = [
     },
   },
   {
+    // Icon/build helper scripts run under plain Node
+    files: ['scripts/**/*.js'],
+    languageOptions: {
+      ecmaVersion: 2022,
+      sourceType: 'commonjs',
+      globals: {
+        console: 'readonly', process: 'readonly', Buffer: 'readonly', __dirname: 'readonly',
+        require: 'readonly', module: 'readonly',
+      },
+    },
+    rules: {
+      'no-unused-vars': ['warn', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
+      'no-console': 'off',
+    },
+  },
+  {
     files: ['vite.config.js', 'vitest.config.js', 'test-setup.js'],
     languageOptions: {
       ecmaVersion: 2022,

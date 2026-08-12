@@ -13,7 +13,7 @@ Status:
 
 ## Status Update Terbaru
 
-Commit `2153c49` (workspace presets & custom commands) dan lanjutan menyelesaikan: **CSP** (Phase 1), **schema v3 + versioning projects/config** (Phase 8), **automated Electron smoke test + CI** (Phase 9), plus fitur baru: duplicate project, export/import JSON, log search + filter, sparkline resource, grouping by tag, shell per-project, dan preset rename/reorder. Lihat [FEATURE_STATUS.md](FEATURE_STATUS.md).
+Commit `2153c49` (workspace presets & custom commands) dan lanjutan menyelesaikan: **CSP** (Phase 1), **schema v3 + versioning projects/config** (Phase 8), **automated Electron smoke test + CI** (Phase 9), plus fitur baru: duplicate project, export/import JSON, log search + filter, sparkline resource, grouping by tag, shell per-project, **preset v2** (kartu preset, edit modal, staggered start, stop/restart, auto-start saat launch, schema + migrasi presets.json), dan **ikon aplikasi** (motif G, digenerate via `npm run icons`). Lihat [FEATURE_STATUS.md](FEATURE_STATUS.md).
 
 ## Evaluasi Roadmap Lama
 
@@ -29,7 +29,7 @@ Roadmap lama kuat pada visi UI dan pembagian manager, tetapi mencampur plan, pro
 - [x] Context isolation aktif, Node integration nonaktif.
 - [x] Preload bridge untuk API terpilih.
 - [x] electron-builder config NSIS + portable x64.
-- [ ] Tambahkan `build/icon.ico` dan `build/icon.png` valid.
+- [x] Tambahkan `build/icon.ico` dan `build/icon.png` valid (script `scripts/generate-icons.js`, jalankan `npm run icons`).
 - [x] Tetapkan Node.js LTS dalam `engines` dan CI (Node 20 di GitHub Actions).
 - [x] Tambahkan CSP production dan development yang sesuai (main process `onHeadersReceived`; dev mengizinkan inline Vite).
 - [ ] Validasi macOS behavior atau nyatakan Windows-only secara eksplisit di package/release.

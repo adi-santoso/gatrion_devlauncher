@@ -205,7 +205,17 @@ async function initialize() {
   }
   if (initialConfig.autoStartProjects) {
     const projects = await storageManager.loadProjects()
-    for (const project of projects.filter((item) => item.autoStart)) {
+    // Projects flagged for auto-start + every project belonging to an auto-start preset
+    const presets = await storageManager.loadPresets().catch(() => [])
+    const presetProjectIds = new Set(
+      presets
+        .filter((preset) => preset.autoStart)
+        .flatMap((preset) => preset.projectIds || [])
+    )
+    const toStart = projects.filter(
+      (item) => item.autoStart || presetProjectIds.has(item.id)
+    )
+    for (const project of toStart) {
       processManager.startProcess(
         project.id,
         project.path,

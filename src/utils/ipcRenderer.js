@@ -171,12 +171,12 @@ export const restartProject = async (projectId) => {
   return window.electron.restartProject(projectId);
 };
 
-export const startAllProjects = async (projectIds) => {
+export const startAllProjects = async (projectIds, delayMs) => {
   if (!isElectron()) {
     console.warn('[IPC] Running in browser mode - mock startAllProjects called');
     return { success: true };
   }
-  return window.electron.startAllProjects(projectIds);
+  return window.electron.startAllProjects(projectIds, delayMs);
 };
 
 export const stopAllProjects = async () => {

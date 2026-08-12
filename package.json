@@ -11,6 +11,7 @@
     "dev:electron": "cross-env NODE_ENV=development electron .",
     "build": "vite build && electron-builder",
     "build:win": "vite build && electron-builder --win --x64",
+    "icons": "node scripts/generate-icons.js",
     "test": "node test-process-manager.js && node test-schema.js && node test-storage-manager.js && node test-security-hardening.js && node test-process-handlers.js && node test-project-detector.js && node test-env-files.js",
     "test:unit": "vitest run",
     "test:e2e": "playwright test",

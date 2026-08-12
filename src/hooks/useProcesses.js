@@ -201,9 +201,9 @@ export const useProcesses = (projects = [], onProjectUpdate, options = {}) => {
   }, [projects, onProjectUpdate]);
 
   // Start all projects
-  const startAll = useCallback(async (projectIds) => {
+  const startAll = useCallback(async (projectIds, delayMs) => {
     try {
-      const response = await ipc.startAllProjects(projectIds);
+      const response = await ipc.startAllProjects(projectIds, delayMs);
       if (Array.isArray(response)) {
         for (const result of response) {
           if (!result.projectId) continue;

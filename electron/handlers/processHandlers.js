@@ -226,8 +226,12 @@ function setupProcessHandlers(processManager, storageManager, mainWindow) {
     return { success: true }
   })
 
-  // Start all projects (topologically sorted by dependsOn)
-  secureHandle('start-all-projects', async (event, projectIds) => {
+  // Start all projects (topologically sorted by dependsOn).
+  // options.delayMs (0-60000) staggers each start so dependencies (e.g. a DB)
+  // get time to boot before the next project in the batch is launched.
+  secureHandle('start-all-projects', async (event, projectIds, options) => {
+    const rawDelay = Number(options?.delayMs)
+    const delayMs = Number.isFinite(rawDelay) ? Math.max(0, Math.min(60000, Math.round(rawDelay))) : 0
     const projectList = await storageManager.loadProjects()
     const requestedIds = projectIds === undefined
       ? null
@@ -239,7 +243,8 @@ function setupProcessHandlers(processManager, storageManager, mainWindow) {
     const sorted = topologicalSort(projectsToStart)
 
     const results = []
-    for (const project of sorted) {
+    for (let index = 0; index < sorted.length; index++) {
+      const project = sorted[index]
       try {
         const launch = resolveLaunchConfig(project)
         const cmd = launch.command
@@ -291,6 +296,10 @@ function setupProcessHandlers(processManager, storageManager, mainWindow) {
         results.push({ projectId: project.id, success: true, ...result })
       } catch (error) {
         results.push({ projectId: project.id, success: false, error: error.message })
+      }
+      // Stagger: pause between launches (but not after the last one)
+      if (delayMs > 0 && index < sorted.length - 1) {
+        await new Promise((resolve) => setTimeout(resolve, delayMs))
       }
     }
     return results

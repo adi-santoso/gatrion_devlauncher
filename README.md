@@ -76,7 +76,7 @@ Lokasi tepat dicetak oleh `StorageManager` saat aplikasi mulai.
 
 - Start command dijalankan melalui shell lokal. Tambahkan hanya project dan command yang dipercaya.
 - CPU/RAM monitoring, native tray, startup OS, port conflict resolution, bulk action, edit project, dan aksi native lain sudah terimplementasi.
-- Asset `build/icon.png` dan `build/icon.ico` belum ada di repository; packaging final membutuhkan keduanya.
+- Ikon aplikasi (motif G) digenerate ke `build/` via `npm run icons` (`scripts/generate-icons.js`); folder `build/` di-`.gitignore` sehingga script wajib dijalankan sebelum packaging.
 - Target utama Windows x64. macOS/Linux belum diuji.
 
 ## Lisensi

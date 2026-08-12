@@ -20,8 +20,13 @@ describe('process IPC wrappers', () => {
     expect(window.electron.restartProject).toHaveBeenCalledWith('project-1')
   })
 
-  it('sends only targeted project IDs when starting a workspace', async () => {
+  it('sends targeted project IDs when starting a workspace', async () => {
     await startAllProjects(['project-1', 'project-2'])
-    expect(window.electron.startAllProjects).toHaveBeenCalledWith(['project-1', 'project-2'])
+    expect(window.electron.startAllProjects).toHaveBeenCalledWith(['project-1', 'project-2'], undefined)
+  })
+
+  it('forwards a stagger delay when starting a workspace', async () => {
+    await startAllProjects(['project-1', 'project-2'], 1500)
+    expect(window.electron.startAllProjects).toHaveBeenCalledWith(['project-1', 'project-2'], 1500)
   })
 })
