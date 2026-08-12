@@ -38,7 +38,7 @@ export default function ProjectCard({ project, onStart, onStop, onRestart, onNav
   const hasLogs = project.logs?.length > 0;
 
   return (
-    <article className="group min-w-0 rounded-xl border border-border bg-surface/80 p-4 shadow-card transition-all hover:shadow-lg">
+    <article className="group min-w-0 rounded-xl border border-border bg-surface/80 p-4 shadow-card transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg">
       <div className="flex items-start justify-between mb-3">
         <div className="flex items-center gap-2.5 min-w-0">
           <button 
@@ -134,7 +134,7 @@ export default function ProjectCard({ project, onStart, onStop, onRestart, onNav
               {cpu != null && (
                 <div className="mt-1 h-1.5 rounded-full bg-surface-3 overflow-hidden">
                   <div 
-                    className={`h-full rounded-full transition-all ${
+                    className={`h-full rounded-full transition-[width] duration-500 ease-out ${
                       cpu > 80 ? 'bg-red-500' : cpu > 60 ? 'bg-yellow-500' : 'bg-emerald-500'
                     }`}
                     style={{ width: `${Math.min(cpu, 100)}%` }}
@@ -156,7 +156,7 @@ export default function ProjectCard({ project, onStart, onStop, onRestart, onNav
               {memory != null && typeof memory === 'number' && (
                 <div className="mt-1 h-1.5 rounded-full bg-surface-3 overflow-hidden">
                   <div 
-                    className={`h-full rounded-full transition-all ${
+                    className={`h-full rounded-full transition-[width] duration-500 ease-out ${
                       memory > 3072 ? 'bg-red-500' : memory > 2048 ? 'bg-yellow-500' : 'bg-blue-500'
                     }`}
                     style={{ width: `${Math.min((memory / (2 * 1024)) * 100, 100)}%` }}

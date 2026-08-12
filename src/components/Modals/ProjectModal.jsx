@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useProjects } from '../../hooks';
 import DropdownMenu, { DropdownItem } from '../Common/DropdownMenu';
+import AnimatedModal from '../Common/AnimatedModal';
 import StackLogo from '../Common/StackLogo';
 import { typeLabel, TYPE_LABELS } from '../../utils/typeLabels';
 
@@ -233,15 +234,11 @@ const ProjectModal = ({ isOpen, onClose, onSave, project = null, droppedProject 
     }
   };
 
-  if (!isOpen) return null;
-
   const hasSelectedFolder = Boolean(formData.path);
   const showConfiguration = isEditing || showAdvanced;
 
   return (
-    <div id="projectModal" className="fixed inset-0 z-50">
-      <div onClick={onClose} className="absolute inset-0 bg-black/60 backdrop-blur-sm cursor-pointer"></div>
-      <div className="relative h-full flex items-center justify-center p-4">
+    <AnimatedModal id="projectModal" isOpen={isOpen} onClose={onClose}>
         <div className="w-full max-w-lg bg-surface border border-border rounded-xl shadow-card max-h-[85vh] flex flex-col">
           <div className="flex items-center justify-between px-5 py-4 border-b border-border shrink-0">
             <div>
@@ -456,8 +453,7 @@ const ProjectModal = ({ isOpen, onClose, onSave, project = null, droppedProject 
             )}
           </div>
         </div>
-      </div>
-    </div>
+    </AnimatedModal>
   );
 };
 

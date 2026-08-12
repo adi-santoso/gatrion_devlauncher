@@ -1,4 +1,5 @@
 import React from 'react';
+import AnimatedModal from '../Common/AnimatedModal';
 
 /**
  * ConfirmDialog - Deletion confirmation dialog
@@ -14,8 +15,6 @@ const ConfirmDialog = ({
   confirmLabel = 'Confirm',
   confirmVariant = 'danger',
 }) => {
-  if (!isOpen) return null;
-
   const handleConfirm = () => {
     onConfirm();
   };
@@ -34,9 +33,7 @@ const ConfirmDialog = ({
   };
 
   return (
-    <div id="confirmDialog" className="fixed inset-0 z-50">
-      <div onClick={handleCancel} className="absolute inset-0 bg-black/60 backdrop-blur-sm cursor-pointer"></div>
-      <div className="relative h-full flex items-center justify-center p-4">
+    <AnimatedModal id="confirmDialog" isOpen={isOpen} onClose={handleCancel}>
         <div className="w-full max-w-sm bg-surface border border-border rounded-xl shadow-card p-5">
           <div className={`w-10 h-10 rounded-full flex items-center justify-center mb-3 ${
             confirmVariant === 'danger' ? 'bg-danger/10' : 'bg-accent/10'
@@ -74,8 +71,7 @@ const ConfirmDialog = ({
             </button>
           </div>
         </div>
-      </div>
-    </div>
+    </AnimatedModal>
   );
 };
 

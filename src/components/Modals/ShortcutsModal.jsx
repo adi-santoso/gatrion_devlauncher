@@ -1,12 +1,11 @@
 import React from 'react';
+import AnimatedModal from '../Common/AnimatedModal';
 
 /**
  * ShortcutsModal - Keyboard shortcuts cheat sheet
  * Lines 1022-1040 from template
  */
 const ShortcutsModal = ({ isOpen, onClose }) => {
-  if (!isOpen) return null;
-
   const shortcuts = [
     { label: 'Open command palette', keys: ['Ctrl', 'K'] },
     { label: 'Add new project', keys: ['Ctrl', 'N'] },
@@ -17,9 +16,7 @@ const ShortcutsModal = ({ isOpen, onClose }) => {
   ];
 
   return (
-    <div id="shortcutsModal" className="fixed inset-0 z-50">
-      <div onClick={onClose} className="absolute inset-0 bg-black/60 backdrop-blur-sm cursor-pointer"></div>
-      <div className="relative h-full flex items-center justify-center p-4">
+    <AnimatedModal id="shortcutsModal" isOpen={isOpen} onClose={onClose}>
         <div className="w-full max-w-sm bg-surface border border-border rounded-xl shadow-card p-5">
           <div className="flex items-center justify-between mb-4">
             <h3 className="font-display font-bold text-sm">Keyboard Shortcuts</h3>
@@ -47,8 +44,7 @@ const ShortcutsModal = ({ isOpen, onClose }) => {
             ))}
           </div>
         </div>
-      </div>
-    </div>
+    </AnimatedModal>
   );
 };
 

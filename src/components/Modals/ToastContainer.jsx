@@ -1,9 +1,16 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 
 /**
  * Toast - Individual toast notification component
  */
 const Toast = ({ type = 'success', message, onDismiss }) => {
+  const [leaving, setLeaving] = useState(false);
+
+  // Play the slide-out animation, then let the parent remove the toast
+  const dismiss = () => {
+    setLeaving(true);
+    setTimeout(onDismiss, 180);
+  };
   const variants = {
     success: {
       border: 'border-success/30',
@@ -31,7 +38,8 @@ const Toast = ({ type = 'success', message, onDismiss }) => {
 
   useEffect(() => {
     const timer = setTimeout(() => {
-      onDismiss();
+      setLeaving(true);
+      setTimeout(onDismiss, 180);
     }, 4000);
 
     return () => clearTimeout(timer);
@@ -39,7 +47,7 @@ const Toast = ({ type = 'success', message, onDismiss }) => {
 
   return (
     <div
-      className={`flex items-start gap-2.5 bg-surface-2 border ${variant.border} rounded-lg px-3.5 py-3 shadow-card animate-[fadeIn_.15s_ease-out]`}
+      className={`flex items-start gap-2.5 bg-surface-2 border ${variant.border} rounded-lg px-3.5 py-3 shadow-card ${leaving ? 'animate-toast-out' : 'animate-toast-in'}`}
     >
       <svg
         width="16"
@@ -53,8 +61,9 @@ const Toast = ({ type = 'success', message, onDismiss }) => {
       />
       <p className="text-xs text-ink flex-1">{message}</p>
       <button
-        onClick={onDismiss}
+        onClick={dismiss}
         className="text-ink-faint hover:text-ink shrink-0"
+        aria-label="Dismiss notification"
       >
         ✕
       </button>

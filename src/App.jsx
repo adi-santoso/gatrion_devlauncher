@@ -535,6 +535,9 @@ function App() {
 
   // Theme handler
   const setThemeHandler = async (newTheme) => {
+    // Briefly enable color transitions so the theme switch cross-fades
+    document.documentElement.classList.add('theme-transition');
+    setTimeout(() => document.documentElement.classList.remove('theme-transition'), 300);
     const result = await updateElectronConfig({ theme: newTheme });
     if (result.success) {
       showToast('success', `Theme changed to ${newTheme}`);
@@ -1029,22 +1032,20 @@ function App() {
       />
 
       {/* Port Conflict Modal */}
-      {portConflictTarget && (
-        <PortConflictModal
-          isOpen={!!portConflictTarget}
-          conflictData={{
-            ...portConflictTarget.conflictData,
-            skippedCount: portConflictTarget.skippedCount || 0,
-            skippedNames: portConflictTarget.skippedNames || [],
-          }}
-          onClose={() => setPortConflictTarget(null)}
-          onEditPort={() => {
-            const prj = portConflictTarget.project;
-            setPortConflictTarget(null);
-            openModalHandler('project', prj);
-          }}
-        />
-      )}
+      <PortConflictModal
+        isOpen={!!portConflictTarget}
+        conflictData={portConflictTarget ? {
+          ...portConflictTarget.conflictData,
+          skippedCount: portConflictTarget.skippedCount || 0,
+          skippedNames: portConflictTarget.skippedNames || [],
+        } : null}
+        onClose={() => setPortConflictTarget(null)}
+        onEditPort={portConflictTarget ? () => {
+          const prj = portConflictTarget.project;
+          setPortConflictTarget(null);
+          openModalHandler('project', prj);
+        } : undefined}
+      />
 
       {/* Preset create/edit modal */}
       <PresetModal

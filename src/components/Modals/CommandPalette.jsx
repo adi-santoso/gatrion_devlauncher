@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import StackLogo from '../Common/StackLogo';
+import AnimatedModal from '../Common/AnimatedModal';
 import { typeLabel } from '../../utils/typeLabels';
 
 const Svg = ({ children, size = 15 }) => (
@@ -167,8 +168,6 @@ const CommandPalette = ({
     }
   }, [activeIndex]);
 
-  if (!isOpen) return null;
-
   const handleItemClick = (item) => {
     // Close the palette BEFORE dispatching so commands that open another modal
     // (e.g. Add New Project, Keyboard Shortcuts) are not immediately closed again.
@@ -209,9 +208,7 @@ const CommandPalette = ({
   const hasResults = flatItems.length > 0;
 
   return (
-    <div id="commandPalette" className="fixed inset-0 z-50">
-      <div onClick={onClose} className="absolute inset-0 bg-black/60 backdrop-blur-sm cursor-pointer"></div>
-      <div className="relative flex items-start justify-center pt-24 px-4">
+    <AnimatedModal id="commandPalette" isOpen={isOpen} onClose={onClose} position="top">
         <div className="w-full max-w-lg bg-surface border border-border rounded-xl shadow-card overflow-hidden">
           <div className="flex items-center gap-2.5 px-4 py-3 border-b border-border">
             {Icons.search}
@@ -279,8 +276,7 @@ const CommandPalette = ({
             )}
           </div>
         </div>
-      </div>
-    </div>
+    </AnimatedModal>
   );
 };
 

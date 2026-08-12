@@ -1,4 +1,6 @@
+import React from 'react';
 import { useEffect, useMemo, useState } from 'react';
+import AnimatedModal from '../Common/AnimatedModal';
 
 export default function BulkTagModal({ isOpen, onClose, projects = [], onApply }) {
   const [addText, setAddText] = useState('');
@@ -22,8 +24,6 @@ export default function BulkTagModal({ isOpen, onClose, projects = [], onApply }
     return [...counts.entries()].sort((a, b) => String(a[0]).localeCompare(String(b[0])));
   }, [projects]);
 
-  if (!isOpen) return null;
-
   const parseTags = (value) => value
     .split(',')
     .map((tag) => tag.trim())
@@ -37,9 +37,7 @@ export default function BulkTagModal({ isOpen, onClose, projects = [], onApply }
   };
 
   return (
-    <div className="fixed inset-0 z-50">
-      <div onClick={onClose} className="absolute inset-0 bg-black/60 backdrop-blur-sm cursor-pointer"></div>
-      <div className="relative h-full flex items-center justify-center p-4">
+    <AnimatedModal isOpen={isOpen} onClose={onClose}>
         <div className="w-full max-w-md bg-surface border border-border rounded-xl shadow-card p-5">
           <div className="flex items-center justify-between mb-4">
             <h3 className="font-display font-bold text-sm">Edit Tags</h3>
@@ -110,7 +108,6 @@ export default function BulkTagModal({ isOpen, onClose, projects = [], onApply }
             </div>
           </div>
         </div>
-      </div>
-    </div>
+    </AnimatedModal>
   );
 }

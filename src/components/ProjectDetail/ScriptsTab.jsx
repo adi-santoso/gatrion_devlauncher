@@ -93,9 +93,18 @@ export default function ScriptsTab({ project }) {
 
   if (loading && !deps && !notice) {
     return (
-      <div className="bg-surface border border-border rounded-xl shadow-card p-8 text-center">
-        <Icon name="spinner" size={18} className="animate-spin text-accent mx-auto" />
-        <p className="text-xs text-ink-faint mt-3">Reading project tooling...</p>
+      <div className="bg-surface border border-border rounded-xl shadow-card p-4 space-y-3">
+        <div className="skeleton h-5 w-40" />
+        <div className="flex gap-2">
+          <div className="skeleton h-8 w-44" />
+          <div className="skeleton h-8 w-32" />
+        </div>
+        <div className="grid gap-2 sm:grid-cols-2">
+          <div className="skeleton h-14 w-full" />
+          <div className="skeleton h-14 w-full" />
+          <div className="skeleton h-14 w-full" />
+          <div className="skeleton h-14 w-full" />
+        </div>
       </div>
     );
   }

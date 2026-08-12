@@ -1,4 +1,5 @@
 import React from 'react';
+import AnimatedModal from '../Common/AnimatedModal';
 
 export default function PortConflictModal({
   isOpen,
@@ -6,13 +7,11 @@ export default function PortConflictModal({
   conflictData,
   onEditPort
 }) {
-  if (!isOpen || !conflictData) return null;
-
-  const { port, pid, processName, isManaged, managedProjectName, skippedCount, skippedNames } = conflictData;
+  const { port, pid, processName, isManaged, managedProjectName, skippedCount, skippedNames } = conflictData || {};
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-      <div className="bg-surface border border-border rounded-xl shadow-2xl max-w-md w-full p-6 space-y-5 animate-in fade-in zoom-in duration-150">
+    <AnimatedModal isOpen={isOpen && Boolean(conflictData)} onClose={onClose}>
+      <div className="bg-surface border border-border rounded-xl shadow-2xl max-w-md w-full p-6 space-y-5">
         {/* Header */}
         <div className="flex items-start gap-4">
           <div className="w-10 h-10 rounded-full bg-warning/15 text-warning flex items-center justify-center text-xl shrink-0 border border-warning/20">
@@ -79,6 +78,6 @@ export default function PortConflictModal({
           )}
         </div>
       </div>
-    </div>
+    </AnimatedModal>
   );
 }

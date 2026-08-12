@@ -103,8 +103,9 @@ const Sidebar = ({
                 onClick={() => onViewChange?.(item.id)}
                 title={`${item.label}${count !== null ? ` (${count})` : ''}`}
                 aria-label={item.label}
-                className={`w-full flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-xs font-semibold transition-colors ${isCollapsed ? 'justify-center' : ''} ${isActive ? 'bg-accent/10 text-ink border border-accent/20' : 'text-ink-soft hover:bg-surface-3 hover:text-ink border border-transparent'}`}
+                className={`relative w-full flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-xs font-semibold transition-colors ${isCollapsed ? 'justify-center' : ''} ${isActive ? 'bg-accent/10 text-ink border border-accent/20' : 'text-ink-soft hover:bg-surface-3 hover:text-ink border border-transparent'}`}
               >
+                <span aria-hidden="true" className={`absolute left-0 top-1/2 -translate-y-1/2 h-4 w-0.5 rounded-full bg-accent transition-opacity duration-150 ${isActive ? 'opacity-100' : 'opacity-0'}`} />
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="shrink-0">{item.icon}</svg>
                 {!isCollapsed && <span>{item.label}</span>}
                 {!isCollapsed && count !== null && <span className="ml-auto text-[9px] font-mono text-ink-faint">{count}</span>}

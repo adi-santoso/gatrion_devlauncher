@@ -198,9 +198,16 @@ export default function GitTab({ project }) {
 
   if (loading && status.branch === null && !notice) {
     return (
-      <div className="bg-surface border border-border rounded-xl shadow-card p-8 text-center">
-        <Icon name="spinner" size={18} className="animate-spin text-accent mx-auto" />
-        <p className="text-xs text-ink-faint mt-3">Reading repository state...</p>
+      <div className="bg-surface border border-border rounded-xl shadow-card p-4 space-y-3">
+        <div className="flex items-center gap-3">
+          <div className="skeleton w-8 h-8" />
+          <div className="flex-1 space-y-2">
+            <div className="skeleton h-3.5 w-32" />
+            <div className="skeleton h-2.5 w-48" />
+          </div>
+        </div>
+        <div className="skeleton h-24 w-full" />
+        <div className="skeleton h-10 w-full" />
       </div>
     );
   }
