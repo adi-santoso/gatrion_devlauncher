@@ -27,10 +27,12 @@ export default function ProjectDetailView({
   onPrevProject,
   onNextProject,
   isFullscreen = false,
-  terminalConfig
+  terminalConfig,
+  onAutoScrollChange
 }) {
   const [activeTab, setActiveTab] = useState('app');
-  const [autoScroll, setAutoScroll] = useState(terminalConfig?.autoScroll !== false);
+  // Derived from config so the Settings toggle and the in-page checkbox stay in sync
+  const autoScroll = terminalConfig?.autoScroll !== false;
   // Use prop instead of local state to sync with parent
   const [fullscreen, setFullscreen] = useState(isFullscreen);
   const combinedLogs = Array.isArray(logs) && logs.length > 0 ? logs : (Array.isArray(project?.logs) ? project.logs : []);
@@ -122,7 +124,7 @@ export default function ProjectDetailView({
         <>
           <div className={activeTab === 'terminal' ? 'block' : 'hidden'}>
             <CustomCommands project={project}/>
-            <LogsTab logs={combinedLogs} autoScroll={autoScroll} onAutoScrollChange={setAutoScroll} onClear={onClearLogs} fontSize={terminalConfig?.fontSize}/>
+            <LogsTab logs={combinedLogs} autoScroll={autoScroll} onAutoScrollChange={onAutoScrollChange} onClear={onClearLogs} fontSize={terminalConfig?.fontSize}/>
           </div>
           <div className={activeTab === 'git' ? 'block' : 'hidden'}>
             <GitTab project={project}/>

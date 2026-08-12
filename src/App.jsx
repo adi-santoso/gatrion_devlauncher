@@ -911,7 +911,14 @@ function App() {
         )}
 
         {currentView === 'terminals' && (
-          <TerminalWorkspace projects={projects} getLogs={getLogs} onClearLogs={clearLogs} fontSize={config.terminal?.fontSize} />
+          <TerminalWorkspace
+            projects={projects}
+            getLogs={getLogs}
+            onClearLogs={clearLogs}
+            fontSize={config.terminal?.fontSize}
+            autoScroll={config.terminal?.autoScroll !== false}
+            onAutoScrollChange={(value) => updateElectronConfig({ terminal: { autoScroll: value } })}
+          />
         )}
 
         {/* Projects View */}
@@ -967,6 +974,7 @@ function App() {
                 onDuplicate={() => handleDuplicateProject(liveProject)}
                 onClearLogs={() => clearLogs(liveProject.id)}
                 terminalConfig={config.terminal}
+                onAutoScrollChange={(value) => updateElectronConfig({ terminal: { autoScroll: value } })}
                 onFullscreenChange={handleDetailFullscreenChange}
                 onPrevProject={() => navigateRelativeProject(-1)}
                 onNextProject={() => navigateRelativeProject(1)}

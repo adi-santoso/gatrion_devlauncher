@@ -1,9 +1,13 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Terminal } from 'xterm';
 import 'xterm/css/xterm.css';
 import * as ipc from '../../utils/ipcRenderer';
 
-export default function InteractiveTerminal({ cwd, fontSize = 14, onExit }) {
+/**
+ * One PTY-backed terminal session. Remounted (via `key`) when the shell exits
+ * so a fresh session can be started from the restart overlay in the parent.
+ */
+function TerminalSession({ cwd, fontSize = 14, onExited }) {
   const containerRef = useRef(null);
   const termRef = useRef(null);
   const termIdRef = useRef(null);
@@ -38,7 +42,11 @@ export default function InteractiveTerminal({ cwd, fontSize = 14, onExit }) {
         rows: term.rows,
       });
 
-      if (disposed) return;
+      // Created after unmount — kill it so no orphan PTY is left behind.
+      if (disposed) {
+        if (result.success) ipc.terminalKill(result.id);
+        return;
+      }
 
       if (!result.success) {
         term.writeln(`\x1b[31mFailed to start terminal: ${result.error}\x1b[0m`);
@@ -53,7 +61,7 @@ export default function InteractiveTerminal({ cwd, fontSize = 14, onExit }) {
       cleanupExit = ipc.onTerminalExit((id, exitCode) => {
         if (id === termIdRef.current) {
           term.writeln(`\r\n\x1b[33m[process exited with code ${exitCode}]\x1b[0m`);
-          onExit?.(exitCode);
+          onExited?.(exitCode);
         }
       });
 
@@ -93,4 +101,47 @@ export default function InteractiveTerminal({ cwd, fontSize = 14, onExit }) {
   }, [fontSize]);
 
   return <div ref={containerRef} className="h-full w-full bg-[#08090C] rounded-lg overflow-hidden p-1" />;
+}
+
+export default function InteractiveTerminal({ cwd, fontSize = 14, onExit }) {
+  const [session, setSession] = useState(0);
+  const [exited, setExited] = useState(false);
+  const [exitCode, setExitCode] = useState(null);
+
+  const restart = () => {
+    setExited(false);
+    setExitCode(null);
+    setSession((prev) => prev + 1);
+  };
+
+  return (
+    <div className="relative h-full w-full">
+      <TerminalSession
+        key={session}
+        cwd={cwd}
+        fontSize={fontSize}
+        onExited={(code) => {
+          setExitCode(code);
+          setExited(true);
+          onExit?.(code);
+        }}
+      />
+      {exited && (
+        <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/60">
+          <div className="flex flex-col items-center gap-2.5 rounded-lg border border-border bg-surface px-5 py-4 shadow-card">
+            <p className="text-xs text-ink-soft">
+              Shell exited with code <span className="font-mono font-semibold text-ink">{exitCode}</span>
+            </p>
+            <button
+              type="button"
+              onClick={restart}
+              className="rounded-lg bg-accent px-3.5 py-1.5 text-xs font-semibold text-white shadow-glow transition-colors hover:bg-accent-hover"
+            >
+              Restart shell
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }

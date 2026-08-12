@@ -3,7 +3,7 @@ import { LogsTab } from './ProjectDetail';
 import InteractiveTerminal from './Terminal/InteractiveTerminal';
 import { isElectronAvailable } from '../utils/ipcRenderer';
 
-export default function TerminalWorkspace({ projects = [], getLogs, onClearLogs, fontSize }) {
+export default function TerminalWorkspace({ projects = [], getLogs, onClearLogs, fontSize, autoScroll = true, onAutoScrollChange }) {
   const activeProjects = projects.filter((project) => ['running', 'starting', 'error'].includes((project.status || '').toLowerCase()));
   const [selectedId, setSelectedId] = useState('all');
   const [shellOpen, setShellOpen] = useState(false);
@@ -50,7 +50,7 @@ export default function TerminalWorkspace({ projects = [], getLogs, onClearLogs,
           </button>)}
         </aside>
         <div className="min-w-0 p-3">
-          <LogsTab logs={logs} fontSize={fontSize} onClear={selectedProject ? () => onClearLogs(selectedProject.id) : undefined} />
+          <LogsTab logs={logs} fontSize={fontSize} autoScroll={autoScroll} onAutoScrollChange={onAutoScrollChange} onClear={selectedProject ? () => onClearLogs(selectedProject.id) : undefined} />
         </div>
       </div>
     </div>
