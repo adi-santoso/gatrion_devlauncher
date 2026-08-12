@@ -201,7 +201,7 @@ const ProjectModal = ({ isOpen, onClose, onSave, project = null, droppedProject 
 
   return (
     <div id="projectModal" className="fixed inset-0 z-50">
-      <div onClick={onClose} className="absolute inset-0 bg-black/60 backdrop-blur-sm"></div>
+      <div onClick={onClose} className="absolute inset-0 bg-black/60 backdrop-blur-sm cursor-pointer"></div>
       <div className="relative h-full flex items-center justify-center p-4">
         <div className="w-full max-w-lg bg-surface border border-border rounded-xl shadow-card max-h-[85vh] flex flex-col">
           <div className="flex items-center justify-between px-5 py-4 border-b border-border shrink-0">

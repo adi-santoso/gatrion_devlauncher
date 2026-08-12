@@ -35,7 +35,7 @@ const ConfirmDialog = ({
 
   return (
     <div id="confirmDialog" className="fixed inset-0 z-50">
-      <div onClick={handleCancel} className="absolute inset-0 bg-black/60 backdrop-blur-sm"></div>
+      <div onClick={handleCancel} className="absolute inset-0 bg-black/60 backdrop-blur-sm cursor-pointer"></div>
       <div className="relative h-full flex items-center justify-center p-4">
         <div className="w-full max-w-sm bg-surface border border-border rounded-xl shadow-card p-5">
           <div className={`w-10 h-10 rounded-full flex items-center justify-center mb-3 ${

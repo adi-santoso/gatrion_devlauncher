@@ -1,5 +1,21 @@
 @import "tailwindcss";
 
+/* Tailwind v4 removed the v3 preflight rule that gave interactive elements a
+   pointer cursor. Restore it for every clickable control so buttons, checkboxes,
+   selects, and toggles read as clickable. Utilities like cursor-wait and
+   cursor-not-allowed live in the utilities layer and still win over this rule. */
+@layer base {
+  button:not(:disabled),
+  [role="button"]:not(:disabled),
+  input[type="checkbox"]:not(:disabled),
+  input[type="radio"]:not(:disabled),
+  select:not(:disabled),
+  summary:not(:disabled),
+  label:has(input, select, textarea, button) {
+    cursor: pointer;
+  }
+}
+
 /* Tailwind v4 Configuration */
 @theme {
   --color-base: #0A0C10;

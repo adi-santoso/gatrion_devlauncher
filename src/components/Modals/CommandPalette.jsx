@@ -88,7 +88,7 @@ const CommandPalette = ({
 
   return (
     <div id="commandPalette" className="fixed inset-0 z-50">
-      <div onClick={onClose} className="absolute inset-0 bg-black/60 backdrop-blur-sm"></div>
+      <div onClick={onClose} className="absolute inset-0 bg-black/60 backdrop-blur-sm cursor-pointer"></div>
       <div className="relative flex items-start justify-center pt-24 px-4">
         <div className="w-full max-w-lg bg-surface border border-border rounded-xl shadow-card overflow-hidden">
           <div className="flex items-center gap-2.5 px-4 py-3 border-b border-border">

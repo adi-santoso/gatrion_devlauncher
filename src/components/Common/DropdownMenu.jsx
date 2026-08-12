@@ -60,7 +60,7 @@ export default function DropdownMenu({ trigger, children, isOpen, onClose }) {
 
   return (
     <div ref={dropdownRef} className="relative">
-      <div onClick={handleToggle} aria-haspopup="menu" aria-expanded={open}>{trigger}</div>
+      <div onClick={handleToggle} role="button" aria-haspopup="menu" aria-expanded={open} className="cursor-pointer">{trigger}</div>
       {open && (
         <div role="menu" className="dropdown-menu absolute right-0 top-full mt-1 w-44 bg-surface-2 border border-border rounded-lg shadow-card py-1 z-20">
           {items}
