@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import * as ipc from '../../utils/ipcRenderer';
+import Icon from '../Common/Icon';
 import { ConfirmDialog } from '../Modals';
 
 function highlightLine(line) {
@@ -123,7 +124,7 @@ function EnvFileSection({ projectPath }) {
             aria-label="Reload env file list"
             className="p-1.5 rounded-lg bg-surface-3 hover:bg-surface-2 text-ink-soft hover:text-ink transition-colors"
           >
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12a9 9 0 11-2.64-6.36" /><path d="M21 3v6h-6" /></svg>
+            <Icon name="restart" size={13} />
           </button>
         </div>
       </div>
@@ -211,7 +212,7 @@ export default function EnvironmentTab({ project, envVars = [], onEdit }) {
       <div className="bg-surface border border-border rounded-xl shadow-card p-5">
         <div className="flex items-center justify-between mb-3">
           <div><p className="text-sm font-medium">Launcher Environment Variables</p><p className="text-[11px] text-ink-faint mt-1">Variables injected by Gatrion when starting this project.</p></div>
-          <button onClick={onEdit} className="px-3 py-1.5 rounded-lg bg-surface-3 hover:bg-surface-2 text-xs font-medium transition-colors">Edit Project</button>
+          <button onClick={onEdit} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-surface-3 hover:bg-surface-2 text-xs font-medium transition-colors"><Icon name="gear" size={13} /> Edit Project</button>
         </div>
         {variables.length === 0 ? <p className="py-6 text-center text-sm text-ink-faint">No environment variables configured.</p>
           : <dl className="divide-y divide-border">{variables.map((envVar, index) => <div key={`${envVar?.key || 'variable'}-${index}`} className="grid grid-cols-3 gap-4 py-3 text-xs font-mono">

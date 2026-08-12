@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import StackLogo from '../Common/StackLogo';
+import Icon from '../Common/Icon';
 import * as ipc from '../../utils/ipcRenderer';
 
 const statusClasses = {
@@ -19,6 +20,8 @@ export default function AppPreviewTab({
   onBack,
   fullscreen = false,
   onToggleFullscreen,
+  onPrevProject,
+  onNextProject,
   active = true,
   keepAlive = true
 }) {
@@ -122,6 +125,32 @@ export default function AppPreviewTab({
     }
   };
 
+  const handleToggleDevTools = () => {
+    if (useNative) {
+      ipc.previewToggleDevTools(projectId);
+    }
+  };
+
+  // Keyboard shortcuts while in fullscreen preview: Ctrl/Cmd+Left/Right to
+  // jump between projects, F12 / Ctrl+Shift+I to toggle project DevTools.
+  useEffect(() => {
+    if (!fullscreen) return undefined;
+    const handleKeyDown = (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'ArrowLeft') {
+        e.preventDefault();
+        onPrevProject?.();
+      } else if ((e.ctrlKey || e.metaKey) && e.key === 'ArrowRight') {
+        e.preventDefault();
+        onNextProject?.();
+      } else if (e.key === 'F12' || ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'i')) {
+        e.preventDefault();
+        handleToggleDevTools();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [fullscreen, onPrevProject, onNextProject, useNative, projectId]);
+
   return (
     <div
       className={
@@ -139,9 +168,9 @@ export default function AppPreviewTab({
               type="button"
               onClick={onBack}
               title="Back to projects"
-              className="w-6 h-6 rounded flex items-center justify-center text-ink-faint hover:text-ink hover:bg-surface-3 transition-colors text-sm font-bold shrink-0"
+              className="w-7 h-7 rounded-md flex items-center justify-center text-ink-faint hover:text-ink hover:bg-surface-3 transition-colors shrink-0"
             >
-              ‹
+              <Icon name="chevronLeft" size={15} />
             </button>
             <div className="w-5 h-5 rounded bg-surface-3 border border-border flex items-center justify-center text-ink-soft shrink-0">
               <StackLogo type={project?.type} size={12} />
@@ -157,43 +186,73 @@ export default function AppPreviewTab({
           </div>
 
           {/* Right Action Buttons */}
-          <div className="flex items-center gap-1.5 shrink-0">
+          <div className="flex items-center gap-1 shrink-0">
+            {onPrevProject && (
+              <button
+                type="button"
+                onClick={onPrevProject}
+                title="Previous project (Ctrl+←)"
+                className="w-7 h-7 rounded-md flex items-center justify-center text-ink-faint hover:text-ink hover:bg-surface-3 transition-colors"
+              >
+                <Icon name="chevronLeft" size={15} />
+              </button>
+            )}
+            {onNextProject && (
+              <button
+                type="button"
+                onClick={onNextProject}
+                title="Next project (Ctrl+→)"
+                className="w-7 h-7 rounded-md flex items-center justify-center text-ink-faint hover:text-ink hover:bg-surface-3 transition-colors"
+              >
+                <Icon name="chevronRight" size={15} />
+              </button>
+            )}
             <button
               type="button"
               onClick={handleReload}
               disabled={!isRunning || !appUrl}
               title="Reload preview"
-              className="px-2 py-1 rounded bg-surface-3 hover:bg-surface-2 disabled:opacity-30 disabled:cursor-not-allowed text-ink-soft hover:text-ink border border-border transition-colors text-xs"
+              className="w-7 h-7 rounded-md flex items-center justify-center text-ink-faint hover:text-ink hover:bg-surface-3 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
             >
-              ↻
+              <Icon name="restart" size={14} />
             </button>
             <button
               type="button"
               onClick={handleOpenExternally}
               disabled={!appUrl}
               title="Open in external browser"
-              className="px-2 py-1 rounded bg-surface-3 hover:bg-surface-2 disabled:opacity-30 disabled:cursor-not-allowed text-ink-soft hover:text-ink border border-border transition-colors text-xs"
+              className="w-7 h-7 rounded-md flex items-center justify-center text-ink-faint hover:text-ink hover:bg-surface-3 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
             >
-              ↗
+              <Icon name="external" size={14} />
             </button>
             {useNative && (
-              <button
-                type="button"
-                onClick={handleClearData}
-                title="Clear site data (cookies, storage) for this project"
-                className="px-2 py-1 rounded bg-surface-3 hover:bg-surface-2 text-ink-soft hover:text-ink border border-border transition-colors text-xs"
-              >
-                🗑
-              </button>
+              <>
+                <button
+                  type="button"
+                  onClick={handleToggleDevTools}
+                  title="Toggle project DevTools (F12)"
+                  className="w-7 h-7 rounded-md flex items-center justify-center text-ink-faint hover:text-ink hover:bg-surface-3 transition-colors"
+                >
+                  <Icon name="code" size={14} />
+                </button>
+                <button
+                  type="button"
+                  onClick={handleClearData}
+                  title="Clear site data (cookies, storage) for this project"
+                  className="w-7 h-7 rounded-md flex items-center justify-center text-ink-faint hover:text-danger hover:bg-danger/10 transition-colors"
+                >
+                  <Icon name="trash" size={14} />
+                </button>
+              </>
             )}
             <button
               type="button"
               onClick={onToggleFullscreen}
               title="Exit fullscreen (ESC)"
-              className="px-2.5 py-1 rounded bg-accent/15 hover:bg-accent/25 text-accent border border-accent/30 font-semibold transition-colors text-xs flex items-center gap-1"
+              className="h-7 pl-2 pr-2.5 rounded-md bg-accent/15 hover:bg-accent/25 text-accent border border-accent/30 font-semibold transition-colors flex items-center gap-1.5"
             >
-              <span>⛶</span>
-              <span>Exit</span>
+              <Icon name="minimize" size={13} />
+              <span className="text-[11px]">Exit</span>
             </button>
           </div>
         </div>
@@ -206,9 +265,9 @@ export default function AppPreviewTab({
               onClick={handleReload}
               disabled={!isRunning || !appUrl}
               title="Reload preview"
-              className="w-7 h-7 rounded-md flex items-center justify-center text-ink-faint hover:text-ink hover:bg-surface-3 disabled:opacity-30 disabled:cursor-not-allowed transition-colors text-sm"
+              className="w-7 h-7 rounded-md flex items-center justify-center text-ink-faint hover:text-ink hover:bg-surface-3 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
             >
-              ↻
+              <Icon name="restart" size={14} />
             </button>
           </div>
 
@@ -241,9 +300,9 @@ export default function AppPreviewTab({
                 type="button"
                 onClick={handleClearData}
                 title="Clear site data (cookies, storage) for this project"
-                className="w-7 h-7 rounded-md flex items-center justify-center text-ink-faint hover:text-ink hover:bg-surface-3 transition-colors text-sm"
+                className="w-7 h-7 rounded-md flex items-center justify-center text-ink-faint hover:text-danger hover:bg-danger/10 transition-colors"
               >
-                🗑
+                <Icon name="trash" size={14} />
               </button>
             )}
 
@@ -252,18 +311,18 @@ export default function AppPreviewTab({
               onClick={handleOpenExternally}
               disabled={!appUrl}
               title="Open in external browser"
-              className="text-xs font-medium text-ink-faint hover:text-accent disabled:opacity-30 disabled:cursor-not-allowed flex items-center gap-1 transition-colors"
+              className="text-xs font-medium text-ink-faint hover:text-accent disabled:opacity-30 disabled:cursor-not-allowed flex items-center gap-1.5 transition-colors"
             >
+              <Icon name="external" size={13} />
               <span>Open externally</span>
-              <span>↗</span>
             </button>
             <button
               type="button"
               onClick={onToggleFullscreen}
               title="Toggle Fullscreen"
-              className="px-2 py-1 rounded bg-surface-3 hover:bg-surface-2 text-xs font-medium text-ink-soft hover:text-ink border border-border flex items-center gap-1 transition-colors"
+              className="w-7 h-7 rounded-md bg-surface-3 hover:bg-surface-2 text-xs font-medium text-ink-soft hover:text-ink border border-border flex items-center justify-center transition-colors"
             >
-              <span>⛶</span>
+              <Icon name="maximize" size={14} />
             </button>
           </div>
         </div>
@@ -279,8 +338,8 @@ export default function AppPreviewTab({
       >
         {!appUrl ? (
           <div className="max-w-md text-center py-12 px-6 bg-surface border border-border rounded-xl shadow-sm my-auto">
-            <div className="w-12 h-12 rounded-full bg-surface-3 flex items-center justify-center text-2xl mx-auto mb-3">
-              ⚙️
+            <div className="w-12 h-12 rounded-full bg-surface-3 flex items-center justify-center text-ink-soft mx-auto mb-3">
+              <Icon name="gear" size={22} />
             </div>
             <h3 className="font-display font-bold text-base text-ink">No App Port Configured</h3>
             <p className="text-xs text-ink-faint mt-1.5 leading-relaxed">
@@ -295,8 +354,8 @@ export default function AppPreviewTab({
           </div>
         ) : !isRunning ? (
           <div className="max-w-md text-center py-12 px-6 bg-surface border border-border rounded-xl shadow-sm my-auto">
-            <div className="w-12 h-12 rounded-full bg-accent/10 flex items-center justify-center text-2xl mx-auto mb-3">
-              🌐
+            <div className="w-12 h-12 rounded-full bg-accent/10 flex items-center justify-center text-accent mx-auto mb-3">
+              <Icon name="globe" size={22} />
             </div>
             <h3 className="font-display font-bold text-base text-ink">Project is Not Running</h3>
             <p className="text-xs text-ink-faint mt-1.5 leading-relaxed">
@@ -304,9 +363,10 @@ export default function AppPreviewTab({
             </p>
             <button
               onClick={() => onStart?.(project)}
-              className="mt-4 px-4 py-2 rounded-lg bg-success/20 text-success border border-success/30 hover:bg-success/30 text-xs font-semibold transition-colors"
+              className="mt-4 inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-success/20 text-success border border-success/30 hover:bg-success/30 text-xs font-semibold transition-colors"
             >
-              ▶ Start Project
+              <Icon name="play" size={13} />
+              Start Project
             </button>
           </div>
         ) : (

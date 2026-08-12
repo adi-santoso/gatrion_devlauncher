@@ -40,16 +40,16 @@ describe('LogsTab', () => {
   it('shows a jump-to-latest button when the user scrolls away from the bottom', () => {
     render(<LogsTab logs={logs} />)
     const container = screen.getByText(/Starting server on port 3000/).closest('.overflow-y-auto')
-    expect(screen.queryByRole('button', { name: '↓ Jump to latest' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Jump to latest' })).not.toBeInTheDocument()
 
     // jsdom reports zero sizes; fake a tall scrolled container
     Object.defineProperty(container, 'scrollHeight', { configurable: true, value: 1000 })
     Object.defineProperty(container, 'clientHeight', { configurable: true, value: 200 })
     fireEvent.scroll(container, { target: { scrollTop: 0 } })
-    expect(screen.getByRole('button', { name: '↓ Jump to latest' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Jump to latest' })).toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: '↓ Jump to latest' }))
-    expect(screen.queryByRole('button', { name: '↓ Jump to latest' })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Jump to latest' }))
+    expect(screen.queryByRole('button', { name: 'Jump to latest' })).not.toBeInTheDocument()
   })
 
   it('calls onClear when the clear button is clicked', () => {

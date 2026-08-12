@@ -17,7 +17,7 @@ import {
 import PortConflictModal from './components/Modals/PortConflictModal';
 import { PRESET_COLORS } from './components/Modals/PresetModal';
 import { useProjects, useProcesses, useElectronConfig } from './hooks';
-import { checkPortConflict, isElectronAvailable, onNavigateToProject, getActivities, appendActivities, getPresets, savePresets, exportProjects, importProjects } from './utils/ipcRenderer';
+import { checkPortConflict, isElectronAvailable, onNavigateToProject, onPreviewConsole, getActivities, appendActivities, getPresets, savePresets, exportProjects, importProjects } from './utils/ipcRenderer';
 import { summarizeWorkspaceStart } from './utils/workspaceResults';
 
 function App() {
@@ -166,6 +166,30 @@ function App() {
       }
     });
     return cleanup;
+  }, [projects]);
+
+  // Preview navigation: move to the previous / next project in the registry
+  // (used by the fullscreen preview chrome and Ctrl+←/→ shortcuts).
+  const navigateRelativeProject = useCallback((direction) => {
+    setSelectedProject((current) => {
+      if (!current || projects.length === 0) return current;
+      const index = projects.findIndex((p) => p.id === current.id);
+      if (index === -1) return current;
+      const nextIndex = (index + direction + projects.length) % projects.length;
+      return projects[nextIndex];
+    });
+  }, [projects]);
+
+  // Surface console output from embedded project apps (native preview) in the
+  // activity feed so renderer-only errors are not silently lost.
+  useEffect(() => {
+    return onPreviewConsole(({ projectId, level, message }) => {
+      if (!message) return;
+      const project = projects.find((p) => p.id === projectId);
+      if (level === 'error' || level === 'warning') {
+        addActivity('faint', project?.name || projectId, `[preview:${level}] ${message}`, '');
+      }
+    });
   }, [projects]);
 
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -941,6 +965,8 @@ function App() {
                 onClearLogs={() => clearLogs(liveProject.id)}
                 terminalConfig={config.terminal}
                 onFullscreenChange={handleDetailFullscreenChange}
+                onPrevProject={() => navigateRelativeProject(-1)}
+                onNextProject={() => navigateRelativeProject(1)}
                 isFullscreen={isFullscreen}
               />
             </div>

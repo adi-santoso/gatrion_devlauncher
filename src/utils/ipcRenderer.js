@@ -419,6 +419,16 @@ export const previewDestroy = async (projectId) => {
   return window.electron.previewDestroy(projectId);
 };
 
+export const previewToggleDevTools = async (projectId) => {
+  if (!isElectron()) return { success: false, error: 'Preview requires desktop app' };
+  return window.electron.previewToggleDevTools(projectId);
+};
+
+export const onPreviewConsole = (callback) => {
+  if (!isElectron()) return () => {};
+  return window.electron.onPreviewConsole(callback);
+};
+
 // ==================== Interactive Terminal APIs ====================
 
 export const terminalCreate = async (options) => {

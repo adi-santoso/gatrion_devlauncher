@@ -1,11 +1,18 @@
 import * as ipc from '../../utils/ipcRenderer';
 import StackLogo from '../Common/StackLogo';
+import Icon from '../Common/Icon';
 
 const statusClasses = {
   running: 'bg-success/10 text-success border-success/20', starting: 'bg-warning/10 text-warning border-warning/20',
   stopping: 'bg-warning/10 text-warning border-warning/20', error: 'bg-danger/10 text-danger border-danger/20',
   stopped: 'bg-surface-3 text-ink-faint border-border'
 };
+
+const btnBase = 'inline-flex items-center gap-1.5 h-8 px-3 rounded-lg text-xs font-medium transition-colors whitespace-nowrap';
+const btnSecondary = `${btnBase} bg-surface-3 hover:bg-surface-2 text-ink-soft hover:text-ink border border-border`;
+const btnPrimary = `${btnBase} px-3.5 bg-accent hover:bg-accent-hover text-white font-semibold shadow-glow`;
+const btnDanger = `${btnBase} px-3.5 bg-danger/10 hover:bg-danger/20 text-danger border border-danger/25 font-semibold`;
+const btnAccent = `${btnBase} bg-surface-3 hover:bg-surface-2 text-accent border border-accent/30`;
 
 export default function ProjectDetailHeader({ project, onStart, onStop, onRestart, onEdit, onDuplicate }) {
   const status = (project?.status || 'stopped').toLowerCase();
@@ -57,94 +64,81 @@ export default function ProjectDetailHeader({ project, onStart, onStop, onRestar
 
         {/* Action Group */}
         <div className="flex items-center gap-2 flex-wrap">
-          {/* Open App / Browser */}
           {appUrl && (
             <button
               onClick={handleOpenBrowser}
               disabled={status !== 'running'}
               title={status === 'running' ? `Open ${appUrl} in browser` : 'Start the project to open the app'}
-              className={`px-3.5 py-2 rounded-lg text-emerald-400 text-xs font-semibold border border-emerald-500/30 flex items-center gap-1.5 transition-colors ${
+              className={`${btnBase} px-3.5 border font-semibold ${
                 status === 'running'
-                  ? 'bg-emerald-500/15 hover:bg-emerald-500/25'
+                  ? 'text-success border-success/30 bg-success/10 hover:bg-success/20'
                   : 'bg-surface-3 opacity-50 cursor-not-allowed'
               }`}
             >
-              🌐 Open App
+              <Icon name="globe" size={13} />
+              Open App
             </button>
           )}
 
-          {/* Desktop Integration Shortcuts */}
           <button
             onClick={handleRevealInExplorer}
             title="Reveal project folder in File Explorer"
-            className="px-3 py-2 rounded-lg bg-surface-3 hover:bg-surface-2 text-xs font-medium text-ink-soft hover:text-ink border border-border flex items-center gap-1.5 transition-colors"
+            className={btnSecondary}
           >
-            📁 Explorer
+            <Icon name="folder" size={13} />
+            Explorer
           </button>
           <button
             onClick={handleOpenInEditor}
             title="Open project folder in VS Code / Editor"
-            className="px-3 py-2 rounded-lg bg-surface-3 hover:bg-surface-2 text-xs font-medium text-ink-soft hover:text-ink border border-border flex items-center gap-1.5 transition-colors"
+            className={btnSecondary}
           >
-            💻 Editor
+            <Icon name="code" size={13} />
+            Editor
           </button>
 
           {/* Lifecycle Controls */}
           {status === 'running' ? (
             <>
-              <button
-                onClick={onRestart}
-                className="px-3.5 py-2 rounded-lg bg-surface-3 hover:bg-surface-2 text-xs font-semibold text-accent border border-accent/30 transition-colors"
-              >
-                ↻ Restart
+              <button onClick={onRestart} className={btnAccent}>
+                <Icon name="restart" size={13} />
+                Restart
               </button>
-              <button
-                onClick={onStop}
-                className="px-3.5 py-2 rounded-lg bg-danger/10 hover:bg-danger/20 text-danger border border-danger/25 text-xs font-semibold transition-colors"
-              >
-                ■ Stop
+              <button onClick={onStop} className={btnDanger}>
+                <Icon name="stop" size={12} />
+                Stop
               </button>
             </>
           ) : busy ? (
-            <button disabled className="px-3.5 py-2 rounded-lg bg-warning/10 text-warning border border-warning/20 text-xs font-semibold cursor-wait">
+            <button disabled className={`${btnBase} px-3.5 bg-warning/10 text-warning border border-warning/20 font-semibold cursor-wait`}>
               {status === 'starting' ? 'Starting...' : 'Stopping...'}
             </button>
           ) : status === 'error' ? (
-            <button
-              onClick={onRestart}
-              className="px-3.5 py-2 rounded-lg bg-danger/10 hover:bg-danger/20 text-danger border border-danger/25 text-xs font-semibold transition-colors"
-            >
-              ↻ Restart Failed Project
+            <button onClick={onRestart} className={btnDanger}>
+              <Icon name="restart" size={13} />
+              Restart
             </button>
           ) : (
-            <button
-              onClick={onStart}
-              className="px-3.5 py-2 rounded-lg bg-accent hover:bg-accent-hover text-white text-xs font-semibold shadow-glow transition-colors"
-            >
-              ▶ Start Project
+            <button onClick={onStart} className={btnPrimary}>
+              <Icon name="play" size={13} />
+              Start Project
             </button>
           )}
 
-          <button
-            onClick={onEdit}
-            title="Edit project configuration"
-            className="px-3 py-2 rounded-lg bg-surface-3 hover:bg-surface-2 text-xs font-medium text-ink-soft hover:text-ink border border-border transition-colors ml-1"
-          >
-            ⚙️ Edit
+          <button onClick={onEdit} title="Edit project configuration" className={btnSecondary}>
+            <Icon name="gear" size={13} />
+            Edit
           </button>
           {onDuplicate && (
-            <button
-              onClick={onDuplicate}
-              title="Duplicate this project as a new entry"
-              className="px-3 py-2 rounded-lg bg-surface-3 hover:bg-surface-2 text-xs font-medium text-ink-soft hover:text-ink border border-border transition-colors"
-            >
-              ⧉ Duplicate
+            <button onClick={onDuplicate} title="Duplicate this project as a new entry" className={btnSecondary}>
+              <Icon name="duplicate" size={13} />
+              Duplicate
             </button>
           )}
         </div>
       </div>
 
-      {/* Sub Metadata Line (Matching devlauncher-mockup.html) */}
+      {/* Sub Metadata Line */}
       <div className="flex items-center gap-4 text-[11px] font-mono text-ink-faint pt-2 border-t border-border/40 flex-wrap">
         <span className="flex items-center gap-1.5">
           <span className="text-ink-soft font-semibold">{project?.type || 'CUSTOM'}</span>
@@ -160,8 +154,11 @@ export default function ProjectDetailHeader({ project, onStart, onStop, onRestar
         {(project?.uptime || project?.metrics?.uptime) && (
           <span>Uptime <strong className="text-ink-soft">{project?.metrics?.uptime || project.uptime}</strong></span>
         )}
-        {project?.metrics?.memoryMb != null && (
-          <span>RAM <strong className="text-emerald-400 font-semibold">{project.metrics.memoryMb} MB</strong></span>
+        {project?.cpu != null && (
+          <span>CPU <strong className={`font-semibold ${project.cpu > 80 ? 'text-danger' : project.cpu > 60 ? 'text-warning' : 'text-success'}`}>{Number(project.cpu).toFixed(1)}%</strong></span>
+        )}
+        {(project?.memory != null || project?.metrics?.memoryMb != null) && (
+          <span>RAM <strong className="text-success font-semibold">{project?.metrics?.memoryMb != null ? project.metrics.memoryMb : Number(project.memory).toFixed(0)} MB</strong></span>
         )}
         {project?.startCommand && (
           <span className="truncate max-w-xs">Cmd: <code className="text-ink-soft">{project.startCommand}</code></span>

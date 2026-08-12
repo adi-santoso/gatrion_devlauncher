@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import * as ipc from '../../utils/ipcRenderer';
+import Icon from '../Common/Icon';
 
 // Module-level store so running custom commands survive unmounting the
 // component (e.g. switching tabs or navigating away and back).
@@ -64,9 +65,10 @@ export default function CustomCommands({ project }) {
                 <button
                   type="button"
                   onClick={() => handleStop(runId)}
-                  className="px-2 py-1 rounded-lg text-[10px] text-danger border border-danger/30 hover:bg-danger/10"
+                  className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] text-danger border border-danger/30 hover:bg-danger/10 transition-colors"
                   title="Stop (SIGKILL)"
                 >
+                  <Icon name="stop" size={10} />
                   Stop
                 </button>
               )}

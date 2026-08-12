@@ -6,6 +6,7 @@ import EnvironmentTab from './EnvironmentTab';
 import SettingsTab from './SettingsTab';
 import AppPreviewTab from './AppPreviewTab';
 import CustomCommands from './CustomCommands';
+import CrashBanner from './CrashBanner';
 
 export default function ProjectDetailView({
   project,
@@ -21,6 +22,8 @@ export default function ProjectDetailView({
   onRestart,
   onClearLogs,
   onFullscreenChange,
+  onPrevProject,
+  onNextProject,
   isFullscreen = false,
   terminalConfig
 }) {
@@ -82,6 +85,8 @@ export default function ProjectDetailView({
           fullscreen={fullscreen && isActive}
           active={visible}
           keepAlive={keepPreviewAlive}
+          onPrevProject={isActive && fullscreen ? onPrevProject : undefined}
+          onNextProject={isActive && fullscreen ? onNextProject : undefined}
           onToggleFullscreen={isActive ? () => setFullscreen((prev) => !prev) : undefined}
         />
       </div>
@@ -96,6 +101,13 @@ export default function ProjectDetailView({
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M15 18l-6-6 6-6"/></svg>Back to Projects
           </button>
           <ProjectDetailHeader project={project} onStart={onStart} onStop={onStop} onRestart={onRestart} onEdit={onEdit} onDuplicate={onDuplicate}/>
+          {project?.status === 'error' && (
+            <CrashBanner
+              message={`Project "${project.name}" could not start or exited unexpectedly.`}
+              timestamp={project.errorMessage ? `Details: ${project.errorMessage}` : null}
+              onRestart={onRestart}
+            />
+          )}
           <TabNavigation activeTab={activeTab} onTabChange={setActiveTab}/>
         </>
       )}

@@ -62,6 +62,15 @@ function setupPreviewHandlers(previewManager) {
     }
   })
 
+  ipcMain.handle('preview-toggle-devtools', (event, projectId) => {
+    try {
+      assertTrustedIpcEvent(event)
+      return previewManager.toggleDevTools(projectId)
+    } catch (error) {
+      return { success: false, error: error.message }
+    }
+  })
+
   ipcMain.handle('preview-clear-data', (event, projectId) => {
     try {
       assertTrustedIpcEvent(event)

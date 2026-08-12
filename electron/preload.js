@@ -101,7 +101,13 @@ contextBridge.exposeInMainWorld('electron', {
   previewReload: (projectId) => ipcRenderer.invoke('preview-reload', projectId),
   previewZoom: (projectId, zoomLevel) => ipcRenderer.invoke('preview-zoom', projectId, zoomLevel),
   previewClearData: (projectId) => ipcRenderer.invoke('preview-clear-data', projectId),
+  previewToggleDevTools: (projectId) => ipcRenderer.invoke('preview-toggle-devtools', projectId),
   previewDestroy: (projectId) => ipcRenderer.invoke('preview-destroy', projectId),
+  onPreviewConsole: (callback) => {
+    const listener = (event, data) => callback(data)
+    ipcRenderer.on('preview-console-message', listener)
+    return () => ipcRenderer.removeListener('preview-console-message', listener)
+  },
 
   // Interactive PTY terminal
   terminalCreate: (options) => ipcRenderer.invoke('terminal-create', options),

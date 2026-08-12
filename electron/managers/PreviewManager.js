@@ -18,10 +18,16 @@ class PreviewManager {
   constructor() {
     this.win = null
     this.views = new Map() // projectId -> { view, url }
+    this.onConsoleMessage = null
   }
 
   setWindow(win) {
     this.win = win
+  }
+
+  /** Renderer callback for console messages coming from project apps. */
+  setConsoleListener(callback) {
+    this.onConsoleMessage = callback
   }
 
   partitionFor(projectId) {
@@ -63,6 +69,18 @@ class PreviewManager {
       // the page was already loaded from a local dev URL.
       const url = event.url || ''
       if (!/^https?:\/\//.test(url)) event.preventDefault()
+    })
+
+    // Forward the project app's console output to the renderer so it can be
+    // surfaced (e.g. logged alongside the process log stream).
+    view.webContents.on('console-message', (event, level, message, line, sourceId) => {
+      this.onConsoleMessage?.({
+        projectId,
+        level: ['verbose', 'info', 'warning', 'error'].includes(level) ? level : 'info',
+        message: String(message || '').slice(0, 2000),
+        source: sourceId || '',
+        line,
+      })
     })
 
     this.win.contentView.addChildView(view)
@@ -143,6 +161,17 @@ class PreviewManager {
     if (!view) return { success: false, error: 'Preview not created yet' }
     const factor = Math.max(0.25, Math.min(3, (zoomLevel || 100) / 100))
     view.webContents.setZoomFactor(factor)
+    return { success: true }
+  }
+
+  toggleDevTools(projectId) {
+    const view = this.getView(projectId)
+    if (!view) return { success: false, error: 'Preview not created yet' }
+    if (view.webContents.isDevToolsOpened()) {
+      view.webContents.closeDevTools()
+    } else {
+      view.webContents.openDevTools({ mode: 'detach' })
+    }
     return { success: true }
   }
 

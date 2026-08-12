@@ -174,6 +174,9 @@ async function initialize() {
   // Embedded preview (WebContentsView) manager
   previewManager = new PreviewManager()
   previewManager.setWindow(mainWindow)
+  previewManager.setConsoleListener(({ projectId, level, message, source, line }) => {
+    mainWindow?.webContents.send('preview-console-message', { projectId, level, message, source, line })
+  })
 
   // Setup IPC handlers
   setupProcessHandlers(processManager, storageManager, mainWindow)

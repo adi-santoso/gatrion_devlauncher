@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import Icon from '../Common/Icon';
 
 const stripAnsi = (value) => String(value ?? '')
   .replace(/[\u001b\u009b][[()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-ORZcf-nqry=><]/g, '');
@@ -97,7 +98,7 @@ export default function LogsTab({ logs = [], autoScroll = true, onAutoScrollChan
         </div>
         <div className="flex items-center gap-3">
           <label className="flex items-center gap-1.5 text-[11px] text-ink-faint"><input type="checkbox" checked={autoScroll} onChange={(event) => onAutoScrollChange?.(event.target.checked)} className="w-3 h-3 accent-accent"/>Auto-scroll</label>
-          <button type="button" onClick={onClear} disabled={!onClear} className="text-[11px] text-ink-faint hover:text-danger disabled:opacity-40 disabled:cursor-not-allowed">Clear</button>
+          <button type="button" onClick={onClear} disabled={!onClear} className="inline-flex items-center gap-1 text-[11px] text-ink-faint hover:text-danger disabled:opacity-40 disabled:cursor-not-allowed transition-colors"><Icon name="trash" size={12} /> Clear</button>
         </div>
       </div>
       <div className="relative">
@@ -105,9 +106,10 @@ export default function LogsTab({ logs = [], autoScroll = true, onAutoScrollChan
           <button
             type="button"
             onClick={jumpToLatest}
-            className="absolute bottom-3 left-1/2 -translate-x-1/2 z-10 px-3 py-1.5 rounded-full bg-accent text-white text-[11px] font-semibold shadow-glow hover:bg-accent-hover transition-colors"
+            className="absolute bottom-3 left-1/2 -translate-x-1/2 z-10 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-accent text-white text-[11px] font-semibold shadow-glow hover:bg-accent-hover transition-colors"
           >
-            ↓ Jump to latest
+            <Icon name="arrowDown" size={12} />
+            Jump to latest
           </button>
         )}
         <div ref={outputRef} onScroll={handleScroll} style={fontSize ? { fontSize: `${fontSize}px` } : undefined} className="scan-line bg-[#08090C] px-5 py-4 font-mono text-[12.5px] leading-relaxed h-72 overflow-y-auto">

@@ -12,18 +12,26 @@ class FakeWebContentsView {
     this.visible = false
     this.bounds = null
     this.loadedUrls = []
+    this.devtoolsOpen = false
+    this.consoleHandlers = {}
     this.webContents = {
       loadURL: (url) => { this.loadedUrls.push(url); return Promise.resolve() },
       reload: () => { this.reloadCount = (this.reloadCount || 0) + 1 },
       setZoomFactor: (f) => { this.zoomFactor = f },
       setWindowOpenHandler: () => {},
-      on: () => {},
+      on: (event, cb) => { this.consoleHandlers[event] = cb },
+      isDevToolsOpened: () => this.devtoolsOpen,
+      openDevTools: () => { this.devtoolsOpen = true },
+      closeDevTools: () => { this.devtoolsOpen = false },
       isDestroyed: () => false,
       close: () => {},
     }
   }
   setVisible(v) { this.visible = v }
   setBounds(b) { this.bounds = b }
+  emitConsole(level, message, sourceId, line) {
+    this.consoleHandlers['console-message']?.({}, level, message, line, sourceId)
+  }
 }
 
 const originalLoad = Module._load
@@ -108,6 +116,27 @@ async function run() {
   assert.equal(manager.getView('p1').zoomFactor, 3)
   manager.setZoom('p1', 10)
   assert.equal(manager.getView('p1').zoomFactor, 0.25)
+
+  // DevTools toggles open/close on the project view
+  manager.show({ projectId: 'p1', url: 'http://localhost:3000', bounds })
+  assert.equal(manager.toggleDevTools('p1').success, true)
+  assert.equal(manager.getView('p1').devtoolsOpen, true)
+  assert.equal(manager.toggleDevTools('p1').success, true)
+  assert.equal(manager.getView('p1').devtoolsOpen, false)
+  assert.equal(manager.toggleDevTools('missing').success, false)
+
+  // Console messages from the project app are forwarded to the renderer
+  const consoleMessages = []
+  manager.setConsoleListener((msg) => consoleMessages.push(msg))
+  manager.show({ projectId: 'p1', url: 'http://localhost:3000', bounds })
+  manager.getView('p1').emitConsole('error', 'Unhandled rejection in App', 'http://localhost:3000', 42)
+  assert.equal(consoleMessages.length, 1)
+  assert.equal(consoleMessages[0].projectId, 'p1')
+  assert.equal(consoleMessages[0].level, 'error')
+  assert.equal(consoleMessages[0].message, 'Unhandled rejection in App')
+  manager.getView('p1').emitConsole('warning', 'deprecated', 'http://localhost:3000', 7)
+  assert.equal(consoleMessages.length, 2)
+  assert.equal(consoleMessages[1].level, 'warning')
 
   // Clear site data hits the right partition
   const cleared = await manager.clearSiteData('p1')
