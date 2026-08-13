@@ -54,6 +54,7 @@ Format mengikuti [Keep a Changelog](https://keepachangelog.com/id-ID/1.1.0/), da
 - **Sidebar sessions** — lebar 256px, group project dengan chevron, session card dengan hover action (rename/delete), tombol New session di header dan bawah group, badge omp + provider ready di status bar dengan dot pulse.
 - **Ukuran teks naik di seluruh menu Agent** — body chat `text-sm`, meta `text-xs`/11px, tidak ada lagi teks 9–10px.
 - **Loading session lama** — saat membuka session yang punya riwayat, tampil skeleton chat (spinner + bar shimmer meniru layout percakapan) sampai transkrip termuat — tidak ada lagi flash empty-state dengan saran prompt di session lama; session baru tetap langsung ke empty state.
+- **Agent view keep-alive** — menu Agent kini tetap ter-mount (disembunyikan) saat berpindah ke menu lain, persis seperti preview keep-alive. Percakapan yang sedang berjalan, respon yang masih streaming, session yang dipilih, dan status busy **tidak hilang** saat pindah menu — kembali ke Agent langsung lanjut dari posisi terakhir.
 
 ### Fixed
 
