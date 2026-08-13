@@ -112,7 +112,10 @@ function setupAgentHandlers(ompManager, installer, ompConfig, getWindow) {
     assertSessionId(projectId)
     if (cwd) assertProjectPath(cwd)
     const data = await ompManager.getAvailableModels(projectId, cwd || process.env.USERPROFILE || '')
-    return { success: true, models: data }
+    // get_available_models resolves to { models: [...] } — normalize to a flat
+    // array so the renderer always receives `models` as a list.
+    const list = Array.isArray(data) ? data : (data?.models || [])
+    return { success: true, models: list }
   })
 
   secureHandle('omp-set-model', async (event, projectId, cwd, provider, modelId) => {

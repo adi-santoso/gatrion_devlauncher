@@ -12,6 +12,7 @@ beforeEach(() => {
   mocks.ompConfigGet.mockResolvedValue({ success: true, providers: [], defaultModel: null })
   mocks.ompConfigSetDefault.mockResolvedValue({ success: true })
   mocks.ompSetModel.mockResolvedValue({ success: true })
+  mocks.ompGetModels.mockResolvedValue({ success: true, models: [] })
 })
 
 const mocks = vi.hoisted(() => ({
@@ -22,6 +23,7 @@ const mocks = vi.hoisted(() => ({
   ompConfigGet: vi.fn(),
   ompConfigSetDefault: vi.fn(),
   ompSetModel: vi.fn(),
+  ompGetModels: vi.fn(),
 }))
 
 let eventCb = null
@@ -237,25 +239,24 @@ describe('AgentChat', () => {
     expect(await screen.findByText(/step 19/)).toBeInTheDocument()
   })
 
-  it('lists models from omp config and switches the model from the chat header', async () => {
+  it('lists discovery-based models from the running omp and switches the model from the chat header', async () => {
     mocks.onOmpEvent.mockImplementation((callback) => { eventCb = callback; return () => {} })
     mocks.ompGetMessages.mockResolvedValue({ success: true, messages: [] })
-    mocks.ompConfigGet.mockResolvedValue({
-      success: true,
-      providers: [{ name: 'kreova', models: [
-        { id: 'kiro-claude-sonnet-4.5', name: 'Kiro Sonnet' },
-        { id: 'kiro-haiku-4.5', name: 'Kiro Haiku' },
-      ] }],
-      defaultModel: 'kreova/kiro-claude-sonnet-4.5:high',
-    })
+    // The provider discovers models at runtime — models.yml has no explicit
+    // list, so the picker must fall back to get_available_models.
+    mocks.ompConfigGet.mockResolvedValue({ success: true, providers: [], defaultModel: 'kreova/kiro-claude-sonnet-4.5:high' })
+    mocks.ompGetModels.mockResolvedValue({ success: true, models: [
+      { id: 'kiro-claude-sonnet-4.5', name: 'kiro-claude-sonnet-4.5', provider: 'kreova' },
+      { id: 'kiro-haiku-4.5', name: 'kiro-haiku-4.5', provider: 'kreova' },
+    ] })
 
     render(<Harness />)
 
     // Default carries a :high variant — still matched to the base model ref
-    expect(await screen.findByText(/Kiro Sonnet/)).toBeInTheDocument()
+    expect(await screen.findByText(/kiro-claude-sonnet-4\.5/)).toBeInTheDocument()
 
     fireEvent.click(screen.getByTitle('Switch model'))
-    fireEvent.click(await screen.findByText('kreova · Kiro Haiku'))
+    fireEvent.click(await screen.findByText('kreova · kiro-haiku-4.5'))
 
     expect(mocks.ompConfigSetDefault).toHaveBeenCalledWith('kreova/kiro-haiku-4.5')
     await waitFor(() => {

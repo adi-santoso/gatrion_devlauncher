@@ -262,23 +262,44 @@ export default function AgentChat({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Load the model list + current default from omp's config (~/.omp/agent) so
-  // the model can be switched directly from the chat header. Refetched when
-  // the session changes so picks made in Settings are picked up too.
+  // Load the model list + current default so the model can be switched
+  // directly from the chat header. The authoritative list comes from the
+  // running omp process (get_available_models) — this also covers providers
+  // that discover models at runtime (models.yml has no explicit list).
+  // Config-based options are merged in first so explicitly-declared models
+  // take precedence. Refetched when the session changes so picks made in
+  // Settings are picked up too.
   useEffect(() => {
     let cancelled = false;
+    const apply = (options, current) => {
+      if (cancelled) return;
+      setModels(options);
+      setDefaultModel(current);
+    };
     ipc.ompConfigGet().then((result) => {
-      if (cancelled || !result?.success) return;
-      const options = (result.providers || []).flatMap((provider) =>
+      if (cancelled) return;
+      const current = result?.defaultModel || null;
+      const configOptions = (result?.providers || []).flatMap((provider) =>
         (provider.models || []).map((model) => ({
           ref: `${provider.name}/${model.id}`,
           label: `${provider.name} · ${model.name || model.id}`,
         }))
       );
-      if (!cancelled) {
-        setModels(options);
-        setDefaultModel(result.defaultModel || null);
+      if (!project) {
+        apply(configOptions, current);
+        return;
       }
+      ipc.ompGetModels(project.id, project.path).then((rpcResult) => {
+        const rpcOptions = (rpcResult?.models || []).map((model) => ({
+          ref: `${model.provider}/${model.id}`,
+          label: `${model.provider} · ${model.name || model.id}`,
+        }));
+        const seen = new Set();
+        const merged = [...configOptions, ...rpcOptions].filter((option) =>
+          seen.has(option.ref) ? false : (seen.add(option.ref), true)
+        );
+        apply(merged, current);
+      }).catch(() => apply(configOptions, current));
     }).catch(() => {});
     return () => { cancelled = true; };
   }, [project?.id, session?.id]);

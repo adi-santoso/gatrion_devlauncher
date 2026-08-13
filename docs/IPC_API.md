@@ -429,6 +429,12 @@ Normalisasi defensif riwayat percakapan (string atau array block `{ type: 'text'
 
 Channel: `omp-get-models` / `omp-set-model`
 
+`omp-get-models` menormalisasi respons RPC `get_available_models` menjadi array datar — termasuk model dari provider dengan `discovery` (daftar model diambil saat runtime, tidak ada `models:` eksplisit di models.yml):
+
+```js
+{ success: true, models: [{ id: 'kiro-claude-sonnet-4.5', name: '...', provider: 'kreova', ... }] }
+```
+
 `omp-set-model` mengubah model aktif sesi (RPC `set_model`).
 
 ### Installer
