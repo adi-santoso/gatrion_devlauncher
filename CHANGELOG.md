@@ -52,6 +52,7 @@ Format mengikuti [Keep a Changelog](https://keepachangelog.com/id-ID/1.1.0/), da
 - **Sidebar collapsed** — tombol Add project tidak lagi tenggelam di dark mode.
 - **Topbar light mode** — tidak lagi hitam saat tema terang.
 - **AgentChat safety timeout** — fallback refresh 20 detik dulu bisa menimpa generasi yang masih berjalan (menandai busy=false + refresh history di tengah streaming); sekarang hanya aktif jika tidak ada event RPC sama sekali selama 8 detik.
+- **Session agent tidak bisa di-resume** — `new_session` di protokol RPC omp tidak mengembalikan path file sesi, jadi `session.sessionPath` selalu null dan klik session lama menampilkan chat kosong (baik setelah restart maupun saat berpindah session dalam satu run). Sekarang path sesi dibaca dari `get_state` setelah `new_session` dan disimpan di registry — klik session mana pun otomatis `switch_session` + `get_messages`, dan percakapan bisa dilanjutkan di sesi yang sama. Diverifikasi end-to-end dengan binary omp asli (create → restart → resume → continue).
 
 ### Test
 

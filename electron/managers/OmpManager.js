@@ -359,8 +359,12 @@ class OmpManager extends EventEmitter {
       const target = sessionPath || session.sessionPath
       await this._send(projectId, { type: 'switch_session', sessionPath: target })
     } else {
-      const created = await this._send(projectId, { type: 'new_session' })
-      session.sessionPath = created?.sessionFile || created?.sessionPath || created?.path || null
+      // `new_session` does not return the session file path — read it back
+      // from `get_state` so the session can be resumed later (switch_session
+      // + get_messages) even after the process is killed and respawned.
+      await this._send(projectId, { type: 'new_session' })
+      const state = await this._send(projectId, { type: 'get_state' })
+      session.sessionPath = state?.sessionFile || null
       await this.touchSession(projectId, sessionId, { sessionPath: session.sessionPath })
     }
     await this._send(projectId, { type: 'prompt', message })
