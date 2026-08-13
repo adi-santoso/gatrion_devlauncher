@@ -116,6 +116,16 @@ assert.throws(() => applyConfigUpdates(migratedConfig, { prayer: { bogus: 1 } })
 assert.throws(() => applyConfigUpdates(migratedConfig, { prayer: { adjustments: { sunrise: 5 } } }), /Unsupported prayer.adjustments field/)
 assert.throws(() => applyConfigUpdates(migratedConfig, { prayer: { adjustments: { fajr: 200 } } }), /prayer.adjustments.fajr must be/)
 
+// --- agent config (notification on finish) ---
+const agentUpdated = applyConfigUpdates(migratedConfig, { agent: { notifyOnFinish: false, sound: true } })
+assert.equal(agentUpdated.agent.notifyOnFinish, false)
+assert.equal(agentUpdated.agent.sound, true)
+assert.throws(() => applyConfigUpdates(migratedConfig, { agent: { notifyOnFinish: 'yes' } }), /agent.notifyOnFinish must be a boolean/)
+assert.throws(() => applyConfigUpdates(migratedConfig, { agent: { bogus: 1 } }), /Unsupported agent field/)
+const clampedAgent = normalizeConfig({ agent: { notifyOnFinish: 'wat', sound: 42 } })
+assert.equal(clampedAgent.agent.notifyOnFinish, true)
+assert.equal(clampedAgent.agent.sound, false)
+
 // normalize clamps invalid values back to defaults
 const clamped = normalizeConfig({ prayer: { showIn: 'wat', latitude: 999, utcOffset: 99, adjustments: { isha: 999 } } })
 assert.equal(clamped.prayer.showIn, 'both')

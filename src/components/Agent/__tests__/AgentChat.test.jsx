@@ -25,6 +25,12 @@ beforeEach(() => {
   mocks.ompHandoff.mockResolvedValue({ success: true })
   mocks.ompSetSubagentSubscription.mockResolvedValue({ success: true })
   mocks.ompGetSubagents.mockResolvedValue({ success: true, subagents: [] })
+  mocks.ompBash.mockResolvedValue({ success: true, data: { output: 'done', exitCode: 0 } })
+  mocks.ompAbortBash.mockResolvedValue({ success: true })
+  mocks.ompBranch.mockResolvedValue({ success: true, data: { text: '', cancelled: false } })
+  mocks.getConfig.mockResolvedValue({ success: true, config: { agent: { notifyOnFinish: true }, notifications: { sound: false } } })
+  mocks.updateConfig.mockResolvedValue({ success: true, config: {} })
+  mocks.showNotification.mockResolvedValue({ success: true })
 })
 
 const mocks = vi.hoisted(() => ({
@@ -48,6 +54,12 @@ const mocks = vi.hoisted(() => ({
   ompHandoff: vi.fn(),
   ompSetSubagentSubscription: vi.fn(),
   ompGetSubagents: vi.fn(),
+  ompBash: vi.fn(),
+  ompAbortBash: vi.fn(),
+  ompBranch: vi.fn(),
+  getConfig: vi.fn(),
+  updateConfig: vi.fn(),
+  showNotification: vi.fn(),
 }))
 
 let eventCb = null
@@ -803,5 +815,117 @@ describe('AgentChat', () => {
 
     eventCb({ projectId: 'p1', event: { type: 'goal_updated', goal: 'Ship the export feature' } })
     expect(await screen.findByText('Goal: Ship the export feature')).toBeInTheDocument()
+  })
+
+  it('runs a bash command in the project and shows the result in a terminal block', async () => {
+    mocks.onOmpEvent.mockImplementation((callback) => { eventCb = callback; return () => {} })
+    mocks.ompGetMessages.mockResolvedValue({ success: true, messages: [] })
+    mocks.ompBash.mockResolvedValue({ success: true, data: { output: 'Build finished in 2s\nAll good', exitCode: 0 } })
+
+    render(<Harness />)
+    fireEvent.click(screen.getByTitle('Run command in project'))
+    fireEvent.change(screen.getByPlaceholderText('Run command in project…'), { target: { value: 'npm run build' } })
+    fireEvent.click(screen.getByText('Run'))
+
+    await waitFor(() => expect(mocks.ompBash).toHaveBeenCalledWith('p1', 'C:/demo', 'npm run build'))
+    expect(await screen.findByText('$ npm run build')).toBeInTheDocument()
+    expect(await screen.findByText(/Build finished in 2s/)).toBeInTheDocument()
+    expect(screen.getByText('exit 0')).toBeInTheDocument()
+  })
+
+  it('aborts a running bash command and marks the run cancelled', async () => {
+    mocks.onOmpEvent.mockImplementation((callback) => { eventCb = callback; return () => {} })
+    mocks.ompGetMessages.mockResolvedValue({ success: true, messages: [] })
+    let resolveBash
+    mocks.ompBash.mockImplementation(() => new Promise((resolve) => { resolveBash = resolve }))
+
+    render(<Harness />)
+    fireEvent.click(screen.getByTitle('Run command in project'))
+    fireEvent.change(screen.getByPlaceholderText('Run command in project…'), { target: { value: 'sleep 100' } })
+    fireEvent.click(screen.getByText('Run'))
+
+    expect(await screen.findByText('$ sleep 100')).toBeInTheDocument()
+    fireEvent.click(screen.getByText('Stop'))
+    await waitFor(() => expect(mocks.ompAbortBash).toHaveBeenCalledWith('p1', 'C:/demo'))
+
+    // omp resolves the original bash command with cancelled: true after abort
+    await act(async () => {
+      resolveBash({ success: true, data: { output: '', exitCode: 130, cancelled: true } })
+    })
+    expect(await screen.findByText('cancelled')).toBeInTheDocument()
+  })
+
+  it('branches the conversation from a message that has an entryId', async () => {
+    mocks.onOmpEvent.mockImplementation((callback) => { eventCb = callback; return () => {} })
+    mocks.ompGetMessages.mockResolvedValue({ success: true, messages: [
+      { id: 'e1', role: 'user', content: 'branch start' },
+    ] })
+    mocks.ompChat.mockResolvedValue({
+      success: true,
+      sessionId: 's17',
+      session: { id: 's17', title: 'Branch', sessionPath: 'C:/sessions/s17.jsonl' },
+    })
+    mocks.ompBranch.mockResolvedValue({ success: true, data: { text: '', cancelled: false } })
+
+    render(<Harness />)
+    const input = screen.getByPlaceholderText('Describe a task, ask a question…')
+    fireEvent.change(input, { target: { value: 'first task' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Send message' }))
+    await screen.findByText('first task')
+    await waitFor(() => expect(mocks.ompChat).toHaveBeenCalled())
+
+    eventCb({ projectId: 'p1', event: { type: 'agent_start' } })
+    eventCb({ projectId: 'p1', event: { type: 'agent_end', messages: [
+      { id: 'entry-1', role: 'user', content: 'first task' },
+      { id: 'entry-2', role: 'assistant', content: 'on it' },
+    ] } })
+    await screen.findByText('on it')
+
+    // Both messages carry an entryId → Branch action is available on each.
+    // Click the assistant one (second in the list).
+    const branchButtons = screen.getAllByTitle('Branch the conversation from here')
+    expect(branchButtons.length).toBe(2)
+    fireEvent.click(branchButtons[1])
+    await waitFor(() => expect(mocks.ompBranch).toHaveBeenCalledWith('p1', 'C:/demo', 'entry-2'))
+    expect(await screen.findByText(/Branched/)).toBeInTheDocument()
+    // The transcript is reloaded from the new branch
+    expect(await screen.findByText('branch start')).toBeInTheDocument()
+  })
+
+  it('sends a system notification when the agent finishes while the app is unfocused', async () => {
+    mocks.onOmpEvent.mockImplementation((callback) => { eventCb = callback; return () => {} })
+    mocks.ompGetMessages.mockResolvedValue({ success: true, messages: [] })
+    mocks.ompChat.mockResolvedValue({
+      success: true,
+      sessionId: 's18',
+      session: { id: 's18', title: 'Notify', sessionPath: 'C:/sessions/s18.jsonl' },
+    })
+
+    const originalVisibility = document.visibilityState
+    Object.defineProperty(document, 'visibilityState', { value: 'hidden', configurable: true })
+    try {
+      render(<Harness />)
+      const input = screen.getByPlaceholderText('Describe a task, ask a question…')
+      fireEvent.change(input, { target: { value: 'notify me' } })
+      fireEvent.click(screen.getByRole('button', { name: 'Send message' }))
+      await screen.findByText('notify me')
+      await waitFor(() => expect(mocks.ompChat).toHaveBeenCalled())
+
+      eventCb({ projectId: 'p1', event: { type: 'agent_start' } })
+      eventCb({ projectId: 'p1', event: { type: 'agent_end', messages: [
+        { role: 'user', content: 'notify me' },
+        { role: 'assistant', content: 'all done here' },
+      ] } })
+
+      await waitFor(() => {
+        expect(mocks.showNotification).toHaveBeenCalledWith(expect.objectContaining({
+          title: expect.stringContaining('Agent finished'),
+          body: expect.stringContaining('all done here'),
+          silent: true,
+        }))
+      })
+    } finally {
+      Object.defineProperty(document, 'visibilityState', { value: originalVisibility, configurable: true })
+    }
   })
 })

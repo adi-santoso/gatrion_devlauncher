@@ -58,6 +58,9 @@ const normalizeTranscriptMessage = (item) => {
   const { text, thinking } = extractContentParts(item.content);
   return {
     id: item.id || uid(),
+    // Real transcript entries carry an omp entry id — used to branch the
+    // conversation from this exact message (locally-generated ids lack it).
+    entryId: typeof item.id === 'string' ? item.id : undefined,
     role: item.role === 'user' ? 'user' : 'assistant',
     content: text,
     thinking: thinking.trim() || undefined,
@@ -137,6 +140,11 @@ export default function AgentChat({
   const [subagents, setSubagents] = useState([]);
   const [handoffOpen, setHandoffOpen] = useState(false);
   const [handoffText, setHandoffText] = useState('');
+  const [bashRuns, setBashRuns] = useState([]); // { id, command, status, output, exitCode, ... }
+  const [bashInputOpen, setBashInputOpen] = useState(false);
+  const [bashCommand, setBashCommand] = useState('');
+  const [notifyOnFinish, setNotifyOnFinish] = useState(true);
+  const [notifySound, setNotifySound] = useState(false);
   const [attachments, setAttachments] = useState([]); // { id, name, mimeType, dataUrl, base64, bytes }
   const fileInputRef = useRef(null);
   const scrollRef = useRef(null);
@@ -165,6 +173,10 @@ export default function AgentChat({
   // Unsent input is remembered per session so switching away and back does
   // not lose what was being typed (draft per session).
   const draftsRef = useRef({});
+  // Completion-notification prefs (read from config) — kept in a ref so the
+  // event handler (recreated every render) always sees the latest value.
+  const notifyRef = useRef({ notifyOnFinish: true, notifySound: false });
+  notifyRef.current = { notifyOnFinish, notifySound };
   projectRef.current = project;
   sessionRef.current = session;
   messagesRef.current = messages;
@@ -389,6 +401,17 @@ export default function AgentChat({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session?.id]);
 
+  // Completion-notification prefs live in config (agent.notifyOnFinish +
+  // notifications.sound). Read once on mount so toggles in the header menu
+  // can persist and immediately affect the next agent_end.
+  useEffect(() => {
+    ipc.getConfig().then((result) => {
+      if (!result?.success) return;
+      setNotifyOnFinish(result.config?.agent?.notifyOnFinish ?? true);
+      setNotifySound(result.config?.notifications?.sound ?? false);
+    }).catch(() => {});
+  }, []);
+
   // Escape closes the header dropdowns; the search query resets on close.
   useEffect(() => {
     if (!modelsOpen && !levelOpen && !moreOpen && !handoffOpen) return undefined;
@@ -494,6 +517,8 @@ export default function AgentChat({
       const turnMessages = (Array.isArray(event.messages) ? event.messages : [])
         .map((item) => normalizeTranscriptMessage(item))
         .filter((item) => item.content.trim() || item.thinking)
+      const finishedText = turnMessages.filter((item) => item.role === 'assistant').map((item) => item.content).join('\n\n')
+        || streaming.trim() || streamingBufRef.current.trim()
       const last = event.messages?.[event.messages.length - 1]
       const usage = last?.usage || {}
       const promptTokens = typeof usage.promptTokens === 'number' ? usage.promptTokens : undefined
@@ -515,6 +540,7 @@ export default function AgentChat({
             next.push(turnUser)
           }
         }
+        const lastAssistant = turnMessages.filter((item) => item.role === 'assistant').pop()
         if (assistantContent) {
           // A stopped partial reply is replaced by the canonical transcript;
           // otherwise append a fresh assistant message.
@@ -537,7 +563,17 @@ export default function AgentChat({
             }
           }
           if (!replaced) {
-            next.push({ id: uid(), role: 'assistant', content: assistantContent, thinking: assistantThinking || undefined, promptTokens, completionTokens, totalTokens, createdAt: new Date().toISOString() })
+            next.push({
+              id: uid(),
+              entryId: lastAssistant?.entryId,
+              role: 'assistant',
+              content: assistantContent,
+              thinking: assistantThinking || undefined,
+              promptTokens,
+              completionTokens,
+              totalTokens,
+              createdAt: new Date().toISOString(),
+            })
           }
         }
         return next
@@ -549,6 +585,16 @@ export default function AgentChat({
       setSubagents([])
       setBusyState(false)
       refreshStateRef.current?.()
+      // Native notification when the turn completes while the app is not
+      // focused (e.g. minimized or another window is active) — opt-out via
+      // the header menu, sound follows the global notifications.sound pref.
+      if (typeof document !== 'undefined' && document.visibilityState !== 'visible' && notifyRef.current.notifyOnFinish) {
+        Promise.resolve(ipc.showNotification({
+          title: `Agent finished — ${projectRef.current?.name || 'project'}`,
+          body: (finishedText || 'The agent completed its turn.').slice(0, 200),
+          silent: !notifyRef.current.notifySound,
+        })).catch(() => {})
+      }
       return
     }
     if (type === 'todo_reminder') {
@@ -839,6 +885,86 @@ export default function AgentChat({
       showNotice('Custom instructions applied');
     } catch (error) {
       setError(error.message || 'Failed to apply instructions');
+    }
+  };
+
+  const updateBashRun = (runId, patch) => {
+    setBashRuns((prev) => prev.map((run) => (run.id === runId ? { ...run, ...patch } : run)));
+  };
+
+  const runBash = async (command) => {
+    const text = command.trim();
+    if (!text || !project) return;
+    setBashCommand('');
+    setBashInputOpen(false);
+    const run = {
+      id: uid(),
+      command: text,
+      status: 'running',
+      output: '',
+      exitCode: null,
+      cancelled: false,
+      timedOut: false,
+      error: null,
+      expanded: true,
+      createdAt: new Date().toISOString(),
+    };
+    setBashRuns((prev) => [run, ...prev].slice(0, 6));
+    try {
+      const result = await ipc.ompBash(project.id, project.path, text);
+      if (result?.success) {
+        const data = result.data || {};
+        updateBashRun(run.id, {
+          status: 'done',
+          output: data.output || '',
+          exitCode: data.exitCode,
+          cancelled: !!data.cancelled,
+          timedOut: !!data.timedOut,
+        });
+        showNotice(data.cancelled ? 'Command cancelled' : `Command finished (exit ${data.exitCode ?? '?'})`);
+      } else {
+        updateBashRun(run.id, { status: 'error', error: result?.error || 'Command failed' });
+      }
+    } catch (error) {
+      updateBashRun(run.id, { status: 'error', error: error.message || 'Command failed' });
+    }
+  };
+
+  const abortBashRun = async (runId) => {
+    updateBashRun(runId, { status: 'cancelling' });
+    if (project) ipc.ompAbortBash(project.id, project.path).catch(() => {});
+    // The omp bash response resolves with cancelled: true once aborted and
+    // replaces this transient state.
+  };
+
+  // Fork the conversation from a specific transcript entry (omp branch). The
+  // session context moves to the new branch, then the transcript is reloaded.
+  const handleBranch = useCallback(async (entryId) => {
+    const currentProject = projectRef.current;
+    const currentSession = sessionRef.current;
+    if (!currentProject || !entryId) return;
+    try {
+      const result = await ipc.ompBranch(currentProject.id, currentProject.path, entryId);
+      if (!result?.success) {
+        setError(result?.error || 'Branch failed');
+        return;
+      }
+      showNotice('Branched — conversation continues from this message');
+      const msgs = await ipc.ompGetMessages(currentProject.id, currentProject.path, { sessionPath: currentSession?.sessionPath });
+      if (msgs?.success) setMessages(msgs.messages.map((item) => normalizeTranscriptMessage(item)));
+    } catch (error) {
+      setError(error.message || 'Branch failed');
+    }
+  }, []);
+
+  const toggleNotifyOnFinish = async () => {
+    setMoreOpen(false);
+    const next = !notifyOnFinish;
+    setNotifyOnFinish(next);
+    try {
+      await ipc.updateConfig({ agent: { notifyOnFinish: next } });
+    } catch {
+      setNotifyOnFinish(!next);
     }
   };
 
@@ -1139,6 +1265,16 @@ export default function AgentChat({
                       <span className="flex-1">Auto-retry</span>
                       {autoRetry && <Icon name="check" size={12} className="text-accent" />}
                     </button>
+                    <div className="my-1 border-t border-border" />
+                    <button
+                      type="button"
+                      onClick={toggleNotifyOnFinish}
+                      className="w-full flex items-center gap-2 px-3 py-1.5 text-left text-xs text-ink-soft hover:bg-surface-3 hover:text-ink transition-colors"
+                    >
+                      <Icon name="bell" size={12} />
+                      <span className="flex-1">Notify when finished</span>
+                      {notifyOnFinish && <Icon name="check" size={12} className="text-accent" />}
+                    </button>
                   </div>
                 </>
               )}
@@ -1347,9 +1483,9 @@ export default function AgentChat({
             {messages.map((message, index) => (
               <div key={message.id || index} className="message-in" style={{ animationDelay: `${Math.min(index * 30, 150)}ms` }}>
                 {message.role === 'user' ? (
-                  <UserMessage message={message} isLast={index === lastUserIndex} busy={busy} onSave={handleEditSave} />
+                  <UserMessage message={message} isLast={index === lastUserIndex} busy={busy} onSave={handleEditSave} onBranch={handleBranch} />
                 ) : (
-                  <AssistantMessage message={message} isLast={index === messages.length - 1} busy={busy} onRetry={handleRetry} />
+                  <AssistantMessage message={message} isLast={index === messages.length - 1} busy={busy} onRetry={handleRetry} onBranch={handleBranch} />
                 )}
               </div>
             ))}
@@ -1404,6 +1540,66 @@ export default function AgentChat({
         </button>
       )}
 
+      {/* Bash command runner — collapsible terminal blocks per command */}
+      {bashRuns.length > 0 && (
+        <div className="shrink-0 bg-base px-5 pt-3 space-y-1.5">
+          <div className="flex items-center gap-2">
+            <Icon name="terminal" size={12} className="text-accent" />
+            <span className="text-[10px] font-semibold uppercase tracking-[0.1em] text-ink-faint">Terminal</span>
+            <span className="text-[10px] text-ink-faint">runs in {project?.name}</span>
+            <button
+              type="button"
+              onClick={() => setBashRuns([])}
+              className="ml-auto text-[10px] text-ink-faint hover:text-ink transition-colors"
+            >
+              Clear
+            </button>
+          </div>
+          {bashRuns.map((run) => (
+            <div key={run.id} className="rounded-xl border border-border bg-surface overflow-hidden">
+              <button
+                type="button"
+                onClick={() => updateBashRun(run.id, { expanded: !run.expanded })}
+                className="w-full flex items-center gap-2 px-3 py-2 text-left"
+              >
+                <span className="text-[11px] font-mono text-ink-soft truncate flex-1">$ {run.command}</span>
+                {run.status === 'running' && (
+                  <span className="flex items-center gap-1.5 text-[10px] text-warning shrink-0">
+                    <span className="w-2.5 h-2.5 rounded-full border-2 border-warning border-t-transparent animate-spin" />
+                    running…
+                  </span>
+                )}
+                {run.status === 'cancelling' && <span className="text-[10px] text-ink-faint shrink-0">cancelling…</span>}
+                {run.status === 'done' && (
+                  <span className={`text-[10px] font-mono shrink-0 ${run.exitCode === 0 ? 'text-success' : 'text-warning'}`}>
+                    {run.cancelled ? 'cancelled' : run.timedOut ? 'timed out' : `exit ${run.exitCode ?? '?'}`}
+                  </span>
+                )}
+                {run.status === 'error' && <span className="text-[10px] text-danger shrink-0">failed</span>}
+                <Icon name={run.expanded ? 'chevronDown' : 'chevronRight'} size={11} className="text-ink-faint shrink-0" />
+              </button>
+              {run.status === 'running' && (
+                <div className="px-3 pb-2">
+                  <button
+                    type="button"
+                    onClick={() => abortBashRun(run.id)}
+                    className="inline-flex items-center gap-1 text-[11px] font-semibold text-danger bg-danger/10 border border-danger/25 rounded-lg px-2.5 py-1 hover:bg-danger/20 transition-colors"
+                  >
+                    <Icon name="stop" size={10} />
+                    Stop
+                  </button>
+                </div>
+              )}
+              {run.expanded && (run.output || run.error) && (
+                <pre className="border-t border-border px-3 py-2 text-xs font-mono text-ink-soft whitespace-pre-wrap break-all max-h-64 overflow-auto">
+                  {run.error || run.output}
+                </pre>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
       {/* Input */}
       <div className="shrink-0 border-t border-border bg-base px-5 py-3.5">
         <div className="relative max-w-[760px] mx-auto">
@@ -1437,7 +1633,41 @@ export default function AgentChat({
                 <span className="text-[11px] text-ink-faint ml-auto">{attachments.length}/{MAX_ATTACHMENTS}</span>
               </div>
             )}
+            {bashInputOpen && (
+              <div className="flex items-center gap-2 pb-2.5">
+                <span className="text-xs font-mono text-accent shrink-0">$</span>
+                <input
+                  autoFocus
+                  value={bashCommand}
+                  onChange={(event) => setBashCommand(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter') { event.preventDefault(); runBash(bashCommand); }
+                    if (event.key === 'Escape') setBashInputOpen(false);
+                  }}
+                  placeholder="Run command in project…"
+                  className="flex-1 min-w-0 bg-transparent text-sm font-mono text-ink placeholder:text-ink-faint focus:outline-none"
+                />
+                <button
+                  type="button"
+                  onClick={() => runBash(bashCommand)}
+                  disabled={!bashCommand.trim()}
+                  className="shrink-0 inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-accent hover:bg-accent-hover text-white text-[11px] font-semibold transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  Run
+                </button>
+              </div>
+            )}
             <div className="flex items-end gap-2.5">
+              <button
+                type="button"
+                onClick={() => setBashInputOpen((value) => !value)}
+                disabled={busy || notConfigured || !project}
+                className="w-7 h-7 shrink-0 rounded-md text-ink-faint hover:text-ink hover:bg-surface-3 flex items-center justify-center transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                title="Run command in project"
+                aria-label="Run command in project"
+              >
+                <Icon name="terminal" size={14} />
+              </button>
               <button
                 type="button"
                 onClick={() => fileInputRef.current?.click()}

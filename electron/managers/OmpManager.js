@@ -290,7 +290,7 @@ class OmpManager extends EventEmitter {
     }
   }
 
-  _send(projectId, command) {
+  _send(projectId, command, timeoutMs = 120000) {
     const entry = this.rpcs.get(projectId)
     if (!entry || !entry.proc || entry.proc.killed) {
       return Promise.reject(new Error('omp process is not running'))
@@ -306,7 +306,7 @@ class OmpManager extends EventEmitter {
           entry.pending.delete(id)
           reject(new Error(`omp command timed out: ${command.type}`))
         }
-      }, 120000)
+      }, timeoutMs)
     })
   }
 
@@ -527,6 +527,24 @@ class OmpManager extends EventEmitter {
   async handoff(projectId, cwd, customInstructions) {
     await this.ensureRpc(projectId, cwd)
     return this._send(projectId, { type: 'handoff', customInstructions: String(customInstructions).slice(0, 2000) })
+  }
+
+  /**
+   * Run a bash command in the session's project directory via the RPC bash
+   * command. The response (BashResult) arrives when the command completes;
+   * abort_bash cancels it. Long-running commands (builds, tests) get a
+   * generous deadline.
+   * @param {string} command
+   * @returns {Promise<{output: string, exitCode: number|undefined, cancelled: boolean, timedOut?: boolean, truncated: boolean}>}
+   */
+  async bash(projectId, cwd, command) {
+    await this.ensureRpc(projectId, cwd)
+    return this._send(projectId, { type: 'bash', command: String(command).slice(0, 2000) }, 300000)
+  }
+
+  async abortBash(projectId, cwd) {
+    await this.ensureRpc(projectId, cwd)
+    return this._send(projectId, { type: 'abort_bash' })
   }
 }
 

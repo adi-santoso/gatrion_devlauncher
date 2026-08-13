@@ -754,6 +754,16 @@ export const ompHandoff = async (projectId, cwd, customInstructions) => {
   return window.electron.ompHandoff(projectId, cwd, customInstructions);
 };
 
+export const ompBash = async (projectId, cwd, command) => {
+  if (!isElectron()) return { success: false, error: 'Electron not available' };
+  return window.electron.ompBash(projectId, cwd, command);
+};
+
+export const ompAbortBash = async (projectId, cwd) => {
+  if (!isElectron()) return { success: true };
+  return window.electron.ompAbortBash(projectId, cwd);
+};
+
 export const ompInstall = async () => {
   if (!isElectron()) return { success: false, error: 'Electron not available' };
   return window.electron.ompInstall();

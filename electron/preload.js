@@ -193,6 +193,8 @@ contextBridge.exposeInMainWorld('electron', {
   ompSetSubagentSubscription: (projectId, cwd, level) => ipcRenderer.invoke('omp-set-subagent-subscription', projectId, cwd, level),
   ompGetSubagents: (projectId, cwd) => ipcRenderer.invoke('omp-get-subagents', projectId, cwd),
   ompHandoff: (projectId, cwd, customInstructions) => ipcRenderer.invoke('omp-handoff', projectId, cwd, customInstructions),
+  ompBash: (projectId, cwd, command) => ipcRenderer.invoke('omp-bash', projectId, cwd, command),
+  ompAbortBash: (projectId, cwd) => ipcRenderer.invoke('omp-abort-bash', projectId, cwd),
   ompInstall: () => ipcRenderer.invoke('omp-install'),
   ompInstallState: () => ipcRenderer.invoke('omp-install-state'),
   ompCheckUpdate: () => ipcRenderer.invoke('omp-check-update'),

@@ -33,6 +33,10 @@ const DEFAULT_CONFIG = {
     notify: true,
     sound: true,
   },
+  agent: {
+    notifyOnFinish: true, // system notification when an agent turn completes while the app is unfocused
+    sound: false,
+  },
   windowBounds: null,
 }
 
@@ -122,6 +126,7 @@ function normalizeConfig(config = {}) {
   const preview = migrated.preview && typeof migrated.preview === 'object' ? migrated.preview : {}
   const prayer = migrated.prayer && typeof migrated.prayer === 'object' ? migrated.prayer : {}
   const adjustments = prayer.adjustments && typeof prayer.adjustments === 'object' ? prayer.adjustments : {}
+  const agent = migrated.agent && typeof migrated.agent === 'object' ? migrated.agent : {}
   const windowBounds = migrated.windowBounds && typeof migrated.windowBounds === 'object' && !Array.isArray(migrated.windowBounds) ? migrated.windowBounds : null
 
   return {
@@ -165,6 +170,10 @@ function normalizeConfig(config = {}) {
       notify: booleanOr(prayer.notify, DEFAULT_CONFIG.prayer.notify),
       sound: booleanOr(prayer.sound, DEFAULT_CONFIG.prayer.sound),
     },
+    agent: {
+      notifyOnFinish: booleanOr(agent.notifyOnFinish, DEFAULT_CONFIG.agent.notifyOnFinish),
+      sound: booleanOr(agent.sound, DEFAULT_CONFIG.agent.sound),
+    },
     windowBounds: windowBounds && Number.isFinite(windowBounds.width) && Number.isFinite(windowBounds.height)
       ? {
           x: Number.isFinite(windowBounds.x) ? windowBounds.x : undefined,
@@ -183,11 +192,11 @@ function applyConfigUpdates(current, updates) {
     throw new Error('Config updates must be an object')
   }
 
-  const allowed = new Set(['theme', 'sidebarExpanded', 'startOnBoot', 'minimizeToTray', 'autoStartProjects', 'notifications', 'terminal', 'autoRestart', 'preview', 'prayer', 'windowBounds'])
+  const allowed = new Set(['theme', 'sidebarExpanded', 'startOnBoot', 'minimizeToTray', 'autoStartProjects', 'notifications', 'terminal', 'autoRestart', 'preview', 'prayer', 'agent', 'windowBounds'])
   const unknown = Object.keys(updates).find((key) => !allowed.has(key))
   if (unknown) throw new Error(`Unsupported config field: ${unknown}`)
 
-  for (const nestedKey of ['notifications', 'terminal', 'autoRestart', 'preview', 'prayer', 'windowBounds']) {
+  for (const nestedKey of ['notifications', 'terminal', 'autoRestart', 'preview', 'prayer', 'agent', 'windowBounds']) {
     if (updates[nestedKey] !== undefined && updates[nestedKey] !== null && (!updates[nestedKey] || typeof updates[nestedKey] !== 'object' || Array.isArray(updates[nestedKey]))) {
       throw new Error(`${nestedKey} config must be an object`)
     }
@@ -227,6 +236,8 @@ function applyConfigUpdates(current, updates) {
   }
   if (updates.prayer?.notify !== undefined && typeof updates.prayer.notify !== 'boolean') throw new Error('prayer.notify must be a boolean')
   if (updates.prayer?.sound !== undefined && typeof updates.prayer.sound !== 'boolean') throw new Error('prayer.sound must be a boolean')
+  if (updates.agent?.notifyOnFinish !== undefined && typeof updates.agent.notifyOnFinish !== 'boolean') throw new Error('agent.notifyOnFinish must be a boolean')
+  if (updates.agent?.sound !== undefined && typeof updates.agent.sound !== 'boolean') throw new Error('agent.sound must be a boolean')
 
   const notificationKey = Object.keys(updates.notifications || {}).find((key) => !['onStart', 'onError', 'sound'].includes(key))
   if (notificationKey) throw new Error(`Unsupported notifications field: ${notificationKey}`)
@@ -238,6 +249,8 @@ function applyConfigUpdates(current, updates) {
   if (previewKey) throw new Error(`Unsupported preview field: ${previewKey}`)
   const prayerKey = Object.keys(updates.prayer || {}).find((key) => !['showIn', 'method', 'city', 'latitude', 'longitude', 'utcOffset', 'adjustments', 'notify', 'sound'].includes(key))
   if (prayerKey) throw new Error(`Unsupported prayer field: ${prayerKey}`)
+  const agentKey = Object.keys(updates.agent || {}).find((key) => !['notifyOnFinish', 'sound'].includes(key))
+  if (agentKey) throw new Error(`Unsupported agent field: ${agentKey}`)
   const adjustmentKey = Object.keys(updates.prayer?.adjustments || {}).find((key) => !['fajr', 'dhuhr', 'asr', 'maghrib', 'isha'].includes(key))
   if (adjustmentKey) throw new Error(`Unsupported prayer.adjustments field: ${adjustmentKey}`)
 
@@ -255,6 +268,9 @@ function applyConfigUpdates(current, updates) {
     prayer: updates.prayer !== undefined && updates.prayer !== null
       ? { ...current.prayer, ...updates.prayer, adjustments: { ...(current.prayer?.adjustments || {}), ...(updates.prayer?.adjustments || {}) } }
       : current.prayer,
+    agent: updates.agent !== undefined && updates.agent !== null
+      ? { ...current.agent, ...updates.agent }
+      : current.agent,
     windowBounds: updates.windowBounds !== undefined ? updates.windowBounds : current.windowBounds,
   }
   const normalized = normalizeConfig(merged)

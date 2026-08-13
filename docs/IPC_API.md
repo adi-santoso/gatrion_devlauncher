@@ -493,6 +493,18 @@ Channel: `omp-handoff`
 
 Meneruskan ke RPC `handoff(customInstructions)` (instruksi kustom untuk respons berikutnya), dibatasi 2000 karakter.
 
+### `ompBash(projectId, cwd, command)` / `ompAbortBash(projectId, cwd)`
+
+Channel: `omp-bash` / `omp-abort-bash`
+
+`omp-bash` menjalankan perintah shell di direktori project melalui RPC `bash` omp (command dibatasi 2000 karakter, deadline 5 menit) dan mengembalikan `BashResult` saat selesai:
+
+```js
+{ success: true, data: { output: '...', exitCode: 0, cancelled: false, timedOut: false, truncated: false } }
+```
+
+`omp-abort-bash` membatalkan command yang sedang berjalan (RPC `abort_bash`).
+
 ### Installer
 
 | Method | Channel | Keterangan |

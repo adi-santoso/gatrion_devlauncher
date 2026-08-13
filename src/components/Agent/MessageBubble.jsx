@@ -33,7 +33,7 @@ export function CopyButton({ text, className = '' }) {
 
 // Memoized so streaming deltas (which re-render only the streaming block)
 // never re-parse/re-render every historical message on each keystroke.
-export const AssistantMessage = React.memo(function AssistantMessage({ message, isLast, busy, onRetry }) {
+export const AssistantMessage = React.memo(function AssistantMessage({ message, isLast, busy, onRetry, onBranch }) {
   const [speaking, setSpeaking] = useState(false);
   const speechSupported = 'speechSynthesis' in window;
 
@@ -103,6 +103,12 @@ export const AssistantMessage = React.memo(function AssistantMessage({ message, 
               Retry
             </button>
           )}
+          {message.entryId && (
+            <button type="button" onClick={() => onBranch?.(message.entryId)} title="Branch the conversation from here" className={actionBtnCls}>
+              <Icon name="gitBranch" size={12} />
+              Branch
+            </button>
+          )}
           <CopyButton text={message.content} />
         </div>
       </div>
@@ -113,7 +119,7 @@ export const AssistantMessage = React.memo(function AssistantMessage({ message, 
 // User message in the same flat layout (avatar + content column). Images render
 // as clickable thumbnails with a fullscreen viewer; the most recent user
 // message can be edited inline and re-sent.
-export function UserMessage({ message, isLast, busy, onSave }) {
+export function UserMessage({ message, isLast, busy, onSave, onBranch }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(message.content);
   const [expandedImage, setExpandedImage] = useState(null);
@@ -193,6 +199,12 @@ export function UserMessage({ message, isLast, busy, onSave }) {
               >
                 <Icon name="edit" size={12} />
                 Edit
+              </button>
+            )}
+            {message.entryId && (
+              <button type="button" onClick={() => onBranch?.(message.entryId)} title="Branch the conversation from here" className={actionBtnCls}>
+                <Icon name="gitBranch" size={12} />
+                Branch
               </button>
             )}
             {message.content && <CopyButton text={message.content} />}

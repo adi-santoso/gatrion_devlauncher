@@ -282,6 +282,27 @@ function setupAgentHandlers(ompManager, installer, ompConfig, getWindow) {
     return { success: true }
   })
 
+  const MAX_BASH_COMMAND = 2000
+
+  // Run a bash command in the project directory through omp's RPC bash
+  // command. The response arrives when the command finishes (BashResult);
+  // abort_bash cancels a long-running command.
+  secureHandle('omp-bash', async (event, projectId, cwd, command) => {
+    assertSessionId(projectId)
+    assertProjectPath(cwd)
+    if (typeof command !== 'string' || !command.trim()) throw new Error('Command is required')
+    if (command.length > MAX_BASH_COMMAND) throw new Error('Command is too long')
+    const data = await ompManager.bash(projectId, cwd, command.trim())
+    return { success: true, data }
+  })
+
+  secureHandle('omp-abort-bash', async (event, projectId, cwd) => {
+    assertSessionId(projectId)
+    if (cwd) assertProjectPath(cwd)
+    await ompManager.abortBash(projectId, cwd || process.env.USERPROFILE || '')
+    return { success: true }
+  })
+
   // --- Installer -----------------------------------------------------------
 
   secureHandle('omp-install', async () => {
