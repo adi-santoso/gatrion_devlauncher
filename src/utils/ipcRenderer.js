@@ -719,6 +719,41 @@ export const ompGetCommands = async (projectId, cwd) => {
   return window.electron.ompGetCommands(projectId, cwd);
 };
 
+export const ompExportConversation = async (projectId, cwd, sessionPath, title) => {
+  if (!isElectron()) return { success: false, error: 'Electron not available' };
+  return window.electron.ompExportConversation(projectId, cwd, sessionPath, title);
+};
+
+export const ompTogglePin = async (projectId, sessionId) => {
+  if (!isElectron()) return { success: true };
+  return window.electron.ompTogglePin(projectId, sessionId);
+};
+
+export const ompBranch = async (projectId, cwd, entryId) => {
+  if (!isElectron()) return { success: true };
+  return window.electron.ompBranch(projectId, cwd, entryId);
+};
+
+export const ompGetBranchMessages = async (projectId, cwd) => {
+  if (!isElectron()) return { success: true, messages: [] };
+  return window.electron.ompGetBranchMessages(projectId, cwd);
+};
+
+export const ompSetSubagentSubscription = async (projectId, cwd, level) => {
+  if (!isElectron()) return { success: true };
+  return window.electron.ompSetSubagentSubscription(projectId, cwd, level);
+};
+
+export const ompGetSubagents = async (projectId, cwd) => {
+  if (!isElectron()) return { success: true, subagents: [] };
+  return window.electron.ompGetSubagents(projectId, cwd);
+};
+
+export const ompHandoff = async (projectId, cwd, customInstructions) => {
+  if (!isElectron()) return { success: true };
+  return window.electron.ompHandoff(projectId, cwd, customInstructions);
+};
+
 export const ompInstall = async () => {
   if (!isElectron()) return { success: false, error: 'Electron not available' };
   return window.electron.ompInstall();

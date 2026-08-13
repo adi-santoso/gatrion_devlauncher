@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import AgentChat from '../AgentChat'
@@ -21,6 +21,10 @@ beforeEach(() => {
   mocks.ompSetAutoCompaction.mockResolvedValue({ success: true })
   mocks.ompSetAutoRetry.mockResolvedValue({ success: true })
   mocks.ompSetFastMode.mockResolvedValue({ success: true })
+  mocks.ompExportConversation.mockResolvedValue({ success: true, canceled: true })
+  mocks.ompHandoff.mockResolvedValue({ success: true })
+  mocks.ompSetSubagentSubscription.mockResolvedValue({ success: true })
+  mocks.ompGetSubagents.mockResolvedValue({ success: true, subagents: [] })
 })
 
 const mocks = vi.hoisted(() => ({
@@ -40,6 +44,10 @@ const mocks = vi.hoisted(() => ({
   ompSetAutoCompaction: vi.fn(),
   ompSetAutoRetry: vi.fn(),
   ompSetFastMode: vi.fn(),
+  ompExportConversation: vi.fn(),
+  ompHandoff: vi.fn(),
+  ompSetSubagentSubscription: vi.fn(),
+  ompGetSubagents: vi.fn(),
 }))
 
 let eventCb = null
@@ -51,6 +59,8 @@ const status = { installed: true, configured: true }
 
 function Harness({ initialSession = null }) {
   const [session, setSession] = useState(initialSession)
+  // Keep the session in sync when the parent re-renders with a different one
+  useEffect(() => { setSession(initialSession) }, [initialSession])
   return (
     <AgentChat
       status={status}
@@ -678,5 +688,120 @@ describe('AgentChat', () => {
 
     expect(await screen.findByText('Map the tool surface')).toBeInTheDocument()
     expect(screen.getByText('Exercise edit operations')).toBeInTheDocument()
+  })
+
+  it('exports the conversation via the native save dialog', async () => {
+    mocks.onOmpEvent.mockImplementation((callback) => { eventCb = callback; return () => {} })
+    mocks.ompGetMessages.mockResolvedValue({ success: true, messages: [] })
+    mocks.ompExportConversation.mockResolvedValue({ success: true, canceled: false, path: 'C:/out/chat.md' })
+
+    render(<Harness initialSession={{ id: 's14', title: 'Export me', sessionPath: 'C:/sessions/s14.jsonl' }} />)
+
+    fireEvent.click(screen.getByTitle('Session options'))
+    fireEvent.click(await screen.findByText('Export conversation'))
+
+    await waitFor(() => {
+      expect(mocks.ompExportConversation).toHaveBeenCalledWith('p1', 'C:/demo', 'C:/sessions/s14.jsonl', 'Export me')
+    })
+    expect(await screen.findByText((content) => content.includes('Exported to C:/out/chat.md'))).toBeInTheDocument()
+  })
+
+  it('applies custom instructions (handoff) from the options menu', async () => {
+    mocks.onOmpEvent.mockImplementation((callback) => { eventCb = callback; return () => {} })
+    mocks.ompGetMessages.mockResolvedValue({ success: true, messages: [] })
+
+    render(<Harness />)
+    fireEvent.click(screen.getByTitle('Session options'))
+    fireEvent.click(await screen.findByText('Custom instructions…'))
+
+    const textarea = screen.getByPlaceholderText(/Always explain changes/)
+    fireEvent.change(textarea, { target: { value: 'Always explain before editing' } })
+    fireEvent.click(screen.getByText('Apply'))
+
+    await waitFor(() => {
+      expect(mocks.ompHandoff).toHaveBeenCalledWith('p1', 'C:/demo', 'Always explain before editing')
+    })
+    expect(await screen.findByText(/Custom instructions applied/)).toBeInTheDocument()
+  })
+
+  it('keeps an unsent draft per session when switching away and back', async () => {
+    mocks.onOmpEvent.mockImplementation((callback) => { eventCb = callback; return () => {} })
+    mocks.ompGetMessages.mockResolvedValue({ success: true, messages: [] })
+
+    const sessionA = { id: 'sa', title: 'A', sessionPath: 'C:/sessions/sa.jsonl' }
+    const sessionB = { id: 'sb', title: 'B', sessionPath: 'C:/sessions/sb.jsonl' }
+    const { rerender } = render(<Harness initialSession={sessionA} />)
+
+    const input = screen.getByPlaceholderText('Describe a task, ask a question…')
+    fireEvent.change(input, { target: { value: 'unsent draft for A' } })
+    expect(input.value).toBe('unsent draft for A')
+
+    // Switch to B — the input is empty (B has no draft)
+    rerender(<Harness initialSession={sessionB} />)
+    await waitFor(() => {
+      expect(screen.getByPlaceholderText('Describe a task, ask a question…').value).toBe('')
+    })
+
+    // Switch back to A — the draft is restored
+    rerender(<Harness initialSession={sessionA} />)
+    await waitFor(() => {
+      expect(screen.getByPlaceholderText('Describe a task, ask a question…').value).toBe('unsent draft for A')
+    })
+  })
+
+  it('shows a live tokens-per-second badge while the agent is working', async () => {
+    mocks.onOmpEvent.mockImplementation((callback) => { eventCb = callback; return () => {} })
+    mocks.ompGetMessages.mockResolvedValue({ success: true, messages: [] })
+    mocks.ompChat.mockResolvedValue({
+      success: true,
+      sessionId: 's15',
+      session: { id: 's15', title: 'TPS', sessionPath: 'C:/sessions/s15.jsonl' },
+    })
+    mocks.ompGetState.mockResolvedValue({ success: true, state: { thinkingLevel: 'off', tokensPerSecond: 12.3 } })
+
+    render(<Harness />)
+    const input = screen.getByPlaceholderText('Describe a task, ask a question…')
+    fireEvent.change(input, { target: { value: 'go' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Send message' }))
+    await screen.findByText('go')
+
+    // Busy triggers the fast state poll → the badge appears
+    expect(await screen.findByText(/12 tok\/s/)).toBeInTheDocument()
+  })
+
+  it('renders subagent activity chips while the agent is working', async () => {
+    mocks.onOmpEvent.mockImplementation((callback) => { eventCb = callback; return () => {} })
+    mocks.ompGetMessages.mockResolvedValue({ success: true, messages: [] })
+    mocks.ompChat.mockResolvedValue({
+      success: true,
+      sessionId: 's16',
+      session: { id: 's16', title: 'Sub', sessionPath: 'C:/sessions/s16.jsonl' },
+    })
+    mocks.ompGetSubagents.mockResolvedValue({ success: true, subagents: [
+      { id: 'a1', task: 'Refactor the auth module', status: 'running', progress: 0.4 },
+    ] })
+
+    render(<Harness />)
+    const input = screen.getByPlaceholderText('Describe a task, ask a question…')
+    fireEvent.change(input, { target: { value: 'go' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Send message' }))
+    await screen.findByText('go')
+
+    expect(await screen.findByText('Refactor the auth module')).toBeInTheDocument()
+    expect(screen.getByText('Subagents')).toBeInTheDocument()
+    expect(screen.getByText('40%')).toBeInTheDocument()
+  })
+
+  it('surfaces live status notices (notice / goal_updated) as inline messages', async () => {
+    mocks.onOmpEvent.mockImplementation((callback) => { eventCb = callback; return () => {} })
+    mocks.ompGetMessages.mockResolvedValue({ success: true, messages: [] })
+
+    render(<Harness />)
+
+    eventCb({ projectId: 'p1', event: { type: 'notice', message: 'Context is getting large' } })
+    expect(await screen.findByText('Context is getting large')).toBeInTheDocument()
+
+    eventCb({ projectId: 'p1', event: { type: 'goal_updated', goal: 'Ship the export feature' } })
+    expect(await screen.findByText('Goal: Ship the export feature')).toBeInTheDocument()
   })
 })

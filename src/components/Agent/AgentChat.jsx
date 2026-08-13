@@ -133,6 +133,10 @@ export default function AgentChat({
   const [commands, setCommands] = useState([]);
   const [moreOpen, setMoreOpen] = useState(false);
   const [notice, setNotice] = useState(null);
+  const [tokensPerSecond, setTokensPerSecond] = useState(null);
+  const [subagents, setSubagents] = useState([]);
+  const [handoffOpen, setHandoffOpen] = useState(false);
+  const [handoffText, setHandoffText] = useState('');
   const [attachments, setAttachments] = useState([]); // { id, name, mimeType, dataUrl, base64, bytes }
   const fileInputRef = useRef(null);
   const scrollRef = useRef(null);
@@ -158,6 +162,9 @@ export default function AgentChat({
   const sessionRef = useRef(session);
   const messagesRef = useRef(messages);
   const handleEventRef = useRef(null);
+  // Unsent input is remembered per session so switching away and back does
+  // not lose what was being typed (draft per session).
+  const draftsRef = useRef({});
   projectRef.current = project;
   sessionRef.current = session;
   messagesRef.current = messages;
@@ -177,6 +184,7 @@ export default function AgentChat({
     if (typeof state.autoCompactionEnabled === 'boolean') setAutoCompaction(state.autoCompactionEnabled);
     if (typeof state.fastModeEnabled === 'boolean') setFastMode(state.fastModeEnabled);
     if (Array.isArray(state.todoPhases)) setTodos(state.todoPhases);
+    if (typeof state.tokensPerSecond === 'number') setTokensPerSecond(state.tokensPerSecond);
   }, []);
 
   const refreshState = useCallback(() => {
@@ -254,8 +262,13 @@ export default function AgentChat({
     streamingBufRef.current = '';
     setThinking('');
     setTools([]);
+    setSubagents([]);
     setError(null);
     setNearBottom(true);
+    // Restore this session's draft (empty if it never had one).
+    const draftKey = `${project?.id}:${session?.id || 'new'}`;
+    setInput(draftsRef.current[draftKey] || '');
+    if (inputRef.current) inputRef.current.style.height = 'auto';
     const hasHistory = Boolean(project && session?.sessionPath);
     setHistoryLoading(hasHistory);
     if (!project || !session) return;
@@ -335,12 +348,29 @@ export default function AgentChat({
   }, [project?.id, session?.id, applyState]);
 
   // Keep the context-usage indicator fresh while a conversation is active.
+  // While the agent is working the poll is faster so the live token/s badge
+  // and context bar stay current.
   useEffect(() => {
     if (!project || (!busy && messages.length === 0)) return;
     refreshState();
-    const timer = setInterval(refreshState, 20000);
+    const timer = setInterval(refreshState, busy ? 5000 : 20000);
     return () => clearInterval(timer);
   }, [project?.id, busy, messages.length > 0, refreshState]);
+
+  // Subscribe to subagent progress and poll their registry while the agent is
+  // running; rendered as activity chips above the input.
+  useEffect(() => {
+    if (!project || !busy) return;
+    ipc.ompSetSubagentSubscription(project.id, project.path, 'progress').catch(() => {});
+    const fetchSubagents = () => {
+      ipc.ompGetSubagents(project.id, project.path).then((result) => {
+        if (result?.success && Array.isArray(result.subagents)) setSubagents(result.subagents);
+      }).catch(() => {});
+    };
+    fetchSubagents();
+    const timer = setInterval(fetchSubagents, 4000);
+    return () => clearInterval(timer);
+  }, [project?.id, busy]);
 
   // Load available slash commands for the / menu (also updated live through
   // the available_commands_update event).
@@ -361,13 +391,13 @@ export default function AgentChat({
 
   // Escape closes the header dropdowns; the search query resets on close.
   useEffect(() => {
-    if (!modelsOpen && !levelOpen && !moreOpen) return undefined;
+    if (!modelsOpen && !levelOpen && !moreOpen && !handoffOpen) return undefined;
     const onKey = (event) => {
-      if (event.key === 'Escape') { setModelsOpen(false); setLevelOpen(false); setMoreOpen(false); }
+      if (event.key === 'Escape') { setModelsOpen(false); setLevelOpen(false); setMoreOpen(false); setHandoffOpen(false); }
     };
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
-  }, [modelsOpen, levelOpen, moreOpen]);
+  }, [modelsOpen, levelOpen, moreOpen, handoffOpen]);
 
   useEffect(() => {
     if (!modelsOpen) setModelSearch('');
@@ -409,7 +439,23 @@ export default function AgentChat({
       setThinking('');
       thinkingBufRef.current = '';
       setTools([]);
+      setSubagents([]);
       setError(null);
+      return;
+    }
+    // Live status notices surfaced inline instead of being swallowed.
+    if (type === 'notice') {
+      if (typeof event.message === 'string' && event.message.trim()) showNoticeRef.current?.(event.message.trim().slice(0, 160));
+      return;
+    }
+    if (type === 'goal_updated') {
+      const goal = typeof event.goal === 'string' ? event.goal : typeof event.message === 'string' ? event.message : '';
+      if (goal && goal.trim()) showNoticeRef.current?.(`Goal: ${goal.trim().slice(0, 120)}`);
+      return;
+    }
+    if (type === 'ttsr_triggered' || type === 'irc_message') {
+      const text = typeof event.message === 'string' ? event.message : '';
+      if (text && text.length < 140) showNoticeRef.current?.(text);
       return;
     }
     if (type === 'tool_execution_start') {
@@ -500,6 +546,7 @@ export default function AgentChat({
       streamingBufRef.current = ''
       setThinking('')
       thinkingBufRef.current = ''
+      setSubagents([])
       setBusyState(false)
       refreshStateRef.current?.()
       return
@@ -602,6 +649,7 @@ export default function AgentChat({
     if (busyRef.current) {
       const text = message || 'Here is an attached image — please analyze it.';
       setInput('');
+      saveDraftRef.current?.('');
       if (inputRef.current) inputRef.current.style.height = 'auto';
       setMessages((prev) => [...prev, {
         id: uid(),
@@ -621,6 +669,7 @@ export default function AgentChat({
     const text = message || 'Here is an attached image — please analyze it.';
     const images = attachments.map((attachment) => ({ dataUrl: attachment.dataUrl, base64: attachment.base64, mimeType: attachment.mimeType }));
     setInput('');
+    saveDraftRef.current?.('');
     if (inputRef.current) inputRef.current.style.height = 'auto';
     setAttachments([]);
     await runTurn({ text, images });
@@ -693,6 +742,12 @@ export default function AgentChat({
     setTimeout(() => setNotice(null), 3000);
   }, []);
 
+  // Reached from the live event handler (which is re-created every render but
+  // reads stable refs) — keep the latest showNotice available without making
+  // handleEvent depend on a changing identity.
+  const showNoticeRef = useRef(showNotice);
+  showNoticeRef.current = showNotice;
+
   const handleCompact = async () => {
     setMoreOpen(false);
     if (!project) return;
@@ -745,7 +800,46 @@ export default function AgentChat({
 
   const insertSlashCommand = (command) => {
     setInput(`/${command.name} `);
+    saveDraftRef.current?.(`/${command.name} `);
     if (inputRef.current) inputRef.current.focus();
+  };
+
+  // Unsent input is kept per session (see draftsRef). Writing through this
+  // ref keeps every caller stable without re-creating memoized handlers.
+  const saveDraft = (text) => {
+    const key = `${projectRef.current?.id}:${sessionRef.current?.id || 'new'}`;
+    draftsRef.current[key] = text;
+  };
+  const saveDraftRef = useRef(saveDraft);
+  saveDraftRef.current = saveDraft;
+
+  const handleExport = async () => {
+    setMoreOpen(false);
+    if (!project) return;
+    try {
+      const result = await ipc.ompExportConversation(project.id, project.path, session?.sessionPath || null, session?.title || project.name);
+      if (result?.success && !result.canceled) {
+        showNotice(`Exported to ${result.path}`);
+      } else if (!result?.success) {
+        setError(result?.error || 'Export failed');
+      }
+      // A canceled save dialog is a quiet no-op.
+    } catch (error) {
+      setError(error.message || 'Export failed');
+    }
+  };
+
+  const handleHandoff = async () => {
+    const instructions = handoffText.trim();
+    setHandoffOpen(false);
+    if (!project || !instructions) return;
+    try {
+      await ipc.ompHandoff(project.id, project.path, instructions);
+      setHandoffText('');
+      showNotice('Custom instructions applied');
+    } catch (error) {
+      setError(error.message || 'Failed to apply instructions');
+    }
   };
 
   const notConfigured = status?.installed && !status?.configured;
@@ -966,6 +1060,12 @@ export default function AgentChat({
               <span className={`tabular-nums ${contextPercent >= 90 ? 'text-danger' : contextPercent >= 70 ? 'text-warning' : 'text-ink-faint'}`}>{contextPercent}%</span>
             </div>
           )}
+          {busy && tokensPerSecond != null && (
+            <span className="hidden md:inline-flex items-center gap-1.5 text-[11px] text-ink-soft bg-surface-2 border border-border rounded-full px-2.5 py-1 tabular-nums">
+              <Icon name="bolt" size={11} className="text-accent" />
+              {tokensPerSecond >= 10 ? Math.round(tokensPerSecond) : tokensPerSecond.toFixed(1)} tok/s
+            </span>
+          )}
           {(compacting || retrying) && (
             <span className="hidden md:inline-flex items-center gap-1.5 text-[11px] text-warning bg-warning/10 border border-warning/25 rounded-full px-2.5 py-1">
               <span className="w-1.5 h-1.5 rounded-full bg-warning animate-pulse" />
@@ -987,6 +1087,23 @@ export default function AgentChat({
                 <>
                   <div className="fixed inset-0 z-40" onClick={() => setMoreOpen(false)} />
                   <div className="absolute right-0 top-full mt-1.5 w-60 rounded-xl border border-border bg-surface shadow-card z-50 py-1 dropdown-menu">
+                    <button
+                      type="button"
+                      onClick={handleExport}
+                      className="w-full flex items-center gap-2 px-3 py-1.5 text-left text-xs text-ink-soft hover:bg-surface-3 hover:text-ink transition-colors"
+                    >
+                      <Icon name="download" size={12} />
+                      Export conversation
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { setMoreOpen(false); setHandoffOpen(true); }}
+                      className="w-full flex items-center gap-2 px-3 py-1.5 text-left text-xs text-ink-soft hover:bg-surface-3 hover:text-ink transition-colors"
+                    >
+                      <Icon name="fileText" size={12} />
+                      Custom instructions…
+                    </button>
+                    <div className="my-1 border-t border-border" />
                     <button
                       type="button"
                       onClick={handleCompact}
@@ -1038,6 +1155,75 @@ export default function AgentChat({
           )}
         </div>
       </div>
+
+      {/* Custom instructions (handoff) popover */}
+      {handoffOpen && (
+        <div className="relative shrink-0 bg-base px-5 pt-3">
+          <div className="max-w-[760px] mx-auto rounded-xl border border-border bg-surface-2 shadow-card p-3">
+            <div className="flex items-center gap-2 mb-2">
+              <Icon name="fileText" size={13} className="text-accent" />
+              <p className="text-xs font-semibold text-ink">Custom instructions</p>
+              <span className="text-[10px] text-ink-faint">applied to the next agent response</span>
+              <button
+                type="button"
+                onClick={() => setHandoffOpen(false)}
+                className="ml-auto text-ink-faint hover:text-ink flex items-center"
+                aria-label="Close instructions"
+              >
+                <Icon name="x" size={12} />
+              </button>
+            </div>
+            <textarea
+              autoFocus
+              value={handoffText}
+              onChange={(event) => setHandoffText(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) { event.preventDefault(); handleHandoff(); }
+              }}
+              rows={2}
+              placeholder="e.g. Always explain changes before editing files…"
+              className="w-full bg-surface-3 border border-border rounded-lg px-3 py-2 text-sm text-ink placeholder:text-ink-faint focus:outline-none focus:border-accent/50 resize-none"
+            />
+            <div className="flex items-center gap-2 mt-2.5">
+              <button
+                type="button"
+                onClick={handleHandoff}
+                disabled={!handoffText.trim()}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-accent hover:bg-accent-hover text-white text-xs font-semibold transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                Apply
+              </button>
+              <span className="text-[10px] text-ink-faint">Ctrl/⌘+Enter to apply</span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Subagent activity chips */}
+      {subagents.length > 0 && (
+        <div className="shrink-0 bg-base px-5 pt-2.5 flex flex-wrap items-center gap-1.5">
+          <span className="text-[10px] font-semibold uppercase tracking-[0.1em] text-ink-faint">Subagents</span>
+          {subagents.map((agent, index) => {
+            const status = agent.status || (typeof agent.progress === 'number' ? (agent.progress < 1 ? 'running' : 'done') : 'idle');
+            const running = status === 'running' || status === 'in_progress' || status === 'working';
+            const done = status === 'done' || status === 'completed';
+            return (
+              <span
+                key={agent.id || agent.name || `sub-${index}`}
+                title={agent.task || agent.name || 'subagent'}
+                className="inline-flex items-center gap-1.5 text-[11px] text-ink-soft bg-surface-2 border border-border rounded-full px-2.5 py-1"
+              >
+                <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${running ? 'bg-warning animate-pulse' : done ? 'bg-success' : 'bg-ink-faint/50'}`} />
+                <Icon name="bot" size={11} className="text-accent shrink-0" />
+                <span className="max-w-[200px] truncate">{agent.task || agent.name || 'subagent'}</span>
+                {typeof agent.progress === 'number' && agent.progress < 1 && (
+                  <span className="text-ink-faint tabular-nums">{Math.round(agent.progress * 100)}%</span>
+                )}
+              </span>
+            );
+          })}
+        </div>
+      )}
 
       {/* Messages */}
       <div
@@ -1278,6 +1464,7 @@ export default function AgentChat({
                 value={input}
                 onChange={(event) => {
                   setInput(event.target.value);
+                  saveDraftRef.current?.(event.target.value);
                   resizeInput(event.target);
                 }}
                 onKeyDown={(event) => {

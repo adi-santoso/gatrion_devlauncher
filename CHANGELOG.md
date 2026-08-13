@@ -89,6 +89,17 @@ Format mengikuti [Keep a Changelog](https://keepachangelog.com/id-ID/1.1.0/), da
   - **Stop mengawetkan partial reply** — saat generasi di-stop, teks yang sudah ter-stream disimpan sebagai pesan bertanda *"Generation stopped — partial reply kept"* (bukan dibuang); `agent_end` yang menyusul menggantinya dengan transkrip kanonik.
   - **Typing dots** saat agent bekerja tanpa output + **animasi masuk pesan** (fade/rise bertahap).
   - Refactor: bubble pesan dipisah ke `MessageBubble.jsx` (AssistantMessage/UserMessage) dan `ThinkingBlock.jsx`; handler event memakai ref agar selalu melihat state streaming terkini.
+- **Agent session controls (Tier 2)** — lanjutan daftar fitur chat Agent:
+  - **Export percakapan ke Markdown** — item "Export conversation" di menu "…" header; transkrip kanonik diambil dari omp (via `get_messages_page`, jadi percakapan panjang tidak pernah terpotong), di-render ke Markdown (`messagesToMarkdown`) lalu disimpan lewat save dialog native; notifikasi path hasil.
+  - **Custom instructions (handoff)** — item "Custom instructions…" membuka popover di atas input; teks instruksi dikirim via RPC `handoff` (validasi panjang 2000 char di main process) dan berlaku untuk respons agent berikutnya.
+  - **Live tokens/s** — saat agent bekerja, poll `get_state` dipercepat (5 detik) dan badge **tok/s** muncul di header saat `tokensPerSecond` tersedia.
+  - **Panel subagent** — subscribe `set_subagent_subscription: progress` + poll `get_subagents` selama agent bekerja; aktivitas sub-agent dirender sebagai **chips** (nama/task + status dot + % progress) di atas input, dibersihkan saat turn selesai.
+  - **Draft per session** — teks yang belum dikirim disimpan per session (ref, bukan state); pindah session tidak menghilangkan ketikan, kembali ke session mengembalikannya; draft terkirim dibersihkan.
+  - **Live status notices** — event `notice`, `goal_updated`, `ttsr_triggered`, `irc_message` kini dirender sebagai notice inline (bukan diam-diam di-log).
+  - **Pin session + search** — sidebar Agent: bintang untuk pin/unpin session (tersimpan di registry, session pinned diurutkan di atas) + kotak **pencarian session** (filter live per project, empty state khusus).
+  - **Branch session (backend + IPC)** — `omp-branch`/`omp-get-branch-messages` di-wire (RPC `branch(entryId)` + `get_branch_messages`); UI konfirmasi entryId menyusul setelah verifikasi.
+  - **Pagination history** — `ompGetMessages` kini memakai `get_messages_page` (cursor-based, hingga 200 halaman) dengan fallback ke `get_messages` lama bila paging tidak tersedia — riwayat panjang tidak lagi terpotong diam-diam oleh batas frame 1 MiB.
+  - Backend: 7 handler IPC baru (`omp-export-conversation`, `omp-toggle-pin`, `omp-branch`, `omp-get-branch-messages`, `omp-set-subagent-subscription`, `omp-get-subagents`, `omp-handoff`) + method OmpManager; docs IPC diperbarui.
 
 ### Fixed
 

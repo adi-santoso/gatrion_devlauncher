@@ -130,6 +130,7 @@ class OmpManager extends EventEmitter {
       lastActive: Date.now(),
       tokens: 0,
       sessionPath: null,
+      pinned: false,
     }
     list.push(session)
     this.registry.projects[projectId] = list
@@ -144,6 +145,7 @@ class OmpManager extends EventEmitter {
     if (meta.sessionPath) session.sessionPath = meta.sessionPath
     if (meta.tokens) session.tokens = meta.tokens
     if (meta.title) session.title = meta.title
+    if (typeof meta.pinned === 'boolean') session.pinned = meta.pinned
     session.lastActive = Date.now()
     await this.saveRegistry()
     return session
@@ -404,6 +406,22 @@ class OmpManager extends EventEmitter {
   /** @returns {Promise<Array>} conversation messages, normalized defensively */
   async getMessages(projectId, cwd) {
     await this.ensureRpc(projectId, cwd)
+    // Prefer the paged endpoint: a long transcript can exceed the 1 MiB frame
+    // limit of the monolithic get_messages and get truncated silently. Falls
+    // back to the legacy snapshot when paging is unavailable or fails.
+    try {
+      const pages = []
+      let cursor = null
+      for (let i = 0; i < 200; i += 1) {
+        const payload = { type: 'get_messages_page' }
+        if (cursor) payload.cursor = cursor
+        const page = await this._send(projectId, payload)
+        pages.push(...(Array.isArray(page?.messages) ? page.messages : []))
+        if (!page?.nextCursor) break
+        cursor = page.nextCursor
+      }
+      if (pages.length > 0) return this.normalizeMessages(pages)
+    } catch { /* fall through to the monolithic snapshot */ }
     const data = await this._send(projectId, { type: 'get_messages' })
     return this.normalizeMessages(data)
   }
@@ -478,6 +496,37 @@ class OmpManager extends EventEmitter {
     await this.ensureRpc(projectId, cwd)
     const data = await this._send(projectId, { type: 'get_available_commands' })
     return Array.isArray(data) ? data : (data?.commands || [])
+  }
+
+  /** @param {string} entryId - branch from this transcript entry */
+  async branch(projectId, cwd, entryId) {
+    await this.ensureRpc(projectId, cwd)
+    return this._send(projectId, { type: 'branch', entryId: String(entryId).slice(0, 200) })
+  }
+
+  async getBranchMessages(projectId, cwd) {
+    await this.ensureRpc(projectId, cwd)
+    const data = await this._send(projectId, { type: 'get_branch_messages' })
+    return this.normalizeMessages(Array.isArray(data) ? data : (data?.messages || data || []))
+  }
+
+  /** @param {string} level - off | progress | events */
+  async setSubagentSubscription(projectId, cwd, level) {
+    await this.ensureRpc(projectId, cwd)
+    return this._send(projectId, { type: 'set_subagent_subscription', level })
+  }
+
+  /** @returns {Promise<Array>} subagent registry snapshot */
+  async getSubagents(projectId, cwd) {
+    await this.ensureRpc(projectId, cwd)
+    const data = await this._send(projectId, { type: 'get_subagents' })
+    return Array.isArray(data) ? data : (data?.subagents || [])
+  }
+
+  /** @param {string} customInstructions */
+  async handoff(projectId, cwd, customInstructions) {
+    await this.ensureRpc(projectId, cwd)
+    return this._send(projectId, { type: 'handoff', customInstructions: String(customInstructions).slice(0, 2000) })
   }
 }
 

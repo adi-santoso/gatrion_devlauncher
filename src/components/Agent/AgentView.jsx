@@ -22,6 +22,7 @@ export default function AgentView({ projects, initialProjectId = null, onOpenPro
   const [busy, setBusy] = useState(false);
   const [renaming, setRenaming] = useState(null); // { projectId, sessionId }
   const [confirmDelete, setConfirmDelete] = useState(null); // { project, session }
+  const [sessionSearch, setSessionSearch] = useState('');
   const loadedRef = useRef({});
 
   const selectedProject = projects.find((project) => project.id === selectedProjectId) || null;
@@ -76,6 +77,16 @@ export default function AgentView({ projects, initialProjectId = null, onOpenPro
     await ipc.ompDeleteSession(project.id, session.id);
     setSessionsByProject((prev) => ({ ...prev, [project.id]: (prev[project.id] || []).filter((item) => item.id !== session.id) }));
     if (activeSession?.id === session.id) setActiveSession(null);
+  };
+
+  const handleTogglePin = async (project, session) => {
+    const result = await ipc.ompTogglePin(project.id, session.id);
+    if (result?.success && result.session) {
+      setSessionsByProject((prev) => ({
+        ...prev,
+        [project.id]: (prev[project.id] || []).map((item) => (item.id === session.id ? result.session : item)),
+      }));
+    }
   };
 
   const handleRenameSession = async (project, session, title) => {
@@ -158,12 +169,31 @@ export default function AgentView({ projects, initialProjectId = null, onOpenPro
               </button>
             )}
           </div>
+          <div className="px-3 pb-2 shrink-0">
+            <div className="flex items-center gap-2 bg-surface-3 border border-border rounded-lg px-2.5 py-1.5 focus-within:border-accent/50">
+              <Icon name="search" size={11} className="text-ink-faint" />
+              <input
+                value={sessionSearch}
+                onChange={(event) => setSessionSearch(event.target.value)}
+                placeholder="Search sessions…"
+                className="flex-1 bg-transparent text-xs text-ink placeholder:text-ink-faint focus:outline-none"
+              />
+              {sessionSearch && (
+                <button type="button" onClick={() => setSessionSearch('')} className="text-ink-faint hover:text-ink" aria-label="Clear session search">
+                  <Icon name="x" size={10} />
+                </button>
+              )}
+            </div>
+          </div>
           <div className="flex-1 overflow-auto pb-3 px-2">
             {projects.length === 0 && (
               <p className="px-3 py-6 text-xs text-ink-faint text-center leading-relaxed">No projects yet.<br />Add one to start chatting.</p>
             )}
             {projects.map((project) => {
-              const sessions = sessionsByProject[project.id] || [];
+              const query = sessionSearch.trim().toLowerCase();
+              const sessions = (sessionsByProject[project.id] || [])
+                .filter((session) => !query || session.title.toLowerCase().includes(query))
+                .sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0));
               const isSelected = selectedProjectId === project.id;
               return (
                 <div key={project.id} className="mb-1.5">
@@ -189,7 +219,9 @@ export default function AgentView({ projects, initialProjectId = null, onOpenPro
                   {isSelected && (
                     <div className="mt-1 space-y-0.5">
                       {sessions.length === 0 && (
-                        <p className="px-3 py-2 text-[11px] text-ink-faint">No sessions yet — start one below.</p>
+                        <p className="px-3 py-2 text-[11px] text-ink-faint">
+                          {query ? 'No sessions match your search.' : 'No sessions yet — start one below.'}
+                        </p>
                       )}
                       {sessions.map((session) => (
                         <div
@@ -223,6 +255,14 @@ export default function AgentView({ projects, initialProjectId = null, onOpenPro
                             <span className="text-[11px] text-ink-faint">{formatRelative(session.lastActive)}</span>
                             {session.tokens > 0 && <span className="text-[11px] text-warning tabular-nums">{(session.tokens / 1000).toFixed(1)}k tokens</span>}
                             <span className="ml-auto flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <button
+                                type="button"
+                                onClick={(event) => { event.stopPropagation(); handleTogglePin(project, session); }}
+                                className={session.pinned ? 'text-accent' : 'text-ink-faint hover:text-accent'}
+                                title={session.pinned ? 'Unpin session' : 'Pin session'}
+                              >
+                                <Icon name="star" size={11} />
+                              </button>
                               <button
                                 type="button"
                                 onClick={(event) => { event.stopPropagation(); setRenaming({ projectId: project.id, sessionId: session.id }); }}

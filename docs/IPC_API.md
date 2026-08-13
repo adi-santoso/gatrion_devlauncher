@@ -463,6 +463,36 @@ Menormalisasi respons RPC `get_available_commands` menjadi array datar (setiap c
 { success: true, commands: [{ name: 'compact', description: '...' }] }
 ```
 
+### `ompExportConversation(projectId, cwd, sessionPath?, title?)`
+
+Channel: `omp-export-conversation`
+
+Mengambil transkrip kanonik sesi (paged `get_messages_page`), me-render ke Markdown (`electron/utils/messagesToMarkdown.js`), lalu menampilkan **save dialog native**. Bila user membatalkan, mengembalikan `{ success: true, canceled: true }`; bila tersimpan, `{ success: true, canceled: false, path }`.
+
+### `ompTogglePin(projectId, sessionId)`
+
+Channel: `omp-toggle-pin`
+
+Flip status `pinned` session di registry (`agent-sessions.json`) dan mengembalikan session yang diperbarui.
+
+### `ompBranch(projectId, cwd, entryId)` / `ompGetBranchMessages(projectId, cwd)`
+
+Channel: `omp-branch` / `omp-get-branch-messages`
+
+Meneruskan ke RPC `branch(entryId)` (lanjut dari entry transkrip tertentu ke jalur baru) dan `get_branch_messages` (transkrip jalur baru, dinormalkan seperti `get_messages`).
+
+### `ompSetSubagentSubscription(projectId, cwd, level)` / `ompGetSubagents(projectId, cwd)`
+
+Channel: `omp-set-subagent-subscription` / `omp-get-subagents`
+
+`level` ∈ `off | progress | events` (RPC `set_subagent_subscription`); `omp-get-subagents` mengembalikan snapshot registry sub-agent (`{ success: true, subagents: [...] }`).
+
+### `ompHandoff(projectId, cwd, customInstructions)`
+
+Channel: `omp-handoff`
+
+Meneruskan ke RPC `handoff(customInstructions)` (instruksi kustom untuk respons berikutnya), dibatasi 2000 karakter.
+
 ### Installer
 
 | Method | Channel | Keterangan |

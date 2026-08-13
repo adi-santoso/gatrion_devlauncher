@@ -1,9 +1,11 @@
-const { ipcMain, shell } = require('electron')
+const { ipcMain, shell, dialog } = require('electron')
 const fs = require('fs')
 const { spawn } = require('child_process')
 const { assertTrustedIpcEvent } = require('../utils/ipcSecurity')
+const { messagesToMarkdown } = require('../utils/messagesToMarkdown')
 
 const MAX_MESSAGE = 20000
+const MAX_INSTRUCTIONS = 2000
 
 function assertProjectPath(cwd) {
   if (typeof cwd !== 'string' || !cwd.trim()) throw new Error('Project path is required')
@@ -202,6 +204,82 @@ function setupAgentHandlers(ompManager, installer, ompConfig, getWindow) {
     if (cwd) assertProjectPath(cwd)
     const commands = await ompManager.getAvailableCommands(projectId, cwd || process.env.USERPROFILE || '')
     return { success: true, commands }
+  })
+
+  // --- Tier 2: export, branch, subagents, handoff, pin --------------------
+
+  // Export the canonical omp transcript (paged, so long conversations are
+  // never silently truncated) as Markdown via the native save dialog.
+  secureHandle('omp-export-conversation', async (event, projectId, cwd, sessionPath, title) => {
+    assertSessionId(projectId)
+    assertProjectPath(cwd)
+    await ompManager.ensureRpc(projectId, cwd)
+    if (sessionPath) await ompManager.switchToSession(projectId, sessionPath)
+    const messages = await ompManager.getMessages(projectId, cwd)
+    const safeTitle = typeof title === 'string' && title.trim() ? title.trim().slice(0, 80) : 'conversation'
+    const markdown = messagesToMarkdown(messages, safeTitle)
+    const win = getWindow()
+    const options = {
+      title: 'Export conversation',
+      defaultPath: `${safeTitle.replace(/[\\/:*?"<>|]/g, '-')}.md`,
+      filters: [{ name: 'Markdown', extensions: ['md'] }],
+    }
+    const result = win && !win.isDestroyed() ? await dialog.showSaveDialog(win, options) : await dialog.showSaveDialog(options)
+    if (result.canceled || !result.filePath) return { success: true, canceled: true }
+    fs.writeFileSync(result.filePath, markdown, 'utf8')
+    return { success: true, canceled: false, path: result.filePath }
+  })
+
+  // Pin/unpin a session so it stays on top of the sidebar list.
+  secureHandle('omp-toggle-pin', async (event, projectId, sessionId) => {
+    assertSessionId(projectId)
+    assertSessionId(sessionId)
+    const list = ompManager.getSessions(projectId)
+    const session = list.find((item) => item.id === sessionId)
+    if (!session) throw new Error('Session not found')
+    const updated = await ompManager.touchSession(projectId, sessionId, { pinned: !session.pinned })
+    return { success: true, session: updated }
+  })
+
+  secureHandle('omp-branch', async (event, projectId, cwd, entryId) => {
+    assertSessionId(projectId)
+    if (cwd) assertProjectPath(cwd)
+    if (typeof entryId !== 'string' || !entryId.trim()) throw new Error('Entry ID is required')
+    const data = await ompManager.branch(projectId, cwd || process.env.USERPROFILE || '', entryId)
+    return { success: true, data }
+  })
+
+  secureHandle('omp-get-branch-messages', async (event, projectId, cwd) => {
+    assertSessionId(projectId)
+    if (cwd) assertProjectPath(cwd)
+    const messages = await ompManager.getBranchMessages(projectId, cwd || process.env.USERPROFILE || '')
+    return { success: true, messages }
+  })
+
+  const SUBAGENT_LEVELS = ['off', 'progress', 'events']
+
+  secureHandle('omp-set-subagent-subscription', async (event, projectId, cwd, level) => {
+    assertSessionId(projectId)
+    if (cwd) assertProjectPath(cwd)
+    if (!SUBAGENT_LEVELS.includes(level)) throw new Error('Invalid subscription level')
+    await ompManager.setSubagentSubscription(projectId, cwd || process.env.USERPROFILE || '', level)
+    return { success: true }
+  })
+
+  secureHandle('omp-get-subagents', async (event, projectId, cwd) => {
+    assertSessionId(projectId)
+    if (cwd) assertProjectPath(cwd)
+    const subagents = await ompManager.getSubagents(projectId, cwd || process.env.USERPROFILE || '')
+    return { success: true, subagents }
+  })
+
+  secureHandle('omp-handoff', async (event, projectId, cwd, customInstructions) => {
+    assertSessionId(projectId)
+    if (cwd) assertProjectPath(cwd)
+    if (typeof customInstructions !== 'string' || !customInstructions.trim()) throw new Error('Instructions are required')
+    if (customInstructions.length > MAX_INSTRUCTIONS) throw new Error('Instructions are too long')
+    await ompManager.handoff(projectId, cwd || process.env.USERPROFILE || '', customInstructions)
+    return { success: true }
   })
 
   // --- Installer -----------------------------------------------------------

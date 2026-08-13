@@ -10,7 +10,8 @@ export default defineConfig({
     include: [
       'src/**/*.{test,spec}.{js,jsx}', 
       'electron/managers/__tests__/*.test.js',
-      'electron/managers/__tests__/*.test.mjs'
+      'electron/managers/__tests__/*.test.mjs',
+      'electron/utils/__tests__/*.test.js'
     ],
     exclude: ['node_modules/**', 'dist/**', 'build/**'],
     coverage: {
