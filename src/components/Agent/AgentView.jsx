@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import Icon from '../Common/Icon';
+import { ConfirmDialog } from '../Modals';
 import * as ipc from '../../utils/ipcRenderer';
 import AgentChat from './AgentChat';
 
@@ -20,6 +21,7 @@ export default function AgentView({ projects, initialProjectId = null, onOpenPro
   const [activeSession, setActiveSession] = useState(null);
   const [busy, setBusy] = useState(false);
   const [renaming, setRenaming] = useState(null); // { projectId, sessionId }
+  const [confirmDelete, setConfirmDelete] = useState(null); // { project, session }
   const loadedRef = useRef({});
 
   const selectedProject = projects.find((project) => project.id === selectedProjectId) || null;
@@ -70,6 +72,7 @@ export default function AgentView({ projects, initialProjectId = null, onOpenPro
   };
 
   const handleDeleteSession = async (project, session) => {
+    setConfirmDelete(null);
     await ipc.ompDeleteSession(project.id, session.id);
     setSessionsByProject((prev) => ({ ...prev, [project.id]: (prev[project.id] || []).filter((item) => item.id !== session.id) }));
     if (activeSession?.id === session.id) setActiveSession(null);
@@ -230,7 +233,7 @@ export default function AgentView({ projects, initialProjectId = null, onOpenPro
                               </button>
                               <button
                                 type="button"
-                                onClick={(event) => { event.stopPropagation(); handleDeleteSession(project, session); }}
+                                onClick={(event) => { event.stopPropagation(); setConfirmDelete({ project, session }); }}
                                 className="text-ink-faint hover:text-danger"
                                 title="Delete session"
                               >
@@ -258,6 +261,15 @@ export default function AgentView({ projects, initialProjectId = null, onOpenPro
             Sessions are stored locally by omp per project. Chat history survives app restarts.
           </div>
         </div>
+
+        <ConfirmDialog
+          isOpen={Boolean(confirmDelete)}
+          onClose={() => setConfirmDelete(null)}
+          onConfirm={() => confirmDelete && handleDeleteSession(confirmDelete.project, confirmDelete.session)}
+          title="Delete session?"
+          message={`“${confirmDelete?.session?.title || 'This session'}” and its local chat history will be deleted. This cannot be undone.`}
+          confirmLabel="Delete"
+        />
 
         {/* Chat */}
         <div className="flex-1 min-w-0 flex flex-col min-h-0 relative">
