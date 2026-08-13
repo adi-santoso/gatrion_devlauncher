@@ -1,10 +1,12 @@
 # DevLauncher
 
-DevLauncher adalah aplikasi desktop Windows untuk mendaftarkan, menjalankan, menghentikan, dan memantau beberapa project development dari satu UI. Project didukung saat ini: Laravel, Next.js, React/Vite, Vue, Go, Node.js, dan custom command.
+> **English** | [Bahasa Indonesia](README.id.md)
 
-Fitur utama: lifecycle process (start/stop/restart), log real-time, **preview aplikasi embedded** (native WebContentsView dengan sesi persisten per project), **tab Git** (status/commit/log/branch/stash/blame) dan **script runner** di project detail, **dependency manager**, **env profiles & secrets**, **health & analytics**, workspace presets, command palette, **widget pengingat sholat** (offline, metode Kemenag RI), serta **AI coding agent (oh-my-pi)** dengan chat streaming real-time per project.
+DevLauncher is a Windows desktop app for keeping all your development projects in one place. Register a project, start and stop it, watch its logs, and jump into its preview — all from a single window. It works with Laravel, Next.js, React/Vite, Vue, Go, Node.js, and anything with a custom start command.
 
-Status project: **development / belum production-ready**. CRUD project, deteksi framework, lifecycle process, log real-time, penyimpanan lokal, dan build renderer sudah bekerja. Lihat [Feature Status](docs/FEATURE_STATUS.md) untuk status per fitur dan [Changelog](CHANGELOG.md) untuk riwayat perubahan.
+Main features: process lifecycle (start/stop/restart), live logs, an embedded app preview (native WebContentsView with per-project persistent sessions), a Git tab and script runner in Project Detail, dependency manager, env profiles & secrets, health analytics, workspace presets, command palette, a prayer-time widget, and an AI coding agent (oh-my-pi) with real-time streaming chat per project.
+
+Status: **in development — not production-ready yet**. Project CRUD, framework detection, process lifecycle, live logs, local storage, and the renderer build all work. See [Feature Status](docs/FEATURE_STATUS.md) for per-feature status and the [Changelog](CHANGELOG.md) for the full history.
 
 ## Tech Stack
 
@@ -16,16 +18,16 @@ Status project: **development / belum production-ready**. CRUD project, deteksi 
 
 ## Quick Start
 
-Prasyarat: Windows, Node.js ≥ 20, npm, serta runtime project yang akan dijalankan (misalnya PHP, Go, atau Node.js). Project saat ini diverifikasi dengan Node.js `v23.9.0` dan npm `10.9.2`.
+Requirements: Windows, Node.js ≥ 20, npm, plus whatever runtimes your projects need (PHP, Go, Node.js, …). Tested with Node.js v23.9.0 and npm 10.9.2.
 
 ```powershell
 npm install
 npm run dev
 ```
 
-`npm run dev` menjalankan Vite dan Electron. Menutup Electron juga menghentikan Vite melalui `concurrently`.
+`npm run dev` starts Vite and Electron together. Closing Electron also stops Vite (handled by `concurrently`).
 
-Mode UI browser tanpa API native Electron:
+To run the UI in a plain browser without Electron APIs:
 
 ```powershell
 npm run dev:vite
@@ -33,53 +35,55 @@ npm run dev:vite
 
 ## Commands
 
-| Command | Fungsi |
+| Command | Description |
 |---|---|
-| `npm run dev` | Jalankan Vite dan Electron (dev) |
-| `npm run dev:vite` | Jalankan renderer di browser dengan mock data |
-| `npm run dev:electron` | Jalankan Electron; Vite port 5173 harus sudah aktif |
-| `npm test` | Regression check CLI main process (13 script Node) |
-| `npm run test:unit` | Vitest — unit test renderer & manager |
+| `npm run dev` | Start Vite + Electron (development) |
+| `npm run dev:vite` | Renderer only, in a browser with mock data |
+| `npm run dev:electron` | Electron only (Vite must already be running on port 5173) |
+| `npm test` | CLI regression tests for the main process (13 Node scripts) |
+| `npm run test:unit` | Vitest unit tests (renderer + managers) |
 | `npm run test:watch` | Vitest watch mode |
-| `npm run test:coverage` | Vitest dengan coverage report |
-| `npm run test:e2e` | Playwright E2E smoke (Electron + Playwright) |
+| `npm run test:coverage` | Vitest with coverage report |
+| `npm run test:e2e` | Playwright smoke tests (Electron) |
 | `npm run lint` / `npm run lint:fix` | ESLint |
-| `npm run typecheck` | JSDoc typecheck (tsc, file bertanda `// @ts-check`) |
-| `npm run icons` | Generate icon app ke `build/` |
-| `npm run preview` | Preview hasil build renderer |
-| `npm run build` | Build renderer lalu package NSIS + portable |
+| `npm run typecheck` | JSDoc typecheck for `// @ts-check` files |
+| `npm run icons` | Generate app icons into `build/` |
+| `npm run preview` | Preview the renderer build |
+| `npm run build` | Build renderer, then package NSIS + portable |
 | `npm run build:win` | Build Windows x64 |
 
-## Dokumentasi
+## Documentation
 
-- [Setup dan troubleshooting](docs/SETUP.md)
-- [Arsitektur dan model data](docs/ARCHITECTURE.md)
-- [Kontrak IPC](docs/IPC_API.md)
-- [Status fitur aktual](docs/FEATURE_STATUS.md)
-- [Roadmap sampai release](docs/ROADMAP.md)
+- [Setup & troubleshooting](docs/SETUP.md)
+- [Architecture & data model](docs/ARCHITECTURE.md)
+- [IPC contract](docs/IPC_API.md)
+- [Feature status](docs/FEATURE_STATUS.md)
+- [Roadmap to release](docs/ROADMAP.md)
 - [Keyboard shortcuts](docs/KEYBOARD_SHORTCUTS.md)
-- [Panduan testing](docs/TESTING_GUIDE.md)
+- [Testing guide](docs/TESTING_GUIDE.md)
 - [Changelog](CHANGELOG.md)
 
-## Struktur Ringkas
+The detailed docs are written in Bahasa Indonesia.
 
-```text
+## Project Layout
+
+```
 electron/       Electron main process, IPC handlers, managers
-src/            React renderer, hooks, components, styles
-tests/cli/      Regression test CLI main process (npm test)
-tests/setup.js  Setup Vitest (globals + mock resets)
-e2e/            Playwright smoke test
-scripts/        Utility script (generate-icons)
+src/            React renderer: hooks, components, styles
+tests/cli/      Main-process CLI regression tests (npm test)
+tests/setup.js  Vitest setup (globals + mock resets)
+e2e/            Playwright smoke tests
+scripts/        Utility scripts (icon generation)
 .github/        CI workflow (Windows: lint, test, build, e2e)
-dist-react/     Output Vite (generated)
-dist/           Output electron-builder (generated)
+dist-react/     Vite output (generated)
+dist/           electron-builder output (generated)
 ```
 
-## Data Lokal
+## Where Data Lives
 
-Data tidak disimpan di repository. Electron memakai `app.getPath('userData')`:
+Nothing is stored in the repository. Electron uses `app.getPath('userData')`:
 
-```text
+```
 <userData>/projects.json
 <userData>/config.json
 <userData>/presets.json
@@ -87,26 +91,26 @@ Data tidak disimpan di repository. Electron memakai `app.getPath('userData')`:
 <userData>/health.json
 <userData>/agent-sessions.json
 <userData>/backups/projects-<timestamp>.json
-<userData>/omp/omp.exe            (binary omp terkelola)
+<userData>/omp/omp.exe            (managed omp binary)
 ```
 
-Lokasi tepat dicetak oleh `StorageManager` saat aplikasi mulai.
+`StorageManager` prints the exact location on startup.
 
 ## AI Agent (oh-my-pi)
 
-Menu **Agent** di sidebar menyediakan coding agent berbasis [oh-my-pi (omp)](https://omp.sh) yang berjalan per project:
+The **Agent** menu in the sidebar runs the [oh-my-pi (omp)](https://omp.sh) coding agent inside each project:
 
-- Session dikelompokkan per project; chat streaming real-time (teks, thinking, tool cards) via RPC omp.
-- Session management (new/rename/delete/pin/search), export ke Markdown, branch dari pesan, bash runner, draft per session, dan notifikasi saat turn selesai.
-- Binary omp di-install lewat **Settings → AI Agent** (tanpa admin rights, verifikasi SHA256) atau terdeteksi otomatis dari PATH; provider diatur melalui `omp setup` / form custom provider.
+- Sessions are grouped per project; text, thinking, and tool cards stream in real time over omp's RPC protocol.
+- Create/rename/delete/pin/search sessions, export to Markdown, branch from any message, run bash commands, per-session drafts, and a notification when a turn finishes.
+- Install the omp binary from **Settings → AI Agent** (no admin rights, SHA256-verified) or let it pick up an existing install from PATH. Providers are configured via `omp setup` or the custom-provider form.
 
-## Batasan Penting
+## Important Notes
 
-- Start command dijalankan melalui shell lokal. Tambahkan hanya project dan command yang dipercaya.
-- Ikon aplikasi (motif G) digenerate ke `build/` via `npm run icons` (`scripts/generate-icons.js`); folder `build/` di-`.gitignore` sehingga script wajib dijalankan sebelum packaging.
-- Preview project memakai native WebContentsView (sesi persisten per project) dengan fallback iframe bila view native tidak tersedia.
-- Target utama Windows x64. macOS/Linux belum diuji.
+- Start commands run through your local shell. Only add projects and commands you trust.
+- App icons are generated into `build/` with `npm run icons` (`scripts/generate-icons.js`); `build/` is gitignored, so run the script before packaging.
+- The preview uses a native WebContentsView (persistent per-project sessions) and falls back to an iframe when native views aren't available.
+- Windows x64 is the primary target. macOS/Linux are untested.
 
-## Lisensi
+## License
 
 MIT
