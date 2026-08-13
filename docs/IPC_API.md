@@ -398,11 +398,11 @@ Metadata session disimpan di `userData/agent-sessions.json` (title, createdAt, l
 { success: true, sessions: [{ id, title, createdAt, lastActive, tokens, sessionPath }] }
 ```
 
-### `ompChat(projectId, cwd, message, { sessionId, sessionPath })`
+### `ompChat(projectId, cwd, message, { sessionId, sessionPath, images })`
 
 Channel: `omp-chat`
 
-Spawn RPC per project (lazy, cwd = folder project), buat/switch session, lalu kirim `prompt`. `message` dibatasi 20.000 karakter.
+Spawn RPC per project (lazy, cwd = folder project), buat/switch session, lalu kirim `prompt`. `message` dibatasi 20.000 karakter. `images` opsional — array `ImageContent` omp (`{ type: 'image', data: <base64>, mimeType: 'image/png' }`), maksimal 8 gambar dan tiap data base64 ≤ 12 MB, divalidasi di main process.
 
 ```js
 { success: true, sessionId: 's...', session }

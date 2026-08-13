@@ -323,4 +323,64 @@ describe('AgentChat', () => {
       expect(mocks.ompSetThinkingLevel).toHaveBeenCalledWith('p1', 'C:/demo', 'high')
     })
   })
+
+  it('attaches an image, warns when the model lacks vision, and sends it as omp ImageContent', async () => {
+    mocks.onOmpEvent.mockImplementation((callback) => { eventCb = callback; return () => {} })
+    mocks.ompGetMessages.mockResolvedValue({ success: true, messages: [] })
+    mocks.ompChat.mockResolvedValue({
+      success: true,
+      sessionId: 's7',
+      session: { id: 's7', title: 'Img', sessionPath: 'C:/sessions/s7.jsonl' },
+    })
+    // Active model is text-only (input: ['text']) → vision warning expected
+    mocks.ompConfigGet.mockResolvedValue({ success: true, providers: [], defaultModel: 'kreova/kiro-claude-sonnet-4.5:high' })
+    mocks.ompGetModels.mockResolvedValue({ success: true, models: [
+      { id: 'kiro-claude-sonnet-4.5', name: 'kiro-claude-sonnet-4.5', provider: 'kreova', input: ['text'] },
+    ] })
+
+    // jsdom has no canvas and never decodes images — fake both so the
+    // attachment helper resolves (it falls back to the original bytes).
+    const originalFileReader = global.FileReader
+    const originalImage = global.Image
+    global.FileReader = class {
+      readAsDataURL() {
+        this.result = 'data:image/png;base64,QUJDRA=='
+        queueMicrotask(() => this.onload?.())
+      }
+    }
+    global.Image = class {
+      get width() { return 800 }
+      get height() { return 600 }
+      set src(_value) { queueMicrotask(() => this.onload?.()) }
+    }
+
+    try {
+      render(<Harness />)
+
+      const fileInput = document.querySelector('input[type=file]')
+      const file = new File(['abc'], 'shot.png', { type: 'image/png' })
+      await act(async () => {
+        fireEvent.change(fileInput, { target: { files: [file] } })
+      })
+
+      // Thumbnail preview appears with a remove button
+      expect(await screen.findByAltText('shot.png')).toBeInTheDocument()
+      expect(screen.getByTitle('Remove image')).toBeInTheDocument()
+      // The active model is text-only → warn before sending
+      expect(await screen.findByText(/may not support images/)).toBeInTheDocument()
+
+      const input = screen.getByPlaceholderText('Describe a task, ask a question…')
+      fireEvent.change(input, { target: { value: 'what is in this image?' } })
+      fireEvent.click(screen.getByRole('button', { name: 'Send message' }))
+
+      await waitFor(() => {
+        expect(mocks.ompChat).toHaveBeenCalledWith('p1', 'C:/demo', 'what is in this image?', expect.objectContaining({
+          images: [{ type: 'image', data: 'QUJDRA==', mimeType: 'image/png' }],
+        }))
+      })
+    } finally {
+      global.FileReader = originalFileReader
+      global.Image = originalImage
+    }
+  })
 })

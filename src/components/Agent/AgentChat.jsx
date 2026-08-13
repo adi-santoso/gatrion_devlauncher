@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import Icon from '../Common/Icon';
 import * as ipc from '../../utils/ipcRenderer';
 import Markdown from './Markdown';
+import { fileToAttachment, MAX_ATTACHMENTS, MAX_IMAGE_BYTES } from './imageAttachment';
 
 const TOOL_ICONS = {
   read: 'fileText',
@@ -151,6 +152,8 @@ export default function AgentChat({
   const [modelSearch, setModelSearch] = useState('');
   const [thinkingLevel, setThinkingLevel] = useState(null);
   const [levelOpen, setLevelOpen] = useState(false);
+  const [attachments, setAttachments] = useState([]); // { id, name, mimeType, dataUrl, base64, bytes }
+  const fileInputRef = useRef(null);
   const scrollRef = useRef(null);
   const bottomRef = useRef(null);
   const inputRef = useRef(null);
@@ -295,6 +298,7 @@ export default function AgentChat({
         (provider.models || []).map((model) => ({
           ref: `${provider.name}/${model.id}`,
           label: `${provider.name} · ${model.name || model.id}`,
+          vision: null, // explicit models.yml entries carry no input-type info
         }))
       );
       if (!project) {
@@ -305,6 +309,7 @@ export default function AgentChat({
         const rpcOptions = (rpcResult?.models || []).map((model) => ({
           ref: `${model.provider}/${model.id}`,
           label: `${model.provider} · ${model.name || model.id}`,
+          vision: (model.input || []).includes('image'),
         }));
         const seen = new Set();
         const merged = [...configOptions, ...rpcOptions].filter((option) =>
@@ -470,18 +475,22 @@ export default function AgentChat({
 
   const handleSend = async (preset) => {
     const message = (preset ?? input).trim();
-    if (!message || busyRef.current || !project) return;
+    if ((!message && attachments.length === 0) || busyRef.current || !project) return;
+    // omp expects a text prompt; when only images are attached, use a neutral prompt.
+    const text = message || 'Here is an attached image — please analyze it.';
+    const images = attachments.map((attachment) => ({ type: 'image', data: attachment.base64, mimeType: attachment.mimeType }));
     setInput('');
     if (inputRef.current) inputRef.current.style.height = 'auto';
+    setAttachments([]);
     setError(null);
-    setMessages((prev) => [...prev, { role: 'user', content: message }]);
+    setMessages((prev) => [...prev, { role: 'user', content: message || '(image)' }]);
     setStreaming('');
     setThinking('');
     setTools([]);
     setNearBottom(true);
     setBusyState(true);
     try {
-      const result = await ipc.ompChat(project.id, project.path, message, { sessionId: session?.id, sessionPath: session?.sessionPath });
+      const result = await ipc.ompChat(project.id, project.path, text, { sessionId: session?.id, sessionPath: session?.sessionPath, images });
       if (!result?.success) {
         setError(result?.error || 'Failed to start conversation');
         setBusyState(false);
@@ -524,10 +533,26 @@ export default function AgentChat({
     ? models.find((m) => defaultModel === m.ref || defaultModel.startsWith(`${m.ref}:`))?.ref || null
     : null;
   const currentModelLabel = models.find((m) => m.ref === currentModelRef)?.label || defaultModel || null;
+  const currentModelVision = models.find((m) => m.ref === currentModelRef)?.vision;
   const modelQuery = modelSearch.trim().toLowerCase();
   const filteredModels = modelQuery
     ? models.filter((m) => `${m.ref} ${m.label}`.toLowerCase().includes(modelQuery))
     : models;
+
+  const handleFiles = useCallback(async (fileList) => {
+    const files = Array.from(fileList || []).filter((file) => file.type?.startsWith('image/'));
+    if (files.length === 0) return;
+    const results = [];
+    for (const file of files) {
+      if (file.size > MAX_IMAGE_BYTES) continue;
+      try {
+        const attachment = await fileToAttachment(file);
+        results.push({ ...attachment, id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}` });
+      } catch { /* unreadable image — skip */ }
+    }
+    if (results.length === 0) return;
+    setAttachments((prev) => [...prev, ...results].slice(0, MAX_ATTACHMENTS));
+  }, []);
 
   const handleSetThinkingLevel = async (level) => {
     setLevelOpen(false);
@@ -827,35 +852,94 @@ export default function AgentChat({
       {/* Input */}
       <div className="shrink-0 border-t border-border bg-surface px-5 py-3.5">
         <div className="max-w-3xl mx-auto">
-          <div className={`flex items-end gap-2.5 border rounded-2xl bg-surface-2 px-4 py-2.5 transition-colors ${busy ? 'border-border' : 'border-border hover:border-border-hover focus-within:border-accent/50 focus-within:ring-2 focus-within:ring-accent/20'}`}>
-            <textarea
-              ref={inputRef}
-              value={input}
-              onChange={(event) => {
-                setInput(event.target.value);
-                resizeInput(event.target);
-              }}
-              onKeyDown={(event) => {
-                if (event.key === 'Enter' && !event.shiftKey) {
-                  event.preventDefault();
-                  handleSend();
-                }
-              }}
-              rows={1}
-              placeholder={notConfigured ? 'Configure a provider to start chatting…' : 'Describe a task, ask a question…'}
-              disabled={notConfigured || !project || busy}
-              className="flex-1 bg-transparent text-sm text-ink placeholder:text-ink-faint focus:outline-none resize-none max-h-60 py-1 disabled:opacity-50"
-              style={{ overflowY: 'auto' }}
-            />
-            <button
-              onClick={() => handleSend()}
-              disabled={!input.trim() || busy || notConfigured || !project}
-              className="w-9 h-9 shrink-0 rounded-xl bg-accent hover:bg-accent-hover text-white flex items-center justify-center transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-              aria-label="Send message"
-            >
-              <Icon name="upload" size={14} />
-            </button>
+          <div className={`border rounded-2xl bg-surface-2 px-4 py-2.5 transition-colors ${busy ? 'border-border' : 'border-border hover:border-border-hover focus-within:border-accent/50 focus-within:ring-2 focus-within:ring-accent/20'}`}>
+            {attachments.length > 0 && (
+              <div className="flex flex-wrap items-center gap-2 pb-2.5">
+                {attachments.map((attachment) => (
+                  <div key={attachment.id} className="relative">
+                    <img
+                      src={attachment.dataUrl}
+                      alt={attachment.name}
+                      className="w-14 h-14 object-cover rounded-lg border border-border"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setAttachments((prev) => prev.filter((item) => item.id !== attachment.id))}
+                      className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-surface border border-border shadow-sm flex items-center justify-center text-ink-soft hover:text-danger transition-colors"
+                      title="Remove image"
+                      aria-label="Remove image"
+                    >
+                      <Icon name="x" size={10} />
+                    </button>
+                  </div>
+                ))}
+                <span className="text-[11px] text-ink-faint ml-auto">{attachments.length}/{MAX_ATTACHMENTS}</span>
+              </div>
+            )}
+            <div className="flex items-end gap-2.5">
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={busy || notConfigured || !project}
+                className="w-8 h-8 shrink-0 rounded-lg text-ink-faint hover:text-ink hover:bg-surface-3 flex items-center justify-center transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                title="Attach image"
+                aria-label="Attach image"
+              >
+                <Icon name="paperclip" size={15} />
+              </button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                multiple
+                hidden
+                onChange={(event) => {
+                  handleFiles(event.target.files);
+                  event.target.value = '';
+                }}
+              />
+              <textarea
+                ref={inputRef}
+                value={input}
+                onChange={(event) => {
+                  setInput(event.target.value);
+                  resizeInput(event.target);
+                }}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter' && !event.shiftKey) {
+                    event.preventDefault();
+                    handleSend();
+                  }
+                }}
+                onPaste={(event) => {
+                  const pasted = Array.from(event.clipboardData?.files || []).filter((file) => file.type?.startsWith('image/'));
+                  if (pasted.length > 0) {
+                    event.preventDefault();
+                    handleFiles(pasted);
+                  }
+                }}
+                rows={1}
+                placeholder={notConfigured ? 'Configure a provider to start chatting…' : 'Describe a task, ask a question…'}
+                disabled={notConfigured || !project || busy}
+                className="flex-1 bg-transparent text-sm text-ink placeholder:text-ink-faint focus:outline-none resize-none max-h-60 py-1 disabled:opacity-50"
+                style={{ overflowY: 'auto' }}
+              />
+              <button
+                onClick={() => handleSend()}
+                disabled={(!input.trim() && attachments.length === 0) || busy || notConfigured || !project}
+                className="w-9 h-9 shrink-0 rounded-xl bg-accent hover:bg-accent-hover text-white flex items-center justify-center transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                aria-label="Send message"
+              >
+                <Icon name="upload" size={14} />
+              </button>
+            </div>
           </div>
+          {attachments.length > 0 && currentModelVision === false && (
+            <p className="text-[11px] text-warning flex items-center gap-1.5 mt-2">
+              <Icon name="warn" size={11} />
+              The active model may not support images — switch to a vision-capable model from the header.
+            </p>
+          )}
           <p className="text-[11px] text-ink-faint mt-2 flex items-center gap-2">
             <span><kbd className="px-1 py-0.5 rounded bg-surface-3 border border-border text-[10px]">Enter</kbd> to send · <kbd className="px-1 py-0.5 rounded bg-surface-3 border border-border text-[10px]">Shift+Enter</kbd> newline</span>
             <span className="w-1 h-1 rounded-full bg-ink-faint/60" />

@@ -346,8 +346,14 @@ class OmpManager extends EventEmitter {
   // High-level RPC commands
   // =========================================================================
 
-  /** Start a conversation turn. Creates/reuses the session file on the RPC side. */
-  async chat(projectId, cwd, message, { sessionId = null, sessionPath = null } = {}) {
+  /**
+   * Start a conversation turn. Creates/reuses the session file on the RPC side.
+   * @param {object} [options]
+   * @param {string|null} [options.sessionId]
+   * @param {string|null} [options.sessionPath]
+   * @param {Array<{type: 'image', data: string, mimeType: string}>} [options.images] - base64 image attachments
+   */
+  async chat(projectId, cwd, message, { sessionId = null, sessionPath = null, images = [] } = {}) {
     await this.ensureRpc(projectId, cwd)
     let session = sessionId ? this.registry.projects[projectId]?.find((item) => item.id === sessionId) : null
     if (!session) {
@@ -367,7 +373,7 @@ class OmpManager extends EventEmitter {
       session.sessionPath = state?.sessionFile || null
       await this.touchSession(projectId, sessionId, { sessionPath: session.sessionPath })
     }
-    await this._send(projectId, { type: 'prompt', message })
+    await this._send(projectId, { type: 'prompt', message, images })
     await this.touchSession(projectId, sessionId)
     return { sessionId, session }
   }

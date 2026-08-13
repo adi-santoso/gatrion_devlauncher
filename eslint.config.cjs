@@ -14,8 +14,9 @@ module.exports = [
       parserOptions: { ecmaFeatures: { jsx: true } },
       globals: {
         alert: 'readonly', Blob: 'readonly', clearInterval: 'readonly', clearTimeout: 'readonly', confirm: 'readonly',
-        console: 'readonly', document: 'readonly', module: 'readonly', navigator: 'readonly',
-        process: 'readonly', ResizeObserver: 'readonly', setInterval: 'readonly', setTimeout: 'readonly',
+        console: 'readonly', document: 'readonly', File: 'readonly', FileReader: 'readonly', global: 'readonly',
+        Image: 'readonly', module: 'readonly', navigator: 'readonly', process: 'readonly', queueMicrotask: 'readonly',
+        ResizeObserver: 'readonly', setInterval: 'readonly', setTimeout: 'readonly',
         URL: 'readonly', window: 'readonly',
       },
     },

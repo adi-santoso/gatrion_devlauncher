@@ -70,14 +70,32 @@ function setupAgentHandlers(ompManager, installer, ompConfig, getWindow) {
     return { success: true, session }
   })
 
+  // omp RPC ImageContent: { type: 'image', data: <base64>, mimeType: 'image/png' }
+  const MAX_IMAGES = 8
+  const MAX_IMAGE_BASE64 = 12 * 1024 * 1024
+  function assertImages(images) {
+    if (images === undefined || images === null) return []
+    if (!Array.isArray(images)) throw new Error('Images must be an array')
+    if (images.length > MAX_IMAGES) throw new Error(`At most ${MAX_IMAGES} images per message`)
+    for (const image of images) {
+      if (!image || image.type !== 'image') throw new Error('Invalid image attachment')
+      if (typeof image.mimeType !== 'string' || !image.mimeType.startsWith('image/')) throw new Error('Invalid image mime type')
+      if (typeof image.data !== 'string' || !image.data || image.data.length > MAX_IMAGE_BASE64) throw new Error('Invalid image data')
+    }
+    return images.map(({ type, data, mimeType }) => ({ type, data, mimeType }))
+  }
+
   secureHandle('omp-chat', async (event, projectId, cwd, message, options = {}) => {
     assertSessionId(projectId)
     assertProjectPath(cwd)
-    if (typeof message !== 'string' || !message.trim()) throw new Error('Message is required')
-    if (message.length > MAX_MESSAGE) throw new Error('Message is too long')
-    const result = await ompManager.chat(projectId, cwd, message.slice(0, MAX_MESSAGE), {
+    const text = typeof message === 'string' ? message.trim() : ''
+    const images = assertImages(options.images)
+    if (!text && images.length === 0) throw new Error('Message is required')
+    if (text.length > MAX_MESSAGE) throw new Error('Message is too long')
+    const result = await ompManager.chat(projectId, cwd, text.slice(0, MAX_MESSAGE), {
       sessionId: options.sessionId || null,
       sessionPath: options.sessionPath || null,
+      images,
     })
     return { success: true, sessionId: result.sessionId, session: result.session }
   })
