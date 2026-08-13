@@ -3,6 +3,17 @@ import Icon from '../Common/Icon';
 import Markdown from './Markdown';
 import ThinkingBlock from './ThinkingBlock';
 
+const formatTime = (iso) => {
+  if (!iso) return '';
+  try {
+    return new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  } catch {
+    return '';
+  }
+};
+
+const actionBtnCls = 'inline-flex items-center gap-1 text-[11px] text-ink-faint hover:text-ink px-2 py-1 rounded-md hover:bg-surface-3 transition-colors';
+
 export function CopyButton({ text, className = '' }) {
   const [copied, setCopied] = useState(false);
   const handleCopy = async () => {
@@ -13,13 +24,8 @@ export function CopyButton({ text, className = '' }) {
     } catch { /* clipboard unavailable */ }
   };
   return (
-    <button
-      type="button"
-      onClick={handleCopy}
-      title="Copy message"
-      className={`inline-flex items-center gap-1.5 text-[11px] font-medium transition-colors ${copied ? 'text-success' : 'text-ink-faint hover:text-ink-soft'} ${className}`}
-    >
-      <Icon name={copied ? 'check' : 'copy'} size={11} />
+    <button type="button" onClick={handleCopy} title="Copy message" className={`${actionBtnCls} ${copied ? 'text-success' : ''} ${className}`}>
+      <Icon name={copied ? 'check' : 'copy'} size={12} />
       {copied ? 'Copied' : 'Copy'}
     </button>
   );
@@ -51,66 +57,62 @@ export const AssistantMessage = React.memo(function AssistantMessage({ message, 
     : null;
 
   return (
-    <div className="group self-start max-w-[96%] w-full">
-      <div className="flex items-center gap-2 mb-1.5">
-        <span className="w-5 h-5 rounded-md bg-accent/15 text-accent-hover flex items-center justify-center shrink-0">
-          <Icon name="messageSquare" size={11} />
-        </span>
-        <span className="text-xs font-semibold text-ink-soft">Agent</span>
-        {tokens != null && tokens > 0 && (
-          <span
-            className="text-[10px] font-mono text-ink-faint bg-surface-2 border border-border rounded-full px-2 py-0.5"
-            title={
-              message.promptTokens != null && message.completionTokens != null
-                ? `${message.promptTokens.toLocaleString()} prompt · ${message.completionTokens.toLocaleString()} completion tokens`
-                : 'Tokens used'
-            }
-          >
-            {message.promptTokens != null && message.completionTokens != null
-              ? `${message.promptTokens.toLocaleString()} in · ${message.completionTokens.toLocaleString()} out`
-              : `${tokens.toLocaleString()} tokens`}
-          </span>
-        )}
-        <span className="ml-auto flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-          {speechSupported && (
-            <button
-              type="button"
-              onClick={speak}
-              title={speaking ? 'Stop reading' : 'Read aloud'}
-              className="p-1 rounded-md text-ink-faint hover:text-ink-soft hover:bg-surface-3 transition-colors"
+    <div className="group flex gap-[13px]">
+      <div className="w-7 h-7 rounded-[7px] bg-accent text-white shadow-[0_0_10px_rgba(109,94,245,.35)] flex items-center justify-center shrink-0 mt-0.5">
+        <Icon name="messageSquare" size={12} />
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2 mb-1">
+          <span className="text-[10.5px] font-semibold font-mono uppercase tracking-[0.07em] text-ink-faint">Assistant</span>
+          {formatTime(message.createdAt) && <span className="text-[10px] text-ink-faint">{formatTime(message.createdAt)}</span>}
+          {tokens != null && tokens > 0 && (
+            <span
+              className="text-[10px] text-ink-soft bg-surface-2 px-1.5 py-0.5 rounded"
+              title={
+                message.promptTokens != null && message.completionTokens != null
+                  ? `${message.promptTokens.toLocaleString()} prompt · ${message.completionTokens.toLocaleString()} completion tokens`
+                  : 'Tokens used'
+              }
             >
+              {message.promptTokens != null && message.completionTokens != null
+                ? `${message.promptTokens.toLocaleString()} in · ${message.completionTokens.toLocaleString()} out`
+                : `${tokens.toLocaleString()} tokens`}
+            </span>
+          )}
+        </div>
+        {message.thinking && <ThinkingBlock content={message.thinking} />}
+        <div className="text-sm text-ink leading-[1.7]">
+          <Markdown content={message.content} />
+        </div>
+        {message.stopped && (
+          <p className="mt-1.5 text-[11px] text-ink-faint italic flex items-center gap-1.5">
+            <Icon name="stop" size={10} />
+            Generation stopped — partial reply kept
+          </p>
+        )}
+        <div className="flex items-center gap-0.5 mt-2 opacity-0 group-hover:opacity-100 transition-opacity duration-150">
+          {speechSupported && (
+            <button type="button" onClick={speak} title={speaking ? 'Stop reading' : 'Read aloud'} className={actionBtnCls}>
               <Icon name="volume" size={12} />
+              {speaking ? 'Stop' : 'Read aloud'}
             </button>
           )}
           {isLast && !busy && (
-            <button
-              type="button"
-              onClick={() => onRetry?.(message)}
-              title="Retry — re-ask the last prompt"
-              className="p-1 rounded-md text-ink-faint hover:text-ink-soft hover:bg-surface-3 transition-colors"
-            >
+            <button type="button" onClick={() => onRetry?.(message)} title="Retry — re-ask the last prompt" className={actionBtnCls}>
               <Icon name="refreshCw" size={12} />
+              Retry
             </button>
           )}
           <CopyButton text={message.content} />
-        </span>
+        </div>
       </div>
-      {message.thinking && <ThinkingBlock content={message.thinking} />}
-      <div className="text-sm text-ink leading-relaxed">
-        <Markdown content={message.content} />
-      </div>
-      {message.stopped && (
-        <p className="mt-1.5 text-[11px] text-ink-faint italic flex items-center gap-1.5">
-          <Icon name="stop" size={10} />
-          Generation stopped — partial reply kept
-        </p>
-      )}
     </div>
   );
 });
 
-// User bubble with attached image thumbnails, an inline edit mode (edit the
-// last message and re-ask), and a fullscreen image viewer.
+// User message in the same flat layout (avatar + content column). Images render
+// as clickable thumbnails with a fullscreen viewer; the most recent user
+// message can be edited inline and re-sent.
 export function UserMessage({ message, isLast, busy, onSave }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(message.content);
@@ -128,10 +130,17 @@ export function UserMessage({ message, isLast, busy, onSave }) {
   };
 
   return (
-    <div className="flex justify-end">
-      <div className="max-w-[80%]">
+    <div className="group flex gap-[13px]">
+      <div className="w-7 h-7 rounded-[7px] bg-surface-2 text-ink-soft border border-border flex items-center justify-center shrink-0 mt-0.5">
+        <span className="text-[11px] font-bold">You</span>
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2 mb-1">
+          <span className="text-[10.5px] font-semibold font-mono uppercase tracking-[0.07em] text-ink-faint">You</span>
+          {formatTime(message.createdAt) && <span className="text-[10px] text-ink-faint">{formatTime(message.createdAt)}</span>}
+        </div>
         {editing ? (
-          <div className="bg-accent text-white text-sm rounded-2xl rounded-br-md shadow-sm overflow-hidden">
+          <div className="border border-accent/40 rounded-xl bg-surface-2 overflow-hidden">
             <textarea
               autoFocus
               value={draft}
@@ -141,48 +150,53 @@ export function UserMessage({ message, isLast, busy, onSave }) {
                 if (event.key === 'Escape') cancelEdit();
               }}
               rows={Math.min(6, Math.max(2, draft.split('\n').length))}
-              className="w-full bg-transparent text-white placeholder:text-white/50 px-4 py-2.5 focus:outline-none resize-none"
+              className="w-full bg-transparent text-sm text-ink placeholder:text-ink-faint px-3.5 py-2.5 focus:outline-none resize-none"
             />
             <div className="flex justify-end gap-1.5 px-2 pb-2">
-              <button type="button" onClick={cancelEdit} className="px-2.5 py-1 rounded-lg text-[11px] text-white/70 hover:bg-white/10 transition-colors">Cancel</button>
-              <button type="button" onClick={submitEdit} disabled={!draft.trim()} className="px-3 py-1 rounded-lg text-[11px] font-semibold bg-white/15 hover:bg-white/25 disabled:opacity-50 transition-colors">Save &amp; send</button>
+              <button type="button" onClick={cancelEdit} className="px-2.5 py-1 rounded-lg text-[11px] text-ink-faint hover:text-ink hover:bg-surface-3 transition-colors">Cancel</button>
+              <button type="button" onClick={submitEdit} disabled={!draft.trim()} className="px-3 py-1 rounded-lg text-[11px] font-semibold bg-accent hover:bg-accent-hover text-white disabled:opacity-50 transition-colors">Save &amp; send</button>
             </div>
           </div>
         ) : (
           <>
             {message.content && (
-              <div className="group relative">
-                <div className="bg-accent text-white text-sm leading-relaxed px-4 py-2.5 rounded-2xl rounded-br-md shadow-sm whitespace-pre-wrap break-words">
-                  {message.content}
-                </div>
-                {isLast && !busy && (
-                  <button
-                    type="button"
-                    onClick={() => { setEditing(true); setDraft(message.content); }}
-                    title="Edit and re-ask"
-                    className="absolute -bottom-2 -right-2 w-6 h-6 rounded-full bg-surface border border-border shadow-card flex items-center justify-center text-ink-faint hover:text-accent hover:border-border-hover opacity-0 group-hover:opacity-100 transition-opacity"
-                  >
-                    <Icon name="edit" size={11} />
-                  </button>
-                )}
-              </div>
+              <div className="text-sm text-ink leading-[1.7] whitespace-pre-wrap break-words">{message.content}</div>
             )}
             {message.images && message.images.length > 0 && (
-              <div className="flex gap-2 mt-2 flex-wrap justify-end">
+              <div className="flex gap-2 mt-2 flex-wrap">
                 {message.images.map((image) => (
                   <button
                     key={image.dataUrl}
                     type="button"
                     onClick={() => setExpandedImage(image.dataUrl)}
-                    className="rounded-lg overflow-hidden border border-border hover:border-border-hover transition-colors"
+                    className="relative group/thumb rounded-lg overflow-hidden border border-border hover:border-border-hover transition-colors"
                     title="View image"
                   >
-                    <img src={image.dataUrl} alt="Attachment" className="w-28 h-28 object-cover" />
+                    <img src={image.dataUrl} alt="Attachment" className="w-32 h-32 object-cover" />
+                    <div className="absolute inset-0 bg-black/0 group-hover/thumb:bg-black/20 transition-colors flex items-center justify-center">
+                      <Icon name="maximize" size={16} className="text-white opacity-0 group-hover/thumb:opacity-100 transition-opacity" />
+                    </div>
                   </button>
                 ))}
               </div>
             )}
           </>
+        )}
+        {!editing && (
+          <div className="flex items-center gap-0.5 mt-2 opacity-0 group-hover:opacity-100 transition-opacity duration-150">
+            {isLast && !busy && (
+              <button
+                type="button"
+                onClick={() => { setEditing(true); setDraft(message.content); }}
+                title="Edit and re-ask"
+                className={actionBtnCls}
+              >
+                <Icon name="edit" size={12} />
+                Edit
+              </button>
+            )}
+            {message.content && <CopyButton text={message.content} />}
+          </div>
         )}
       </div>
 

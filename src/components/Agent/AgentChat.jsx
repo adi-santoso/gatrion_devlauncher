@@ -440,7 +440,7 @@ export default function AgentChat({
             }
           }
           if (!replaced) {
-            next.push({ id: uid(), role: 'assistant', content: assistantContent, thinking: assistantThinking || undefined, promptTokens, completionTokens, totalTokens })
+            next.push({ id: uid(), role: 'assistant', content: assistantContent, thinking: assistantThinking || undefined, promptTokens, completionTokens, totalTokens, createdAt: new Date().toISOString() })
           }
         }
         return next
@@ -483,6 +483,7 @@ export default function AgentChat({
         role: 'user',
         content: text || '',
         images: images.length ? images : undefined,
+        createdAt: new Date().toISOString(),
       }]);
     }
     setStreaming('');
@@ -796,10 +797,10 @@ export default function AgentChat({
       <div
         ref={scrollRef}
         onScroll={handleScroll}
-        className="flex-1 min-h-0 overflow-auto px-5 py-4 bg-base"
+        className="flex-1 min-h-0 overflow-auto px-6 pt-7 pb-5 bg-base"
       >
         {historyLoading ? (
-          <div className="max-w-3xl mx-auto space-y-5 pt-2">
+          <div className="max-w-[760px] mx-auto space-y-5 pt-2">
             <div className="flex items-center gap-2 mb-1">
               <span className="w-5 h-5 rounded-md bg-accent/15 flex items-center justify-center">
                 <span className="w-2.5 h-2.5 rounded-full border-2 border-accent/40 border-t-transparent animate-spin" />
@@ -824,8 +825,11 @@ export default function AgentChat({
           </div>
         ) : isFresh ? (
           <div className="h-full flex flex-col items-center justify-center max-w-xl mx-auto text-center">
-            <div className="w-14 h-14 rounded-2xl bg-accent/10 border border-accent/20 flex items-center justify-center text-accent-hover mb-4">
-              <Icon name="messageSquare" size={24} />
+            <div className="relative w-16 h-16 mx-auto mb-5">
+              <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-accent/15 to-accent/5" />
+              <div className="relative w-full h-full rounded-2xl bg-gradient-to-br from-accent/10 to-accent/5 border border-accent/20 flex items-center justify-center text-accent-hover">
+                <Icon name="messageSquare" size={24} />
+              </div>
             </div>
             {notConfigured ? (
               <>
@@ -843,18 +847,18 @@ export default function AgentChat({
               </>
             ) : (
               <>
-                <p className="text-base font-semibold text-ink">Chat with the coding agent</p>
-                <p className="text-sm text-ink-faint mt-1.5 leading-relaxed">
+                <p className="text-[22px] font-bold tracking-[-0.02em] mb-2 text-ink">What can I help you build?</p>
+                <p className="text-[13.5px] text-ink-faint leading-relaxed mb-7">
                   Ask it to fix a bug, refactor code, or explore <span className="text-ink-soft font-medium">{project?.name}</span>.
                 </p>
-                <div className="mt-5 grid gap-2 w-full max-w-md">
+                <div className="grid grid-cols-2 gap-2.5 w-full max-w-md">
                   {SUGGESTIONS.map((suggestion) => (
                     <button
                       key={suggestion}
                       type="button"
                       onClick={() => handleSend(suggestion)}
                       disabled={busy}
-                      className="text-left text-[13px] text-ink-soft bg-surface-2 border border-border rounded-xl px-4 py-2.5 hover:bg-surface-3 hover:text-ink hover:border-border-hover transition-colors disabled:opacity-50"
+                      className="text-left text-[12.5px] px-3.5 py-3 rounded-lg border border-border bg-surface-2 text-ink-soft hover:border-accent/50 hover:text-ink leading-snug transition-colors disabled:opacity-50"
                     >
                       {suggestion}
                     </button>
@@ -864,7 +868,7 @@ export default function AgentChat({
             )}
           </div>
         ) : (
-          <div className="max-w-3xl mx-auto space-y-5">
+          <div className="max-w-[760px] mx-auto space-y-[26px]">
             {messages.map((message, index) => (
               <div key={message.id || index} className="message-in" style={{ animationDelay: `${Math.min(index * 30, 150)}ms` }}>
                 {message.role === 'user' ? (
@@ -875,34 +879,35 @@ export default function AgentChat({
               </div>
             ))}
             {tools.length > 0 && (
-              <div className="max-w-3xl mx-auto">
+              <div className="max-w-[760px] mx-auto">
                 {tools.map((tool, index) => <ToolCard key={`tool-${index}`} tool={tool} />)}
               </div>
             )}
             {busy && !streaming && !thinking && tools.length === 0 && (
               <div className="flex items-center gap-1.5 self-start pl-1 pt-1">
-                <span className="w-2 h-2 rounded-full bg-ink-faint animate-pulse" />
-                <span className="w-2 h-2 rounded-full bg-ink-faint animate-pulse" style={{ animationDelay: '150ms' }} />
-                <span className="w-2 h-2 rounded-full bg-ink-faint animate-pulse" style={{ animationDelay: '300ms' }} />
+                <span className="w-2 h-2 rounded-full bg-ink-faint animate-dot-pulse" />
+                <span className="w-2 h-2 rounded-full bg-ink-faint animate-dot-pulse-delay-1" />
+                <span className="w-2 h-2 rounded-full bg-ink-faint animate-dot-pulse-delay-2" />
               </div>
             )}
             {thinking && <ThinkingBlock content={thinking} isStreaming />}
             {streaming && (
-              <div className="group self-start max-w-[96%] w-full">
-                <div className="flex items-center gap-2 mb-1.5">
-                  <span className="w-5 h-5 rounded-md bg-accent/15 text-accent-hover flex items-center justify-center">
-                    <Icon name="messageSquare" size={11} />
-                  </span>
-                  <span className="text-xs font-semibold text-ink-soft">Agent</span>
-                  <span className="text-[11px] text-ink-faint">typing…</span>
+              <div className="flex gap-[13px]">
+                <div className="w-7 h-7 rounded-[7px] bg-accent text-white shadow-[0_0_10px_rgba(109,94,245,.35)] flex items-center justify-center shrink-0 mt-0.5">
+                  <Icon name="messageSquare" size={12} />
                 </div>
-                <div className="text-sm text-ink leading-relaxed">
-                  {streaming.length < MARKDOWN_STREAM_LIMIT ? (
-                    <Markdown content={streaming} />
-                  ) : (
-                    <div className="whitespace-pre-wrap break-words">{streaming}</div>
-                  )}
-                  <span className="inline-block w-2 h-4 bg-accent align-text-bottom animate-pulse rounded-[2px] ml-0.5" />
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-[10.5px] font-semibold font-mono uppercase tracking-[0.07em] text-ink-faint">Assistant</span>
+                  </div>
+                  <div className="text-sm text-ink leading-[1.7]">
+                    {streaming.length < MARKDOWN_STREAM_LIMIT ? (
+                      <Markdown content={streaming} />
+                    ) : (
+                      <div className="whitespace-pre-wrap break-words">{streaming}</div>
+                    )}
+                    <span className="inline-block w-1.5 h-4 bg-accent animate-cursor-blink ml-0.5 align-middle rounded-sm" />
+                  </div>
                 </div>
               </div>
             )}
@@ -921,17 +926,18 @@ export default function AgentChat({
         <button
           type="button"
           onClick={() => { scrollToBottom(); setNearBottom(true); }}
-          className="absolute bottom-24 right-6 w-9 h-9 rounded-full bg-surface border border-border shadow-card flex items-center justify-center text-ink-soft hover:text-ink hover:border-border-hover transition-colors"
+          className="absolute bottom-24 left-1/2 -translate-x-1/2 flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-surface border border-border shadow-card backdrop-blur-sm z-10 text-[11px] text-ink-soft hover:text-ink hover:border-border-hover transition-colors"
           title="Jump to latest"
         >
-          <Icon name="arrowDown" size={14} />
+          <Icon name="arrowDown" size={12} />
+          Scroll to bottom
         </button>
       )}
 
       {/* Input */}
-      <div className="shrink-0 border-t border-border bg-surface px-5 py-3.5">
-        <div className="max-w-3xl mx-auto">
-          <div className={`border rounded-2xl bg-surface-2 px-4 py-2.5 transition-colors ${busy ? 'border-border' : 'border-border hover:border-border-hover focus-within:border-accent/50 focus-within:ring-2 focus-within:ring-accent/20'}`}>
+      <div className="shrink-0 border-t border-border bg-base px-5 py-3.5">
+        <div className="max-w-[760px] mx-auto">
+          <div className={`relative rounded-[13px] border bg-surface-2 px-4 py-2.5 transition-all ${busy ? 'border-border' : 'border-border hover:border-border-hover focus-within:border-border-hover'}`}>
             {attachments.length > 0 && (
               <div className="flex flex-wrap items-center gap-2 pb-2.5">
                 {attachments.map((attachment) => (
@@ -960,11 +966,11 @@ export default function AgentChat({
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
                 disabled={busy || notConfigured || !project}
-                className="w-8 h-8 shrink-0 rounded-lg text-ink-faint hover:text-ink hover:bg-surface-3 flex items-center justify-center transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                className="w-7 h-7 shrink-0 rounded-md text-ink-faint hover:text-ink hover:bg-surface-3 flex items-center justify-center transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                 title="Attach image"
                 aria-label="Attach image"
               >
-                <Icon name="paperclip" size={15} />
+                <Icon name="paperclip" size={14} />
               </button>
               <input
                 ref={fileInputRef}
@@ -1000,13 +1006,13 @@ export default function AgentChat({
                 rows={1}
                 placeholder={notConfigured ? 'Configure a provider to start chatting…' : 'Describe a task, ask a question…'}
                 disabled={notConfigured || !project || busy}
-                className="flex-1 bg-transparent text-sm text-ink placeholder:text-ink-faint focus:outline-none resize-none max-h-60 py-1 disabled:opacity-50"
+                className="flex-1 min-w-0 bg-transparent text-sm text-ink placeholder:text-ink-faint focus:outline-none resize-none max-h-[130px] py-1 disabled:opacity-50"
                 style={{ overflowY: 'auto' }}
               />
               <button
                 onClick={() => handleSend()}
                 disabled={(!input.trim() && attachments.length === 0) || busy || notConfigured || !project}
-                className="w-9 h-9 shrink-0 rounded-xl bg-accent hover:bg-accent-hover text-white flex items-center justify-center transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                className="w-[34px] h-[34px] shrink-0 rounded-lg bg-accent hover:bg-accent-hover text-white flex items-center justify-center transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                 aria-label="Send message"
               >
                 <Icon name="upload" size={14} />
@@ -1019,12 +1025,11 @@ export default function AgentChat({
               The active model may not support images — switch to a vision-capable model from the header.
             </p>
           )}
-          <p className="text-[11px] text-ink-faint mt-2 flex items-center gap-2">
+          <div className="text-center text-[11px] font-mono text-ink-faint mt-2 flex items-center justify-center gap-2 flex-wrap">
             <span><kbd className="px-1 py-0.5 rounded bg-surface-3 border border-border text-[10px]">Enter</kbd> to send · <kbd className="px-1 py-0.5 rounded bg-surface-3 border border-border text-[10px]">Shift+Enter</kbd> newline</span>
-            <span className="w-1 h-1 rounded-full bg-ink-faint/60" />
-            <span>Sessions & context are stored by omp locally</span>
-            <span className="ml-auto tabular-nums">{input.length > 0 ? `${input.length.toLocaleString()} chars` : ''}</span>
-          </p>
+            {input.length > 0 && <span className="tabular-nums">{input.length.toLocaleString()} chars</span>}
+          </div>
+          <div className="text-center text-[10px] text-ink-faint mt-1">Sessions &amp; context are stored by omp locally</div>
         </div>
       </div>
     </div>

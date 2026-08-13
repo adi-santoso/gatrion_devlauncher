@@ -1,41 +1,50 @@
 import React, { useEffect, useState } from 'react';
 import Icon from '../Common/Icon';
 
-// Collapsible reasoning panel for assistant messages. Auto-opens while the
-// model is streaming so the user can watch it think, and shows a short preview
-// of the reasoning (instead of nothing) when collapsed.
+// Collapsible reasoning panel styled like kreova's chat: open by default,
+// auto-opens while the model is streaming, and shows a short preview of the
+// reasoning (instead of nothing) when collapsed.
 export default function ThinkingBlock({ content, isStreaming = false }) {
-  const [expanded, setExpanded] = useState(false);
+  const [open, setOpen] = useState(true);
   useEffect(() => {
-    if (isStreaming) setExpanded(true);
+    if (isStreaming) setOpen(true);
   }, [isStreaming]);
   const trimmed = content.trim();
-  const preview = trimmed.slice(0, 120);
+  const hasContent = trimmed.length > 0;
 
   return (
-    <div className="my-1.5 rounded-xl border border-border/70 bg-surface-2/60 overflow-hidden">
+    <div className="mb-2">
       <button
         type="button"
-        onClick={() => setExpanded((value) => !value)}
-        className="w-full flex items-center gap-2 px-3 py-1.5 text-left"
+        onClick={() => setOpen((value) => !value)}
+        className="group flex items-center gap-1.5 text-[12px] text-ink-faint hover:text-ink-soft transition-colors cursor-pointer select-none"
+        aria-expanded={open}
       >
-        <Icon name="spinner" size={12} className="text-ink-faint shrink-0" />
-        <span className="text-xs font-medium text-ink-soft">Thinking</span>
-        {!expanded && preview && (
-          <span className="text-[11px] text-ink-faint truncate min-w-0 flex-1">{preview}{trimmed.length > 120 ? '…' : ''}</span>
-        )}
-        {isStreaming && (
-          <span className="flex items-center gap-0.5 shrink-0">
-            <span className="w-1 h-1 rounded-full bg-ink-faint animate-pulse" />
-            <span className="w-1 h-1 rounded-full bg-ink-faint animate-pulse" style={{ animationDelay: '150ms' }} />
-            <span className="w-1 h-1 rounded-full bg-ink-faint animate-pulse" style={{ animationDelay: '300ms' }} />
+        <span className="flex items-center justify-center w-3.5 h-3.5 rounded-[4px] bg-surface-2 border border-border text-ink-faint group-hover:text-ink-soft transition-colors">
+          <Icon name="chevronRight" size={9} strokeWidth={2.5} className={`transform transition-transform duration-200 ${open ? 'rotate-90' : ''}`} />
+        </span>
+        <span className="font-medium">Thought process</span>
+        {!open && hasContent && (
+          <span className="text-[10.5px] text-ink-faint opacity-60 truncate ml-1 max-w-[300px]">
+            {trimmed.slice(0, 120)}{trimmed.length > 120 ? '…' : ''}
           </span>
         )}
-        <Icon name={expanded ? 'chevronDown' : 'chevronRight'} size={12} className="text-ink-faint shrink-0 ml-auto" />
+        {isStreaming && (
+          <span className="flex items-center gap-0.5 ml-1">
+            <span className="w-1 h-1 rounded-full bg-ink-faint animate-dot-pulse" />
+            <span className="w-1 h-1 rounded-full bg-ink-faint animate-dot-pulse-delay-1" />
+            <span className="w-1 h-1 rounded-full bg-ink-faint animate-dot-pulse-delay-2" />
+          </span>
+        )}
       </button>
-      {expanded && (
-        <div className="border-t border-border/60 px-3 py-2 text-xs text-ink-faint italic whitespace-pre-wrap break-words max-h-56 overflow-auto">
-          {preview ? content : 'Thinking…'}
+      {open && (
+        <div className="mt-1.5 pl-[22px]">
+          <div className="relative">
+            <div className="absolute left-0 top-1 bottom-1 w-px bg-border" />
+            <div className="pl-4 text-[12.5px] leading-relaxed text-ink-soft whitespace-pre-wrap select-text">
+              {hasContent ? content : 'Thinking…'}
+            </div>
+          </div>
         </div>
       )}
     </div>

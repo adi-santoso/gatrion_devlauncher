@@ -242,11 +242,11 @@ describe('AgentChat', () => {
     // Auto-opens while streaming — reasoning is visible without clicking
     expect(await screen.findByText(/step 19/)).toBeInTheDocument()
     // Clicking collapses it to a preview snippet instead of hiding everything
-    fireEvent.click(screen.getByText('Thinking'))
+    fireEvent.click(screen.getByText('Thought process'))
     expect(screen.queryByText(/step 19/)).not.toBeInTheDocument()
   })
 
-  it('persists thinking on the assistant message after the turn ends (collapsed with preview)', async () => {
+  it('persists thinking on the assistant message after the turn ends (open by default, collapsible with preview)', async () => {
     mocks.onOmpEvent.mockImplementation((callback) => { eventCb = callback; return () => {} })
     mocks.ompGetMessages.mockResolvedValue({ success: true, messages: [] })
     mocks.ompChat.mockResolvedValue({
@@ -277,11 +277,14 @@ describe('AgentChat', () => {
     ] } })
 
     expect(await screen.findByText('done thinking')).toBeInTheDocument()
-    // Collapsed by default after the turn — only the preview snippet shows
+    // Open by default (kreova behavior) — the full reasoning stays visible
+    expect(await screen.findByText(/step 19/)).toBeInTheDocument()
+    // Collapsing shows a preview snippet instead of nothing
+    fireEvent.click(screen.getByText('Thought process'))
     expect(screen.queryByText(/step 19/)).not.toBeInTheDocument()
     expect(screen.getByText(/step 0/)).toBeInTheDocument()
-    // Expanding reveals the full reasoning
-    fireEvent.click(screen.getByText('Thinking'))
+    // Expanding reveals the full reasoning again
+    fireEvent.click(screen.getByText('Thought process'))
     expect(await screen.findByText(/step 19/)).toBeInTheDocument()
   })
 
