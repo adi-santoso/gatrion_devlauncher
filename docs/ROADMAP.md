@@ -1,273 +1,112 @@
-# Roadmap DevLauncher
+# Roadmap DevLauncher — Rencana Peningkatan
 
-## Tujuan Akhir
+Dokumen ini berisi rencana perbaikan DevLauncher berdasarkan analisa kode saat ini (commit `8fb48f6`). Ini bukan daftar fitur marketing — tiap item diturunkan dari kondisi nyata repo, diberi prioritas, perkiraan effort, dan dampak. Status per fitur eksisting tetap di [FEATURE_STATUS.md](FEATURE_STATUS.md); riwayat perubahan di [CHANGELOG.md](../CHANGELOG.md).
 
-DevLauncher selesai ketika developer Windows dapat memasang aplikasi, menambahkan project tepercaya, menjalankan dan menghentikannya tanpa process orphan, melihat log/status akurat, memakai integrasi desktop utama, dan memulihkan data dari failure umum. Build harus reproducible dan lolos test otomatis serta clean-machine smoke test.
+## Kondisi Saat Ini (hasil analisa)
 
-Status:
+| Area | Fakta |
+|---|---|
+| Ukuran kode | ±20.900 baris (src + electron). File terbesar: `AgentChat.jsx` 1.787 baris, `App.jsx` 1.096, `ProcessManager.js` 1.059, `ipcRenderer.js` 840 |
+| Kualitas kode | Lint: **0 error, 263 warning** (239 `no-unused-vars` — mayoritas false positive JSX, 21 `react-hooks/exhaustive-deps`, 3 unused disable) |
+| Test | 13 test CLI (Node) + 148 test Vitest + 4 e2e Playwright. **Coverage ±31% lines** |
+| Bundle | Satu chunk renderer **837 kB** (216 kB gzip) — di atas ambang warning Vite (500 kB) |
+| Security | Sudah kuat: contextIsolation, CSP, `assertTrustedIpcEvent`, allowlist field, secret env dimask. Belum ada schema validation terpusat per channel |
+| Main process | Tidak ada **auto-update**, **single-instance lock**, **crash report**, atau **global shortcut** |
+| Platform | Windows x64 saja; macOS/Linux belum diuji |
+| Runtime deps | Minimal (7 paket). Tidak ada electron-updater, i18n, state manager (zustand sudah dihapus) |
 
-- **Done**: acceptance criteria inti sudah ada.
-- **Partial**: implementasi ada tetapi belum memenuhi seluruh criteria.
-- **Pending**: belum dikerjakan.
-- **Blocked**: bergantung task lain/asset eksternal.
+## Skala Prioritas
 
-## Status Update Terbaru
+- **P0 — quick win**: dampak nyata, effort kecil (≤ 1 hari per item).
+- **P1 — nilai tinggi**: dampak besar, effort sedang (beberapa hari–minggu).
+- **P2 — lanjutan**: bagus untuk punya, effort lebih besar atau menunggu fondasi.
 
-Perkembangan terkini menyelesaikan: **AI Agent (oh-my-pi)** — chat streaming real-time per project (teks/thinking/tool cards via RPC omp), session management (new/rename/delete/pin/search), model picker + thinking level, steer/compact/auto-retry, todos panel, slash commands, export ke Markdown, branch dari pesan, bash runner interaktif, draft per session, notifikasi saat turn selesai, installer omp terkelola, dan form custom provider di Settings. Sebelumnya: **preview embedded via native WebContentsView** (sesi persisten per project + fallback iframe), **tab Git** dan **script runner** di Project Detail, **dependency manager**, **env profiles & secrets**, **health & analytics**, **widget Pengingat Sholat** (offline PrayTimes Kemenag RI), **presets v2**, **command palette v2**, dan perbaikan **terminal interaktif di build produksi** (`node-pty` → dependencies). Riwayat lengkap di [CHANGELOG.md](../CHANGELOG.md) dan status per fitur di [FEATURE_STATUS.md](FEATURE_STATUS.md).
+## 1. Code Quality & Maintainability
 
-## Evaluasi Roadmap Lama
+| Item | Prioritas | Effort | Dampak |
+|---|---|---|---|
+| Perbaiki config ESLint: hilangkan 239 warning `no-unused-vars` JSX (parser options / `jsx-uses-vars`), bereskan 21 `exhaustive-deps` + 3 unused disable → target lint **0 warning** | P0 | S | Aturan lint benar-benar bekerja; CI lebih terbaca |
+| Pecah file besar: `AgentChat.jsx` → komponen + hook, `App.jsx` → orchestration dipindah ke hook/context, `ProcessManager.js` → modul | P1 | L | Perawatan & onboarding jauh lebih mudah |
+| Seragamkan bentuk respons IPC (sebagian `{ success }`, sebagian bentuk langsung) | P1 | M | Kontrak konsisten, typing lebih mudah |
+| TypeScript bertahap: `// @ts-check` untuk semua file electron dulu, lalu renderer; `npm run typecheck` jadi penuh | P1 | L | Bug null/typo turun drastis |
+| Konversi 13 test CLI legacy ke Vitest — satu alat test | P2 | M | Satu cara menulis & menjalankan test |
 
-Roadmap lama kuat pada visi UI dan pembagian manager, tetapi mencampur plan, progress, dan completion report. Banyak task diberi klaim selesai sebelum wiring dan test tersedia. Fase baru di bawah mempertahankan tujuan lama, menambahkan security, accessibility, migration, process-tree reliability, release gate, dan clean-machine verification.
+## 2. Reliability & Robustness
 
-## Phase 1: Foundation
+| Item | Prioritas | Effort | Dampak |
+|---|---|---|---|
+| **Single instance lock** (`app.requestSingleInstanceLock`) — cegah dua instance app berjalan bersamaan | P0 | S | Hilangkan race process/port/PTY yang susah direproduksi |
+| Tangkap error renderer + `unhandledRejection` → log & dialog "Laporkan masalah" | P0 | S | Masalah user bisa didiagnosis tanpa DevTools |
+| Lengkapi auto-restart child process dengan backoff (config `autoRestart` sudah ada di schema) | P1 | S | Project crash tidak menghentikan workflow |
+| Naikkan coverage ke 50–60% untuk path kritis: ProcessManager, StorageManager, OmpManager, preload/security | P1 | M | Regression test lebih percaya diri |
+| E2E di luar smoke: add project → start → log → stop; agent chat (mock omp); persistensi settings | P1 | M | Flow utama teruji otomatis |
+| Verifikasi rotasi log main process + viewer log di Settings | P2 | S | Support lebih mudah |
 
-**Status: Partial**
+## 3. Performance & UX
 
-- [x] Electron main process dan BrowserWindow.
-- [x] React + Vite renderer.
-- [x] Tailwind CSS theme.
-- [x] Context isolation aktif, Node integration nonaktif.
-- [x] Preload bridge untuk API terpilih.
-- [x] electron-builder config NSIS + portable x64.
-- [x] Tambahkan `build/icon.ico` dan `build/icon.png` valid (script `scripts/generate-icons.js`, jalankan `npm run icons`).
-- [x] Tetapkan Node.js LTS dalam `engines` dan CI (Node 20 di GitHub Actions).
-- [x] Tambahkan CSP production dan development yang sesuai (main process `onHeadersReceived`; dev mengizinkan inline Vite).
-- [ ] Validasi macOS behavior atau nyatakan Windows-only secara eksplisit di package/release.
+| Item | Prioritas | Effort | Dampak |
+|---|---|---|---|
+| Code splitting renderer: `React.lazy` per view (Dashboard, Projects, Settings, Agent, Detail) — potong chunk 837 kB | P0/P1 | M | Startup & memory turun |
+| Virtualisasi list log & percakapan (project dengan log puluhan ribu baris) | P1 | M | Scroll tetap halus |
+| Throttle/batch update resource CPU/mem agar tidak memicu re-render storm | P1 | S | Dashboard stabil saat banyak project |
+| Global shortcut (mis. `Ctrl+Shift+Space`) untuk summon window dari tray | P2 | S | Akses cepat dari mana saja |
+| Theme: tambah opsi auto-follow system (dark/light sudah ada) | P2 | S | Default lebih nyaman |
 
-Acceptance criteria:
+## 4. Security
 
-- `npm run dev` start/close bersih.
-- `npx vite build` lulus.
-- Window production memuat `dist-react/index.html`.
-- Renderer tidak mendapat API Node.js selain preload allowlist.
+| Item | Prioritas | Effort | Dampak |
+|---|---|---|---|
+| Schema validation terpusat per channel IPC (payload shape divalidasi di satu tempat) | P1 | M | Defence-in-depth di atas allowlist |
+| `npm audit` di CI + dependabot untuk update terjadwal | P1 | S | CVE cepat terdeteksi |
+| Test: pastikan secret env tidak pernah masuk log/diagnostics (sudah dimask di UI) | P1 | S | Jaga komitmen yang sudah ada |
+| Code signing certificate untuk distribusi | P2 | M | SmartScreen tidak menghalangi |
 
-## Phase 2: Project Management dan Persistence
+## 5. Product & Fitur (nilai tinggi)
 
-**Status: Partial**
+| Item | Prioritas | Effort | Dampak |
+|---|---|---|---|
+| **Auto-update (electron-updater)** + rilis via GitHub Releases | P1 | M | User selalu dapat fix tanpa install ulang |
+| **Workspace search**: satu palette untuk cari project, session agent, file, command | P1 | M | Navigasi jauh lebih cepat |
+| Agent: tracking cost/token per project + estimasi, template prompt, pencarian session lintas project | P1 | M | Pengguna agent harian diuntungkan |
+| Notifikasi Windows dengan action button (Restart/Open) | P2 | S | UX notifikasi lebih baik |
+| i18n UI (en/id) — ikuti README yang sudah bilingual; toggle di Settings | P2 | L | Jangkauan lebih luas |
+| Backup bundle workspace: export projects+config+presets+health jadi satu file (bisa dienkripsi) | P2 | M | Recovery total dalam satu langkah |
+| macOS/Linux: path handling, node-pty, tray, shortcut Cmd, CI matrix | P2 | L | Buka platform baru |
 
-- [x] Add/list/delete project.
-- [x] Update project IPC.
-- [x] UUID dan timestamp.
-- [x] Duplicate name/path guard.
-- [x] Folder picker.
-- [x] Framework detection.
-- [x] Atomic write, lima backup, recovery project JSON.
-- [x] Hubungkan UI edit project ke `updateProject`.
-- [ ] Validasi port integer `1..65535` di renderer dan backend.
-- [ ] Validasi path directory sebelum add dan sebelum start.
-- [ ] Normalisasi/canonicalize path sebelum duplicate check.
-- [x] Definisikan schema project tunggal dan migrasi data lama (`command/env/icon` ke `startCommand/envVars/emoji`).
-- [x] Serialisasi storage writes untuk mencegah lost update/race temp file.
-- [ ] Tambahkan recovery/config backup atau failure UX yang jelas.
+## 6. CI & Distribusi
 
-Acceptance criteria:
+| Item | Prioritas | Effort | Dampak |
+|---|---|---|---|
+| CI: tambah `npm run typecheck` + `npm audit`; gate coverage minimum | P0 | S | Kualitas terjaga otomatis |
+| Publish pipeline: `electron-builder publish` ke GitHub Releases + feed auto-update | P1 | M | Rilis berkala jadi rutin |
+| Changelog otomatis dari conventional commits | P2 | S | Riwayat lebih lengkap |
 
-- CRUD lengkap dari UI.
-- Invalid payload tidak dapat merusak `projects.json`.
-- Dua mutation cepat tidak kehilangan data.
-- Data versi lama bermigrasi deterministik.
+## 7. Observability & Support
 
-## Phase 3: Process Lifecycle dan Logs
+| Item | Prioritas | Effort | Dampak |
+|---|---|---|---|
+| Export **diagnostics bundle** sekali klik dari Settings: log, health, config tanpa secret, versi app | P1 | S | Troubleshooting jarak jauh |
+| Renderer error → main.log (structured logger sudah ada) | P1 | S | Error UI tidak hilang tanpa jejak |
+| Crash dump / minidump saat app crash | P2 | M | Root cause crash Windows |
 
-**Status: Partial**
+## Gerbang Rilis (Definition of Done)
 
-- [x] Start, stop, restart project.
-- [x] Status STARTING/RUNNING/STOPPING/STOPPED/ERROR.
-- [x] Process-tree termination dan force timeout.
-- [x] PID dibersihkan setelah exit.
-- [x] Stop all saat app quit.
-- [x] Real-time stdout/stderr.
-- [x] Backend log buffer 1000 entry.
-- [x] Regression test dasar ProcessManager.
-- [x] Satukan env model individual dan Start All.
-- [ ] Tampilkan partial result Start All secara rinci.
-- [ ] Batasi frontend log buffer menurut config.
-- [ ] Hubungkan clear log frontend dan backend.
-- [ ] Tangani exit `null`/signal tanpa false crash saat user stop.
-- [ ] Tambahkan timeout/cancel untuk stuck STARTING.
-- [ ] Simpan/update `lastRun` bila fitur dipakai UI.
-
-Acceptance criteria:
-
-- Lifecycle tetap konsisten pada success, spawn error, crash, stop, restart, dan app quit.
-- Tidak ada child process orphan pada Windows.
-- Memory log bounded di main dan renderer.
-- Semua lifecycle path punya automated regression test.
-
-## Phase 4: Functional UI
-
-**Status: Done**
-
-- [x] Dashboard, project grid/list, detail, settings shell.
-- [x] Status dan action project konsisten untuk start/stop.
-- [x] Loading, empty state, modal, toast.
-- [x] Theme dark/light.
-- [x] Terapkan search, filter type/status, dan sort.
-- [x] Implement bulk start, stop, dan delete selected.
-- [x] Perbaiki CommandPalette contract dan keyboard navigation.
-- [x] Hubungkan Project Detail settings save.
-- [x] Buat crash banner berdasarkan event nyata.
-- [x] Hilangkan mock resource chart/activity atau tandai eksplisit.
-- [x] Hapus DemoPanel dari production UI.
-- [x] Putuskan/hapus tree legacy `Pages/`, `Project/`, `Terminal/` dan Zustand bila tidak dipakai.
-- [x] Pecah orchestration `App.jsx` setelah behavior stabil.
-
-Acceptance criteria:
-
-- Setiap kontrol visible punya behavior nyata atau label demo.
-- Semua view memakai source of truth sama.
-- Tidak ada duplicate component path untuk fungsi sama.
-- Empty/error/loading/action states teruji.
-
-## Phase 5: Native Desktop Integration
-
-**Status: Done**
-
-- [x] Open URL via `shell.openExternal` dengan validasi localhost/URL.
-- [x] Reveal path via `shell.showItemInFolder`.
-- [x] Open editor melalui pilihan executable/command yang tervalidasi.
-- [x] Native Electron `Tray` dan menu.
-- [x] Minimize-to-tray behavior.
-- [x] OS startup via `app.setLoginItemSettings`.
-- [x] Native notifications untuk start/crash sesuai config.
-- [x] Hapus renderer fake tray setelah native tray selesai.
-- [x] Definisikan behavior close vs quit dengan jelas.
-
-Dependency install sengaja bukan target awal. Menjalankan package manager dari UI menambah security dan lifecycle complexity; tambahkan hanya jika use case terbukti.
-
-Acceptance criteria:
-
-- Semua setting desktop mengubah behavior OS, bukan hanya JSON.
-- Close/minimize/quit tidak membingungkan dan tidak meninggalkan process.
-- Native action memvalidasi path/URL.
-
-## Phase 6: Port dan Resource Monitoring
-
-**Status: Done**
-
-- [x] Deteksi port availability sebelum start.
-- [x] Identifikasi owner PID secara aman pada Windows.
-- [x] Resolver: cancel, pilih port lain, atau stop process yang dikelola DevLauncher.
-- [x] Jangan kill arbitrary process tanpa konfirmasi kuat dan detail PID/executable.
-- [x] Deteksi port siap setelah start sebelum status healthy.
-- [x] CPU dan memory metrics per managed process tree.
-- [x] Uptime aktual.
-- [x] Batasi polling dan stop polling saat window/app tidak aktif.
-
-Acceptance criteria:
-
-- Konflik port tidak menghasilkan status Running palsu.
-- Arbitrary process tidak dibunuh diam-diam.
-- Metrics tidak membebani CPU secara signifikan dan dibersihkan saat process exit.
-
-## Phase 7: Security Hardening
-
-**Status: Done**
-
-- [x] Tentukan command model: executable + args terstruktur, atau dokumentasikan local-trust model secara formal.
-- [x] Kurangi penggunaan `shell: true`; gunakan hanya untuk command yang memang membutuhkan shell.
-- [x] Validasi seluruh IPC payload di main process.
-- [x] Allowlist field `update-project`; larang perubahan ID/runtime field.
-- [x] Allowlist channel listener dan hapus public `removeAllListeners` bila tidak perlu.
-- [x] Redact sensitive env values dari log/debug output.
-- [x] Tambahkan CSP dan audit external navigation.
-- [x] Threat model untuk project path, command, env, symlink, dan backup data.
-
-Acceptance criteria:
-
-- Security review tidak menemukan arbitrary IPC capability di renderer.
-- Untrusted UI input tidak membentuk shell command tanpa validasi/consent.
-- Secrets tidak muncul di app log.
-
-## Phase 8: Config dan Migration
-
-**Status: Partial**
-
-- [x] Pilih nested config schema tunggal.
-- [x] Migrasikan key lama tanpa kehilangan preference.
-- [x] Satu config source of truth di renderer aktif.
-- [x] Terapkan terminal font size ke TerminalViewer secara real-time.
-- [x] Terapkan max log lines setting.
-- [x] Terapkan auto-scroll behavior.
-- [x] Sidebar default collapsed state dari config.
-- [x] Versioning untuk `projects.json` dengan schemaVersion field (v3).
-- [x] Versioning untuk `config.json` dengan schemaVersion field (v1).
-- [x] Backup sebelum migration dan rollback pada gagal (pre-migration copy + restore otomatis).
-
-Acceptance criteria:
-
-- Setiap setting visible bertahan dan memengaruhi behavior.
-- Upgrade data lama diuji.
-- Unknown/corrupt config menghasilkan UX jelas, bukan silent loss.
-
-## Phase 9: Quality, Accessibility, dan Observability
-
-**Status: Partial**
-
-- [x] Unit test ProjectDetector (test file created).
-- [x] Unit test StorageManager dengan Vitest.
-- [x] Test project CRUD handler (useProjects.test.js).
-- [x] Test process lifecycle (useProcesses.test.js).
-- [x] Renderer component/hook tests untuk status transitions (useProjects, useProcesses, komponen dashboard/projects).
-- [x] Automated Electron smoke test (Playwright `npm run test:e2e`).
-- [x] CI Windows: install, lint, `npm test`, vitest, build renderer, e2e (`.github/workflows/ci.yml`).
-- [x] ESLint config/script modern (@eslint/js + react-hooks plugin).
-- [x] Accessibility audit: ARIA labels, focus trap on modals, keyboard navigation documented, color contrast check.
-- [x] Structured logging utility (logs/main.log) di main process.
-- [ ] Remove debug console noise dari production (partial - replaced with Logger).
-- [ ] Test storage permission failure, corrupt JSON, missing runtime, invalid path, dan app crash.
-
-Acceptance criteria:
-
-- CI hijau pada clean checkout.
-- Critical flows punya regression tests.
-- Keyboard-only flow add/start/stop/delete bekerja.
-- Failure bisa didiagnosis tanpa DevTools.
-
-## Phase 10: Distribution dan Release
-
-**Status: Blocked oleh Phase 1, 7, 8, 9**
-
-- [ ] Final app ID, product name, author, license metadata.
-- [ ] Icons, installer branding, artifact naming.
-- [ ] Version strategy dan changelog.
-- [ ] Build NSIS + portable x64.
-- [ ] Install/uninstall smoke test di Windows bersih.
-- [ ] Test path dengan spasi dan user non-admin.
-- [ ] Code signing decision dan certificate bila didistribusikan luas.
-- [ ] Update strategy atau dokumentasi manual update.
-- [ ] Privacy/security notice untuk local command execution.
-- [ ] Release notes dan known limitations.
-
-Acceptance criteria:
-
-- Installer dan portable start di clean Windows VM.
-- Add/start/stop/restart/close/reopen lulus.
-- Uninstall tidak menghapus user data tanpa consent.
-- Artifact dapat direproduksi dari tagged commit.
-
-## Definition of Done
-
-Release pertama dianggap selesai hanya jika:
+Checklist yang harus terpenuhi sebelum versi pertama benar-benar dirilis:
 
 - [ ] Tidak ada fitur visible yang diam-diam mock.
-- [ ] Project CRUD dan edit lengkap.
-- [ ] Search/filter/sort dan bulk action benar.
-- [ ] Process lifecycle tidak meninggalkan orphan.
-- [ ] PID, status, exit, dan log selalu konsisten.
-- [ ] Config schema tunggal dan migration diuji.
-- [ ] Security blockers selesai.
-- [ ] Accessibility critical paths lulus.
-- [ ] `npm test`, lint, renderer build, dan Electron smoke test lulus di CI.
-- [ ] NSIS dan portable diuji pada clean Windows.
-- [ ] Dokumentasi sesuai release commit.
+- [ ] Lifecycle process tidak meninggalkan orphan; PID/status/log selalu konsisten.
+- [ ] Lint 0 error (target: 0 warning), `npm run typecheck` lulus, coverage path kritis ≥ 50%.
+- [ ] CI hijau di clean checkout (lint, `npm test`, vitest, build, e2e).
+- [ ] NSIS dan portable diuji di Windows bersih, path dengan spasi, user non-admin.
+- [ ] Uninstall tidak menghapus user data tanpa consent.
+- [ ] Auto-update teruji dari versi lama ke versi baru.
 
-## Urutan Eksekusi Disarankan
+## Urutan Eksekusi yang Disarankan
 
-1. Selesaikan schema project/config dan storage serialization.
-2. Perbaiki UI wiring aktif; hapus mock/legacy yang tidak dipakai.
-3. Lengkapi process/log edge cases dan tests.
-4. Security hardening command + IPC.
-5. Native desktop integration.
-6. Port/resource monitoring jika tetap dibutuhkan.
-7. Accessibility, CI, packaging, clean-machine release test.
+1. **Minggu 1** — semua P0: lint 0 warning, single instance lock, error capture, CI typecheck + audit.
+2. **Minggu 2–4** — P1 code quality: pecah `AgentChat.jsx`/`App.jsx`, seragamkan IPC, TypeScript electron.
+3. **Minggu 5–8** — P1 reliability & performance: coverage path kritis, e2e flow, code splitting.
+4. **Minggu 9–12** — P1 product: auto-update, workspace search, agent cost tracking, diagnostics bundle.
+5. **Setelah itu** — P2: i18n, macOS/Linux, backup bundle, crash dump, dependabot.
+
+Setiap item P0–P1 punya acceptance criteria sederhana: **"terverifikasi lewat test/CI"**, bukan "terlihat berjalan".
