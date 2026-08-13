@@ -437,6 +437,16 @@ Channel: `omp-get-models` / `omp-set-model`
 
 `omp-set-model` mengubah model aktif sesi (RPC `set_model`).
 
+### `ompSetThinkingLevel(projectId, cwd, level)` / `ompGetState(projectId, cwd)`
+
+Channel: `omp-set-thinking-level` / `omp-get-state`
+
+`omp-set-thinking-level` menerima `off | minimal | low | medium | high | xhigh | max` (RPC `set_thinking_level`); `omp-get-state` mengembalikan state sesi RPC, termasuk `thinkingLevel` dan `sessionFile`:
+
+```js
+{ success: true, state: { thinkingLevel: 'off', sessionFile: '...', model: { provider, id }, ... } }
+```
+
 ### Installer
 
 | Method | Channel | Keterangan |

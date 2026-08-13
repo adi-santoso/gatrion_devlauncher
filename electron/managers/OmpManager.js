@@ -429,6 +429,12 @@ class OmpManager extends EventEmitter {
     await this.ensureRpc(projectId, cwd)
     return this._send(projectId, { type: 'set_model', provider, modelId })
   }
+
+  /** @param {string} level - off|minimal|low|medium|high|xhigh|max */
+  async setThinkingLevel(projectId, cwd, level) {
+    await this.ensureRpc(projectId, cwd)
+    return this._send(projectId, { type: 'set_thinking_level', level })
+  }
 }
 
 module.exports = OmpManager

@@ -21,6 +21,15 @@ const SUGGESTIONS = [
   'Refactor this code',
   'Write tests for the core logic',
 ];
+const THINKING_LEVELS = [
+  ['off', 'Off'],
+  ['minimal', 'Minimal'],
+  ['low', 'Low'],
+  ['medium', 'Medium'],
+  ['high', 'High'],
+  ['xhigh', 'X-High'],
+  ['max', 'Max'],
+];
 
 function CopyButton({ text, className = '' }) {
   const [copied, setCopied] = useState(false);
@@ -139,6 +148,9 @@ export default function AgentChat({
   const [models, setModels] = useState([]);
   const [defaultModel, setDefaultModel] = useState(null);
   const [modelsOpen, setModelsOpen] = useState(false);
+  const [modelSearch, setModelSearch] = useState('');
+  const [thinkingLevel, setThinkingLevel] = useState(null);
+  const [levelOpen, setLevelOpen] = useState(false);
   const scrollRef = useRef(null);
   const bottomRef = useRef(null);
   const inputRef = useRef(null);
@@ -300,6 +312,12 @@ export default function AgentChat({
         );
         apply(merged, current);
       }).catch(() => apply(configOptions, current));
+      // Read the current thinking level so the header control reflects it.
+      ipc.ompGetState(project.id, project.path).then((stateResult) => {
+        if (!cancelled && stateResult?.success && stateResult.state?.thinkingLevel) {
+          setThinkingLevel(stateResult.state.thinkingLevel);
+        }
+      }).catch(() => {});
     }).catch(() => {});
     return () => { cancelled = true; };
   }, [project?.id, session?.id]);
@@ -310,12 +328,18 @@ export default function AgentChat({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session?.id]);
 
-  // Escape closes the model dropdown.
+  // Escape closes the header dropdowns; the search query resets on close.
   useEffect(() => {
-    if (!modelsOpen) return undefined;
-    const onKey = (event) => { if (event.key === 'Escape') setModelsOpen(false); };
+    if (!modelsOpen && !levelOpen) return undefined;
+    const onKey = (event) => {
+      if (event.key === 'Escape') { setModelsOpen(false); setLevelOpen(false); }
+    };
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
+  }, [modelsOpen, levelOpen]);
+
+  useEffect(() => {
+    if (!modelsOpen) setModelSearch('');
   }, [modelsOpen]);
 
   // Grow the textarea with its content (up to ~10 lines), then scroll.
@@ -500,6 +524,23 @@ export default function AgentChat({
     ? models.find((m) => defaultModel === m.ref || defaultModel.startsWith(`${m.ref}:`))?.ref || null
     : null;
   const currentModelLabel = models.find((m) => m.ref === currentModelRef)?.label || defaultModel || null;
+  const modelQuery = modelSearch.trim().toLowerCase();
+  const filteredModels = modelQuery
+    ? models.filter((m) => `${m.ref} ${m.label}`.toLowerCase().includes(modelQuery))
+    : models;
+
+  const handleSetThinkingLevel = async (level) => {
+    setLevelOpen(false);
+    if (!project || level === thinkingLevel) return;
+    setThinkingLevel(level); // optimistic — applied for real by the RPC call
+    try {
+      await ipc.ompSetThinkingLevel(project.id, project.path, level);
+    } catch {
+      ipc.ompGetState(project.id, project.path).then((result) => {
+        if (result?.success && result.state?.thinkingLevel) setThinkingLevel(result.state.thinkingLevel);
+      }).catch(() => {});
+    }
+  };
 
   const handleSelectModel = async (ref) => {
     setModelsOpen(false);
@@ -530,8 +571,44 @@ export default function AgentChat({
           <p className="text-[11px] text-ink-faint truncate">{session?.title || (busy ? 'working…' : 'New conversation')}</p>
         </div>
         <div className="ml-auto flex items-center gap-2 shrink-0">
+          {project && status?.installed && status?.configured && (
+            <div className="relative hidden lg:block">
+              <button
+                type="button"
+                onClick={() => setLevelOpen((value) => !value)}
+                disabled={busy}
+                title="Thinking level"
+                className="inline-flex items-center gap-1.5 text-[11px] font-medium text-ink-soft bg-surface-2 border border-border rounded-full px-2.5 py-1 hover:border-border-hover hover:text-ink transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                <Icon name="brain" size={11} className="text-warning" />
+                <span className="capitalize">{thinkingLevel || 'thinking'}</span>
+                <Icon name="chevronDown" size={11} className="text-ink-faint" />
+              </button>
+              {levelOpen && (
+                <>
+                  <div className="fixed inset-0 z-40" onClick={() => setLevelOpen(false)} />
+                  <div className="absolute right-0 top-full mt-1.5 w-40 rounded-xl border border-border bg-surface shadow-card z-50 py-1">
+                    <p className="px-3 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-[0.1em] text-ink-faint">Thinking</p>
+                    {THINKING_LEVELS.map(([value, label]) => (
+                      <button
+                        key={value}
+                        type="button"
+                        onClick={() => handleSetThinkingLevel(value)}
+                        className={`w-full flex items-center gap-2 px-3 py-1.5 text-left text-xs transition-colors ${
+                          value === thinkingLevel ? 'text-accent bg-accent/5' : 'text-ink-soft hover:bg-surface-3 hover:text-ink'
+                        }`}
+                      >
+                        <span className="flex-1">{label}</span>
+                        {value === thinkingLevel && <Icon name="check" size={12} />}
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+          )}
           {models.length > 0 && (
-            <div className="relative hidden md:block">
+            <div className="relative hidden lg:block">
               <button
                 type="button"
                 onClick={() => setModelsOpen((value) => !value)}
@@ -546,22 +623,44 @@ export default function AgentChat({
               {modelsOpen && (
                 <>
                   <div className="fixed inset-0 z-40" onClick={() => setModelsOpen(false)} />
-                  <div className="absolute right-0 top-full mt-1.5 w-64 max-h-80 overflow-auto rounded-xl border border-border bg-surface shadow-card z-50 py-1">
-                    <p className="px-3 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-[0.1em] text-ink-faint">Model</p>
-                    {models.map((model) => (
-                      <button
-                        key={model.ref}
-                        type="button"
-                        onClick={() => handleSelectModel(model.ref)}
-                        className={`w-full flex items-center gap-2 px-3 py-2 text-left text-xs transition-colors ${
-                          model.ref === currentModelRef ? 'text-accent bg-accent/5' : 'text-ink-soft hover:bg-surface-3 hover:text-ink'
-                        }`}
-                      >
-                        <span className="flex-1 min-w-0 truncate font-mono">{model.label}</span>
-                        {model.ref === currentModelRef && <Icon name="check" size={12} />}
-                      </button>
-                    ))}
-                    <div className="border-t border-border mt-1 pt-1">
+                  <div className="absolute right-0 top-full mt-1.5 w-72 max-h-96 overflow-hidden rounded-xl border border-border bg-surface shadow-card z-50 flex flex-col">
+                    <div className="p-2 border-b border-border shrink-0">
+                      <div className="flex items-center gap-2 bg-surface-2 border border-border rounded-lg px-2.5 py-1.5 focus-within:border-accent/50">
+                        <Icon name="search" size={12} className="text-ink-faint" />
+                        <input
+                          autoFocus
+                          value={modelSearch}
+                          onChange={(event) => setModelSearch(event.target.value)}
+                          placeholder="Search models…"
+                          className="flex-1 bg-transparent text-xs text-ink placeholder:text-ink-faint focus:outline-none"
+                        />
+                        {modelSearch && (
+                          <button type="button" onClick={() => setModelSearch('')} className="text-ink-faint hover:text-ink" aria-label="Clear search">
+                            <Icon name="x" size={11} />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                    <div className="overflow-auto">
+                      <p className="px-3 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-[0.1em] text-ink-faint">Model · {filteredModels.length}</p>
+                      {filteredModels.map((model) => (
+                        <button
+                          key={model.ref}
+                          type="button"
+                          onClick={() => handleSelectModel(model.ref)}
+                          className={`w-full flex items-center gap-2 px-3 py-2 text-left text-xs transition-colors ${
+                            model.ref === currentModelRef ? 'text-accent bg-accent/5' : 'text-ink-soft hover:bg-surface-3 hover:text-ink'
+                          }`}
+                        >
+                          <span className="flex-1 min-w-0 truncate font-mono">{model.label}</span>
+                          {model.ref === currentModelRef && <Icon name="check" size={12} />}
+                        </button>
+                      ))}
+                      {filteredModels.length === 0 && (
+                        <p className="px-3 py-5 text-xs text-ink-faint text-center">No models match “{modelSearch}”</p>
+                      )}
+                    </div>
+                    <div className="border-t border-border mt-1 pt-1 shrink-0">
                       <button
                         type="button"
                         onClick={() => { setModelsOpen(false); onOpenSettings?.(); }}

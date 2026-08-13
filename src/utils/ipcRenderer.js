@@ -679,6 +679,16 @@ export const ompSetModel = async (projectId, cwd, provider, modelId) => {
   return window.electron.ompSetModel(projectId, cwd, provider, modelId);
 };
 
+export const ompSetThinkingLevel = async (projectId, cwd, level) => {
+  if (!isElectron()) return { success: true };
+  return window.electron.ompSetThinkingLevel(projectId, cwd, level);
+};
+
+export const ompGetState = async (projectId, cwd) => {
+  if (!isElectron()) return { success: true, state: { thinkingLevel: null } };
+  return window.electron.ompGetState(projectId, cwd);
+};
+
 export const ompInstall = async () => {
   if (!isElectron()) return { success: false, error: 'Electron not available' };
   return window.electron.ompInstall();

@@ -126,6 +126,23 @@ function setupAgentHandlers(ompManager, installer, ompConfig, getWindow) {
     return { success: true }
   })
 
+  const THINKING_LEVELS = ['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max']
+
+  secureHandle('omp-set-thinking-level', async (event, projectId, cwd, level) => {
+    assertSessionId(projectId)
+    if (cwd) assertProjectPath(cwd)
+    if (!THINKING_LEVELS.includes(level)) throw new Error('Invalid thinking level')
+    await ompManager.setThinkingLevel(projectId, cwd || process.env.USERPROFILE || '', level)
+    return { success: true }
+  })
+
+  secureHandle('omp-get-state', async (event, projectId, cwd) => {
+    assertSessionId(projectId)
+    if (cwd) assertProjectPath(cwd)
+    const state = await ompManager.getState(projectId, cwd || process.env.USERPROFILE || '')
+    return { success: true, state }
+  })
+
   // --- Installer -----------------------------------------------------------
 
   secureHandle('omp-install', async () => {

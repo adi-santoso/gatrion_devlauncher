@@ -13,6 +13,8 @@ beforeEach(() => {
   mocks.ompConfigSetDefault.mockResolvedValue({ success: true })
   mocks.ompSetModel.mockResolvedValue({ success: true })
   mocks.ompGetModels.mockResolvedValue({ success: true, models: [] })
+  mocks.ompSetThinkingLevel.mockResolvedValue({ success: true })
+  mocks.ompGetState.mockResolvedValue({ success: true, state: { thinkingLevel: 'off' } })
 })
 
 const mocks = vi.hoisted(() => ({
@@ -24,6 +26,8 @@ const mocks = vi.hoisted(() => ({
   ompConfigSetDefault: vi.fn(),
   ompSetModel: vi.fn(),
   ompGetModels: vi.fn(),
+  ompSetThinkingLevel: vi.fn(),
+  ompGetState: vi.fn(),
 }))
 
 let eventCb = null
@@ -275,5 +279,48 @@ describe('AgentChat', () => {
 
     // Locale-agnostic match: the thousands separator differs per OS locale
     expect(await screen.findByText(/1\D?234 chars/)).toBeInTheDocument()
+  })
+
+  it('filters models with the dropdown search box', async () => {
+    mocks.onOmpEvent.mockImplementation((callback) => { eventCb = callback; return () => {} })
+    mocks.ompGetMessages.mockResolvedValue({ success: true, messages: [] })
+    mocks.ompConfigGet.mockResolvedValue({ success: true, providers: [], defaultModel: null })
+    mocks.ompGetModels.mockResolvedValue({ success: true, models: [
+      { id: 'kiro-claude-sonnet-4.5', name: 'kiro-claude-sonnet-4.5', provider: 'kreova' },
+      { id: 'kiro-haiku-4.5', name: 'kiro-haiku-4.5', provider: 'kreova' },
+      { id: 'kiro-deepseek-3.2', name: 'kiro-deepseek-3.2', provider: 'kreova' },
+    ] })
+
+    render(<Harness />)
+    fireEvent.click(await screen.findByTitle('Switch model'))
+
+    // All three visible initially
+    expect(await screen.findByText('kreova · kiro-claude-sonnet-4.5')).toBeInTheDocument()
+    expect(screen.getByText('kreova · kiro-haiku-4.5')).toBeInTheDocument()
+
+    // Type in the search box → only matching models remain
+    fireEvent.change(screen.getByPlaceholderText('Search models…'), { target: { value: 'haiku' } })
+    expect(screen.getByText('kreova · kiro-haiku-4.5')).toBeInTheDocument()
+    expect(screen.queryByText('kreova · kiro-claude-sonnet-4.5')).not.toBeInTheDocument()
+
+    // No match → empty state
+    fireEvent.change(screen.getByPlaceholderText('Search models…'), { target: { value: 'zzz' } })
+    expect(screen.getByText(/No models match/)).toBeInTheDocument()
+  })
+
+  it('sets the thinking level from the chat header', async () => {
+    mocks.onOmpEvent.mockImplementation((callback) => { eventCb = callback; return () => {} })
+    mocks.ompGetMessages.mockResolvedValue({ success: true, messages: [] })
+    mocks.ompGetState.mockResolvedValue({ success: true, state: { thinkingLevel: 'off' } })
+
+    render(<Harness />)
+
+    // Current level read from get_state
+    fireEvent.click(await screen.findByTitle('Thinking level'))
+    fireEvent.click(await screen.findByText('High'))
+
+    await waitFor(() => {
+      expect(mocks.ompSetThinkingLevel).toHaveBeenCalledWith('p1', 'C:/demo', 'high')
+    })
   })
 })

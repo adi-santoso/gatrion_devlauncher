@@ -178,6 +178,8 @@ contextBridge.exposeInMainWorld('electron', {
   ompGetMessages: (projectId, cwd, options) => ipcRenderer.invoke('omp-get-messages', projectId, cwd, options),
   ompGetModels: (projectId, cwd) => ipcRenderer.invoke('omp-get-models', projectId, cwd),
   ompSetModel: (projectId, cwd, provider, modelId) => ipcRenderer.invoke('omp-set-model', projectId, cwd, provider, modelId),
+  ompSetThinkingLevel: (projectId, cwd, level) => ipcRenderer.invoke('omp-set-thinking-level', projectId, cwd, level),
+  ompGetState: (projectId, cwd) => ipcRenderer.invoke('omp-get-state', projectId, cwd),
   ompInstall: () => ipcRenderer.invoke('omp-install'),
   ompInstallState: () => ipcRenderer.invoke('omp-install-state'),
   ompCheckUpdate: () => ipcRenderer.invoke('omp-check-update'),
