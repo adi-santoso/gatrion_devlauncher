@@ -109,6 +109,11 @@ export default function AgentChat({
   onBusyChange,
   onTokensUsed,
   onOpenSettings,
+  // False while the user is browsing another menu — the view stays mounted
+  // (hidden) so the conversation survives, but streaming must not keep
+  // re-rendering at the flush rate while invisible (that starves the
+  // renderer and freezes the visible view).
+  visible = true,
 }) {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
@@ -155,7 +160,13 @@ export default function AgentChat({
   const sentSessionIdRef = useRef(null);
   // Streaming deltas are buffered and flushed on an interval, so a burst of
   // RPC events never causes a render per delta (which re-parses markdown and
-  // could saturate the main thread and freeze the app mid-reply).
+  // could saturate the main thread and freeze the app mid-reply). While the
+  // Agent view is hidden the buffers keep accumulating but are never pushed
+  // into state — the chat re-renders only once the user returns (or when
+  // agent_end commits the final message), so a background turn cannot freeze
+  // whatever menu is on screen.
+  const visibleRef = useRef(visible);
+  visibleRef.current = visible;
   const streamingBufRef = useRef('');
   const thinkingBufRef = useRef('');
   // Latest tool output update, flushed on the same interval (tool output can
@@ -222,34 +233,48 @@ export default function AgentChat({
 
   const handleScroll = () => setNearBottom(isNearBottom());
 
-  // Flush buffered streaming deltas at a bounded rate. The pending text is
-  // captured before clearing the ref so the updater closes over a stable
-  // string instead of reading the (already cleared) ref when React invokes it.
+  // Push whatever accumulated in the streaming buffers into React state. The
+  // pending text is captured before clearing the ref so the updater closes
+  // over a stable string instead of reading the (already cleared) ref when
+  // React invokes it. No-op while the view is hidden.
+  const flushBuffers = () => {
+    if (!visibleRef.current) return;
+    const pending = streamingBufRef.current;
+    if (pending) {
+      streamingBufRef.current = '';
+      setStreaming((prev) => prev + pending);
+    }
+    const thinkPending = thinkingBufRef.current;
+    if (thinkPending) {
+      thinkingBufRef.current = '';
+      setThinking((prev) => prev + thinkPending);
+    }
+    if (toolUpdateRef.current) {
+      const { toolCallId, text } = toolUpdateRef.current;
+      toolUpdateRef.current = null;
+      setTools((prev) => {
+        const next = [...prev];
+        const target = next.filter((item) => item.id === toolCallId).pop();
+        if (target) target.body = text.slice(0, 2000);
+        return next;
+      });
+    }
+  };
+
+  // Flush buffered streaming deltas at a bounded rate (render rate cap). The
+  // function only touches refs/setters, so the mount-time closure stays valid.
   useEffect(() => {
-    const timer = setInterval(() => {
-      const pending = streamingBufRef.current;
-      if (pending) {
-        streamingBufRef.current = '';
-        setStreaming((prev) => prev + pending);
-      }
-      const thinkPending = thinkingBufRef.current;
-      if (thinkPending) {
-        thinkingBufRef.current = '';
-        setThinking((prev) => prev + thinkPending);
-      }
-      if (toolUpdateRef.current) {
-        const { toolCallId, text } = toolUpdateRef.current;
-        toolUpdateRef.current = null;
-        setTools((prev) => {
-          const next = [...prev];
-          const target = next.filter((item) => item.id === toolCallId).pop();
-          if (target) target.body = text.slice(0, 2000);
-          return next;
-        });
-      }
-    }, 30);
+    const timer = setInterval(flushBuffers, 30);
     return () => clearInterval(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Returning to the Agent view shows everything that streamed while hidden
+  // in a single render instead of replaying it chunk by chunk.
+  useEffect(() => {
+    if (visible) flushBuffers();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visible]);
 
   useEffect(() => {
     if (nearBottom) scrollToBottom('auto');
@@ -361,18 +386,21 @@ export default function AgentChat({
 
   // Keep the context-usage indicator fresh while a conversation is active.
   // While the agent is working the poll is faster so the live token/s badge
-  // and context bar stay current.
+  // and context bar stay current. Skipped while the view is hidden — a
+  // background turn must not churn IPC or re-render the hidden chat; the
+  // indicator refreshes on return and after every agent_end anyway.
   useEffect(() => {
-    if (!project || (!busy && messages.length === 0)) return;
+    if (!project || !visible || (!busy && messages.length === 0)) return;
     refreshState();
     const timer = setInterval(refreshState, busy ? 5000 : 20000);
     return () => clearInterval(timer);
-  }, [project?.id, busy, messages.length > 0, refreshState]);
+  }, [project?.id, busy, visible, messages.length > 0, refreshState]);
 
   // Subscribe to subagent progress and poll their registry while the agent is
-  // running; rendered as activity chips above the input.
+  // running; rendered as activity chips above the input. Also skipped while
+  // hidden for the same reason as the context poll.
   useEffect(() => {
-    if (!project || !busy) return;
+    if (!project || !visible || !busy) return;
     ipc.ompSetSubagentSubscription(project.id, project.path, 'progress').catch(() => {});
     const fetchSubagents = () => {
       ipc.ompGetSubagents(project.id, project.path).then((result) => {
@@ -382,7 +410,7 @@ export default function AgentChat({
     fetchSubagents();
     const timer = setInterval(fetchSubagents, 4000);
     return () => clearInterval(timer);
-  }, [project?.id, busy]);
+  }, [project?.id, busy, visible]);
 
   // Load available slash commands for the / menu (also updated live through
   // the available_commands_update event).

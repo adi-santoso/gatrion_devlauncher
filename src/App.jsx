@@ -992,11 +992,14 @@ function App() {
 
         {/* Agent View — kept mounted (hidden) while browsing other views so an
             in-flight conversation, streaming response, and selected session
-            survive navigation, exactly like the preview keep-alive. */}
+            survive navigation, exactly like the preview keep-alive. The
+            visible flag lets AgentChat pause streaming re-renders while
+            hidden so a background turn cannot freeze the visible view. */}
         <div className={currentView !== 'agent' ? 'hidden' : ''}>
           <AgentView
             projects={projects}
             initialProjectId={agentProjectId}
+            visible={currentView === 'agent'}
             onOpenProject={(project) => showView('project-detail', project)}
             onOpenSettings={() => showView('settings')}
           />

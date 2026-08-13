@@ -13,7 +13,7 @@ function formatRelative(timestamp) {
   return `${Math.floor(diff / 86400000)}d ago`;
 }
 
-export default function AgentView({ projects, initialProjectId = null, onOpenProject, onOpenSettings }) {
+export default function AgentView({ projects, initialProjectId = null, onOpenProject, onOpenSettings, visible = true }) {
   const [status, setStatus] = useState({ installed: false, configured: false });
   const [statusLoading, setStatusLoading] = useState(true);
   const [sessionsByProject, setSessionsByProject] = useState({});
@@ -325,6 +325,7 @@ export default function AgentView({ projects, initialProjectId = null, onOpenPro
             </div>
           ) : (
             <AgentChat
+              visible={visible}
               status={status}
               project={selectedProject}
               session={activeSession}

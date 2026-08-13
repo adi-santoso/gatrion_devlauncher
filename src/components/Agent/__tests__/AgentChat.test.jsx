@@ -220,6 +220,57 @@ describe('AgentChat', () => {
     expect(await screen.findByText(/word0/)).toBeInTheDocument()
   })
 
+  it('pauses streaming renders while the view is hidden and flushes everything on return', async () => {
+    mocks.onOmpEvent.mockImplementation((callback) => { eventCb = callback; return () => {} })
+    mocks.ompGetMessages.mockResolvedValue({ success: true, messages: [] })
+    mocks.ompChat.mockResolvedValue({
+      success: true,
+      sessionId: 'sHidden',
+      session: { id: 'sHidden', title: 'Hidden', sessionPath: 'C:/sessions/sHidden.jsonl' },
+    })
+
+    function HiddenHarness({ visible }) {
+      const [session, setSession] = useState(null)
+      return (
+        <AgentChat
+          visible={visible}
+          status={status}
+          project={project}
+          session={session}
+          onSessionCreated={(sessionId, created) =>
+            setSession({ id: sessionId, ...created, sessionPath: 'C:/sessions/sHidden.jsonl' })
+          }
+          onBusyChange={() => {}}
+          onOpenSettings={() => {}}
+          onTokensUsed={() => {}}
+        />
+      )
+    }
+
+    const { rerender } = render(<HiddenHarness visible={false} />)
+    const input = screen.getByPlaceholderText('Describe a task, ask a question…')
+    fireEvent.change(input, { target: { value: 'hidden stream' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Send message' }))
+    await screen.findByText('hidden stream')
+    await waitFor(() => expect(mocks.ompChat).toHaveBeenCalled())
+
+    // The whole reply streams while the user is on another menu (view hidden):
+    // deltas accumulate in the buffer but must NOT re-render the hidden chat
+    // (that is what starved the renderer and froze the visible view).
+    await act(async () => {
+      eventCb({ projectId: 'p1', event: { type: 'agent_start' } })
+      for (let i = 0; i < 20; i += 1) {
+        eventCb({ projectId: 'p1', event: { type: 'message_update', assistantMessageEvent: { type: 'text_delta', delta: `hidden word${i} ` } } })
+      }
+      await new Promise((resolve) => setTimeout(resolve, 150))
+    })
+    expect(screen.queryByText(/hidden word0/)).not.toBeInTheDocument()
+
+    // Returning to the Agent view flushes the whole accumulated reply at once
+    rerender(<HiddenHarness visible={true} />)
+    expect(await screen.findByText(/hidden word19/)).toBeInTheDocument()
+  })
+
   it('streams long replies as plain text instead of re-parsing markdown per flush', async () => {
     mocks.onOmpEvent.mockImplementation((callback) => { eventCb = callback; return () => {} })
     mocks.ompGetMessages.mockResolvedValue({ success: true, messages: [] })

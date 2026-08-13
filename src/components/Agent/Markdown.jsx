@@ -1,6 +1,13 @@
 import React, { useState } from 'react';
 import Icon from '../Common/Icon';
 
+// A bullet marker is a dash/asterisk/plus, or an emoji that renders as a
+// bullet (✅ ❌ ⚠️ …). Plain symbols like © or → only count when they carry a
+// variation selector (which marks them as emoji), so prose keeps rendering
+// as paragraphs.
+const LIST_LINE = /^(?:[-*+]|(?:[\p{Emoji_Presentation}]|[\p{Extended_Pictographic}]\ufe0f)(?:\u200d[\p{Emoji_Presentation}]|\ufe0f)*)\s+/u;
+const isListLine = (line) => LIST_LINE.test(line.trim());
+
 // Inline styles: **bold**, *italic*, `code`, ~~strike~~, [text](url)
 function renderInline(text, keyPrefix) {
   const parts = text.split(/(`[^`\n]+`|\*\*[^*]+\*\*|\*[^*]+\*|~~[^~]+~~|\[[^\]]+\]\([^)]+\))/g);
@@ -127,10 +134,15 @@ export default function Markdown({ content }) {
       blocks.push({ type: 'quote', text: buf.join(' ') });
       continue;
     }
-    if (/^[-*+]\s+/.test(trimmed)) {
+    if (isListLine(trimmed)) {
       const items = [];
-      while (i < lines.length && /^[-*+]\s+/.test(lines[i].trim())) {
-        items.push(lines[i].trim().replace(/^[-*+]\s+/, ''));
+      while (i < lines.length && isListLine(lines[i])) {
+        const line = lines[i].trim();
+        const marker = line.match(LIST_LINE)?.[0] || '';
+        const bullet = marker.trim();
+        // A dash/asterisk/plus is the invisible bullet dot; an emoji marker
+        // (✅ ❌ ⚠️ …) is kept visible as the item's bullet.
+        items.push({ text: line.slice(marker.length), bullet: /^[-*+]$/.test(bullet) ? null : bullet });
         i += 1;
       }
       blocks.push({ type: 'ul', items });
@@ -158,7 +170,8 @@ export default function Markdown({ content }) {
     while (
       i < lines.length &&
       lines[i].trim() !== '' &&
-      !/^(```|#{1,4}\s|>\s?|[-*+]\s|\d+\.\s)/.test(lines[i]) &&
+      !isListLine(lines[i]) &&
+      !/^(```|#{1,4}\s|>\s?|\d+\.\s)/.test(lines[i]) &&
       !/^-{3,}$/.test(lines[i].trim())
     ) {
       buf.push(lines[i].trim());
@@ -193,8 +206,12 @@ export default function Markdown({ content }) {
               <ul key={key} className="my-1.5 space-y-1 pl-1">
                 {block.items.map((item, itemIndex) => (
                   <li key={itemIndex} className="flex gap-2.5">
-                    <span className="w-1.5 h-1.5 rounded-full bg-ink-faint/50 mt-[7px] shrink-0" />
-                    <span>{renderInline(item, `${key}-li-${itemIndex}`)}</span>
+                    {item.bullet ? (
+                      <span className="shrink-0 text-[13px] leading-[1.7]">{item.bullet}</span>
+                    ) : (
+                      <span className="w-1.5 h-1.5 rounded-full bg-ink-faint/50 mt-[7px] shrink-0" />
+                    )}
+                    <span>{renderInline(item.text, `${key}-li-${itemIndex}`)}</span>
                   </li>
                 ))}
               </ul>
