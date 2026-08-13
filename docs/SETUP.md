@@ -7,7 +7,7 @@
 - Git untuk development
 - Runtime yang dibutuhkan project terdaftar, misalnya Node.js/npm, PHP/Composer, atau Go
 
-Repository belum mendeklarasikan `engines` pada `package.json`. Environment yang sudah diverifikasi: Node.js `v23.9.0`, npm `10.9.2`. Sebelum release, tetapkan versi LTS yang didukung dan validasi di CI.
+Repository mendeklarasikan `engines: { node: ">=20.0.0" }` dan CI berjalan di Node 20. Environment yang sudah diverifikasi: Node.js `v23.9.0`, npm `10.9.2`. Sebelum release, tetapkan versi LTS final yang didukung.
 
 ## Instalasi
 

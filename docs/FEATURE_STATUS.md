@@ -109,7 +109,7 @@ Legend:
 | Unit test storage/detector/hooks | Done | Vitest setup, ProjectDetector.test.js, StorageManager.test.js created |
 | Electron integration/smoke automation | Done | Playwright E2E (`npm run test:e2e`) launches the app, checks navigation |
 | Lint command | Done | ESLint configured with @eslint/js + react-hooks plugin |
-| Type checking | Pending | JavaScript without TypeScript/JSDoc check |
+| Type checking | Partial | `npm run typecheck` (tsc) untuk file bertanda `// @ts-check` — perluasan bertahap |
 | Accessibility audit | Partial | ARIA labels on buttons/focusable elements added, keyboard shortcuts documented, contrast compliance |
 | Windows installer | Partial | Ikon aplikasi (motif G, purple gradient) digenerate via `npm run icons` → `build/icon.ico/png/tray`; build NSIS/portable belum dijalankan penuh |
 | Clean machine validation | Pending | Belum dibuktikan |

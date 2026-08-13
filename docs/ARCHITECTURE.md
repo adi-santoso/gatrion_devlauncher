@@ -20,14 +20,30 @@ Renderer tidak mendapat akses Node.js langsung. `nodeIntegration` nonaktif dan `
 ```text
 electron/
   main.js                       lifecycle window dan app
-  preload.js                    API aman ke renderer
+  preload.js                    API aman ke renderer (contextBridge)
   handlers/
-    projectHandlers.js          CRUD, browse folder
+    projectHandlers.js          CRUD project, browse folder
     processHandlers.js          lifecycle process dan events
+    agentHandlers.js            AI Agent (omp): chat, sessions, RPC forwarding
+    systemHandlers.js           environment check, update checker
+    repoHandlers.js             Git: status/log/diff/stage/commit/stash/blame
+    previewHandlers.js          embedded preview (WebContentsView)
+    terminalHandlers.js         interactive PTY shell
+    desktopHandlers.js          tray, open external, reveal, notifications
   managers/
     ProcessManager.js           spawn, stop tree, status, log buffer
     ProjectDetector.js          deteksi framework
     StorageManager.js           JSON, backup, recovery, config
+    OmpManager.js               RPC client oh-my-pi (NDJSON, per project)
+    OmpInstaller.js             install binary omp terkelola
+    OmpConfig.js                models.yml / config.yml omp
+    HealthManager.js            health & analytics (userData/health.json)
+    PreviewManager.js           sesi preview persisten per project
+    TrayManager.js              native tray
+  utils/
+    ipcSecurity.js              validasi trusted IPC event
+    logger.js                   structured logging (userData/logs/main.log)
+    messagesToMarkdown.js       export percakapan agent ke Markdown
 
 src/
   App.jsx                       navigation dan orchestration UI aktif
@@ -37,16 +53,14 @@ src/
     useElectronConfig.js        config IPC
   utils/ipcRenderer.js          wrapper IPC + browser mocks
   components/
-    Dashboard/                  dashboard aktif
-    Projects/                   grid/list aktif
-    ProjectDetail/              detail/log/env/settings UI
-    Settings/                   app settings UI
-    Layout/, Modals/, Common/   shell dan reusable UI
-    Pages/, Project/, Terminal/ komponen generasi lama/legacy
-  store/appStore.js             Zustand store legacy
+    Dashboard/                  workspace dashboard aktif
+    Projects/                   registry/grid/list aktif
+    ProjectDetail/              detail/log/env/git/scripts/dependencies/analytics/preview UI
+    Settings/                   app settings UI (termasuk kartu AI Agent)
+    Agent/                      chat coding agent (streaming, tool cards, sessions)
+    Terminal/                   terminal workspace & PTY
+    Layout/, Modals/, Common/, States/   shell dan reusable UI
 ```
-
-`App.jsx` memakai komponen `Dashboard`, `Projects`, `ProjectDetail`, dan `Settings`, bukan komponen di `Pages/`. Zustand store hanya dipakai tree legacy.
 
 ## Main Process Lifecycle
 
@@ -86,7 +100,7 @@ Stop:
 4. Setelah lima detik, lakukan force kill.
 5. Saat exit, status menjadi `STOPPED` dan PID menjadi `null`.
 
-Exit spontan dengan code non-zero menjadi `ERROR`. Log backend dan frontend masing-masing dibatasi secara konsep hingga 1000 entry, tetapi frontend listener saat ini belum menerapkan trimming.
+Exit spontan dengan code non-zero menjadi `ERROR`. Log backend dan frontend masing-masing dibatasi (default 1000 entry per project, dapat diatur via config `terminal.maxLines`).
 
 ## Storage
 
@@ -111,6 +125,9 @@ Data dibuat dari ProjectModal, dinormalisasi, divalidasi, lalu disimpan dengan f
   envVars: [{ key: 'NODE_ENV', value: 'development' }],
   emoji: '⚛️',
   color: '#61DAFB',
+  tags: ['web'],
+  customCommands: [{ id, name, command, port, primary, ... }],
+  dependsOn: ['id-db'],
   createdAt: 'ISO timestamp',
   lastRun: null
 }
@@ -127,11 +144,11 @@ Runtime-only fields tidak dipersist:
 }
 ```
 
-Catatan: `start-all-projects` membaca `project.env`, sedangkan flow individual mengubah `envVars` menjadi object. Ini perlu disatukan.
+Project schema diversioning (`schemaVersion`) dengan normalisasi/validasi field allowlist; data lama dimigrasikan deterministik. Field `tags`, `customCommands`, dan `dependsOn` didukung dan dipersist.
 
 ## Model Config
 
-Backend default:
+Backend default (schema versioned di `configSchema.js`):
 
 ```js
 {
@@ -141,7 +158,12 @@ Backend default:
   minimizeToTray: true,
   autoStartProjects: false,
   notifications: { onStart: true, onError: true, sound: false },
-  terminal: { fontSize: 14, maxLines: 1000, autoScroll: true }
+  terminal: { fontSize: 14, maxLines: 1000, autoScroll: true },
+  autoRestart: { enabled: false, maxRetries: 3, delayMs: 2000 },
+  preview: { keepAlive: true },
+  prayer: { showIn: 'both', method: 'KEMENAG', city: 'Jakarta', ... },
+  agent: { notifyOnFinish: true },
+  windowBounds: null,
 }
 ```
 
@@ -157,32 +179,18 @@ Config lama dengan key flat seperti `notifyOnStart`, `terminalFontSize`, dan `te
 
 ## Security Boundary
 
-Sudah ada:
-
-- `contextIsolation: true`
-- `nodeIntegration: false`
-- preload hanya mengekspos method terpilih
-- renderer tidak mengakses `ipcRenderer` langsung
-
-Risiko terbuka:
-
-- Command user dijalankan dengan `shell: true`; hanya command tepercaya boleh digunakan.
-- IPC belum memvalidasi type/shape semua payload.
-- `update-project` menerima arbitrary merge, termasuk perubahan `id`.
-- `removeAllListeners(channel)` diekspos dan channel tidak di-allowlist.
-- CSP eksplisit belum diverifikasi/diterapkan.
-- Path start tidak divalidasi ulang sebagai directory sebelum spawn.
+- `contextIsolation: true`, `nodeIntegration: false`; preload hanya mengekspos method terpilih via contextBridge; renderer tidak mengakses `ipcRenderer` langsung.
+- Seluruh IPC handler memakai `assertTrustedIpcEvent` (validasi event trusted) dan memvalidasi payload (allowlist field, bounds length, tipe input).
+- `update-project` hanya menerima field persisted yang di-allowlist; ID dan runtime field tidak dapat diubah.
+- CSP diterapkan di main process (dev mengizinkan inline script Vite).
+- Nilai rahasia (KEY/TOKEN/SECRET/PASSWORD) di-mask di UI dan tidak di-log.
+- Command user tetap dijalankan melalui shell lokal (`shell: true` untuk command yang memang butuh shell) — hanya project dan command tepercaya yang boleh ditambahkan.
 
 ## Technical Debt Utama
 
-- `App.jsx` memegang terlalu banyak orchestration dan placeholder handlers.
-- Dua generasi komponen hidup bersamaan.
-- Zustand dependency/store legacy belum diputuskan.
-- Config dan project schema tidak tunggal.
-- IPC response shapes tidak konsisten.
-- Backend punya channel log yang tidak diekspos preload.
-- Event logs frontend dapat tumbuh tanpa batas.
-- Belum ada resource monitoring nyata.
-- Asset packaging icon belum ada.
+- `App.jsx` masih memegang banyak orchestration UI (dikurangi bertahap).
+- IPC response shapes belum sepenuhnya seragam (beberapa method mengembalikan bentuk langsung, bukan wrapper `{ success }`).
+- `npm run typecheck` (JSDoc) baru mencakup file bertanda `// @ts-check`; perluasan bertahap.
+- Kode belum full TypeScript; testing e2e masih smoke-level.
 
 Prioritas dan acceptance criteria tersedia di [Roadmap](ROADMAP.md).

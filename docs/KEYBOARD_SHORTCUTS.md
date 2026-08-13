@@ -1,42 +1,57 @@
 # Keyboard Shortcuts - DevLauncher
 
-## Navigation
+Daftar shortcut yang benar-benar terimplementasi di source. `Ctrl` berlaku untuk Windows/Linux, `Cmd` untuk macOS.
+
+## Global (di mana saja)
 
 | Shortcut | Action |
 |----------|--------|
-| `Ctrl/Cmd + K` | Open command palette (quick navigation) |
-| `Ctrl/Cmd + B` | Toggle sidebar collapse/expand |
-| `?` | Show all keyboard shortcuts modal |
+| `Ctrl/Cmd + K` | Buka command palette |
+| `Ctrl/Cmd + N` | Tambah project baru (buka ProjectModal) |
+| `Ctrl + Shift + S` | Start semua project |
+| `Ctrl + Shift + X` | Stop semua project |
+| `Escape` | Tutup modal / palette yang sedang terbuka |
+| `?` | Buka modal shortcuts |
 
-## Project Management
-
-| Shortcut | Action |
-|----------|--------|
-| `Enter` | Start selected project |
-| `Shift + Enter` | Stop selected project |
-| `Ctrl/Cmd + Delete` | Delete selected project |
-| `N` | New project (opens add modal) |
-
-## Terminal & Logs
+## Projects view
 
 | Shortcut | Action |
 |----------|--------|
-| `Ctrl/Cmd + L` | Clear logs for focused project |
-| `Ctrl/Cmd + F` | Focus log search input |
-| `/` | Quick search in terminal view |
+| `Ctrl/Cmd + A` | Pilih semua baris (bulk select) |
+| `Escape` | Hapus seleksi (saat tidak sedang mengetik) |
 
-## General
+## Project Detail — fullscreen preview
 
 | Shortcut | Action |
 |----------|--------|
-| `Escape` | Close modal/palette |
-| `Tab` | Navigate between focusable elements |
-| `Shift + Tab` | Navigate backwards |
+| `Ctrl/Cmd + ←` / `Ctrl/Cmd + →` | Pindah ke project sebelumnya / berikutnya |
+| `F12` atau `Ctrl + Shift + I` | Buka/tutup DevTools preview |
 
-## Accessibility Notes
+## Git tab
 
-- All interactive elements support keyboard navigation
-- Modal dialogs implement focus trap
-- Color contrast meets WCAG AA standards
-- ARIA labels on icon-only buttons
-- Reduced motion support respects system preferences
+| Shortcut | Action |
+|----------|--------|
+| `Ctrl/Cmd + Enter` | Commit staged changes (saat pesan commit terisi) |
+
+## Agent chat
+
+| Shortcut | Action |
+|----------|--------|
+| `Enter` | Kirim pesan |
+| `Shift + Enter` | Baris baru di input |
+| `Ctrl/Cmd + Enter` | Terapkan custom instructions |
+| `Escape` | Tutup dropdown header (model, thinking, menu "…") |
+
+## Command palette
+
+| Shortcut | Action |
+|----------|--------|
+| `↑` / `↓` | Navigasi item |
+| `Enter` | Jalankan item terpilih |
+| `Escape` | Tutup palette |
+
+## Catatan Aksesibilitas
+
+- Semua elemen interaktif mendukung navigasi keyboard (`Tab` / `Shift + Tab`).
+- Modal menerapkan focus management; tombol icon-only memiliki ARIA label.
+- Kontras warna mengikuti WCAG AA; animasi menghormati `prefers-reduced-motion`.
