@@ -41,6 +41,18 @@ Format mengikuti [Keep a Changelog](https://keepachangelog.com/id-ID/1.1.0/), da
 - **Tab Git & Scripts** — skeleton loading saat inisialisasi.
 - **Icon tombol** — perombakan seragam: ikon SVG menggantikan karakter teks (termasuk tombol ± di TerminalSettings).
 - **Agent status bar** — tombol "no provider configured" dan empty-state chat kini mengarah ke Settings (kartu AI Agent) alih-alih membuka docs.
+- **Skala font desktop** — token ukuran teks Tailwind dinaikkan ±1–2px di `@theme` (`text-xs` 13px, `text-sm` 15px, `text-base` 17px, dst) sehingga seluruh app terbaca nyaman di monitor.
+
+### Agent UI modern (polish penuh)
+
+- **Chat ala aplikasi modern** (Claude Code / Freebuff): bubble user accent di kanan, pesan agent di kiri dengan avatar + tombol copy per pesan (muncul saat hover), render **markdown lengkap** — heading, bold/italic, inline code, code fence dengan header bahasa + tombol copy, list, blockquote, dan tabel.
+- **Thinking section** — delta reasoning/thinking dari omp dirender sebagai panel "Thinking" yang bisa di-expand/collapse.
+- **Tool cards baru** — ikon per tool (read/bash/grep/glob/dll), state running (spinner) → done (check), body hasil bisa di-expand, border accent saat bekerja.
+- **Streaming** — kursor kedip, auto-scroll cerdas (hanya jika sudah di bawah) + tombol floating "jump to latest" saat scroll ke atas.
+- **Empty state** — ikon besar + 4 saran prompt sekali klik (explain codebase, fix bug, refactor, tulis test).
+- **Input bar** — textarea auto-grow, fokus ring accent, hint keyboard dengan kbd, tombol Stop merah saat generasi berjalan.
+- **Sidebar sessions** — lebar 256px, group project dengan chevron, session card dengan hover action (rename/delete), tombol New session di header dan bawah group, badge omp + provider ready di status bar dengan dot pulse.
+- **Ukuran teks naik di seluruh menu Agent** — body chat `text-sm`, meta `text-xs`/11px, tidak ada lagi teks 9–10px.
 
 ### Fixed
 
@@ -57,5 +69,5 @@ Format mengikuti [Keep a Changelog](https://keepachangelog.com/id-ID/1.1.0/), da
 ### Test
 
 - `npm test` kini 14 script (bertambah `test-omp-manager` untuk session registry + normalizeMessages, dan `test-omp-config` untuk read/write/merge/delete models.yml & config.yml dengan backup).
-- Vitest: 98 test (widget PrayerWidget, GitTab, dan lainnya).
-- E2E Playwright: 3 smoke test lulus.
+- Vitest: 104 test (baru: 6 test renderer Markdown — heading, code fence, list, inline, quote, tabel, unclosed fence saat streaming).
+- E2E Playwright: 4 smoke test lulus (baru: navigasi ke Agent view via sidebar).

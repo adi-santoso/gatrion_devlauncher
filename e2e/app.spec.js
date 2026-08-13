@@ -41,4 +41,15 @@ test.describe('Gatrion app', () => {
     await expect(window.getByText(/general|theme/i).first()).toBeVisible({ timeout: 10000 });
     await app.close();
   });
+
+  test('opens the agent view via sidebar', async () => {
+    const { app, window } = await launchApp();
+    const agentNav = window.getByRole('button', { name: /agent/i })
+      .or(window.getByText(/^agent$/i));
+    await agentNav.first().click();
+    // Agent view renders its sessions panel and chat area
+    await expect(window.getByText(/sessions/i).first()).toBeVisible({ timeout: 10000 });
+    await expect(window.getByText(/select a project|chat with the coding agent/i).first()).toBeAttached({ timeout: 10000 });
+    await app.close();
+  });
 });

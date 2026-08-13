@@ -49,6 +49,23 @@
   --font-sans: 'Inter', sans-serif;
   --font-mono: 'JetBrains Mono', monospace;
 
+  /* Desktop scale: bump the named text sizes ~1–2px so the whole app reads
+     comfortably on a monitor instead of at mobile sizes. */
+  --text-xs: 0.8125rem;
+  --text-xs--line-height: 1.0625rem;
+  --text-sm: 0.9375rem;
+  --text-sm--line-height: 1.375rem;
+  --text-base: 1.0625rem;
+  --text-base--line-height: 1.5rem;
+  --text-lg: 1.1875rem;
+  --text-lg--line-height: 1.75rem;
+  --text-xl: 1.3125rem;
+  --text-xl--line-height: 1.875rem;
+  --text-2xl: 1.5625rem;
+  --text-2xl--line-height: 2rem;
+  --text-3xl: 1.9375rem;
+  --text-3xl--line-height: 2.375rem;
+
   --shadow-glow: 0 0 0 3px rgba(109,94,245,0.15), 0 0 20px rgba(109,94,245,0.25);
   --shadow-card: 0 1px 0 rgba(255,255,255,0.02) inset, 0 8px 24px -12px rgba(0,0,0,0.6);
 
