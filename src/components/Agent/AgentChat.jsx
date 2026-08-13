@@ -98,7 +98,9 @@ function ThinkingBlock({ content }) {
   );
 }
 
-function AssistantMessage({ message }) {
+// Memoized so streaming deltas (which re-render only the streaming block)
+// never re-parse/re-render every historical message on each keystroke.
+const AssistantMessage = React.memo(function AssistantMessage({ message }) {
   return (
     <div className="group self-start max-w-[96%] w-full">
       <div className="flex items-center gap-2 mb-1.5">
@@ -114,7 +116,7 @@ function AssistantMessage({ message }) {
       {message.tools?.length > 0 && <div className="mt-1.5">{message.tools.map((tool, index) => <ToolCard key={index} tool={tool} />)}</div>}
     </div>
   );
-}
+});
 
 export default function AgentChat({
   status,
@@ -139,6 +141,10 @@ export default function AgentChat({
   const busyRef = useRef(false);
   const lastEventAtRef = useRef(0);
   const sentSessionIdRef = useRef(null);
+  // Streaming deltas are buffered and flushed on an interval, so a burst of
+  // RPC events never causes a render per delta (which re-parses markdown and
+  // could saturate the main thread and freeze the app mid-reply).
+  const streamingBufRef = useRef('');
   const projectRef = useRef(project);
   const sessionRef = useRef(session);
   projectRef.current = project;
@@ -162,6 +168,20 @@ export default function AgentChat({
 
   const handleScroll = () => setNearBottom(isNearBottom());
 
+  // Flush buffered streaming deltas at a bounded rate. The pending text is
+  // captured before clearing the ref so the updater closes over a stable
+  // string instead of reading the (already cleared) ref when React invokes it.
+  useEffect(() => {
+    const timer = setInterval(() => {
+      const pending = streamingBufRef.current;
+      if (pending) {
+        streamingBufRef.current = '';
+        setStreaming((prev) => prev + pending);
+      }
+    }, 30);
+    return () => clearInterval(timer);
+  }, []);
+
   useEffect(() => {
     if (nearBottom) scrollToBottom('auto');
   }, [messages, streaming, tools, nearBottom, scrollToBottom]);
@@ -182,6 +202,7 @@ export default function AgentChat({
     }
     setMessages([]);
     setStreaming('');
+    streamingBufRef.current = '';
     setThinking('');
     setTools([]);
     setError(null);
@@ -230,7 +251,7 @@ export default function AgentChat({
       const assistantEvent = event.assistantMessageEvent;
       if (!assistantEvent) return;
       if (assistantEvent.type === 'text_delta' && typeof assistantEvent.delta === 'string') {
-        setStreaming((prev) => prev + assistantEvent.delta);
+        streamingBufRef.current += assistantEvent.delta;
       } else if (/think|reason/i.test(assistantEvent.type) && typeof assistantEvent.delta === 'string') {
         setThinking((prev) => prev + assistantEvent.delta);
       }
@@ -238,6 +259,7 @@ export default function AgentChat({
     }
     if (type === 'agent_start') {
       setStreaming('');
+      streamingBufRef.current = '';
       setThinking('');
       setTools([]);
       setError(null);
@@ -291,7 +313,7 @@ export default function AgentChat({
       onTokensUsed?.(last?.usage?.totalTokens || 0)
       setMessages((prev) => {
         const turnUser = turnMessages.filter((item) => item.role === 'user').pop()
-        const assistantContent = turnMessages.filter((item) => item.role === 'assistant').map((item) => item.content).join('\n\n') || streaming.trim()
+        const assistantContent = turnMessages.filter((item) => item.role === 'assistant').map((item) => item.content).join('\n\n') || streaming.trim() || streamingBufRef.current.trim()
         let next = [...prev]
         if (turnUser) {
           // The current user message is already in the list (appended on
@@ -303,6 +325,7 @@ export default function AgentChat({
         return next
       })
       setStreaming('')
+      streamingBufRef.current = ''
       setThinking('')
       setBusyState(false)
       return
@@ -375,6 +398,7 @@ export default function AgentChat({
     if (project) ipc.ompAbort(project.id, project.path).catch(() => {});
     setBusyState(false);
     setStreaming('');
+    streamingBufRef.current = '';
     setThinking('');
   };
 

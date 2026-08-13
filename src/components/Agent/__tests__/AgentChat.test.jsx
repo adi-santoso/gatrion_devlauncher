@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeAll, describe, expect, it, vi } from 'vitest'
 import AgentChat from '../AgentChat'
 
@@ -140,5 +140,34 @@ describe('AgentChat', () => {
     expect(screen.getByText('first question')).toBeInTheDocument()
     expect(screen.getByText('first answer')).toBeInTheDocument()
     expect(screen.getByText('second question')).toBeInTheDocument()
+  })
+
+  it('renders streamed deltas (buffered + flushed) without losing them', async () => {
+    mocks.onOmpEvent.mockImplementation((callback) => { eventCb = callback; return () => {} })
+    mocks.ompGetMessages.mockResolvedValue({ success: true, messages: [] })
+    mocks.ompChat.mockResolvedValue({
+      success: true,
+      sessionId: 's4',
+      session: { id: 's4', title: 'Stream', sessionPath: 'C:/sessions/s4.jsonl' },
+    })
+
+    render(<Harness />)
+    const input = screen.getByPlaceholderText('Describe a task, ask a question…')
+    fireEvent.change(input, { target: { value: 'stream test' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Send message' }))
+    await screen.findByText('stream test')
+    await waitFor(() => expect(mocks.ompChat).toHaveBeenCalled())
+
+    // A burst of deltas arrives faster than renders can follow. Everything
+    // (event delivery + flush interval) runs inside one act scope so the
+    // timer-driven state updates are flushed to the DOM.
+    await act(async () => {
+      eventCb({ projectId: 'p1', event: { type: 'agent_start' } })
+      for (let i = 0; i < 50; i += 1) {
+        eventCb({ projectId: 'p1', event: { type: 'message_update', assistantMessageEvent: { type: 'text_delta', delta: `word${i} ` } } })
+      }
+      await new Promise((resolve) => setTimeout(resolve, 250))
+    })
+    expect(await screen.findByText(/word0/)).toBeInTheDocument()
   })
 })
