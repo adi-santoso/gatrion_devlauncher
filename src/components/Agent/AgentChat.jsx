@@ -767,8 +767,16 @@ export default function AgentChat({
     ? models.filter((m) => `${m.ref} ${m.label}`.toLowerCase().includes(modelQuery))
     : models;
 
+  // omp reports contextUsage.percent both as a fraction (0.55 per the RPC docs)
+  // and as a raw percentage (30.63) depending on the runtime — normalize either
+  // form, then clamp so the indicator can never overflow past 100%.
   const contextPercent = contextUsage
-    ? Math.round((contextUsage.percent != null ? contextUsage.percent : (contextUsage.contextWindow ? contextUsage.tokens / contextUsage.contextWindow : 0)) * 100)
+    ? (() => {
+      let ratio = contextUsage.percent;
+      if (ratio == null) ratio = contextUsage.contextWindow ? contextUsage.tokens / contextUsage.contextWindow : 0;
+      const pct = ratio > 1 ? ratio : ratio * 100;
+      return Math.min(100, Math.max(0, Math.round(pct)));
+    })()
     : null;
   // Slash-command palette: shown while typing a / command without a space.
   const slashOpen = input.startsWith('/') && !input.includes(' ') && input.length > 1;

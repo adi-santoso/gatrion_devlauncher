@@ -578,6 +578,22 @@ describe('AgentChat', () => {
     expect(await screen.findByText('45%')).toBeInTheDocument()
   })
 
+  it('normalizes context percent reported as a raw percentage (not a fraction)', async () => {
+    mocks.onOmpEvent.mockImplementation((callback) => { eventCb = callback; return () => {} })
+    mocks.ompGetMessages.mockResolvedValue({ success: true, messages: [] })
+    // Real omp runtimes report percent as 30.63 (already a percentage). It must
+    // NOT be multiplied by 100 again (would show 3063%).
+    mocks.ompGetState.mockResolvedValue({ success: true, state: {
+      thinkingLevel: 'off',
+      contextUsage: { tokens: 39200, contextWindow: 128000, percent: 30.63 },
+    } })
+
+    render(<Harness />)
+
+    expect(await screen.findByText('31%')).toBeInTheDocument()
+    expect(screen.queryByText('3063%')).not.toBeInTheDocument()
+  })
+
   it('steers the running agent when a message is sent while busy', async () => {
     mocks.onOmpEvent.mockImplementation((callback) => { eventCb = callback; return () => {} })
     mocks.ompGetMessages.mockResolvedValue({ success: true, messages: [] })
