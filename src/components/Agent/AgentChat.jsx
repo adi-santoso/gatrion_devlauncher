@@ -2,6 +2,8 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import Icon from '../Common/Icon';
 import * as ipc from '../../utils/ipcRenderer';
 import Markdown from './Markdown';
+import ThinkingBlock from './ThinkingBlock';
+import { AssistantMessage, UserMessage } from './MessageBubble';
 import { fileToAttachment, MAX_ATTACHMENTS, MAX_IMAGE_BYTES } from './imageAttachment';
 
 const TOOL_ICONS = {
@@ -32,27 +34,35 @@ const THINKING_LEVELS = [
   ['max', 'Max'],
 ];
 
-function CopyButton({ text, className = '' }) {
-  const [copied, setCopied] = useState(false);
-  const handleCopy = async () => {
-    try {
-      await navigator.clipboard.writeText(text);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
-    } catch { /* clipboard unavailable */ }
+const uid = () => `msg-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
+// omp message content can be a plain string or an array of typed blocks
+// ({ type: 'text' | 'thinking' | ... }). Split text and reasoning apart so
+// thinking can be persisted per message instead of only shown while streaming.
+const extractContentParts = (content) => {
+  if (typeof content === 'string') return { text: content, thinking: '' };
+  if (Array.isArray(content)) {
+    let text = '';
+    let thinking = '';
+    for (const part of content) {
+      if (!part) continue;
+      if (part.type === 'text') text += part.text || '';
+      else if (/think|reason/i.test(part.type || '')) thinking += part.text || '';
+    }
+    return { text, thinking };
+  }
+  return { text: '', thinking: '' };
+};
+
+const normalizeTranscriptMessage = (item) => {
+  const { text, thinking } = extractContentParts(item.content);
+  return {
+    id: item.id || uid(),
+    role: item.role === 'user' ? 'user' : 'assistant',
+    content: text,
+    thinking: thinking.trim() || undefined,
   };
-  return (
-    <button
-      type="button"
-      onClick={handleCopy}
-      title="Copy message"
-      className={`inline-flex items-center gap-1.5 text-[11px] font-medium transition-colors ${copied ? 'text-success' : 'text-ink-faint hover:text-ink-soft'} ${className}`}
-    >
-      <Icon name={copied ? 'check' : 'copy'} size={11} />
-      {copied ? 'Copied' : 'Copy'}
-    </button>
-  );
-}
+};
 
 function ToolCard({ tool }) {
   const [expanded, setExpanded] = useState(false);
@@ -87,46 +97,6 @@ function ToolCard({ tool }) {
     </div>
   );
 }
-
-function ThinkingBlock({ content }) {
-  const [expanded, setExpanded] = useState(false);
-  return (
-    <div className="my-1.5 rounded-xl border border-border/70 bg-surface-2/60 overflow-hidden">
-      <button
-        type="button"
-        onClick={() => setExpanded((value) => !value)}
-        className="w-full flex items-center gap-2 px-3 py-1.5 text-left"
-      >
-        <Icon name="spinner" size={12} className="text-ink-faint" />
-        <span className="text-xs font-medium text-ink-soft">Thinking</span>
-        <Icon name={expanded ? 'chevronDown' : 'chevronRight'} size={12} className="ml-auto text-ink-faint" />
-      </button>
-      {expanded && (
-        <div className="border-t border-border/60 px-3 py-2 text-xs text-ink-faint italic whitespace-pre-wrap break-words max-h-56 overflow-auto">{content}</div>
-      )}
-    </div>
-  );
-}
-
-// Memoized so streaming deltas (which re-render only the streaming block)
-// never re-parse/re-render every historical message on each keystroke.
-const AssistantMessage = React.memo(function AssistantMessage({ message }) {
-  return (
-    <div className="group self-start max-w-[96%] w-full">
-      <div className="flex items-center gap-2 mb-1.5">
-        <span className="w-5 h-5 rounded-md bg-accent/15 text-accent-hover flex items-center justify-center shrink-0">
-          <Icon name="messageSquare" size={11} />
-        </span>
-        <span className="text-xs font-semibold text-ink-soft">Agent</span>
-        <CopyButton text={message.content} className="opacity-0 group-hover:opacity-100 transition-opacity ml-auto" />
-      </div>
-      <div className="text-sm text-ink leading-relaxed">
-        <Markdown content={message.content} />
-      </div>
-      {message.tools?.length > 0 && <div className="mt-1.5">{message.tools.map((tool, index) => <ToolCard key={index} tool={tool} />)}</div>}
-    </div>
-  );
-});
 
 export default function AgentChat({
   status,
@@ -175,8 +145,11 @@ export default function AgentChat({
   const MARKDOWN_STREAM_LIMIT = 12000;
   const projectRef = useRef(project);
   const sessionRef = useRef(session);
+  const messagesRef = useRef(messages);
+  const handleEventRef = useRef(null);
   projectRef.current = project;
   sessionRef.current = session;
+  messagesRef.current = messages;
 
   const setBusyState = (value) => {
     busyRef.current = value;
@@ -262,7 +235,7 @@ export default function AgentChat({
       if (cancelled) return;
       setHistoryLoading(false);
       if (!result?.success) return;
-      setMessages(result.messages.map((item) => ({ role: item.role, content: item.content })));
+      setMessages(result.messages.map((item) => normalizeTranscriptMessage(item)));
     }).catch(() => { if (!cancelled) setHistoryLoading(false); });
     return () => { cancelled = true; };
   }, [project?.id, session?.id, project?.path]);
@@ -272,7 +245,9 @@ export default function AgentChat({
   useEffect(() => {
     return ipc.onOmpEvent(({ projectId, event }) => {
       if (projectId !== projectRef.current?.id) return;
-      handleEvent(event);
+      // Via ref so the handler always sees the current streaming/thinking
+      // state instead of the first render's stale closure.
+      handleEventRef.current?.(event);
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -420,24 +395,54 @@ export default function AgentChat({
       // not the whole session). Merge the finished turn into the existing
       // conversation instead of replacing it, or earlier turns vanish.
       const turnMessages = (Array.isArray(event.messages) ? event.messages : [])
-        .map((item) => ({
-          role: item.role === 'user' ? 'user' : 'assistant',
-          content: extractText(item.content),
-        }))
-        .filter((item) => item.content.trim())
+        .map((item) => normalizeTranscriptMessage(item))
+        .filter((item) => item.content.trim() || item.thinking)
       const last = event.messages?.[event.messages.length - 1]
-      onTokensUsed?.(last?.usage?.totalTokens || 0)
+      const usage = last?.usage || {}
+      const promptTokens = typeof usage.promptTokens === 'number' ? usage.promptTokens : undefined
+      const completionTokens = typeof usage.completionTokens === 'number' ? usage.completionTokens : undefined
+      const totalTokens = typeof usage.totalTokens === 'number' ? usage.totalTokens : undefined
+      onTokensUsed?.(totalTokens || 0)
       setMessages((prev) => {
         const turnUser = turnMessages.filter((item) => item.role === 'user').pop()
         const assistantContent = turnMessages.filter((item) => item.role === 'assistant').map((item) => item.content).join('\n\n') || streaming.trim() || streamingBufRef.current.trim()
+        const assistantThinking = turnMessages.filter((item) => item.role === 'assistant').map((item) => item.thinking).filter(Boolean).join('\n\n') || thinking.trim() || thinkingBufRef.current.trim()
         let next = [...prev]
         if (turnUser) {
           // The current user message is already in the list (appended on
-          // send); keep it in place, replacing it if the transcript canonicalized it.
-          if (next[next.length - 1]?.role === 'user') next[next.length - 1] = turnUser
-          else next.push(turnUser)
+          // send); keep it in place, merging the canonical transcript text
+          // in without dropping locally-attached image previews.
+          if (next[next.length - 1]?.role === 'user') {
+            next[next.length - 1] = { ...next[next.length - 1], ...turnUser, id: next[next.length - 1].id }
+          } else {
+            next.push(turnUser)
+          }
         }
-        if (assistantContent) next.push({ role: 'assistant', content: assistantContent })
+        if (assistantContent) {
+          // A stopped partial reply is replaced by the canonical transcript;
+          // otherwise append a fresh assistant message.
+          let replaced = false
+          for (let i = next.length - 1; i >= 0; i -= 1) {
+            if (next[i].role === 'assistant') {
+              if (next[i].stopped) {
+                next[i] = {
+                  ...next[i],
+                  content: assistantContent,
+                  thinking: assistantThinking || next[i].thinking,
+                  stopped: false,
+                  promptTokens,
+                  completionTokens,
+                  totalTokens,
+                }
+                replaced = true
+              }
+              break
+            }
+          }
+          if (!replaced) {
+            next.push({ id: uid(), role: 'assistant', content: assistantContent, thinking: assistantThinking || undefined, promptTokens, completionTokens, totalTokens })
+          }
+        }
         return next
       })
       setStreaming('')
@@ -454,14 +459,7 @@ export default function AgentChat({
     }
   };
 
-  // Content can be a plain string or an array of { type: 'text'|'toolCall'|'toolResult' } blocks.
-  const extractText = (content) => {
-    if (typeof content === 'string') return content;
-    if (Array.isArray(content)) {
-      return content.map((part) => (part?.type === 'text' ? part.text || '' : '')).join('');
-    }
-    return '';
-  };
+  handleEventRef.current = handleEvent;
 
   const refreshHistory = () => {
     const currentProject = projectRef.current;
@@ -469,28 +467,34 @@ export default function AgentChat({
     if (!currentProject || !currentSession) return;
     ipc.ompGetMessages(currentProject.id, currentProject.path, { sessionPath: currentSession.sessionPath }).then((result) => {
       if (!result?.success) return;
-      setMessages(result.messages.map((item) => ({ role: item.role, content: item.content })));
+      setMessages(result.messages.map((item) => normalizeTranscriptMessage(item)));
     }).catch(() => {});
   };
 
-  const handleSend = async (preset) => {
-    const message = (preset ?? input).trim();
-    if ((!message && attachments.length === 0) || busyRef.current || !project) return;
-    // omp expects a text prompt; when only images are attached, use a neutral prompt.
-    const text = message || 'Here is an attached image — please analyze it.';
-    const images = attachments.map((attachment) => ({ type: 'image', data: attachment.base64, mimeType: attachment.mimeType }));
-    setInput('');
-    if (inputRef.current) inputRef.current.style.height = 'auto';
-    setAttachments([]);
+  // Shared turn runner: appends the user message (unless the caller already
+  // placed it, e.g. edit/retry), starts the RPC turn and arms the safety
+  // timeout that recovers from silent failures.
+  const runTurn = async ({ text, images = [], appendUser = true }) => {
+    if (busyRef.current || !project) return;
     setError(null);
-    setMessages((prev) => [...prev, { role: 'user', content: message || '(image)' }]);
+    if (appendUser) {
+      setMessages((prev) => [...prev, {
+        id: uid(),
+        role: 'user',
+        content: text || '',
+        images: images.length ? images : undefined,
+      }]);
+    }
     setStreaming('');
+    streamingBufRef.current = '';
     setThinking('');
+    thinkingBufRef.current = '';
     setTools([]);
     setNearBottom(true);
     setBusyState(true);
+    const ompImages = images.map((image) => ({ type: 'image', data: image.base64, mimeType: image.mimeType }));
     try {
-      const result = await ipc.ompChat(project.id, project.path, text, { sessionId: session?.id, sessionPath: session?.sessionPath, images });
+      const result = await ipc.ompChat(project.id, project.path, text, { sessionId: session?.id, sessionPath: session?.sessionPath, images: ompImages.length ? ompImages : undefined });
       if (!result?.success) {
         setError(result?.error || 'Failed to start conversation');
         setBusyState(false);
@@ -516,8 +520,73 @@ export default function AgentChat({
     }, 25000);
   };
 
+  const handleSend = async (preset) => {
+    const message = (preset ?? input).trim();
+    if ((!message && attachments.length === 0) || busyRef.current || !project) return;
+    // omp expects a text prompt; when only images are attached, use a neutral prompt.
+    const text = message || 'Here is an attached image — please analyze it.';
+    const images = attachments.map((attachment) => ({ dataUrl: attachment.dataUrl, base64: attachment.base64, mimeType: attachment.mimeType }));
+    setInput('');
+    if (inputRef.current) inputRef.current.style.height = 'auto';
+    setAttachments([]);
+    await runTurn({ text, images });
+  };
+
+  // runTurnRef keeps the latest runTurn reachable from the memoized
+  // edit/retry handlers without re-creating them (which would defeat the
+  // AssistantMessage memo during streaming).
+  const runTurnRef = useRef(runTurn);
+  runTurnRef.current = runTurn;
+
+  // Retry regenerates the last assistant reply by re-asking its prompt. omp
+  // transcripts are append-only, so the old turn still exists on disk — proper
+  // history rewriting would use omp's branch feature.
+  const handleRetry = useCallback(async (message) => {
+    if (busyRef.current || !projectRef.current) return;
+    const list = messagesRef.current;
+    const index = list.findIndex((item) => item.id === message.id);
+    if (index < 0) return;
+    const precedingUser = list.slice(0, index).reverse().find((item) => item.role === 'user');
+    if (!precedingUser) return;
+    setMessages((prev) => prev.filter((item) => item.id !== message.id));
+    await runTurnRef.current({
+      text: precedingUser.content || 'Here is an attached image — please analyze it.',
+      images: precedingUser.images || [],
+      appendUser: false,
+    });
+  }, []);
+
+  // Edit rewrites the (last) user message, drops everything after it, and
+  // re-asks with the corrected prompt.
+  const handleEditSave = useCallback(async (messageId, newText) => {
+    if (busyRef.current || !projectRef.current) return;
+    const list = messagesRef.current;
+    const index = list.findIndex((item) => item.id === messageId);
+    if (index < 0) return;
+    const edited = list[index];
+    setMessages((prev) => {
+      const next = prev.slice(0, index + 1);
+      next[index] = { ...next[index], content: newText };
+      return next;
+    });
+    await runTurnRef.current({ text: newText, images: edited.images || [], appendUser: false });
+  }, []);
+
   const handleStop = async () => {
     if (project) ipc.ompAbort(project.id, project.path).catch(() => {});
+    // Keep whatever streamed so far as a marked partial reply instead of
+    // discarding it — a follow-up agent_end replaces it with canonical text.
+    const partial = (streaming || streamingBufRef.current).trim();
+    const partialThinking = (thinking || thinkingBufRef.current).trim();
+    if (partial) {
+      setMessages((prev) => [...prev, {
+        id: uid(),
+        role: 'assistant',
+        content: partial,
+        thinking: partialThinking || undefined,
+        stopped: true,
+      }]);
+    }
     setBusyState(false);
     setStreaming('');
     streamingBufRef.current = '';
@@ -527,6 +596,11 @@ export default function AgentChat({
 
   const notConfigured = status?.installed && !status?.configured;
   const isFresh = messages.length === 0 && !streaming && !historyLoading;
+  // Index of the most recent user message — the only one that can be edited.
+  let lastUserIndex = -1;
+  for (let i = messages.length - 1; i >= 0; i -= 1) {
+    if (messages[i].role === 'user') { lastUserIndex = i; break; }
+  }
   // config.yml may carry a variant suffix (e.g. "provider/model:high") that
   // is not part of the models.yml id — match on the ref prefix.
   const currentModelRef = defaultModel
@@ -792,22 +866,27 @@ export default function AgentChat({
         ) : (
           <div className="max-w-3xl mx-auto space-y-5">
             {messages.map((message, index) => (
-              message.role === 'user' ? (
-                <div key={index} className="flex justify-end">
-                  <div className="max-w-[80%] bg-accent text-white text-sm leading-relaxed px-4 py-2.5 rounded-2xl rounded-br-md whitespace-pre-wrap break-words shadow-sm">
-                    {message.content}
-                  </div>
-                </div>
-              ) : (
-                <AssistantMessage key={index} message={message} />
-              )
+              <div key={message.id || index} className="message-in" style={{ animationDelay: `${Math.min(index * 30, 150)}ms` }}>
+                {message.role === 'user' ? (
+                  <UserMessage message={message} isLast={index === lastUserIndex} busy={busy} onSave={handleEditSave} />
+                ) : (
+                  <AssistantMessage message={message} isLast={index === messages.length - 1} busy={busy} onRetry={handleRetry} />
+                )}
+              </div>
             ))}
             {tools.length > 0 && (
               <div className="max-w-3xl mx-auto">
                 {tools.map((tool, index) => <ToolCard key={`tool-${index}`} tool={tool} />)}
               </div>
             )}
-            {thinking && <ThinkingBlock content={thinking} />}
+            {busy && !streaming && !thinking && tools.length === 0 && (
+              <div className="flex items-center gap-1.5 self-start pl-1 pt-1">
+                <span className="w-2 h-2 rounded-full bg-ink-faint animate-pulse" />
+                <span className="w-2 h-2 rounded-full bg-ink-faint animate-pulse" style={{ animationDelay: '150ms' }} />
+                <span className="w-2 h-2 rounded-full bg-ink-faint animate-pulse" style={{ animationDelay: '300ms' }} />
+              </div>
+            )}
+            {thinking && <ThinkingBlock content={thinking} isStreaming />}
             {streaming && (
               <div className="group self-start max-w-[96%] w-full">
                 <div className="flex items-center gap-2 mb-1.5">

@@ -239,8 +239,168 @@ describe('AgentChat', () => {
       }
       await new Promise((resolve) => setTimeout(resolve, 120))
     })
-    fireEvent.click(await screen.findByText('Thinking'))
+    // Auto-opens while streaming — reasoning is visible without clicking
     expect(await screen.findByText(/step 19/)).toBeInTheDocument()
+    // Clicking collapses it to a preview snippet instead of hiding everything
+    fireEvent.click(screen.getByText('Thinking'))
+    expect(screen.queryByText(/step 19/)).not.toBeInTheDocument()
+  })
+
+  it('persists thinking on the assistant message after the turn ends (collapsed with preview)', async () => {
+    mocks.onOmpEvent.mockImplementation((callback) => { eventCb = callback; return () => {} })
+    mocks.ompGetMessages.mockResolvedValue({ success: true, messages: [] })
+    mocks.ompChat.mockResolvedValue({
+      success: true,
+      sessionId: 's8',
+      session: { id: 's8', title: 'Persist', sessionPath: 'C:/sessions/s8.jsonl' },
+    })
+
+    render(<Harness />)
+    const input = screen.getByPlaceholderText('Describe a task, ask a question…')
+    fireEvent.change(input, { target: { value: 'think again' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Send message' }))
+    await screen.findByText('think again')
+    await waitFor(() => expect(mocks.ompChat).toHaveBeenCalled())
+
+    await act(async () => {
+      eventCb({ projectId: 'p1', event: { type: 'agent_start' } })
+      for (let i = 0; i < 20; i += 1) {
+        eventCb({ projectId: 'p1', event: { type: 'message_update', assistantMessageEvent: { type: 'reasoning_delta', delta: `step ${i} ` } } })
+      }
+      await new Promise((resolve) => setTimeout(resolve, 120))
+    })
+    // agent_end transcript has NO thinking parts — the streamed thinking must
+    // be carried over from the live state onto the final assistant message.
+    eventCb({ projectId: 'p1', event: { type: 'agent_end', messages: [
+      { role: 'user', content: 'think again' },
+      { role: 'assistant', content: 'done thinking' },
+    ] } })
+
+    expect(await screen.findByText('done thinking')).toBeInTheDocument()
+    // Collapsed by default after the turn — only the preview snippet shows
+    expect(screen.queryByText(/step 19/)).not.toBeInTheDocument()
+    expect(screen.getByText(/step 0/)).toBeInTheDocument()
+    // Expanding reveals the full reasoning
+    fireEvent.click(screen.getByText('Thinking'))
+    expect(await screen.findByText(/step 19/)).toBeInTheDocument()
+  })
+
+  it('shows in/out token usage on the assistant message from agent_end', async () => {
+    mocks.onOmpEvent.mockImplementation((callback) => { eventCb = callback; return () => {} })
+    mocks.ompGetMessages.mockResolvedValue({ success: true, messages: [] })
+    mocks.ompChat.mockResolvedValue({
+      success: true,
+      sessionId: 's9',
+      session: { id: 's9', title: 'Usage', sessionPath: 'C:/sessions/s9.jsonl' },
+    })
+
+    render(<Harness />)
+    const input = screen.getByPlaceholderText('Describe a task, ask a question…')
+    fireEvent.change(input, { target: { value: 'tokens please' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Send message' }))
+    await screen.findByText('tokens please')
+    await waitFor(() => expect(mocks.ompChat).toHaveBeenCalled())
+
+    eventCb({ projectId: 'p1', event: { type: 'agent_start' } })
+    eventCb({ projectId: 'p1', event: { type: 'agent_end', messages: [
+      { role: 'user', content: 'tokens please' },
+      { role: 'assistant', content: 'here you go', usage: { promptTokens: 100, completionTokens: 250, totalTokens: 350 } },
+    ] } })
+
+    expect(await screen.findByText(/100 in · 250 out/)).toBeInTheDocument()
+  })
+
+  it('retries the last assistant reply by re-asking the same prompt', async () => {
+    mocks.onOmpEvent.mockImplementation((callback) => { eventCb = callback; return () => {} })
+    mocks.ompGetMessages.mockResolvedValue({ success: true, messages: [] })
+    mocks.ompChat.mockResolvedValue({
+      success: true,
+      sessionId: 's10',
+      session: { id: 's10', title: 'Retry', sessionPath: 'C:/sessions/s10.jsonl' },
+    })
+
+    render(<Harness />)
+    const input = screen.getByPlaceholderText('Describe a task, ask a question…')
+    fireEvent.change(input, { target: { value: 'fix the bug' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Send message' }))
+    await screen.findByText('fix the bug')
+    await waitFor(() => expect(mocks.ompChat).toHaveBeenCalledTimes(1))
+    eventCb({ projectId: 'p1', event: { type: 'agent_start' } })
+    eventCb({ projectId: 'p1', event: { type: 'agent_end', messages: [
+      { role: 'user', content: 'fix the bug' },
+      { role: 'assistant', content: 'ok fixed' },
+    ] } })
+    await screen.findByText('ok fixed')
+
+    fireEvent.click(screen.getByTitle('Retry — re-ask the last prompt'))
+
+    // Old reply is dropped, the same prompt is re-sent as a new turn
+    await waitFor(() => expect(mocks.ompChat).toHaveBeenCalledTimes(2))
+    expect(mocks.ompChat).toHaveBeenLastCalledWith('p1', 'C:/demo', 'fix the bug', expect.anything())
+    expect(screen.queryByText('ok fixed')).not.toBeInTheDocument()
+  })
+
+  it('edits the last user message and re-asks with the corrected prompt', async () => {
+    mocks.onOmpEvent.mockImplementation((callback) => { eventCb = callback; return () => {} })
+    mocks.ompGetMessages.mockResolvedValue({ success: true, messages: [] })
+    mocks.ompChat.mockResolvedValue({
+      success: true,
+      sessionId: 's11',
+      session: { id: 's11', title: 'Edit', sessionPath: 'C:/sessions/s11.jsonl' },
+    })
+
+    render(<Harness />)
+    const input = screen.getByPlaceholderText('Describe a task, ask a question…')
+    fireEvent.change(input, { target: { value: 'old question' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Send message' }))
+    await screen.findByText('old question')
+    await waitFor(() => expect(mocks.ompChat).toHaveBeenCalledTimes(1))
+    eventCb({ projectId: 'p1', event: { type: 'agent_start' } })
+    eventCb({ projectId: 'p1', event: { type: 'agent_end', messages: [
+      { role: 'user', content: 'old question' },
+      { role: 'assistant', content: 'old answer' },
+    ] } })
+    await screen.findByText('old answer')
+
+    fireEvent.click(screen.getByTitle('Edit and re-ask'))
+    const editor = screen.getByDisplayValue('old question')
+    fireEvent.change(editor, { target: { value: 'new question' } })
+    fireEvent.click(screen.getByText('Save & send'))
+
+    await waitFor(() => expect(mocks.ompChat).toHaveBeenCalledTimes(2))
+    expect(mocks.ompChat).toHaveBeenLastCalledWith('p1', 'C:/demo', 'new question', expect.anything())
+    expect(screen.getByText('new question')).toBeInTheDocument()
+    // The old reply is dropped together with everything after the edited message
+    expect(screen.queryByText('old answer')).not.toBeInTheDocument()
+  })
+
+  it('keeps partial content when generation is stopped', async () => {
+    mocks.onOmpEvent.mockImplementation((callback) => { eventCb = callback; return () => {} })
+    mocks.ompGetMessages.mockResolvedValue({ success: true, messages: [] })
+    mocks.ompChat.mockResolvedValue({
+      success: true,
+      sessionId: 's12',
+      session: { id: 's12', title: 'Stop', sessionPath: 'C:/sessions/s12.jsonl' },
+    })
+    mocks.ompAbort.mockResolvedValue({ success: true })
+
+    render(<Harness />)
+    const input = screen.getByPlaceholderText('Describe a task, ask a question…')
+    fireEvent.change(input, { target: { value: 'stop me' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Send message' }))
+    await screen.findByText('stop me')
+    await waitFor(() => expect(mocks.ompChat).toHaveBeenCalled())
+
+    await act(async () => {
+      eventCb({ projectId: 'p1', event: { type: 'agent_start' } })
+      eventCb({ projectId: 'p1', event: { type: 'message_update', assistantMessageEvent: { type: 'text_delta', delta: 'partial content ' } } })
+      await new Promise((resolve) => setTimeout(resolve, 120))
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Stop' }))
+
+    expect(mocks.ompAbort).toHaveBeenCalledWith('p1', 'C:/demo')
+    expect(await screen.findByText(/partial content/)).toBeInTheDocument()
+    expect(screen.getByText(/Generation stopped/)).toBeInTheDocument()
   })
 
   it('lists discovery-based models from the running omp and switches the model from the chat header', async () => {
@@ -378,6 +538,11 @@ describe('AgentChat', () => {
           images: [{ type: 'image', data: 'QUJDRA==', mimeType: 'image/png' }],
         }))
       })
+      // The sent message renders the thumbnail; clicking expands it fullscreen
+      expect(await screen.findByAltText('Attachment')).toBeInTheDocument()
+      fireEvent.click(screen.getByAltText('Attachment'))
+      expect(screen.getByAltText('Expanded')).toBeInTheDocument()
+      fireEvent.click(screen.getByTitle('Close'))
     } finally {
       global.FileReader = originalFileReader
       global.Image = originalImage

@@ -208,6 +208,13 @@ kbd {
 }
 .dropdown-menu { animation: dropdown-in 0.14s ease-out both; }
 
+/* Chat message entry: fade + slight rise, staggered per message */
+@keyframes message-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.message-in { animation: message-in 0.22s ease-out both; }
+
 /* Skeleton shimmer for initial loads */
 @keyframes shimmer {
   from { background-position: 200% 0; }

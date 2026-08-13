@@ -17,7 +17,7 @@ module.exports = [
         console: 'readonly', document: 'readonly', File: 'readonly', FileReader: 'readonly', global: 'readonly',
         Image: 'readonly', module: 'readonly', navigator: 'readonly', process: 'readonly', queueMicrotask: 'readonly',
         ResizeObserver: 'readonly', setInterval: 'readonly', setTimeout: 'readonly',
-        URL: 'readonly', window: 'readonly',
+        SpeechSynthesisUtterance: 'readonly', URL: 'readonly', window: 'readonly',
       },
     },
     plugins: { 'react-hooks': reactHooks },
