@@ -298,6 +298,41 @@ export const gitInit = async (projectPath) => {
   return window.electron.gitInit(projectPath);
 };
 
+export const gitStashList = async (projectPath) => {
+  if (!isElectron()) return { success: true, stashes: [] };
+  return window.electron.gitStashList(projectPath);
+};
+
+export const gitStashPush = async (projectPath, message) => {
+  if (!isElectron()) return { success: true };
+  return window.electron.gitStashPush(projectPath, message);
+};
+
+export const gitStashPop = async (projectPath, index = 0) => {
+  if (!isElectron()) return { success: true };
+  return window.electron.gitStashPop(projectPath, index);
+};
+
+export const gitStashApply = async (projectPath, index = 0) => {
+  if (!isElectron()) return { success: true };
+  return window.electron.gitStashApply(projectPath, index);
+};
+
+export const gitStashDrop = async (projectPath, index = 0) => {
+  if (!isElectron()) return { success: true };
+  return window.electron.gitStashDrop(projectPath, index);
+};
+
+export const gitDiscard = async (projectPath, filePath) => {
+  if (!isElectron()) return { success: true };
+  return window.electron.gitDiscard(projectPath, filePath);
+};
+
+export const gitBlame = async (projectPath, filePath) => {
+  if (!isElectron()) return { success: true, lines: [] };
+  return window.electron.gitBlame(projectPath, filePath);
+};
+
 // ==================== Package Tooling APIs ====================
 
 export const readPackageScripts = async (projectPath) => {
@@ -318,6 +353,16 @@ export const runProjectScript = async (projectId, scriptName) => {
 export const installDependencies = async (projectId) => {
   if (!isElectron()) return { success: false, error: 'Electron not available' };
   return window.electron.installDependencies(projectId);
+};
+
+export const npmOutdated = async (projectPath) => {
+  if (!isElectron()) return { success: true, hasPackageJson: false, outdated: [] };
+  return window.electron.npmOutdated(projectPath);
+};
+
+export const npmUpdate = async (projectPath, packageName = null) => {
+  if (!isElectron()) return { success: false, error: 'Electron not available' };
+  return window.electron.npmUpdate(projectPath, packageName);
 };
 
 // ==================== Config APIs ====================
@@ -556,4 +601,43 @@ export const showNotification = async (payload) => {
 export const geocodeCity = async (query) => {
   if (!isElectron()) return { success: false, error: 'Geocoding is only available in the desktop app' };
   return window.electron.geocodeCity(query);
+};
+
+// ==================== Health Analytics ====================
+
+export const getHealth = async (projectId) => {
+  if (!isElectron()) {
+    return { success: true, stats: { crashes: [], runs: [], totalRuns: 0, totalUptimeMs: 0, avgUptimeMs: 0, lastRun: null, daily: [] } };
+  }
+  return window.electron.getHealth(projectId);
+};
+
+export const clearHealth = async (projectId) => {
+  if (!isElectron()) return { success: true };
+  return window.electron.clearHealth(projectId);
+};
+
+export const checkUpdate = async () => {
+  if (!isElectron()) return { success: true, updateAvailable: false };
+  return window.electron.checkUpdate();
+};
+
+// ==================== System Environment ====================
+
+export const checkSystemEnv = async () => {
+  if (!isElectron()) {
+    // Browser dev-mode mock: report a few common tools
+    return {
+      success: true,
+      tools: [
+        { name: 'node', label: 'Node.js', found: true, version: 'v23.9.0 (mock)' },
+        { name: 'npm', label: 'npm', found: true, version: '10.9.2 (mock)' },
+        { name: 'git', label: 'Git', found: true, version: 'git version 2.47.0 (mock)' },
+        { name: 'php', label: 'PHP', found: false },
+        { name: 'omp', label: 'oh-my-pi (AI agent)', found: false },
+      ],
+      checkedAt: new Date().toISOString(),
+    };
+  }
+  return window.electron.checkSystemEnv();
 };

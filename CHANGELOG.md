@@ -20,6 +20,13 @@ Format mengikuti [Keep a Changelog](https://keepachangelog.com/id-ID/1.1.0/), da
 - **Logo stack berwarna asli** — logo SVG resmi per framework (Laravel, Next.js, React, Vue, Go, Node, dll.) di seluruh UI; untuk framework bertumpuk dipakai core stack (misal laravel-inertia-vue → Laravel).
 - **Command palette v2** — navigasi keyboard penuh, preset, ikon SVG, dan perbaikan light theme.
 - **Workspace preset v2** — kartu preset dengan badge status, edit modal (deskripsi/warna/stagger delay/auto-start), duplicate, reorder, progress start per project.
+- **System environment check** — kartu di Settings mendeteksi 17 tools sistem (node, npm, git, php, composer, python, go, java, docker, mysql, redis, omp, dll) beserta versi & status, dengan tombol re-check.
+- **Git tier 2** — stash (save/pop/apply/drop), discard working-tree changes per file (dengan konfirmasi), dan git blame di panel diff.
+- **Dependency manager** — tab Dependencies: `npm outdated` jadi tabel interaktif (current/wanted/latest + tipe), update per package atau massal dengan backup otomatis `package.json.bak-*` + lockfile.
+- **Env profiles & secrets** — quick-switch profile base/dev/staging/production di Environment tab, dan nilai rahasia (KEY/TOKEN/SECRET/PASSWORD) otomatis di-mask dengan toggle reveal.
+- **Health & analytics** — tab Analytics per project: crash history (waktu, exit code), run history + uptime, total runs/uptime rata-rata, trend CPU/memory harian (bar chart), clear history; data dipersist ke `userData/health.json` (HealthManager, flush berkala).
+- **Update checker** — cek rilis terbaru GitHub saat Settings dibuka; banner "versi baru tersedia" dengan tombol buka release.
+- **JSDoc typecheck** — `npm run typecheck` (tsc, `tsconfig.check.json`) untuk file yang memakai `// @ts-check`; `npm run test:coverage` (vitest v8) tersedia.
 
 ### Changed
 

@@ -58,7 +58,13 @@ Legend:
 | Projects registry | Done | Table, search, filter type/status, lifecycle, edit, delete, dan detail terhubung |
 | Terminals workspace | Done | Output per project dan aggregate real-time; hydrate backend logs setelah reload; interactive PTY shell |
 | Project Detail | Done | Lifecycle, terminal, environment (env file viewer/editor), settings, Git tab, Script runner, embedded App preview |
-| Git integration | Done | Tab Git: status, stage/unstage, commit, log, diff, checkout branch, pull/push, init — via IPC tervalidasi |
+| Git integration | Done | Tab Git: status, stage/unstage, commit, log, diff, checkout branch, pull/push, init, **stash** (save/pop/apply/drop), **discard changes** (dengan konfirmasi), **git blame** — via IPC tervalidasi |
+| Dependency manager | Done | Tab Dependencies: `npm outdated` (tabel current/wanted/latest), update per package / massal dengan backup package.json & lockfile otomatis |
+| Env profiles & secrets | Done | Environment tab: quick-switch profile (base/dev/staging/production), nilai rahasia (KEY/TOKEN/SECRET/PASSWORD) di-mask + toggle reveal |
+| Health & analytics | Done | Tab Analytics: crash history, run history + uptime, total runs/uptime, trend CPU/memory harian, clear history (persist ke userData/health.json) |
+| System environment check | Done | Kartu di Settings: deteksi 17 tools (node, npm, git, php, composer, python, go, java, docker, mysql, redis, omp, dll) + versi + re-check |
+| Update checker | Done | Cek rilis terbaru GitHub saat Settings dibuka + banner "versi baru tersedia" |
+| JSDoc typecheck | Partial | `npm run typecheck` (tsc) untuk file baru bertanda `// @ts-check` (systemHandlers, HealthManager, prayerTimes); perluasan bertahap |
 | Script runner | Done | Tab Scripts: jalankan script `package.json` + health check dependency |
 | Animation system | Done | AnimatedModal (entrance + exit), toast slide, sliding tab indicator, theme transition, press feedback, skeleton shimmer |
 | Pengingat Sholat | Done | Widget sidebar/topbar (bisa diatur/dinonaktifkan), countdown live per detik, algoritma PrayTimes offline (Kemenag RI + 5 metode), geocode kota, panel floating expand, notifikasi + suara |
@@ -74,7 +80,7 @@ Legend:
 | Log search & filter | Done | Search + highlight + filter type (stdout/stderr/error/warn/system) di LogsTab dan Terminal workspace |
 | Shell per project | Done | Terminal workspace membuka shell interaktif di folder project terpilih (cwd) |
 | Dashboard group by tag | Done | Toggle "Group by tag" di dashboard (termasuk grup untagged) |
-| Settings | Done | Theme, sidebar, tray, start-on-boot, autoStartProjects, notifications (onStart/onError/sound), terminal (fontSize/maxLines/autoScroll), pengingat sholat (tampilan/posisi, kota, metode, penyesuaian, notifikasi/suara) semua berfungsi |
+| Settings | Done | Theme, sidebar, tray, start-on-boot, autoStartProjects, notifications, terminal, pengingat sholat, **system environment check**, **update checker banner** — semua berfungsi |
 
 ## Desktop Integration
 

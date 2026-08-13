@@ -4,6 +4,7 @@ const fs = require('fs').promises
 const https = require('https')
 const ProcessManager = require('./managers/ProcessManager')
 const StorageManager = require('./managers/StorageManager')
+const HealthManager = require('./managers/HealthManager')
 const ProjectDetector = require('./managers/ProjectDetector')
 const TrayManager = require('./managers/TrayManager')
 const PreviewManager = require('./managers/PreviewManager')
@@ -13,6 +14,7 @@ const { setupDesktopHandlers } = require('./handlers/desktopHandlers')
 const { setupTerminalHandlers, killAllTerminals } = require('./handlers/terminalHandlers')
 const { setupPreviewHandlers } = require('./handlers/previewHandlers')
 const { setupRepoHandlers } = require('./handlers/repoHandlers')
+const { setupSystemHandlers } = require('./handlers/systemHandlers')
 const { assertTrustedIpcEvent } = require('./utils/ipcSecurity')
 
 let mainWindow
@@ -21,6 +23,7 @@ let storageManager
 let projectDetector
 let trayManager
 let previewManager
+let healthManager
 let isQuitting = false
 
 // Content Security Policy — applied to every response (dev and production).
@@ -148,12 +151,33 @@ async function initialize() {
   processManager = new ProcessManager()
   storageManager = new StorageManager()
   projectDetector = new ProjectDetector()
+  healthManager = new HealthManager(app.getPath('userData'))
+  await healthManager.init()
 
   // Wait for storage to initialize
   await storageManager.init()
 
   // Start resource monitoring (every 5 seconds)
   processManager.startResourceMonitoring(5000)
+
+  // Health analytics: crash history, run sessions, and daily resource trends
+  processManager.on('status-change', (data) => {
+    if (!healthManager || !data?.projectId) return
+    if (data.status === 'error') {
+      const info = processManager.getProcessStatus(data.projectId) || {}
+      healthManager.recordCrash(data.projectId, { code: info.exitCode ?? null, message: 'Project exited unexpectedly' })
+      healthManager.recordRunEnd(data.projectId, info.exitCode ?? null)
+    } else if (data.status === 'running') {
+      healthManager.recordRunStart(data.projectId)
+    } else if (data.status === 'stopped') {
+      const info = processManager.getProcessStatus(data.projectId) || {}
+      healthManager.recordRunEnd(data.projectId, info.exitCode ?? null)
+    }
+  })
+  processManager.on('resource-update', (data) => {
+    if (!healthManager || !data?.projectId || !data?.stats) return
+    healthManager.recordResource(data.projectId, data.stats.cpuPercent ?? 0, data.stats.memoryMb ?? 0)
+  })
 
   // Set up log persistence directory
   const logsDir = path.join(app.getPath('userData'), 'logs')
@@ -237,7 +261,30 @@ async function initialize() {
   setupTerminalHandlers(mainWindow)
   setupPreviewHandlers(previewManager)
   setupRepoHandlers(storageManager, processManager, mainWindow)
+  setupSystemHandlers()
   setupPrayerHandlers(mainWindow)
+
+  // Health analytics IPC
+  ipcMain.handle('get-health', async (event, projectId) => {
+    try {
+      assertTrustedIpcEvent(event)
+      if (typeof projectId !== 'string' || !projectId.trim()) throw new Error('Project ID is required')
+      return { success: true, stats: healthManager.getStats(projectId) }
+    } catch (error) {
+      return { success: false, error: error.message }
+    }
+  })
+
+  ipcMain.handle('clear-health', async (event, projectId) => {
+    try {
+      assertTrustedIpcEvent(event)
+      if (typeof projectId !== 'string' || !projectId.trim()) throw new Error('Project ID is required')
+      healthManager.clear(projectId)
+      return { success: true }
+    } catch (error) {
+      return { success: false, error: error.message }
+    }
+  })
 
   // Listen to process events for native notifications & tray updates
   processManager.on('status-change', async (data) => {
@@ -360,6 +407,39 @@ async function initialize() {
     }
   })
 
+  // Update checker — compare the running version against the latest GitHub release
+  ipcMain.handle('check-update', async (event) => {
+    try {
+      assertTrustedIpcEvent(event)
+      const url = 'https://api.github.com/repos/adi-santoso/gatrion_devlauncher/releases/latest'
+      const body = await new Promise((resolve, reject) => {
+        const req = https.get(url, {
+          headers: { 'User-Agent': 'Gatrion/1.0 (desktop project manager)', 'Accept': 'application/vnd.github+json' },
+          timeout: 10000,
+        }, (res) => {
+          let data = ''
+          res.on('data', (chunk) => { data += chunk })
+          res.on('end', () => resolve(data))
+        })
+        req.on('error', reject)
+        req.on('timeout', () => req.destroy(new Error('Update check timed out')))
+      })
+      const parsed = JSON.parse(body)
+      const latest = String(parsed.tag_name || '').replace(/^v/, '')
+      const current = app.getVersion()
+      const updateAvailable = Boolean(latest) && latest !== current
+      return {
+        success: true,
+        current,
+        latest: latest || null,
+        updateAvailable,
+        url: String(parsed.html_url || 'https://github.com/adi-santoso/gatrion_devlauncher/releases'),
+      }
+    } catch (error) {
+      return { success: false, error: error.message }
+    }
+  })
+
   // Setup project detection handler
   ipcMain.handle('detect-project-type', async (event, projectPath) => {
     try {
@@ -412,6 +492,11 @@ app.on('before-quit', async (event) => {
   // Stop resource monitoring first
   if (processManager && processManager.stopResourceMonitoring) {
     processManager.stopResourceMonitoring()
+  }
+
+  // Flush health analytics
+  if (healthManager) {
+    await healthManager.dispose()
   }
 
   if (trayManager) {

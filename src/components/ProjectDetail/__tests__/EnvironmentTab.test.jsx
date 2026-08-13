@@ -26,11 +26,20 @@ describe('EnvironmentTab env files', () => {
     ipc.writeEnvFile.mockResolvedValue({ success: true, fileName: '.env' })
   })
 
-  it('lists env files and loads the first one', async () => {
+  it('lists env files and loads the first one, masking secret values', async () => {
     render(<EnvironmentTab project={project} />)
     await waitFor(() => expect(ipc.readEnvFile).toHaveBeenCalledWith('C:/demo', '.env'))
     expect(screen.getByLabelText('Select env file')).toBeInTheDocument()
     expect(screen.getByText('APP_KEY')).toBeInTheDocument()
+    // APP_KEY is a secret-ish key → its value is masked until revealed
+    expect(screen.queryByText('secret')).not.toBeInTheDocument()
+    expect(screen.getByText('•••• (6 chars)')).toBeInTheDocument()
+  })
+
+  it('reveals secret values when the toggle is on', async () => {
+    render(<EnvironmentTab project={project} />)
+    await waitFor(() => expect(screen.getByText('APP_KEY')).toBeInTheDocument())
+    fireEvent.click(screen.getByLabelText('Reveal secrets'))
     expect(screen.getByText('secret')).toBeInTheDocument()
   })
 

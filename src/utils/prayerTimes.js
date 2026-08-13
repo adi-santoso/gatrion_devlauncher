@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Prayer time calculation — port of PrayTimes.js v2.3 (http://praytimes.org)
  * Copyright (C) 2007-2011 PrayTimes.org — developer Hamid Zarrabi-Zadeh.
@@ -46,7 +47,7 @@ export const METHODS = {
 const DEFAULT_PARAMS = { maghrib: '0 min', midnight: 'Standard' };
 const SETTING_DEFAULTS = { imsak: '10 min', dhuhr: '0 min', asr: 'Standard', highLats: 'NightMiddle' };
 
-const evalNum = (str) => 1 * (str + '').split(/[^0-9.+-]/)[0];
+const evalNum = (str) => Number((str + '').split(/[^0-9.+-]/)[0]) || 0;
 const isMin = (arg) => (arg + '').indexOf('min') !== -1;
 
 function julian(year, month, day) {
@@ -88,6 +89,7 @@ function sunPosition(jd) {
 export function getPrayerTimes(date, latitude, longitude, utcOffset, options = {}) {
   const method = METHODS[options.method] ? options.method : 'KEMENAG';
   const params = METHODS[method].params;
+  /** @type {Record<string, any>} */
   const setting = { ...SETTING_DEFAULTS };
   for (const id of Object.keys(params)) setting[id] = params[id];
   // fill method defaults (maghrib/midnight)

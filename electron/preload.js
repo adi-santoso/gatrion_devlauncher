@@ -48,12 +48,21 @@ contextBridge.exposeInMainWorld('electron', {
   gitPush: (projectPath) => ipcRenderer.invoke('git-push', projectPath),
   gitCheckout: (projectPath, branch, createNew) => ipcRenderer.invoke('git-checkout', projectPath, branch, createNew),
   gitInit: (projectPath) => ipcRenderer.invoke('git-init', projectPath),
+  gitStashList: (projectPath) => ipcRenderer.invoke('git-stash-list', projectPath),
+  gitStashPush: (projectPath, message) => ipcRenderer.invoke('git-stash-push', projectPath, message),
+  gitStashPop: (projectPath, index) => ipcRenderer.invoke('git-stash-pop', projectPath, index),
+  gitStashApply: (projectPath, index) => ipcRenderer.invoke('git-stash-apply', projectPath, index),
+  gitStashDrop: (projectPath, index) => ipcRenderer.invoke('git-stash-drop', projectPath, index),
+  gitDiscard: (projectPath, filePath) => ipcRenderer.invoke('git-discard', projectPath, filePath),
+  gitBlame: (projectPath, filePath) => ipcRenderer.invoke('git-blame', projectPath, filePath),
 
   // Package tooling
   readPackageScripts: (projectPath) => ipcRenderer.invoke('read-package-scripts', projectPath),
   checkDependencies: (projectPath) => ipcRenderer.invoke('check-dependencies', projectPath),
   runProjectScript: (projectId, scriptName) => ipcRenderer.invoke('run-project-script', projectId, scriptName),
   installDependencies: (projectId) => ipcRenderer.invoke('install-dependencies', projectId),
+  npmOutdated: (projectPath) => ipcRenderer.invoke('npm-outdated', projectPath),
+  npmUpdate: (projectPath, packageName) => ipcRenderer.invoke('npm-update', projectPath, packageName),
 
   // Desktop Integration
   openExternalUrl: (url) => ipcRenderer.invoke('open-external-url', url),
@@ -146,4 +155,14 @@ contextBridge.exposeInMainWorld('electron', {
   // Prayer reminder: native notification + city geocoding
   showNotification: (payload) => ipcRenderer.invoke('app-notify', payload),
   geocodeCity: (query) => ipcRenderer.invoke('prayer-geocode', query),
+
+  // System environment check
+  checkSystemEnv: () => ipcRenderer.invoke('system-env-check'),
+
+  // Health analytics
+  getHealth: (projectId) => ipcRenderer.invoke('get-health', projectId),
+  clearHealth: (projectId) => ipcRenderer.invoke('clear-health', projectId),
+
+  // Update checker
+  checkUpdate: () => ipcRenderer.invoke('check-update'),
 })

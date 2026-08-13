@@ -39,9 +39,10 @@ function DiffView({ diff }) {
   );
 }
 
-function FileRow({ entry, section, onToggle, onShowDiff, diffOpen }) {
+function FileRow({ entry, section, onToggle, onShowDiff, onDiscard, diffOpen }) {
   const code = section === 'staged' ? entry.staged : entry.unstaged || '?';
   const checked = section === 'staged';
+  const canDiscard = section === 'unstaged' || section === 'untracked';
   return (
     <div className={`flex items-center gap-2 px-3 py-1.5 text-xs border-b border-border/50 last:border-0 ${diffOpen ? 'bg-surface-2/60' : ''}`}>
       <input
@@ -55,6 +56,16 @@ function FileRow({ entry, section, onToggle, onShowDiff, diffOpen }) {
         {CODE_LABEL[code] || code}
       </span>
       <span className="flex-1 min-w-0 font-mono text-ink truncate" title={entry.path}>{entry.path}</span>
+      {canDiscard && onDiscard && (
+        <button
+          type="button"
+          onClick={() => onDiscard(entry)}
+          className="shrink-0 inline-flex items-center gap-1 text-[10px] text-ink-faint hover:text-danger transition-colors"
+          title="Discard working-tree changes"
+        >
+          <Icon name="trash" size={11} />
+        </button>
+      )}
       <button
         type="button"
         onClick={() => onShowDiff(entry, section)}
@@ -81,11 +92,19 @@ export default function GitTab({ project }) {
   const [confirmPush, setConfirmPush] = useState(false);
   const [confirmInit, setConfirmInit] = useState(false);
   const [confirmInstall, setConfirmInstall] = useState(false);
+  const [stashes, setStashes] = useState([]);
+  const [stashMessage, setStashMessage] = useState('');
+  const [confirmDiscard, setConfirmDiscard] = useState(null);
+  const [blame, setBlame] = useState(null); // { path, lines }
 
   const refresh = useCallback(async () => {
     if (!projectPath) return;
     setLoading(true);
-    const [statusResult, logResult] = await Promise.all([ipc.gitStatus(projectPath), ipc.gitLog(projectPath)]);
+    const [statusResult, logResult, stashResult] = await Promise.all([
+      ipc.gitStatus(projectPath),
+      ipc.gitLog(projectPath),
+      ipc.gitStashList(projectPath),
+    ]);
     setLoading(false);
     if (statusResult.success) {
       setStatus({ ...EMPTY_STATUS, ...statusResult });
@@ -93,7 +112,9 @@ export default function GitTab({ project }) {
       setNotice({ type: 'error', message: statusResult.error || 'Failed to read git status' });
     }
     if (logResult.success) setCommits(logResult.commits || []);
+    if (stashResult.success) setStashes(stashResult.stashes || []);
     setDiff(null);
+    setBlame(null);
   }, [projectPath]);
 
   useEffect(() => {
@@ -186,10 +207,54 @@ export default function GitTab({ project }) {
     const isOpen = diff?.path === entry.path && diff?.staged === staged;
     if (isOpen) {
       setDiff(null);
+      setBlame(null);
       return;
     }
+    setBlame(null);
     const result = await ipc.gitDiff(projectPath, entry.path, staged);
     setDiff({ path: entry.path, staged, text: result.success ? result.diff : result.error || 'Failed to load diff' });
+  };
+
+  const handleDiscard = async () => {
+    const filePath = confirmDiscard?.path;
+    setConfirmDiscard(null);
+    if (!filePath) return;
+    if (await runAction(() => ipc.gitDiscard(projectPath, filePath), 'Discarding')) {
+      setDiff(null);
+      await refresh();
+      setNotice({ type: 'success', message: `Discarded changes to ${filePath}` });
+    }
+  };
+
+  const handleStashSave = async () => {
+    const ok = await runAction(() => ipc.gitStashPush(projectPath, stashMessage), 'Stashing');
+    if (ok) {
+      setStashMessage('');
+      await refresh();
+      setNotice({ type: 'success', message: 'Working tree stashed' });
+    }
+  };
+
+  const handleStashAction = async (action, index) => {
+    const ok = await runAction(
+      () => (action === 'pop' ? ipc.gitStashPop(projectPath, index) : action === 'apply' ? ipc.gitStashApply(projectPath, index) : ipc.gitStashDrop(projectPath, index)),
+      `Stash ${action}`
+    );
+    if (ok) {
+      await refresh();
+      setNotice({ type: 'success', message: `Stash ${action === 'pop' ? 'popped' : action === 'apply' ? 'applied' : 'dropped'}` });
+    }
+  };
+
+  const handleShowBlame = async () => {
+    if (!diff) return;
+    if (blame?.path === diff.path) {
+      setBlame(null);
+      return;
+    }
+    const result = await ipc.gitBlame(projectPath, diff.path);
+    if (result.success) setBlame({ path: diff.path, lines: result.lines });
+    else setNotice({ type: 'error', message: result.error || 'Failed to load blame' });
   };
 
   const stagedCount = status.staged.length;
@@ -355,6 +420,7 @@ export default function GitTab({ project }) {
                     section="unstaged"
                     onToggle={handleToggle}
                     onShowDiff={handleShowDiff}
+                    onDiscard={(row) => setConfirmDiscard(row)}
                     diffOpen={diff?.path === entry.path && !diff?.staged}
                   />
                 ))}
@@ -370,6 +436,7 @@ export default function GitTab({ project }) {
                     section="untracked"
                     onToggle={handleToggle}
                     onShowDiff={handleShowDiff}
+                    onDiscard={(row) => setConfirmDiscard(row)}
                     diffOpen={diff?.path === path && !diff?.staged}
                   />
                 ))}
@@ -381,12 +448,39 @@ export default function GitTab({ project }) {
                   <p className="text-[11px] font-mono text-ink-soft truncate">
                     {diff.staged ? 'Index' : 'Working tree'} diff · {diff.path}
                   </p>
-                  <button onClick={() => setDiff(null)} className="text-[10px] text-ink-faint hover:text-ink flex items-center gap-1">
-                    <Icon name="x" size={11} />
-                    Close
-                  </button>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <button
+                      onClick={handleShowBlame}
+                      className={`text-[10px] inline-flex items-center gap-1 transition-colors ${blame?.path === diff.path ? 'text-accent' : 'text-ink-faint hover:text-ink'}`}
+                      title="Toggle git blame"
+                    >
+                      <Icon name="gitBranch" size={11} />
+                      {blame?.path === diff.path ? 'Hide blame' : 'Blame'}
+                    </button>
+                    <button onClick={() => { setDiff(null); setBlame(null); }} className="text-[10px] text-ink-faint hover:text-ink flex items-center gap-1">
+                      <Icon name="x" size={11} />
+                      Close
+                    </button>
+                  </div>
                 </div>
-                <DiffView diff={diff.text} />
+                {blame?.path === diff.path ? (
+                  <div className="max-h-80 overflow-auto bg-base border border-border rounded-lg">
+                    <table className="w-full text-[11px] font-mono">
+                      <tbody>
+                        {blame.lines.map((line, index) => (
+                          <tr key={index} className="border-b border-border/40 last:border-0">
+                            <td className="px-2 py-0.5 text-ink-faint whitespace-nowrap align-top">{line.hash}</td>
+                            <td className="px-2 py-0.5 text-ink-faint whitespace-nowrap align-top">{line.date}</td>
+                            <td className="px-2 py-0.5 text-ink-faint whitespace-nowrap align-top max-w-[120px] truncate" title={line.author}>{line.author}</td>
+                            <td className="px-2 py-0.5 text-ink whitespace-pre-wrap break-all align-top">{line.text}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <DiffView diff={diff.text} />
+                )}
               </div>
             )}
             <div className="border-t border-border p-3 bg-surface-2/50">
@@ -410,6 +504,45 @@ export default function GitTab({ project }) {
               </div>
             </div>
           </>
+        )}
+      </div>
+
+      {/* Stash */}
+      <div className="bg-surface border border-border rounded-xl shadow-card overflow-hidden">
+        <div className="flex items-center justify-between gap-3 px-4 py-2.5 border-b border-border bg-surface-2 flex-wrap">
+          <p className="text-xs font-semibold text-ink">Stash</p>
+          <span className="text-[11px] text-ink-faint">{stashes.length} saved</span>
+        </div>
+        <div className="p-3 border-b border-border/50">
+          <div className="flex items-center gap-2">
+            <input
+              type="text"
+              value={stashMessage}
+              onChange={(e) => setStashMessage(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleStashSave()}
+              placeholder="Stash message (optional)"
+              className="flex-1 min-w-[160px] bg-surface-3 border border-border rounded-lg px-3 py-1.5 text-xs text-ink placeholder:text-ink-faint focus:outline-none focus:ring-2 focus:ring-accent/40"
+            />
+            <button onClick={handleStashSave} disabled={busy !== null || !dirty} className={btnSecondary} title="Save working tree to stash">
+              <Icon name="download" size={13} />
+              Stash
+            </button>
+          </div>
+        </div>
+        {stashes.length === 0 ? (
+          <p className="py-4 text-center text-sm text-ink-faint">No stashes yet. Save your WIP changes before switching branches.</p>
+        ) : (
+          <ul className="divide-y divide-border/50">
+            {stashes.map((stash) => (
+              <li key={stash.ref} className="flex items-center gap-2 px-4 py-2 text-xs">
+                <span className="font-mono text-ink-faint shrink-0">{stash.ref}</span>
+                <span className="flex-1 min-w-0 text-ink truncate" title={stash.message}>{stash.message}</span>
+                <button onClick={() => handleStashAction('pop', stash.index)} disabled={busy !== null} className="text-[10px] text-ink-faint hover:text-accent transition-colors" title="Pop (restore & remove)">Pop</button>
+                <button onClick={() => handleStashAction('apply', stash.index)} disabled={busy !== null} className="text-[10px] text-ink-faint hover:text-accent transition-colors" title="Apply (restore & keep)">Apply</button>
+                <button onClick={() => handleStashAction('drop', stash.index)} disabled={busy !== null} className="text-[10px] text-ink-faint hover:text-danger transition-colors" title="Drop stash">Drop</button>
+              </li>
+            ))}
+          </ul>
         )}
       </div>
 
@@ -446,6 +579,16 @@ export default function GitTab({ project }) {
         confirmVariant="danger"
         onConfirm={handlePush}
         onCancel={() => setConfirmPush(false)}
+      />
+
+      <ConfirmDialog
+        isOpen={confirmDiscard !== null}
+        title="Discard Changes"
+        message={`Discard all working-tree changes to "${confirmDiscard?.path}"? This cannot be undone.`}
+        confirmLabel="Discard"
+        confirmVariant="danger"
+        onConfirm={handleDiscard}
+        onCancel={() => setConfirmDiscard(null)}
       />
     </div>
   );

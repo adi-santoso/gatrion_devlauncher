@@ -14,6 +14,13 @@ const mocks = vi.hoisted(() => ({
   gitPush: vi.fn(),
   gitCheckout: vi.fn(),
   gitInit: vi.fn(),
+  gitStashList: vi.fn(),
+  gitStashPush: vi.fn(),
+  gitStashPop: vi.fn(),
+  gitStashApply: vi.fn(),
+  gitStashDrop: vi.fn(),
+  gitDiscard: vi.fn(),
+  gitBlame: vi.fn(),
 }))
 
 vi.mock('../../../utils/ipcRenderer', () => mocks)
@@ -48,6 +55,13 @@ describe('GitTab', () => {
     mocks.gitPush.mockResolvedValue({ success: true })
     mocks.gitCheckout.mockResolvedValue({ success: true })
     mocks.gitInit.mockResolvedValue({ success: true })
+    mocks.gitStashList.mockResolvedValue({ success: true, stashes: [{ index: 0, ref: 'stash@{0}', message: 'WIP auth work' }] })
+    mocks.gitStashPush.mockResolvedValue({ success: true })
+    mocks.gitStashPop.mockResolvedValue({ success: true })
+    mocks.gitStashApply.mockResolvedValue({ success: true })
+    mocks.gitStashDrop.mockResolvedValue({ success: true })
+    mocks.gitDiscard.mockResolvedValue({ success: true })
+    mocks.gitBlame.mockResolvedValue({ success: true, lines: [] })
   })
 
   it('renders branch, ahead/behind, file lists and commits', async () => {
@@ -60,6 +74,7 @@ describe('GitTab', () => {
     expect(screen.getByText('src/App.jsx')).toBeInTheDocument()
     expect(screen.getByText('todo.md')).toBeInTheDocument()
     expect(screen.getByText('Add git tab')).toBeInTheDocument()
+    expect(screen.getByText('WIP auth work')).toBeInTheDocument()
   })
 
   it('stages an unstaged file when its checkbox is toggled', async () => {

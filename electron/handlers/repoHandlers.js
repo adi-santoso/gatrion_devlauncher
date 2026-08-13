@@ -239,6 +239,81 @@ function setupRepoHandlers(storageManager, processManager, mainWindow) {
     return { success: true }
   })
 
+  // --- Git tier 2: stash, discard, blame -----------------------------------
+
+  function parseStashList(output) {
+    // Each line: stash@{0}: On branch: message
+    return output.split('\n').filter(Boolean).map((line, index) => {
+      const colon = line.indexOf(': ')
+      return {
+        index,
+        ref: line.slice(0, colon === -1 ? line.length : colon),
+        message: colon === -1 ? line : line.slice(colon + 2),
+      }
+    })
+  }
+
+  secureHandle('git-stash-list', async (event, projectPath) => {
+    const output = await runGit(projectPath, ['stash', 'list'])
+    return { success: true, stashes: parseStashList(output) }
+  })
+
+  secureHandle('git-stash-push', async (event, projectPath, message) => {
+    const cleanMessage = typeof message === 'string' ? message.trim() : ''
+    if (cleanMessage.length > 200) throw new Error('Stash message is too long')
+    const args = ['stash', 'push']
+    if (cleanMessage) args.push('-m', cleanMessage)
+    const output = await runGit(projectPath, args)
+    return { success: true, output: output.trim() }
+  })
+
+  secureHandle('git-stash-pop', async (event, projectPath, index = 0) => {
+    const safeIndex = Number.isInteger(index) && index >= 0 ? index : 0
+    const args = ['stash', 'pop', `stash@{${safeIndex}}`]
+    const output = await runGit(projectPath, args)
+    return { success: true, output: output.trim() }
+  })
+
+  secureHandle('git-stash-apply', async (event, projectPath, index = 0) => {
+    const safeIndex = Number.isInteger(index) && index >= 0 ? index : 0
+    const output = await runGit(projectPath, ['stash', 'apply', `stash@{${safeIndex}}`])
+    return { success: true, output: output.trim() }
+  })
+
+  secureHandle('git-stash-drop', async (event, projectPath, index = 0) => {
+    const safeIndex = Number.isInteger(index) && index >= 0 ? index : 0
+    await runGit(projectPath, ['stash', 'drop', `stash@{${safeIndex}}`])
+    return { success: true }
+  })
+
+  // Discard working-tree changes of a file (git restore). Never touches staged
+  // content; renderer must confirm before calling.
+  secureHandle('git-discard', async (event, projectPath, filePath) => {
+    if (typeof filePath !== 'string' || !filePath.trim()) throw new Error('A file path is required')
+    await runGit(projectPath, ['restore', '--', filePath])
+    return { success: true }
+  })
+
+  // Blame a file: <hash> <author> <date> <line>
+  secureHandle('git-blame', async (event, projectPath, filePath) => {
+    if (typeof filePath !== 'string' || !filePath.trim()) throw new Error('A file path is required')
+    const output = await runGit(projectPath, ['blame', '--line-porcelain', '--', filePath])
+    const lines = []
+    let current = null
+    for (const line of output.split('\n')) {
+      if (/^[0-9a-f]{40} /.test(line)) {
+        if (current) lines.push(current)
+        current = { hash: line.slice(0, 7), author: '', date: '', text: '' }
+      } else if (current) {
+        if (line.startsWith('author ')) current.author = line.slice(7)
+        else if (line.startsWith('author-time ')) current.date = new Date(Number(line.slice(12)) * 1000).toISOString().slice(0, 10)
+        else if (line.startsWith('\t')) current.text = line.slice(1)
+      }
+    }
+    if (current) lines.push(current)
+    return { success: true, lines }
+  })
+
   // --- Package scripts + dependency health ---------------------------------
 
   secureHandle('read-package-scripts', async (event, projectPath) => {
@@ -293,6 +368,79 @@ function setupRepoHandlers(storageManager, processManager, mainWindow) {
     } catch (error) {
       return { success: false, error: error.message }
     }
+  })
+
+  // --- Dependency manager: outdated + update ---------------------------------
+
+  // npm on Windows is npm.cmd — execFile needs the real command name.
+  const npmCmd = process.platform === 'win32' ? 'npm.cmd' : 'npm'
+
+  function execNpm(cwd, args, { timeoutMs = 180000 } = {}) {
+    return new Promise((resolve, reject) => {
+      let settled = false
+      const timer = setTimeout(() => {
+        settled = true
+        reject(new Error(`npm ${args[0] || ''} timed out`))
+      }, timeoutMs)
+      execFile(
+        npmCmd,
+        args,
+        { cwd, windowsHide: true, timeout: timeoutMs, maxBuffer: 8 * 1024 * 1024 },
+        (error, stdout, stderr) => {
+          if (settled) return
+          settled = true
+          clearTimeout(timer)
+          if (error && error.code !== 1) {
+            // npm outdated exits 1 when packages ARE outdated — that is success.
+            reject(new Error((stderr || error.message || '').trim().slice(0, 400) || `npm ${args[0] || ''} failed`))
+            return
+          }
+          resolve(stdout)
+        }
+      )
+    })
+  }
+
+  secureHandle('npm-outdated', async (event, projectPath) => {
+    const pkg = readPackageJson(projectPath)
+    if (!pkg) return { success: true, hasPackageJson: false, outdated: [] }
+    const raw = await execNpm(projectPath, ['outdated', '--json'], { timeoutMs: 120000 })
+    let parsed = {}
+    try {
+      parsed = raw.trim() ? JSON.parse(raw) : {}
+    } catch {
+      parsed = {}
+    }
+    const deps = pkg.dependencies || {}
+    const devDeps = pkg.devDependencies || {}
+    const outdated = Object.entries(parsed).map(([name, info]) => ({
+      name,
+      current: info.current || null,
+      wanted: info.wanted || null,
+      latest: info.latest || null,
+      type: Object.prototype.hasOwnProperty.call(deps, name) ? 'dependency' : 'devDependency',
+    })).filter((item) => item.latest && item.current && item.latest !== item.current)
+    return { success: true, hasPackageJson: true, outdated }
+  })
+
+  // Update a single package (or all) to its wanted version. package.json and
+  // the lockfile are backed up first so the change can be reverted manually.
+  secureHandle('npm-update', async (event, projectPath, packageName = null) => {
+    if (packageName !== null && (typeof packageName !== 'string' || !packageName.trim())) {
+      throw new Error('Invalid package name')
+    }
+    const backupFiles = ['package.json']
+    for (const lock of LOCKFILES.map((item) => item.file)) {
+      if (fs.existsSync(path.join(projectPath, lock))) backupFiles.push(lock)
+    }
+    for (const file of backupFiles) {
+      const source = path.join(projectPath, file)
+      const target = path.join(projectPath, `${file}.bak-${Date.now()}`)
+      await fs.copyFile(source, target).catch(() => {})
+    }
+    const args = packageName ? ['install', `${packageName.trim()}@latest`] : ['update']
+    const output = await execNpm(projectPath, args, { timeoutMs: 300000 })
+    return { success: true, output: output.trim().slice(-2000), backups: backupFiles.map((file) => `${file}.bak-*`) }
   })
 
   // Install dependencies through the process manager so progress is visible in

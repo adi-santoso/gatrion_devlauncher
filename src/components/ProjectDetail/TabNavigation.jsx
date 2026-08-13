@@ -5,7 +5,9 @@ const tabs = [
   { id: 'terminal', label: 'Terminal' },
   { id: 'git', label: 'Git' },
   { id: 'scripts', label: 'Scripts' },
+  { id: 'dependencies', label: 'Dependencies' },
   { id: 'environment', label: 'Environment' },
+  { id: 'analytics', label: 'Analytics' },
   { id: 'settings', label: 'Settings' }
 ];
 

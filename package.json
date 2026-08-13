@@ -12,13 +12,14 @@
     "build": "vite build && electron-builder",
     "build:win": "vite build && electron-builder --win --x64",
     "icons": "node scripts/generate-icons.js",
-    "test": "node test-process-manager.js && node test-schema.js && node test-storage-manager.js && node test-security-hardening.js && node test-process-handlers.js && node test-project-detector.js && node test-env-files.js && node test-prayer-times.js && node test-preview-manager.js && node test-repo-handlers.js",
+    "test": "node test-process-manager.js && node test-schema.js && node test-storage-manager.js && node test-security-hardening.js && node test-process-handlers.js && node test-project-detector.js && node test-env-files.js && node test-prayer-times.js && node test-preview-manager.js && node test-repo-handlers.js && node test-health-manager.js",
     "test:unit": "vitest run",
     "test:e2e": "playwright test",
     "test:coverage": "vitest run --coverage",
     "test:watch": "vitest",
     "lint": "eslint . --ext .js,.jsx",
     "lint:fix": "eslint . --ext .js,.jsx --fix",
+    "typecheck": "tsc -p tsconfig.check.json",
     "preview": "vite preview"
   },
   "engines": {
@@ -35,9 +36,9 @@
   "license": "MIT",
   "dependencies": {
     "@tailwindcss/vite": "^4.3.3",
+    "node-pty": "^1.1.0",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
-    "node-pty": "^1.1.0",
     "uuid": "^14.0.1",
     "xterm": "^5.3.0",
     "zustand": "^5.0.14"
@@ -49,6 +50,7 @@
     "@testing-library/jest-dom": "^7.0.0",
     "@testing-library/react": "^16.3.2",
     "@testing-library/user-event": "^14.6.1",
+    "@types/node": "^26.2.0",
     "@vitejs/plugin-react": "^6.0.3",
     "@vitest/coverage-v8": "^3.2.7",
     "concurrently": "^10.0.3",
@@ -58,6 +60,7 @@
     "eslint": "^9.39.5",
     "eslint-plugin-react-hooks": "^7.1.1",
     "jsdom": "^27.0.1",
+    "typescript": "^7.0.2",
     "vite": "^8.1.5",
     "vitest": "^3.2.7",
     "wait-on": "^9.0.10"

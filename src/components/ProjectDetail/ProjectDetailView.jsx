@@ -9,6 +9,8 @@ import CustomCommands from './CustomCommands';
 import CrashBanner from './CrashBanner';
 import GitTab from './GitTab';
 import ScriptsTab from './ScriptsTab';
+import DependenciesTab from './DependenciesTab';
+import AnalyticsTab from './AnalyticsTab';
 
 export default function ProjectDetailView({
   project,
@@ -132,8 +134,14 @@ export default function ProjectDetailView({
           <div className={activeTab === 'scripts' ? 'block' : 'hidden'}>
             <ScriptsTab project={project}/>
           </div>
+          <div className={activeTab === 'dependencies' ? 'block' : 'hidden'}>
+            <DependenciesTab project={project}/>
+          </div>
           <div className={activeTab === 'environment' ? 'block' : 'hidden'}>
             <EnvironmentTab project={project} envVars={project?.envVars} onEdit={onEdit}/>
+          </div>
+          <div className={activeTab === 'analytics' ? 'block' : 'hidden'}>
+            <AnalyticsTab project={project}/>
           </div>
           <div className={activeTab === 'settings' ? 'block' : 'hidden'}>
             <SettingsTab project={project} onEdit={onEdit} onRemove={onRemove}/>

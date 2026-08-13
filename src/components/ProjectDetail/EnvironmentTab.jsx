@@ -3,20 +3,35 @@ import * as ipc from '../../utils/ipcRenderer';
 import Icon from '../Common/Icon';
 import { ConfirmDialog } from '../Modals';
 
-function highlightLine(line) {
+// Keys whose values are treated as secrets (masked until revealed).
+const SECRET_KEY = /(SECRET|TOKEN|PASSWORD|PASSWD|PASS|API_KEY|PRIVATE|KEY)/i;
+
+function maskValue(key, value) {
+  if (!SECRET_KEY.test(key) || !value) return value;
+  const visible = Math.min(value.length, 4);
+  return `${'•'.repeat(Math.max(4, visible))} (${value.length} chars)`;
+}
+
+function highlightLine(line, revealSecrets) {
   const trimmed = line.trim();
   if (!trimmed) return <span className="text-ink-faint">&nbsp;</span>;
   if (trimmed.startsWith('#')) return <span className="text-ink-faint italic">{line}</span>;
   const eqIndex = line.indexOf('=');
   if (eqIndex === -1) return <span className="text-ink">{line}</span>;
+  const key = line.slice(0, eqIndex);
+  const value = line.slice(eqIndex + 1);
+  const displayed = revealSecrets ? value : maskValue(key, value);
   return (
     <>
-      <span className="text-accent">{line.slice(0, eqIndex)}</span>
+      <span className="text-accent">{key}</span>
       <span className="text-ink-faint">=</span>
-      <span className="text-success">{line.slice(eqIndex + 1)}</span>
+      <span className="text-success">{displayed}</span>
     </>
   );
 }
+
+// Common environment profiles shown as quick-switch chips.
+const PROFILE_FILES = ['.env', '.env.dev', '.env.staging', '.env.production'];
 
 function EnvFileSection({ projectPath }) {
   const [files, setFiles] = useState([]);
@@ -29,6 +44,7 @@ function EnvFileSection({ projectPath }) {
   const [notice, setNotice] = useState(null);
   const [loadError, setLoadError] = useState(null);
   const [pendingSwitch, setPendingSwitch] = useState(null);
+  const [revealSecrets, setRevealSecrets] = useState(false);
 
   const loadFile = useCallback(async (fileName) => {
     if (!fileName) return;
@@ -110,6 +126,15 @@ function EnvFileSection({ projectPath }) {
           <p className="text-[11px] text-ink-faint mt-1">Loaded directly from the project folder. Saving creates a timestamped backup.</p>
         </div>
         <div className="flex items-center gap-2">
+          <label className="flex items-center gap-1.5 text-[11px] text-ink-faint cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={revealSecrets}
+              onChange={(e) => setRevealSecrets(e.target.checked)}
+              className="w-3 h-3 accent-accent"
+            />
+            Reveal secrets
+          </label>
           <select
             value={selectedFile}
             onChange={(event) => handleSelectFile(event.target.value)}
@@ -132,6 +157,29 @@ function EnvFileSection({ projectPath }) {
       {loadError && <p className="text-xs text-danger mb-3">{loadError}</p>}
       {notice && (
         <p className={`text-xs mb-3 ${notice.type === 'success' ? 'text-success' : 'text-danger'}`}>{notice.message}</p>
+      )}
+
+      {PROFILE_FILES.some((file) => files.includes(file)) && (
+        <div className="flex items-center gap-1.5 flex-wrap mb-3">
+          <span className="text-[10px] uppercase tracking-wider text-ink-faint mr-1">Profile:</span>
+          {PROFILE_FILES.map((file) => (
+            <button
+              key={file}
+              type="button"
+              onClick={() => handleSelectFile(file)}
+              className={`px-2.5 py-1 rounded-full text-[10px] font-mono border transition-colors cursor-pointer ${
+                selectedFile === file
+                  ? 'text-accent border-accent/40 bg-accent/10'
+                  : files.includes(file)
+                    ? 'text-ink-soft border-border bg-surface-2 hover:bg-surface-3'
+                    : 'text-ink-faint/50 border-border/40 opacity-60 cursor-not-allowed'
+              }`}
+              title={files.includes(file) ? `Switch to ${file}` : `${file} not present in this project`}
+            >
+              {file === '.env' ? 'base' : file.replace('.env.', '')}
+            </button>
+          ))}
+        </div>
       )}
 
       {files.length === 0 && !loadError ? (
@@ -185,7 +233,7 @@ function EnvFileSection({ projectPath }) {
               className="w-full max-h-72 overflow-auto bg-base border border-border rounded-lg p-3 text-xs font-mono leading-relaxed whitespace-pre-wrap break-all"
             >
               {loading ? 'Loading...' : content.split('\n').map((line, index) => (
-                <div key={index}>{highlightLine(line)}</div>
+                <div key={index}>{highlightLine(line, revealSecrets)}</div>
               ))}
             </pre>
           )}

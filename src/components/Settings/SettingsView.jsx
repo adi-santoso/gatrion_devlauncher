@@ -1,8 +1,10 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import ThemeSelector from './ThemeSelector';
 import ToggleSwitch from './ToggleSwitch';
 import TerminalSettings from './TerminalSettings';
-import { geocodeCity } from '../../utils/ipcRenderer';
+import SystemEnvCard from './SystemEnvCard';
+import Icon from '../Common/Icon';
+import { geocodeCity, checkUpdate, openExternalUrl } from '../../utils/ipcRenderer';
 
 /**
  * SettingsView - Full settings view assembly
@@ -48,8 +50,35 @@ const SettingsView = ({ config, updateConfig, onExportProjects, onImportProjects
     setGeoResults(null);
   };
 
+  // Update checker — fetch once when the view mounts
+  const [updateInfo, setUpdateInfo] = useState(null);
+  useEffect(() => {
+    let cancelled = false;
+    checkUpdate().then((result) => {
+      if (!cancelled && result?.success) setUpdateInfo(result);
+    }).catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
+
   return (
     <div className="view mx-auto max-w-5xl">
+      {updateInfo?.updateAvailable && updateInfo.latest && (
+        <div className="flex items-center gap-3 px-4 py-3 rounded-xl border border-accent/25 bg-accent/10 mb-5">
+          <div className="w-8 h-8 rounded-full bg-accent/20 text-accent flex items-center justify-center shrink-0">
+            <Icon name="download" size={15} />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-xs font-semibold text-ink">Gatrion {updateInfo.latest} is available</p>
+            <p className="text-[11px] text-ink-faint mt-0.5">You are running {updateInfo.current}. Grab the new release to get the latest fixes and features.</p>
+          </div>
+          <button
+            onClick={() => openExternalUrl(updateInfo.url)}
+            className="px-3 py-1.5 rounded-lg bg-accent hover:bg-accent-hover text-white text-xs font-semibold transition-colors"
+          >
+            View release
+          </button>
+        </div>
+      )}
       <div className="grid gap-5 lg:grid-cols-2 items-start">
       <ThemeSelector
         currentTheme={config.theme}
@@ -187,6 +216,8 @@ const SettingsView = ({ config, updateConfig, onExportProjects, onImportProjects
           </button>
         </div>
       </div>
+
+      <SystemEnvCard />
 
       <div className="bg-surface border border-border rounded-xl shadow-card p-5 space-y-4">
         <p className="font-display font-bold text-sm">Pengingat Sholat</p>
