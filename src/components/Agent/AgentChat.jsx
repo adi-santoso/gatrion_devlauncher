@@ -145,6 +145,15 @@ export default function AgentChat({
   // RPC events never causes a render per delta (which re-parses markdown and
   // could saturate the main thread and freeze the app mid-reply).
   const streamingBufRef = useRef('');
+  const thinkingBufRef = useRef('');
+  // Latest tool output update, flushed on the same interval (tool output can
+  // stream many chunks per second; each one must not re-render the chat).
+  const toolUpdateRef = useRef(null);
+  // Short replies get live markdown while typing; anything longer than this is
+  // streamed as plain text, because re-parsing a large accumulated document on
+  // every flush starves the renderer and freezes the app mid-reply. The final
+  // message is always rendered through Markdown once the turn completes.
+  const MARKDOWN_STREAM_LIMIT = 12000;
   const projectRef = useRef(project);
   const sessionRef = useRef(session);
   projectRef.current = project;
@@ -177,6 +186,21 @@ export default function AgentChat({
       if (pending) {
         streamingBufRef.current = '';
         setStreaming((prev) => prev + pending);
+      }
+      const thinkPending = thinkingBufRef.current;
+      if (thinkPending) {
+        thinkingBufRef.current = '';
+        setThinking((prev) => prev + thinkPending);
+      }
+      if (toolUpdateRef.current) {
+        const { toolCallId, text } = toolUpdateRef.current;
+        toolUpdateRef.current = null;
+        setTools((prev) => {
+          const next = [...prev];
+          const target = next.filter((item) => item.id === toolCallId).pop();
+          if (target) target.body = text.slice(0, 2000);
+          return next;
+        });
       }
     }, 30);
     return () => clearInterval(timer);
@@ -253,7 +277,7 @@ export default function AgentChat({
       if (assistantEvent.type === 'text_delta' && typeof assistantEvent.delta === 'string') {
         streamingBufRef.current += assistantEvent.delta;
       } else if (/think|reason/i.test(assistantEvent.type) && typeof assistantEvent.delta === 'string') {
-        setThinking((prev) => prev + assistantEvent.delta);
+        thinkingBufRef.current += assistantEvent.delta;
       }
       return;
     }
@@ -261,6 +285,7 @@ export default function AgentChat({
       setStreaming('');
       streamingBufRef.current = '';
       setThinking('');
+      thinkingBufRef.current = '';
       setTools([]);
       setError(null);
       return;
@@ -277,12 +302,7 @@ export default function AgentChat({
     }
     if (type === 'tool_execution_update') {
       const text = event.partialResult?.content?.map((part) => part?.text).filter(Boolean).join('') || '';
-      setTools((prev) => {
-        const next = [...prev];
-        const target = next.filter((item) => item.id === event.toolCallId).pop();
-        if (target) target.body = text.slice(0, 2000);
-        return next;
-      });
+      toolUpdateRef.current = { toolCallId: event.toolCallId, text };
       return;
     }
     if (type === 'tool_execution_end') {
@@ -327,6 +347,7 @@ export default function AgentChat({
       setStreaming('')
       streamingBufRef.current = ''
       setThinking('')
+      thinkingBufRef.current = ''
       setBusyState(false)
       return
     }
@@ -400,6 +421,7 @@ export default function AgentChat({
     setStreaming('');
     streamingBufRef.current = '';
     setThinking('');
+    thinkingBufRef.current = '';
   };
 
   const notConfigured = status?.installed && !status?.configured;
@@ -535,7 +557,11 @@ export default function AgentChat({
                   <span className="text-[11px] text-ink-faint">typing…</span>
                 </div>
                 <div className="text-sm text-ink leading-relaxed">
-                  <Markdown content={streaming} />
+                  {streaming.length < MARKDOWN_STREAM_LIMIT ? (
+                    <Markdown content={streaming} />
+                  ) : (
+                    <div className="whitespace-pre-wrap break-words">{streaming}</div>
+                  )}
                   <span className="inline-block w-2 h-4 bg-accent align-text-bottom animate-pulse rounded-[2px] ml-0.5" />
                 </div>
               </div>

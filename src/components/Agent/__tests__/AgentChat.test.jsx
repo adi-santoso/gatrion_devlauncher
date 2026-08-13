@@ -170,4 +170,61 @@ describe('AgentChat', () => {
     })
     expect(await screen.findByText(/word0/)).toBeInTheDocument()
   })
+
+  it('streams long replies as plain text instead of re-parsing markdown per flush', async () => {
+    mocks.onOmpEvent.mockImplementation((callback) => { eventCb = callback; return () => {} })
+    mocks.ompGetMessages.mockResolvedValue({ success: true, messages: [] })
+    mocks.ompChat.mockResolvedValue({
+      success: true,
+      sessionId: 's5',
+      session: { id: 's5', title: 'Long', sessionPath: 'C:/sessions/s5.jsonl' },
+    })
+
+    render(<Harness />)
+    const input = screen.getByPlaceholderText('Describe a task, ask a question…')
+    fireEvent.change(input, { target: { value: 'long stream' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Send message' }))
+    await screen.findByText('long stream')
+    await waitFor(() => expect(mocks.ompChat).toHaveBeenCalled())
+
+    // A reply long enough to cross the markdown-streaming threshold (12k). It
+    // is rendered as literal text (markdown markers stay visible) — never
+    // parsed into rich elements on every flush.
+    const chunk = 'lorem ipsum **not bolded** '.repeat(500) // ~13k chars
+    await act(async () => {
+      eventCb({ projectId: 'p1', event: { type: 'agent_start' } })
+      eventCb({ projectId: 'p1', event: { type: 'message_update', assistantMessageEvent: { type: 'text_delta', delta: chunk } } })
+      await new Promise((resolve) => setTimeout(resolve, 120))
+    })
+    expect(await screen.findByText(/\*\*not bolded\*\*/)).toBeInTheDocument()
+    // The raw branch must NOT have parsed it into a <strong> element
+    expect(screen.queryByText('not bolded', { selector: 'strong' })).not.toBeInTheDocument()
+  })
+
+  it('renders thinking deltas (buffered + flushed on the interval)', async () => {
+    mocks.onOmpEvent.mockImplementation((callback) => { eventCb = callback; return () => {} })
+    mocks.ompGetMessages.mockResolvedValue({ success: true, messages: [] })
+    mocks.ompChat.mockResolvedValue({
+      success: true,
+      sessionId: 's6',
+      session: { id: 's6', title: 'Think', sessionPath: 'C:/sessions/s6.jsonl' },
+    })
+
+    render(<Harness />)
+    const input = screen.getByPlaceholderText('Describe a task, ask a question…')
+    fireEvent.change(input, { target: { value: 'think test' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Send message' }))
+    await screen.findByText('think test')
+    await waitFor(() => expect(mocks.ompChat).toHaveBeenCalled())
+
+    await act(async () => {
+      eventCb({ projectId: 'p1', event: { type: 'agent_start' } })
+      for (let i = 0; i < 20; i += 1) {
+        eventCb({ projectId: 'p1', event: { type: 'message_update', assistantMessageEvent: { type: 'reasoning_delta', delta: `step ${i} ` } } })
+      }
+      await new Promise((resolve) => setTimeout(resolve, 120))
+    })
+    fireEvent.click(await screen.findByText('Thinking'))
+    expect(await screen.findByText(/step 19/)).toBeInTheDocument()
+  })
 })
