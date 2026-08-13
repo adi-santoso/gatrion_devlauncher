@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { beforeAll, describe, expect, it, vi } from 'vitest'
+import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import AgentChat from '../AgentChat'
 
 beforeAll(() => {
@@ -8,11 +8,20 @@ beforeAll(() => {
   window.Element.prototype.scrollIntoView = vi.fn()
 })
 
+beforeEach(() => {
+  mocks.ompConfigGet.mockResolvedValue({ success: true, providers: [], defaultModel: null })
+  mocks.ompConfigSetDefault.mockResolvedValue({ success: true })
+  mocks.ompSetModel.mockResolvedValue({ success: true })
+})
+
 const mocks = vi.hoisted(() => ({
   ompGetMessages: vi.fn(),
   ompChat: vi.fn(),
   ompAbort: vi.fn(),
   onOmpEvent: vi.fn(),
+  ompConfigGet: vi.fn(),
+  ompConfigSetDefault: vi.fn(),
+  ompSetModel: vi.fn(),
 }))
 
 let eventCb = null
@@ -226,5 +235,44 @@ describe('AgentChat', () => {
     })
     fireEvent.click(await screen.findByText('Thinking'))
     expect(await screen.findByText(/step 19/)).toBeInTheDocument()
+  })
+
+  it('lists models from omp config and switches the model from the chat header', async () => {
+    mocks.onOmpEvent.mockImplementation((callback) => { eventCb = callback; return () => {} })
+    mocks.ompGetMessages.mockResolvedValue({ success: true, messages: [] })
+    mocks.ompConfigGet.mockResolvedValue({
+      success: true,
+      providers: [{ name: 'kreova', models: [
+        { id: 'kiro-claude-sonnet-4.5', name: 'Kiro Sonnet' },
+        { id: 'kiro-haiku-4.5', name: 'Kiro Haiku' },
+      ] }],
+      defaultModel: 'kreova/kiro-claude-sonnet-4.5:high',
+    })
+
+    render(<Harness />)
+
+    // Default carries a :high variant — still matched to the base model ref
+    expect(await screen.findByText(/Kiro Sonnet/)).toBeInTheDocument()
+
+    fireEvent.click(screen.getByTitle('Switch model'))
+    fireEvent.click(await screen.findByText('kreova · Kiro Haiku'))
+
+    expect(mocks.ompConfigSetDefault).toHaveBeenCalledWith('kreova/kiro-haiku-4.5')
+    await waitFor(() => {
+      expect(mocks.ompSetModel).toHaveBeenCalledWith('p1', 'C:/demo', 'kreova', 'kiro-haiku-4.5')
+    })
+  })
+
+  it('shows a character counter while typing a long message', async () => {
+    mocks.onOmpEvent.mockImplementation((callback) => { eventCb = callback; return () => {} })
+    mocks.ompGetMessages.mockResolvedValue({ success: true, messages: [] })
+
+    render(<Harness />)
+    const input = screen.getByPlaceholderText('Describe a task, ask a question…')
+    const longText = 'a'.repeat(1234)
+    fireEvent.change(input, { target: { value: longText } })
+
+    // Locale-agnostic match: the thousands separator differs per OS locale
+    expect(await screen.findByText(/1\D?234 chars/)).toBeInTheDocument()
   })
 })

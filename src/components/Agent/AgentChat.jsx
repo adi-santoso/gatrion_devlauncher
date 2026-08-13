@@ -136,8 +136,12 @@ export default function AgentChat({
   const [error, setError] = useState(null);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [nearBottom, setNearBottom] = useState(true);
+  const [models, setModels] = useState([]);
+  const [defaultModel, setDefaultModel] = useState(null);
+  const [modelsOpen, setModelsOpen] = useState(false);
   const scrollRef = useRef(null);
   const bottomRef = useRef(null);
+  const inputRef = useRef(null);
   const busyRef = useRef(false);
   const lastEventAtRef = useRef(0);
   const sentSessionIdRef = useRef(null);
@@ -257,6 +261,48 @@ export default function AgentChat({
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Load the model list + current default from omp's config (~/.omp/agent) so
+  // the model can be switched directly from the chat header. Refetched when
+  // the session changes so picks made in Settings are picked up too.
+  useEffect(() => {
+    let cancelled = false;
+    ipc.ompConfigGet().then((result) => {
+      if (cancelled || !result?.success) return;
+      const options = (result.providers || []).flatMap((provider) =>
+        (provider.models || []).map((model) => ({
+          ref: `${provider.name}/${model.id}`,
+          label: `${provider.name} · ${model.name || model.id}`,
+        }))
+      );
+      if (!cancelled) {
+        setModels(options);
+        setDefaultModel(result.defaultModel || null);
+      }
+    }).catch(() => {});
+    return () => { cancelled = true; };
+  }, [project?.id, session?.id]);
+
+  // Focus the input when a conversation is opened, ready to type.
+  useEffect(() => {
+    if (!busy) inputRef.current?.focus();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session?.id]);
+
+  // Escape closes the model dropdown.
+  useEffect(() => {
+    if (!modelsOpen) return undefined;
+    const onKey = (event) => { if (event.key === 'Escape') setModelsOpen(false); };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [modelsOpen]);
+
+  // Grow the textarea with its content (up to ~10 lines), then scroll.
+  const resizeInput = (el) => {
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = `${Math.min(el.scrollHeight, 240)}px`;
+  };
 
   // Real omp RPC event shapes (verified against omp 17.x on 2026-08):
   //   message_update.assistantMessageEvent = { type: 'text_delta', delta }
@@ -381,6 +427,7 @@ export default function AgentChat({
     const message = (preset ?? input).trim();
     if (!message || busyRef.current || !project) return;
     setInput('');
+    if (inputRef.current) inputRef.current.style.height = 'auto';
     setError(null);
     setMessages((prev) => [...prev, { role: 'user', content: message }]);
     setStreaming('');
@@ -426,6 +473,29 @@ export default function AgentChat({
 
   const notConfigured = status?.installed && !status?.configured;
   const isFresh = messages.length === 0 && !streaming && !historyLoading;
+  // config.yml may carry a variant suffix (e.g. "provider/model:high") that
+  // is not part of the models.yml id — match on the ref prefix.
+  const currentModelRef = defaultModel
+    ? models.find((m) => defaultModel === m.ref || defaultModel.startsWith(`${m.ref}:`))?.ref || null
+    : null;
+  const currentModelLabel = models.find((m) => m.ref === currentModelRef)?.label || defaultModel || null;
+
+  const handleSelectModel = async (ref) => {
+    setModelsOpen(false);
+    if (!ref || ref === currentModelRef) return;
+    const [provider, ...rest] = ref.split('/');
+    const modelId = rest.join('/');
+    setDefaultModel(ref); // optimistic — applied for real by config write below
+    try {
+      await ipc.ompConfigSetDefault(ref);
+      if (project) {
+        // Apply immediately to the live RPC process (if it is running).
+        ipc.ompSetModel(project.id, project.path, provider, modelId).catch(() => {});
+      }
+    } catch {
+      ipc.ompConfigGet().then((result) => { if (result?.success) setDefaultModel(result.defaultModel || null); }).catch(() => {});
+    }
+  };
 
   return (
     <div className="flex flex-col min-w-0 h-full">
@@ -439,8 +509,54 @@ export default function AgentChat({
           <p className="text-[11px] text-ink-faint truncate">{session?.title || (busy ? 'working…' : 'New conversation')}</p>
         </div>
         <div className="ml-auto flex items-center gap-2 shrink-0">
+          {models.length > 0 && (
+            <div className="relative hidden md:block">
+              <button
+                type="button"
+                onClick={() => setModelsOpen((value) => !value)}
+                disabled={busy}
+                title="Switch model"
+                className="inline-flex items-center gap-1.5 text-[11px] font-medium text-ink-soft bg-surface-2 border border-border rounded-full px-2.5 py-1 hover:border-border-hover hover:text-ink transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                <Icon name="bolt" size={11} className="text-accent" />
+                <span className="max-w-[150px] truncate font-mono">{currentModelLabel || 'Select model'}</span>
+                <Icon name="chevronDown" size={11} className="text-ink-faint" />
+              </button>
+              {modelsOpen && (
+                <>
+                  <div className="fixed inset-0 z-40" onClick={() => setModelsOpen(false)} />
+                  <div className="absolute right-0 top-full mt-1.5 w-64 max-h-80 overflow-auto rounded-xl border border-border bg-surface shadow-card z-50 py-1">
+                    <p className="px-3 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-[0.1em] text-ink-faint">Model</p>
+                    {models.map((model) => (
+                      <button
+                        key={model.ref}
+                        type="button"
+                        onClick={() => handleSelectModel(model.ref)}
+                        className={`w-full flex items-center gap-2 px-3 py-2 text-left text-xs transition-colors ${
+                          model.ref === currentModelRef ? 'text-accent bg-accent/5' : 'text-ink-soft hover:bg-surface-3 hover:text-ink'
+                        }`}
+                      >
+                        <span className="flex-1 min-w-0 truncate font-mono">{model.label}</span>
+                        {model.ref === currentModelRef && <Icon name="check" size={12} />}
+                      </button>
+                    ))}
+                    <div className="border-t border-border mt-1 pt-1">
+                      <button
+                        type="button"
+                        onClick={() => { setModelsOpen(false); onOpenSettings?.(); }}
+                        className="w-full flex items-center gap-2 px-3 py-2 text-left text-xs text-ink-faint hover:text-accent transition-colors"
+                      >
+                        <Icon name="gear" size={12} />
+                        Manage models in Settings…
+                      </button>
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
           {status?.installed && status?.configured && (
-            <span className="hidden md:inline-flex items-center gap-1.5 text-[11px] text-ink-faint bg-surface-2 border border-border rounded-full px-2.5 py-1">
+            <span className="hidden xl:inline-flex items-center gap-1.5 text-[11px] text-ink-faint bg-surface-2 border border-border rounded-full px-2.5 py-1">
               <span className="w-1.5 h-1.5 rounded-full bg-success" />
               {status.version ? `omp ${status.version}` : 'omp'}
             </span>
@@ -593,8 +709,12 @@ export default function AgentChat({
         <div className="max-w-3xl mx-auto">
           <div className={`flex items-end gap-2.5 border rounded-2xl bg-surface-2 px-4 py-2.5 transition-colors ${busy ? 'border-border' : 'border-border hover:border-border-hover focus-within:border-accent/50 focus-within:ring-2 focus-within:ring-accent/20'}`}>
             <textarea
+              ref={inputRef}
               value={input}
-              onChange={(event) => setInput(event.target.value)}
+              onChange={(event) => {
+                setInput(event.target.value);
+                resizeInput(event.target);
+              }}
               onKeyDown={(event) => {
                 if (event.key === 'Enter' && !event.shiftKey) {
                   event.preventDefault();
@@ -604,7 +724,7 @@ export default function AgentChat({
               rows={1}
               placeholder={notConfigured ? 'Configure a provider to start chatting…' : 'Describe a task, ask a question…'}
               disabled={notConfigured || !project || busy}
-              className="flex-1 bg-transparent text-sm text-ink placeholder:text-ink-faint focus:outline-none resize-none max-h-32 py-1 disabled:opacity-50"
+              className="flex-1 bg-transparent text-sm text-ink placeholder:text-ink-faint focus:outline-none resize-none max-h-60 py-1 disabled:opacity-50"
               style={{ overflowY: 'auto' }}
             />
             <button
@@ -620,6 +740,7 @@ export default function AgentChat({
             <span><kbd className="px-1 py-0.5 rounded bg-surface-3 border border-border text-[10px]">Enter</kbd> to send · <kbd className="px-1 py-0.5 rounded bg-surface-3 border border-border text-[10px]">Shift+Enter</kbd> newline</span>
             <span className="w-1 h-1 rounded-full bg-ink-faint/60" />
             <span>Sessions & context are stored by omp locally</span>
+            <span className="ml-auto tabular-nums">{input.length > 0 ? `${input.length.toLocaleString()} chars` : ''}</span>
           </p>
         </div>
       </div>
