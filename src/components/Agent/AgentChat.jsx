@@ -138,6 +138,7 @@ export default function AgentChat({
   const bottomRef = useRef(null);
   const busyRef = useRef(false);
   const lastEventAtRef = useRef(0);
+  const sentSessionIdRef = useRef(null);
   const projectRef = useRef(project);
   const sessionRef = useRef(session);
   projectRef.current = project;
@@ -168,7 +169,17 @@ export default function AgentChat({
   // Load history when the active session changes. Existing sessions (those
   // with a sessionPath) show a skeleton until omp returns their transcript;
   // brand-new sessions skip straight to the empty state.
+  // Keyed on the session id (not sessionPath): the first send on a new
+  // session updates its sessionPath in the registry, and that same logical
+  // session must NOT be cleared/reloaded mid-conversation.
   useEffect(() => {
+    // The very first message can create the session implicitly (no active
+    // session selected). That transition must not wipe the live conversation.
+    if (session?.id && session.id === sentSessionIdRef.current) {
+      sentSessionIdRef.current = null;
+      setHistoryLoading(false);
+      return;
+    }
     setMessages([]);
     setStreaming('');
     setThinking('');
@@ -178,6 +189,10 @@ export default function AgentChat({
     const hasHistory = Boolean(project && session?.sessionPath);
     setHistoryLoading(hasHistory);
     if (!project || !session) return;
+    // A session without a sessionPath is brand-new — it has no history to
+    // load, and fetching anyway could clobber the first message with a stale
+    // (or wrong-session) response.
+    if (!session.sessionPath) return;
     let cancelled = false;
     ipc.ompGetMessages(project.id, project.path, { sessionPath: session.sessionPath }).then((result) => {
       if (cancelled) return;
@@ -186,7 +201,7 @@ export default function AgentChat({
       setMessages(result.messages.map((item) => ({ role: item.role, content: item.content })));
     }).catch(() => { if (!cancelled) setHistoryLoading(false); });
     return () => { cancelled = true; };
-  }, [project?.id, session?.id, project?.path, session?.sessionPath]);
+  }, [project?.id, session?.id, project?.path]);
 
   // Live events from the main process — uses refs so the handler always sees
   // the current project/session even though the subscription is created once.
@@ -327,6 +342,9 @@ export default function AgentChat({
         setBusyState(false);
         return;
       }
+      // Remember the session created by this send so the session-change
+      // effect does not reset the live conversation when it appears.
+      sentSessionIdRef.current = result.sessionId;
       onSessionCreated?.(result.sessionId, result.session);
     } catch (error) {
       setError(error.message || 'Failed to start conversation');
