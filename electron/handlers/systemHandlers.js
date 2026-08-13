@@ -25,30 +25,58 @@ const TOOLS = [
   { name: 'omp', label: 'oh-my-pi (AI agent)', args: ['--version'] },
 ]
 
+const notFound = (tool, error = null) => ({ name: tool.name, label: tool.label, found: false, version: null, path: null, error })
+
+/** Resolve a tool to its absolute path via `where`/`which` (locale-independent). */
+function resolveToolPath(toolName) {
+  return new Promise((resolve) => {
+    const cmd = process.platform === 'win32' ? 'where' : 'which'
+    execFile(cmd, [toolName], { windowsHide: true, timeout: 5000 }, (error, stdout) => {
+      if (error) return resolve(null)
+      const candidates = (stdout || '').trim().split(/\r?\n/).map((line) => line.trim()).filter(Boolean)
+      if (!candidates.length) return resolve(null)
+      // Prefer a real executable for display; otherwise the first shim works too
+      // (the version command goes through the shell which resolves PATHEXT).
+      resolve(candidates.find((line) => /\.exe$/i.test(line)) || candidates[0])
+    })
+  })
+}
+
+function runVersionCommand(tool, resolvedPath) {
+  return new Promise((resolve) => {
+    const finish = (error, stdout, stderr) => {
+      const text = (stdout || stderr || '').trim()
+      if (error && !text) {
+        resolve(notFound(tool, error.code === 'ENOENT' ? null : error.message))
+        return
+      }
+      resolve({ name: tool.name, label: tool.label, found: true, version: firstLine(text), path: resolvedPath || null, error: null })
+    }
+    const options = { windowsHide: true, timeout: 5000, maxBuffer: 2 * 1024 * 1024 }
+    if (process.platform === 'win32') {
+      // npm/pnpm/composer/... are .cmd/.bat shims that execFile cannot run
+      // directly (ENOENT). Running through cmd lets PATHEXT resolve them, and
+      // existence was already confirmed by `where` above.
+      execFile(process.env.ComSpec || 'cmd.exe', ['/d', '/s', '/c', `${tool.name} ${tool.args.join(' ')}`], options, finish)
+    } else {
+      execFile(resolvedPath || tool.name, tool.args, options, finish)
+    }
+  })
+}
+
 function detectTool(tool) {
   return new Promise((resolve) => {
-    const timer = setTimeout(() => resolve({ name: tool.name, label: tool.label, found: false, version: null, path: null, error: 'timeout' }), 6000)
-    execFile(
-      tool.name,
-      tool.args,
-      { windowsHide: true, timeout: 5000, maxBuffer: 2 * 1024 * 1024 },
-      (error, stdout, stderr) => {
+    const timer = setTimeout(() => resolve(notFound(tool, 'timeout')), 6000)
+    resolveToolPath(tool.name).then((resolvedPath) => {
+      if (!resolvedPath) {
         clearTimeout(timer)
-        if (error) {
-          // ENOENT => not on PATH; other errors (e.g. non-zero exit) may still
-          // have printed a version (java prints to stderr).
-          const text = (stdout || stderr || '').trim()
-          if (text) {
-            resolve({ name: tool.name, label: tool.label, found: true, version: firstLine(text), path: null, error: null })
-          } else {
-            resolve({ name: tool.name, label: tool.label, found: false, version: null, path: null, error: error.code === 'ENOENT' ? null : error.message })
-          }
-          return
-        }
-        const text = (stdout || stderr || '').trim()
-        resolve({ name: tool.name, label: tool.label, found: true, version: firstLine(text), path: null, error: null })
+        return resolve(notFound(tool))
       }
-    )
+      return runVersionCommand(tool, resolvedPath).then((result) => {
+        clearTimeout(timer)
+        resolve(result)
+      })
+    })
   })
 }
 
