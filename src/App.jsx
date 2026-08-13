@@ -6,6 +6,7 @@ import { ProjectDetailView } from './components/ProjectDetail';
 import { SettingsView } from './components/Settings';
 import { LoadingSkeleton } from './components/States';
 import TerminalWorkspace from './components/TerminalWorkspace';
+import AgentView from './components/Agent/AgentView';
 import {
   ProjectModal,
   ConfirmDialog,
@@ -27,6 +28,7 @@ function App() {
 
   // View state
   const [currentView, setCurrentView] = useState('dashboard');
+  const [agentProjectId, setAgentProjectId] = useState(null);
   const [selectedProject, setSelectedProject] = useState(null);
 
   // UI state
@@ -218,6 +220,9 @@ function App() {
         setIsFullscreen(true);
         setLastFullscreenProjectId(data.id);
       }
+    }
+    if (viewName === 'agent' && data) {
+      setAgentProjectId(typeof data === 'string' ? data : (data.projectId || null));
     }
   };
 
@@ -973,6 +978,7 @@ function App() {
                 onEdit={() => openModalHandler('project', liveProject)}
                 onDuplicate={() => handleDuplicateProject(liveProject)}
                 onClearLogs={() => clearLogs(liveProject.id)}
+                onOpenAgent={() => showView('agent', { projectId: liveProject.id })}
                 terminalConfig={config.terminal}
                 onAutoScrollChange={(value) => updateElectronConfig({ terminal: { autoScroll: value } })}
                 onFullscreenChange={handleDetailFullscreenChange}
@@ -983,6 +989,16 @@ function App() {
             </div>
           );
         })()}
+
+        {/* Agent View */}
+        {currentView === 'agent' && (
+          <AgentView
+            projects={projects}
+            initialProjectId={agentProjectId}
+            onOpenProject={(project) => showView('project-detail', project)}
+            onOpenSettings={() => showView('settings')}
+          />
+        )}
 
         {/* Settings View */}
         {currentView === 'settings' && (

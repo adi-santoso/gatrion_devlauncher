@@ -5,6 +5,8 @@ const https = require('https')
 const ProcessManager = require('./managers/ProcessManager')
 const StorageManager = require('./managers/StorageManager')
 const HealthManager = require('./managers/HealthManager')
+const OmpManager = require('./managers/OmpManager')
+const OmpInstaller = require('./managers/OmpInstaller')
 const ProjectDetector = require('./managers/ProjectDetector')
 const TrayManager = require('./managers/TrayManager')
 const PreviewManager = require('./managers/PreviewManager')
@@ -15,6 +17,7 @@ const { setupTerminalHandlers, killAllTerminals } = require('./handlers/terminal
 const { setupPreviewHandlers } = require('./handlers/previewHandlers')
 const { setupRepoHandlers } = require('./handlers/repoHandlers')
 const { setupSystemHandlers } = require('./handlers/systemHandlers')
+const { setupAgentHandlers } = require('./handlers/agentHandlers')
 const { assertTrustedIpcEvent } = require('./utils/ipcSecurity')
 
 let mainWindow
@@ -24,6 +27,8 @@ let projectDetector
 let trayManager
 let previewManager
 let healthManager
+let ompManager
+let ompInstaller
 let isQuitting = false
 
 // Content Security Policy — applied to every response (dev and production).
@@ -154,6 +159,11 @@ async function initialize() {
   healthManager = new HealthManager(app.getPath('userData'))
   await healthManager.init()
 
+  // AI Agent (oh-my-pi)
+  ompManager = new OmpManager(app.getPath('userData'))
+  await ompManager.init()
+  ompInstaller = new OmpInstaller(app.getPath('userData'))
+
   // Wait for storage to initialize
   await storageManager.init()
 
@@ -262,6 +272,7 @@ async function initialize() {
   setupPreviewHandlers(previewManager)
   setupRepoHandlers(storageManager, processManager, mainWindow)
   setupSystemHandlers()
+  setupAgentHandlers(ompManager, ompInstaller, () => mainWindow)
   setupPrayerHandlers(mainWindow)
 
   // Health analytics IPC
@@ -497,6 +508,11 @@ app.on('before-quit', async (event) => {
   // Flush health analytics
   if (healthManager) {
     await healthManager.dispose()
+  }
+
+  // Kill any running omp RPC processes
+  if (ompManager) {
+    ompManager.killAll()
   }
 
   if (trayManager) {

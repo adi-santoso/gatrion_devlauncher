@@ -165,4 +165,30 @@ contextBridge.exposeInMainWorld('electron', {
 
   // Update checker
   checkUpdate: () => ipcRenderer.invoke('check-update'),
+
+  // AI Agent (oh-my-pi)
+  ompStatus: () => ipcRenderer.invoke('omp-status'),
+  ompListSessions: (projectId) => ipcRenderer.invoke('omp-list-sessions', projectId),
+  ompCreateSession: (projectId, title) => ipcRenderer.invoke('omp-create-session', projectId, title),
+  ompDeleteSession: (projectId, sessionId) => ipcRenderer.invoke('omp-delete-session', projectId, sessionId),
+  ompChat: (projectId, cwd, message, options) => ipcRenderer.invoke('omp-chat', projectId, cwd, message, options),
+  ompSteer: (projectId, cwd, message) => ipcRenderer.invoke('omp-steer', projectId, cwd, message),
+  ompAbort: (projectId, cwd) => ipcRenderer.invoke('omp-abort', projectId, cwd),
+  ompGetMessages: (projectId, cwd, options) => ipcRenderer.invoke('omp-get-messages', projectId, cwd, options),
+  ompGetModels: (projectId, cwd) => ipcRenderer.invoke('omp-get-models', projectId, cwd),
+  ompSetModel: (projectId, cwd, provider, modelId) => ipcRenderer.invoke('omp-set-model', projectId, cwd, provider, modelId),
+  ompInstall: () => ipcRenderer.invoke('omp-install'),
+  ompInstallState: () => ipcRenderer.invoke('omp-install-state'),
+  ompCheckUpdate: () => ipcRenderer.invoke('omp-check-update'),
+  ompOpenDocs: () => ipcRenderer.invoke('omp-open-docs'),
+  onOmpEvent: (callback) => {
+    const listener = (event, data) => callback(data)
+    ipcRenderer.on('omp-event', listener)
+    return () => ipcRenderer.removeListener('omp-event', listener)
+  },
+  onOmpInstallProgress: (callback) => {
+    const listener = (event, state) => callback(state)
+    ipcRenderer.on('omp-install-progress', listener)
+    return () => ipcRenderer.removeListener('omp-install-progress', listener)
+  },
 })

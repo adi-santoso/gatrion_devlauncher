@@ -622,6 +622,88 @@ export const checkUpdate = async () => {
   return window.electron.checkUpdate();
 };
 
+// ==================== AI Agent (oh-my-pi) ====================
+
+export const ompStatus = async () => {
+  if (!isElectron()) return { success: true, installed: false, version: null, binaryPath: null, configured: false };
+  return window.electron.ompStatus();
+};
+
+export const ompListSessions = async (projectId) => {
+  if (!isElectron()) return { success: true, sessions: [] };
+  return window.electron.ompListSessions(projectId);
+};
+
+export const ompCreateSession = async (projectId, title = '') => {
+  if (!isElectron()) return { success: true, session: { id: 'mock', title: title || 'Session' } };
+  return window.electron.ompCreateSession(projectId, title);
+};
+
+export const ompDeleteSession = async (projectId, sessionId) => {
+  if (!isElectron()) return { success: true };
+  return window.electron.ompDeleteSession(projectId, sessionId);
+};
+
+export const ompChat = async (projectId, cwd, message, options = {}) => {
+  if (!isElectron()) return { success: false, error: 'Electron not available' };
+  return window.electron.ompChat(projectId, cwd, message, options);
+};
+
+export const ompSteer = async (projectId, cwd, message) => {
+  if (!isElectron()) return { success: true };
+  return window.electron.ompSteer(projectId, cwd, message);
+};
+
+export const ompAbort = async (projectId, cwd) => {
+  if (!isElectron()) return { success: true };
+  return window.electron.ompAbort(projectId, cwd);
+};
+
+export const ompGetMessages = async (projectId, cwd, options = {}) => {
+  if (!isElectron()) return { success: true, messages: [] };
+  return window.electron.ompGetMessages(projectId, cwd, options);
+};
+
+export const ompGetModels = async (projectId, cwd) => {
+  if (!isElectron()) return { success: true, models: [] };
+  return window.electron.ompGetModels(projectId, cwd);
+};
+
+export const ompSetModel = async (projectId, cwd, provider, modelId) => {
+  if (!isElectron()) return { success: true };
+  return window.electron.ompSetModel(projectId, cwd, provider, modelId);
+};
+
+export const ompInstall = async () => {
+  if (!isElectron()) return { success: false, error: 'Electron not available' };
+  return window.electron.ompInstall();
+};
+
+export const ompInstallState = async () => {
+  if (!isElectron()) return { success: true, status: 'idle' };
+  return window.electron.ompInstallState();
+};
+
+export const ompCheckUpdate = async () => {
+  if (!isElectron()) return { success: true, latest: null };
+  return window.electron.ompCheckUpdate();
+};
+
+export const ompOpenDocs = async () => {
+  if (!isElectron()) return { success: true };
+  return window.electron.ompOpenDocs();
+};
+
+export const onOmpEvent = (callback) => {
+  if (!isElectron()) return () => {};
+  return window.electron.onOmpEvent(callback);
+};
+
+export const onOmpInstallProgress = (callback) => {
+  if (!isElectron()) return () => {};
+  return window.electron.onOmpInstallProgress(callback);
+};
+
 // ==================== System Environment ====================
 
 export const checkSystemEnv = async () => {

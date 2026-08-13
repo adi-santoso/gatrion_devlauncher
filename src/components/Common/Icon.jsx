@@ -42,6 +42,7 @@ const PATHS = {
   fileText: <><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" /><path d="M14 2v6h6" /><path d="M16 13H8M16 17H8M10 9H8" /></>,
   clock: <><circle cx="12" cy="12" r="10" /><path d="M12 6v6l4 2" /></>,
   chart: <><path d="M3 3v18h18" /><path d="M7 15l4-5 3 3 5-7" /></>,
+  messageSquare: <><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" /></>,
 };
 
 export default function Icon({ name, size = 14, className = '', strokeWidth = 2 }) {

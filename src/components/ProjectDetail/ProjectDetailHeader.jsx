@@ -14,7 +14,7 @@ const btnPrimary = `${btnBase} px-3.5 bg-accent hover:bg-accent-hover text-white
 const btnDanger = `${btnBase} px-3.5 bg-danger/10 hover:bg-danger/20 text-danger border border-danger/25 font-semibold`;
 const btnAccent = `${btnBase} bg-surface-3 hover:bg-surface-2 text-accent border border-accent/30`;
 
-export default function ProjectDetailHeader({ project, onStart, onStop, onRestart, onEdit, onDuplicate }) {
+export default function ProjectDetailHeader({ project, onStart, onStop, onRestart, onEdit, onDuplicate, onOpenAgent }) {
   const status = (project?.status || 'stopped').toLowerCase();
   const busy = status === 'starting' || status === 'stopping';
   const appUrl = Number.isInteger(project?.port) ? `http://localhost:${project.port}` : null;
@@ -125,6 +125,12 @@ export default function ProjectDetailHeader({ project, onStart, onStop, onRestar
             </button>
           )}
 
+          {onOpenAgent && (
+            <button onClick={onOpenAgent} title="Open the AI agent workspace for this project" className={btnAccent}>
+              <Icon name="messageSquare" size={13} />
+              Agent
+            </button>
+          )}
           <button onClick={onEdit} title="Edit project configuration" className={btnSecondary}>
             <Icon name="gear" size={13} />
             Edit
