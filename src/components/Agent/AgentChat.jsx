@@ -277,26 +277,35 @@ export default function AgentChat({
       return;
     }
     if (type === 'agent_end') {
-      if (Array.isArray(event.messages) && event.messages.length > 0) {
-        // Authoritative transcript — renders exactly what omp recorded.
-        setMessages(event.messages.map((item) => ({
+      // agent_end.messages is TURN-scoped (verified against omp 17.x: the
+      // second turn's event only carries that turn's user+assistant messages,
+      // not the whole session). Merge the finished turn into the existing
+      // conversation instead of replacing it, or earlier turns vanish.
+      const turnMessages = (Array.isArray(event.messages) ? event.messages : [])
+        .map((item) => ({
           role: item.role === 'user' ? 'user' : 'assistant',
           content: extractText(item.content),
-        })).filter((item) => item.content.trim()));
-        const last = event.messages[event.messages.length - 1];
-        onTokensUsed?.(last?.usage?.totalTokens || 0);
-      } else {
-        // Fallback: flush streamed text then refresh via get_messages.
-        setStreaming((current) => {
-          if (current.trim()) setMessages((prev) => [...prev, { role: 'assistant', content: current }]);
-          return '';
-        });
-        refreshHistory();
-      }
-      setStreaming('');
-      setThinking('');
-      setBusyState(false);
-      return;
+        }))
+        .filter((item) => item.content.trim())
+      const last = event.messages?.[event.messages.length - 1]
+      onTokensUsed?.(last?.usage?.totalTokens || 0)
+      setMessages((prev) => {
+        const turnUser = turnMessages.filter((item) => item.role === 'user').pop()
+        const assistantContent = turnMessages.filter((item) => item.role === 'assistant').map((item) => item.content).join('\n\n') || streaming.trim()
+        let next = [...prev]
+        if (turnUser) {
+          // The current user message is already in the list (appended on
+          // send); keep it in place, replacing it if the transcript canonicalized it.
+          if (next[next.length - 1]?.role === 'user') next[next.length - 1] = turnUser
+          else next.push(turnUser)
+        }
+        if (assistantContent) next.push({ role: 'assistant', content: assistantContent })
+        return next
+      })
+      setStreaming('')
+      setThinking('')
+      setBusyState(false)
+      return
     }
     if (type === 'rpc_error' || type === 'rpc_exit') {
       setBusyState(false);

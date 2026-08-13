@@ -56,6 +56,7 @@ Format mengikuti [Keep a Changelog](https://keepachangelog.com/id-ID/1.1.0/), da
 - **Loading session lama** — saat membuka session yang punya riwayat, tampil skeleton chat (spinner + bar shimmer meniru layout percakapan) sampai transkrip termuat — tidak ada lagi flash empty-state dengan saran prompt di session lama; session baru tetap langsung ke empty state.
 - **Agent view keep-alive** — menu Agent kini tetap ter-mount (disembunyikan) saat berpindah ke menu lain, persis seperti preview keep-alive. Percakapan yang sedang berjalan, respon yang masih streaming, session yang dipilih, dan status busy **tidak hilang** saat pindah menu — kembali ke Agent langsung lanjut dari posisi terakhir.
 - **Chat hilang saat kirim pesan pertama** — tiga akar masalah yang diperbaiki: (1) effect pemuat history di-key oleh `sessionPath` yang baru terisi setelah kirim pertama → memicu reset percakapan; kini di-key oleh `session.id`. (2) Fetch history dijalankan untuk session baru yang belum punya `sessionPath` — responsnya yang terlambat bisa menimpa pesan yang baru dikirim (bahkan bisa memuat history session lain); fetch kini dilewati untuk session tanpa path. (3) Session yang dibuat implisit oleh kiriman pertama dilindungi dari reset. Plus 2 regression test AgentChat (106 total).
+- **Percakapan lama hilang setiap turn selesai** — temuan lewat spike binary omp asli: `agent_end.messages` **hanya berisi turn terakhir**, bukan seluruh sesi (turn 2 hanya membawa pesan turn 2). Handler lama mengganti seluruh `messages` dengan transkrip itu → setiap jawaban selesai, percakapan sebelumnya lenyap (muncul lagi hanya setelah pindah sesi, saat history di-reload dari disk). Kini `agent_end` **merge** turn terakhir ke riwayat yang sudah ada: pesan user dipertahankan di tempatnya, jawaban assistant final di-append. Plus regression test 2-turn (107 total).
 
 ### Fixed
 
@@ -72,5 +73,5 @@ Format mengikuti [Keep a Changelog](https://keepachangelog.com/id-ID/1.1.0/), da
 ### Test
 
 - `npm test` kini 14 script (bertambah `test-omp-manager` untuk session registry + normalizeMessages, dan `test-omp-config` untuk read/write/merge/delete models.yml & config.yml dengan backup).
-- Vitest: 106 test (baru: 6 test renderer Markdown — heading, code fence, list, inline, quote, tabel, unclosed fence saat streaming; dan 2 test AgentChat — pesan pertama tidak terhapus saat session dibuat implisit maupun saat sessionPath terisi).
+- Vitest: 107 test (baru: 6 test renderer Markdown — heading, code fence, list, inline, quote, tabel, unclosed fence saat streaming; dan 3 test AgentChat — pesan pertama tidak terhapus saat session dibuat implisit/sessionPath terisi, serta turn-scoped `agent_end` tidak menghapus turn sebelumnya).
 - E2E Playwright: 4 smoke test lulus (baru: navigasi ke Agent view via sidebar).

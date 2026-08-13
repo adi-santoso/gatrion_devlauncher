@@ -12,8 +12,10 @@ const mocks = vi.hoisted(() => ({
   ompGetMessages: vi.fn(),
   ompChat: vi.fn(),
   ompAbort: vi.fn(),
-  onOmpEvent: vi.fn(() => () => {}),
+  onOmpEvent: vi.fn(),
 }))
+
+let eventCb = null
 
 vi.mock('../../../utils/ipcRenderer', () => mocks)
 
@@ -40,6 +42,7 @@ function Harness({ initialSession = null }) {
 
 describe('AgentChat', () => {
   it('keeps the first message visible when the session is created implicitly by sending', async () => {
+    mocks.onOmpEvent.mockImplementation((callback) => { eventCb = callback; return () => {} })
     mocks.ompGetMessages.mockResolvedValue({ success: true, messages: [] })
     mocks.ompChat.mockResolvedValue({
       success: true,
@@ -89,5 +92,53 @@ describe('AgentChat', () => {
     // Same session id -> no reset; message and empty state stay consistent
     expect(screen.getByText('keep me')).toBeInTheDocument()
     expect(mocks.ompGetMessages).not.toHaveBeenCalled()
+  })
+
+  it('keeps earlier turns when agent_end carries only the current turn', async () => {
+    mocks.onOmpEvent.mockImplementation((callback) => { eventCb = callback; return () => {} })
+    mocks.ompGetMessages.mockResolvedValue({ success: true, messages: [] })
+    mocks.ompChat.mockResolvedValueOnce({
+      success: true,
+      sessionId: 's3',
+      session: { id: 's3', title: 'Turn 1', sessionPath: 'C:/sessions/s3.jsonl' },
+    }).mockResolvedValueOnce({
+      success: true,
+      sessionId: 's3',
+      session: { id: 's3', title: 'Turn 1', sessionPath: 'C:/sessions/s3.jsonl' },
+    })
+
+    render(<Harness />)
+
+    const input = screen.getByPlaceholderText('Describe a task, ask a question…')
+
+    // Turn 1
+    fireEvent.change(input, { target: { value: 'first question' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Send message' }))
+    await screen.findByText('first question')
+    await waitFor(() => expect(mocks.ompChat).toHaveBeenCalledTimes(1))
+    eventCb({ projectId: 'p1', event: { type: 'agent_start' } })
+    eventCb({ projectId: 'p1', event: { type: 'agent_end', messages: [
+      { role: 'user', content: 'first question' },
+      { role: 'assistant', content: 'first answer' },
+    ] } })
+    expect(await screen.findByText('first answer')).toBeInTheDocument()
+    expect(screen.getByText('first question')).toBeInTheDocument()
+
+    // Turn 2 — agent_end only carries THIS turn's messages (turn-scoped)
+    fireEvent.change(input, { target: { value: 'second question' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Send message' }))
+    await screen.findByText('second question')
+    await waitFor(() => expect(mocks.ompChat).toHaveBeenCalledTimes(2))
+    eventCb({ projectId: 'p1', event: { type: 'agent_start' } })
+    eventCb({ projectId: 'p1', event: { type: 'agent_end', messages: [
+      { role: 'user', content: 'second question' },
+      { role: 'assistant', content: 'second answer' },
+    ] } })
+
+    await screen.findByText('second answer')
+    // Earlier turns must survive — this was the reported bug
+    expect(screen.getByText('first question')).toBeInTheDocument()
+    expect(screen.getByText('first answer')).toBeInTheDocument()
+    expect(screen.getByText('second question')).toBeInTheDocument()
   })
 })
