@@ -11,8 +11,6 @@ const MainLayout = ({
   currentView = 'dashboard',
   onViewChange,
   onOpenModal,
-  onStartAll,
-  onStopAll,
   projects = [],
   runningProjects = [],
   onProjectSelect,

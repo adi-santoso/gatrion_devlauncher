@@ -163,6 +163,9 @@ contextBridge.exposeInMainWorld('electron', {
   getHealth: (projectId) => ipcRenderer.invoke('get-health', projectId),
   clearHealth: (projectId) => ipcRenderer.invoke('clear-health', projectId),
 
+  // Renderer error reporting (window.onerror / unhandledrejection → main.log)
+  reportRendererError: (payload) => ipcRenderer.invoke('renderer-error', payload),
+
   // Update checker
   checkUpdate: () => ipcRenderer.invoke('check-update'),
 

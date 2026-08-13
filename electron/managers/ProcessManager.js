@@ -838,7 +838,7 @@ getCommandSnapshot(processData) {
         return null
       }
       
-      const [image, pidStr, , , memoryStr] = parts
+      const [, pidStr, , , memoryStr] = parts
       const numericMemory = memoryStr.replace(/[^0-9]/g, '')
       
       if (!pidStr || !numericMemory || !Number(numericMemory)) {

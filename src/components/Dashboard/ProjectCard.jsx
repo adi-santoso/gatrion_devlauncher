@@ -27,7 +27,10 @@ const Sparkline = ({ samples, stroke = '#34d399', height = 22 }) => {
 export default function ProjectCard({ project, onStart, onStop, onRestart, onNavigate, getMetricHistory }) {
   const cpu = project.cpu ?? project.cpuUsage;
   const memory = project.memory ?? project.mem ?? project.memoryUsage;
-  const history = typeof getMetricHistory === 'function' ? getMetricHistory(project.id) : [];
+  const history = useMemo(
+    () => (typeof getMetricHistory === 'function' ? getMetricHistory(project.id) : []),
+    [getMetricHistory, project.id]
+  );
   const cpuSamples = useMemo(() => history.map((sample) => sample.cpu), [history]);
   const memorySamples = useMemo(() => history.map((sample) => sample.memory), [history]);
   const status = (project.status || '').toLowerCase();

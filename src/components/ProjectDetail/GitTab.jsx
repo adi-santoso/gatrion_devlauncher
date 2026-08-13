@@ -21,7 +21,6 @@ const CODE_LABEL = { A: 'A', M: 'M', D: 'D', R: 'R', C: 'C', U: 'U', T: 'T', '?'
 const btnBase = 'inline-flex items-center gap-1.5 h-8 px-3 rounded-lg text-xs font-medium transition-colors whitespace-nowrap';
 const btnSecondary = `${btnBase} bg-surface-3 hover:bg-surface-2 text-ink-soft hover:text-ink border border-border`;
 const btnPrimary = `${btnBase} px-3.5 bg-accent hover:bg-accent-hover text-white font-semibold shadow-glow disabled:opacity-50 disabled:cursor-not-allowed`;
-const btnDanger = `${btnBase} bg-danger/10 hover:bg-danger/20 text-danger border border-danger/25 font-semibold disabled:opacity-50 disabled:cursor-not-allowed`;
 
 function DiffView({ diff }) {
   if (!diff) return null;
@@ -91,7 +90,6 @@ export default function GitTab({ project }) {
   const [diff, setDiff] = useState(null); // { path, staged, text }
   const [confirmPush, setConfirmPush] = useState(false);
   const [confirmInit, setConfirmInit] = useState(false);
-  const [confirmInstall, setConfirmInstall] = useState(false);
   const [stashes, setStashes] = useState([]);
   const [stashMessage, setStashMessage] = useState('');
   const [confirmDiscard, setConfirmDiscard] = useState(null);

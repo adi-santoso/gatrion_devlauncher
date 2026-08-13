@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { getPrayerTimes } from '../utils/prayerTimes';
 
 /** The 5 obligatory prayers, Indonesian labels. */
@@ -83,7 +83,7 @@ export default function usePrayerTimes(config, onPrayerTime) {
       near: totalSeconds <= 15 * 60,
       arrived: totalSeconds <= 0,
     };
-  }, [now, config]);
+  }, [now]);
 
   // Fire the notification exactly once when the next prayer time is crossed.
   useEffect(() => {

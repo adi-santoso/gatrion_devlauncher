@@ -1,6 +1,4 @@
-import PulseDot from './PulseDot';
-
-export default function Badge({ children, status, dot, uptime, className = '' }) {
+export default function Badge({ children, status, uptime, className = '' }) {
   const statusVariants = {
     running: 'inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full bg-success/10 text-success border border-success/20',
     starting: 'inline-flex items-center gap-1.5 text-xs font-semibold px-1.5 py-0.5 rounded bg-warning/15 text-warning uppercase tracking-wide',

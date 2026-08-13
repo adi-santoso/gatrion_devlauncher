@@ -94,12 +94,6 @@ const CommandPalette = ({
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, onClose]);
 
-  const matches = (text) => {
-    if (!searchQuery) return true;
-    const query = searchQuery.toLowerCase();
-    return String(text || '').toLowerCase().includes(query);
-  };
-
   const projectItems = useMemo(() => projects.map((project) => ({
     kind: 'project',
     id: project.id,
@@ -144,6 +138,13 @@ const CommandPalette = ({
   })), [actions]);
 
   const sections = useMemo(() => {
+    // `matches` is local so the memo only depends on searchQuery (a fresh
+    // function identity each render would otherwise churn the memo).
+    const matches = (text) => {
+      if (!searchQuery) return true;
+      const query = searchQuery.toLowerCase();
+      return String(text || '').toLowerCase().includes(query);
+    };
     const filter = (items) => items.filter((item) =>
       !searchQuery || item.searchable.some(matches)
     );

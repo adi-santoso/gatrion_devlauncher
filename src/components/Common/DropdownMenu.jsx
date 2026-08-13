@@ -1,14 +1,14 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 
 export default function DropdownMenu({ trigger, children, isOpen, onClose }) {
   const [internalOpen, setInternalOpen] = useState(false);
   const dropdownRef = useRef(null);
 
   const open = isOpen !== undefined ? isOpen : internalOpen;
-  const closeMenu = () => {
+  const closeMenu = useCallback(() => {
     if (isOpen !== undefined && onClose) onClose();
     else setInternalOpen(false);
-  };
+  }, [isOpen, onClose]);
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -36,7 +36,7 @@ export default function DropdownMenu({ trigger, children, isOpen, onClose }) {
     }
 
     return undefined;
-  }, [open, isOpen, onClose]);
+  }, [open, isOpen, onClose, closeMenu]);
 
   const handleToggle = (e) => {
     e.stopPropagation();

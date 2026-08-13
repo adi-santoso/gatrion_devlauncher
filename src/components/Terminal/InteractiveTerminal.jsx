@@ -11,6 +11,13 @@ function TerminalSession({ cwd, fontSize = 14, onExited }) {
   const containerRef = useRef(null);
   const termRef = useRef(null);
   const termIdRef = useRef(null);
+  // Mount-time snapshot + latest values via refs so the one-shot mount effect
+  // never needs to depend on `fontSize`/`onExited` identities (which would
+  // recreate the PTY session on every parent re-render).
+  const fontSizeRef = useRef(fontSize);
+  fontSizeRef.current = fontSize;
+  const onExitedRef = useRef(onExited);
+  onExitedRef.current = onExited;
 
   useEffect(() => {
     let disposed = false;
@@ -19,7 +26,7 @@ function TerminalSession({ cwd, fontSize = 14, onExited }) {
 
     const term = new Terminal({
       cursorBlink: true,
-      fontSize: fontSize || 14,
+      fontSize: fontSizeRef.current || 14,
       fontFamily: 'Consolas, "Courier New", monospace',
       theme: {
         background: '#08090C',
@@ -61,7 +68,7 @@ function TerminalSession({ cwd, fontSize = 14, onExited }) {
       cleanupExit = ipc.onTerminalExit((id, exitCode) => {
         if (id === termIdRef.current) {
           term.writeln(`\r\n\x1b[33m[process exited with code ${exitCode}]\x1b[0m`);
-          onExited?.(exitCode);
+          onExitedRef.current?.(exitCode);
         }
       });
 

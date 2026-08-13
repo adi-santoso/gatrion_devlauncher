@@ -49,11 +49,10 @@ export default function ProjectDetailView({
     }
   }, [keepPreviewAlive, project?.id]);
 
-  // Sync local fullscreen state when prop changes
+  // Sync local fullscreen state when prop changes (functional updater keeps
+  // the effect free of a `fullscreen` reference so it only runs on prop change).
   useEffect(() => {
-    if (fullscreen !== isFullscreen) {
-      setFullscreen(isFullscreen);
-    }
+    setFullscreen((prev) => (prev === isFullscreen ? prev : isFullscreen));
   }, [isFullscreen]);
 
   // Notify parent component (App.jsx) when fullscreen status changes

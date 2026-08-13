@@ -58,7 +58,7 @@ export const useProjects = () => {
   const updateProject = useCallback(async (projectId, updates) => {
     try {
       // Don't persist runtime-only fields to backend
-      const { status, pid, uptime, errorMessage, ...persistableUpdates } = updates;
+      const { status: _status, pid: _pid, uptime: _uptime, errorMessage: _errorMessage, ...persistableUpdates } = updates;
 
       // Only call IPC if there are persistable fields to save
       if (Object.keys(persistableUpdates).length > 0) {

@@ -20,6 +20,31 @@ const { setupRepoHandlers } = require('./handlers/repoHandlers')
 const { setupSystemHandlers } = require('./handlers/systemHandlers')
 const { setupAgentHandlers } = require('./handlers/agentHandlers')
 const { assertTrustedIpcEvent } = require('./utils/ipcSecurity')
+const Logger = require('./utils/logger')
+
+// Global error capture — log anything that escapes normal error handling so
+// crashes and silent failures are visible in main.log instead of dying
+// quietly (or only showing in the terminal).
+process.on('uncaughtException', (error) => {
+  Logger.error('main', 'Uncaught exception', { stack: error?.stack || String(error) })
+})
+process.on('unhandledRejection', (reason) => {
+  Logger.error('main', 'Unhandled promise rejection', { reason: reason?.stack || String(reason) })
+})
+
+// Single-instance enforcement — launching the app again focuses the existing
+// window instead of starting a second copy (duplicate tray icons, double
+// process monitoring, port conflicts, etc.).
+const gotSingleInstanceLock = app.requestSingleInstanceLock()
+if (!gotSingleInstanceLock) {
+  app.quit()
+}
+app.on('second-instance', () => {
+  if (!mainWindow) return
+  if (mainWindow.isMinimized()) mainWindow.restore()
+  mainWindow.show()
+  mainWindow.focus()
+})
 
 let mainWindow
 let processManager
@@ -267,6 +292,24 @@ async function initialize() {
     mainWindow?.webContents.send('preview-console-message', { projectId, level, message, source, line })
   })
 
+  // Renderer errors (window.onerror / unhandledrejection) land in main.log
+  ipcMain.handle('renderer-error', async (event, payload = {}) => {
+    try {
+      assertTrustedIpcEvent(event)
+      const meta = typeof payload === 'object' && payload !== null ? payload : {}
+      Logger.error('renderer', String(meta.message || 'Unknown renderer error'), {
+        type: String(meta.type || ''),
+        source: String(meta.source || ''),
+        line: Number.isFinite(meta.line) ? meta.line : undefined,
+        column: Number.isFinite(meta.column) ? meta.column : undefined,
+        stack: String(meta.stack || '').slice(0, 2000),
+      })
+      return { success: true }
+    } catch (error) {
+      return { success: false, error: error.message }
+    }
+  })
+
   // Setup IPC handlers
   setupProcessHandlers(processManager, storageManager, mainWindow)
   setupProjectHandlers(storageManager, processManager, mainWindow)
@@ -467,6 +510,9 @@ async function initialize() {
 }
 
 app.whenReady().then(async () => {
+  // Another instance already holds the single-instance lock.
+  if (!gotSingleInstanceLock) return
+
   try {
     await initialize()
   } catch (error) {

@@ -323,14 +323,19 @@ export const useProcesses = (projects = [], onProjectUpdate, options = {}) => {
     return cleanup;
   }, [onProjectUpdate]);
 
-  const projectIds = JSON.stringify(projects.map(project => project.id));
+  // Read through a ref so the hydration effect can depend on the stable
+  // stringified id list without re-running on every array identity change.
+  const projectsRef = useRef(projects);
+  projectsRef.current = projects;
+
+  const projectIds = JSON.stringify(projectsRef.current.map(project => project.id));
 
   // Hydrate after listeners are attached so reloads keep backend runtime state and output.
   useEffect(() => {
     let cancelled = false;
 
     const hydrate = async () => {
-      const snapshots = await Promise.all(projects.map(async (project) => {
+      const snapshots = await Promise.all(projectsRef.current.map(async (project) => {
         const statusRevision = statusRevisions.current[project.id] || 0;
         const [statusResult, logsResult] = await Promise.allSettled([
           ipc.getProcessStatus(project.id),
@@ -383,9 +388,6 @@ export const useProcesses = (projects = [], onProjectUpdate, options = {}) => {
 
     return cleanup;
   }, [onProjectUpdate]);
-
-  const projectsRef = useRef(projects);
-  projectsRef.current = projects;
 
   const processStatusesRef = useRef(processStatuses);
   processStatusesRef.current = processStatuses;

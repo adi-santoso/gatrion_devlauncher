@@ -3,7 +3,6 @@ export default function Button({
   children,
   onClick,
   variant = 'primary',
-  size = 'md',
   icon,
   disabled,
   className = '',

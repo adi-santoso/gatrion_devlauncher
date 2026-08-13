@@ -266,14 +266,12 @@ export default function AgentChat({
   useEffect(() => {
     const timer = setInterval(flushBuffers, 30);
     return () => clearInterval(timer);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Returning to the Agent view shows everything that streamed while hidden
   // in a single render instead of replaying it chunk by chunk.
   useEffect(() => {
     if (visible) flushBuffers();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible]);
 
   useEffect(() => {
@@ -287,9 +285,14 @@ export default function AgentChat({
   // session updates its sessionPath in the registry, and that same logical
   // session must NOT be cleared/reloaded mid-conversation.
   useEffect(() => {
+    // Snapshot the render-time project/session through refs, then key the
+    // deps on their ids so unrelated project updates (status, logs) don't
+    // reload the transcript mid-conversation.
+    const targetProject = projectRef.current;
+    const targetSession = sessionRef.current;
     // The very first message can create the session implicitly (no active
     // session selected). That transition must not wipe the live conversation.
-    if (session?.id && session.id === sentSessionIdRef.current) {
+    if (targetSession?.id && targetSession.id === sentSessionIdRef.current) {
       sentSessionIdRef.current = null;
       setHistoryLoading(false);
       return;
@@ -303,18 +306,18 @@ export default function AgentChat({
     setError(null);
     setNearBottom(true);
     // Restore this session's draft (empty if it never had one).
-    const draftKey = `${project?.id}:${session?.id || 'new'}`;
+    const draftKey = `${targetProject?.id}:${targetSession?.id || 'new'}`;
     setInput(draftsRef.current[draftKey] || '');
     if (inputRef.current) inputRef.current.style.height = 'auto';
-    const hasHistory = Boolean(project && session?.sessionPath);
+    const hasHistory = Boolean(targetProject && targetSession?.sessionPath);
     setHistoryLoading(hasHistory);
-    if (!project || !session) return;
+    if (!targetProject || !targetSession) return;
     // A session without a sessionPath is brand-new — it has no history to
     // load, and fetching anyway could clobber the first message with a stale
     // (or wrong-session) response.
-    if (!session.sessionPath) return;
+    if (!targetSession.sessionPath) return;
     let cancelled = false;
-    ipc.ompGetMessages(project.id, project.path, { sessionPath: session.sessionPath }).then((result) => {
+    ipc.ompGetMessages(targetProject.id, targetProject.path, { sessionPath: targetSession.sessionPath }).then((result) => {
       if (cancelled) return;
       setHistoryLoading(false);
       if (!result?.success) return;
@@ -332,7 +335,6 @@ export default function AgentChat({
       // state instead of the first render's stale closure.
       handleEventRef.current?.(event);
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Load the model list + current default so the model can be switched
@@ -349,6 +351,9 @@ export default function AgentChat({
       setModels(options);
       setDefaultModel(current);
     };
+    // Snapshot the render-time project so the async chain below always talks
+    // to the project this effect was created for (project?.id is the dep).
+    const targetProject = projectRef.current;
     ipc.ompConfigGet().then((result) => {
       if (cancelled) return;
       const current = result?.defaultModel || null;
@@ -359,11 +364,11 @@ export default function AgentChat({
           vision: null, // explicit models.yml entries carry no input-type info
         }))
       );
-      if (!project) {
+      if (!targetProject) {
         apply(configOptions, current);
         return;
       }
-      ipc.ompGetModels(project.id, project.path).then((rpcResult) => {
+      ipc.ompGetModels(targetProject.id, targetProject.path).then((rpcResult) => {
         const rpcOptions = (rpcResult?.models || []).map((model) => ({
           ref: `${model.provider}/${model.id}`,
           label: `${model.provider} · ${model.name || model.id}`,
@@ -377,7 +382,7 @@ export default function AgentChat({
       }).catch(() => apply(configOptions, current));
       // Read the current session state (thinking level, context usage,
       // auto-compaction, todo phases) so the header controls reflect it.
-      ipc.ompGetState(project.id, project.path).then((stateResult) => {
+      ipc.ompGetState(targetProject.id, targetProject.path).then((stateResult) => {
         if (!cancelled && stateResult?.success) applyState(stateResult.state);
       }).catch(() => {});
     }).catch(() => {});
@@ -389,21 +394,23 @@ export default function AgentChat({
   // and context bar stay current. Skipped while the view is hidden — a
   // background turn must not churn IPC or re-render the hidden chat; the
   // indicator refreshes on return and after every agent_end anyway.
+  const hasMessages = messages.length > 0;
   useEffect(() => {
-    if (!project || !visible || (!busy && messages.length === 0)) return;
+    if (!projectRef.current || !visible || (!busy && !hasMessages)) return;
     refreshState();
     const timer = setInterval(refreshState, busy ? 5000 : 20000);
     return () => clearInterval(timer);
-  }, [project?.id, busy, visible, messages.length > 0, refreshState]);
+  }, [project?.id, busy, visible, hasMessages, refreshState]);
 
   // Subscribe to subagent progress and poll their registry while the agent is
   // running; rendered as activity chips above the input. Also skipped while
   // hidden for the same reason as the context poll.
   useEffect(() => {
-    if (!project || !visible || !busy) return;
-    ipc.ompSetSubagentSubscription(project.id, project.path, 'progress').catch(() => {});
+    const targetProject = projectRef.current;
+    if (!targetProject || !visible || !busy) return;
+    ipc.ompSetSubagentSubscription(targetProject.id, targetProject.path, 'progress').catch(() => {});
     const fetchSubagents = () => {
-      ipc.ompGetSubagents(project.id, project.path).then((result) => {
+      ipc.ompGetSubagents(targetProject.id, targetProject.path).then((result) => {
         if (result?.success && Array.isArray(result.subagents)) setSubagents(result.subagents);
       }).catch(() => {});
     };
@@ -415,9 +422,10 @@ export default function AgentChat({
   // Load available slash commands for the / menu (also updated live through
   // the available_commands_update event).
   useEffect(() => {
-    if (!project) return;
+    const targetProject = projectRef.current;
+    if (!targetProject) return;
     let cancelled = false;
-    ipc.ompGetCommands(project.id, project.path).then((result) => {
+    ipc.ompGetCommands(targetProject.id, targetProject.path).then((result) => {
       if (!cancelled && result?.success && Array.isArray(result.commands)) setCommands(result.commands);
     }).catch(() => {});
     return () => { cancelled = true; };
@@ -983,7 +991,7 @@ export default function AgentChat({
     } catch (error) {
       setError(error.message || 'Branch failed');
     }
-  }, []);
+  }, [showNotice]);
 
   const toggleNotifyOnFinish = async () => {
     setMoreOpen(false);

@@ -28,11 +28,17 @@ jobs:
       - name: Lint
         run: npm run lint
 
+      - name: Dependency audit
+        run: npm audit --audit-level=high
+
+      - name: Typecheck
+        run: npm run typecheck
+
       - name: CLI regression tests
         run: npm test
 
-      - name: Unit tests (Vitest)
-        run: npm run test:unit
+      - name: Unit tests + coverage gate
+        run: npm run test:coverage
 
       - name: Renderer build
         run: npx vite build

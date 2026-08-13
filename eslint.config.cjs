@@ -1,5 +1,6 @@
 const js = require('@eslint/js')
 const reactHooks = require('eslint-plugin-react-hooks')
+const react = require('eslint-plugin-react')
 
 module.exports = [
   {
@@ -20,8 +21,13 @@ module.exports = [
         SpeechSynthesisUtterance: 'readonly', URL: 'readonly', window: 'readonly',
       },
     },
-    plugins: { 'react-hooks': reactHooks },
+    plugins: { 'react-hooks': reactHooks, react },
+    settings: { react: { version: 'detect' } },
     rules: {
+      ...react.configs.flat.recommended.rules,
+      'react/react-in-jsx-scope': 'off', // React 17+ JSX transform
+      'react/prop-types': 'off', // project doesn't use PropTypes
+      'react/no-unescaped-entities': 'off', // quotes/curly quotes in UI copy are intentional
       'react-hooks/rules-of-hooks': 'error',
       'react-hooks/exhaustive-deps': 'warn',
       'no-unused-vars': ['warn', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
@@ -42,7 +48,7 @@ module.exports = [
       },
     },
     rules: {
-      'no-unused-vars': ['warn', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
+      'no-unused-vars': ['warn', { argsIgnorePattern: '^_', varsIgnorePattern: '^_', caughtErrors: 'none' }],
       'no-console': 'off',
       'no-control-regex': 'off',
       'no-empty': ['error', { allowEmptyCatch: true }],

@@ -343,12 +343,12 @@ function setupProcessHandlers(processManager, storageManager, mainWindow) {
   })
 
   // Get custom command run status
-  secureHandle('get-custom-command-status', async (event, runId) => {
+  secureHandle('get-custom-command-status', async (_event, runId) => {
     return processManager.getCustomRunStatus(runId)
   })
 
   // Stop all projects
-  secureHandle('stop-all-projects', async (event) => {
+  secureHandle('stop-all-projects', async (_event) => {
     try {
       const results = await processManager.stopAllProcesses()
       return results

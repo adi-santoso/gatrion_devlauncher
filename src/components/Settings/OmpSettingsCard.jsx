@@ -12,7 +12,7 @@ const API_TYPES = [
   ['bedrock-converse-stream', 'AWS Bedrock Converse'],
 ];
 
-function StatusDot({ ok, color }) {
+function StatusDot({ ok }) {
   return <span className={`w-2 h-2 rounded-full ${ok ? 'bg-success' : 'bg-ink-faint'}`} />;
 }
 

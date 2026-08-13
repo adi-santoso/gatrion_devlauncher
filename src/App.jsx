@@ -21,6 +21,13 @@ import { useProjects, useProcesses, useElectronConfig } from './hooks';
 import { checkPortConflict, isElectronAvailable, onNavigateToProject, onPreviewConsole, getActivities, appendActivities, getPresets, savePresets, exportProjects, importProjects } from './utils/ipcRenderer';
 import { summarizeWorkspaceStart } from './utils/workspaceResults';
 
+// Pure helper — kept at module scope so its identity is stable across renders.
+const formatActivityTime = (timestamp, detail = '') => {
+  const date = new Date(timestamp);
+  const base = Number.isNaN(date.getTime()) ? '' : date.toLocaleString();
+  return `${base}${detail ? ' · ' + detail : ''}`;
+};
+
 function App() {
   // Initialize hooks
   const { projects, loading: projectsLoading, addProject: addProjectToStore, updateProject: updateProjectInStore, updateProjectLocal, deleteProject: deleteProjectFromStore } = useProjects();
@@ -47,20 +54,14 @@ function App() {
   const [presetModalPreselect, setPresetModalPreselect] = useState(null);
   const [presetToDelete, setPresetToDelete] = useState(null);
 
-  const formatActivityTime = (timestamp, detail = '') => {
-    const date = new Date(timestamp);
-    const base = Number.isNaN(date.getTime()) ? '' : date.toLocaleString();
-    return `${base}${detail ? ' · ' + detail : ''}`;
-  };
-
-  const addActivity = (type, project, message, detail = '') => {
+  const addActivity = useCallback((type, project, message, detail = '') => {
     const timestamp = new Date().toISOString();
     setActivities(prev => [
       { type, project, message, time: formatActivityTime(timestamp, detail) },
       ...prev.slice(0, 19)
     ]);
     appendActivities([{ type, project, message, detail, timestamp }]).catch(() => {});
-  };
+  }, []);
 
   // Hydrate persisted activity feed once on mount
   useEffect(() => {
@@ -91,8 +92,7 @@ function App() {
     stopAll,
     getLogs,
     clearLogs,
-    getMetricHistory,
-    processLogs
+    getMetricHistory
   } = useProcesses(projects, handleProjectUpdate, { maxLines: config.terminal?.maxLines });
 
   // Check Electron availability on mount
@@ -101,6 +101,9 @@ function App() {
       console.warn('⚠️ Running in browser mode - Electron APIs not available');
       showToast('warning', 'Running in browser mode with mock data');
     }
+    // Intentional: mount-once check; showToast is declared below (TDZ) and
+    // only touches stable setters anyway.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Initialize theme from config
@@ -157,6 +160,9 @@ function App() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
+    // Intentional: re-bind only when openModal/projects change. The handlers
+    // (declared below, hence TDZ) capture the current registry at bind time.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [openModal, projects]);
 
   // Subscribe to tray menu navigation events
@@ -168,6 +174,9 @@ function App() {
       }
     });
     return cleanup;
+    // Intentional: re-subscribe when the registry changes; showView is
+    // declared below (TDZ) and doesn't affect the tray subscription.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projects]);
 
   // Preview navigation: move to the previous / next project in the registry
@@ -192,6 +201,9 @@ function App() {
         addActivity('faint', project?.name || projectId, `[preview:${level}] ${message}`, '');
       }
     });
+    // Intentional: re-subscribe when the registry changes; addActivity is
+    // declared below (TDZ) and stable (useCallback([])).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projects]);
 
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -245,7 +257,11 @@ function App() {
   };
 
   // Toast notifications
-  const showToast = (type, message) => {
+  const dismissToast = useCallback((id) => {
+    setToasts(prev => prev.filter(toast => toast.id !== id));
+  }, []);
+
+  const showToast = useCallback((type, message) => {
     const id = Date.now();
     setToasts(prev => [...prev, { id, type, message }]);
 
@@ -253,11 +269,7 @@ function App() {
     setTimeout(() => {
       dismissToast(id);
     }, 5000);
-  };
-
-  const dismissToast = (id) => {
-    setToasts(prev => prev.filter(toast => toast.id !== id));
-  };
+  }, [dismissToast]);
 
   const [portConflictTarget, setPortConflictTarget] = useState(null);
 
@@ -458,7 +470,7 @@ function App() {
         addActivity('success', 'Workspace', 'ready', `${completed} project(s)`);
       }
     }
-  }, []);
+  }, [showToast, addActivity]);
 
   const handleStopAll = async () => {
     showToast('info', 'Stopping all projects...');
@@ -782,7 +794,8 @@ function App() {
   // Duplicate a project: prefill the create modal with the source configuration
   const handleDuplicateProject = (project) => {
     if (!project) return;
-    const { status, pid, uptime, errorMessage, processCommands, cpu, memory, logs, ...config } = project;
+    // Strip runtime-only fields (kept live on the source project) from the copy.
+    const { status: _status, pid: _pid, uptime: _uptime, errorMessage: _errorMessage, processCommands: _processCommands, cpu: _cpu, memory: _memory, logs: _logs, ...config } = project;
     setDroppedProject({
       ...config,
       id: undefined,

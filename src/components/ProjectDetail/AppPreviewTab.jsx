@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import StackLogo from '../Common/StackLogo';
 import Icon from '../Common/Icon';
 import * as ipc from '../../utils/ipcRenderer';
@@ -27,7 +27,7 @@ export default function AppPreviewTab({
 }) {
   const [iframeKey, setIframeKey] = useState(0);
   const [zoomLevel, setZoomLevel] = useState(100);
-  const [nativeMode, setNativeMode] = useState(() => nativeAvailable() && Boolean(project?.port));
+  const [nativeMode] = useState(() => nativeAvailable() && Boolean(project?.port));
   const [nativeFailed, setNativeFailed] = useState(false);
   const containerRef = useRef(null);
   const status = (project?.status || 'stopped').toLowerCase();
@@ -125,11 +125,11 @@ export default function AppPreviewTab({
     }
   };
 
-  const handleToggleDevTools = () => {
+  const handleToggleDevTools = useCallback(() => {
     if (useNative) {
       ipc.previewToggleDevTools(projectId);
     }
-  };
+  }, [useNative, projectId]);
 
   // Keyboard shortcuts while in fullscreen preview: Ctrl/Cmd+Left/Right to
   // jump between projects, F12 / Ctrl+Shift+I to toggle project DevTools.
@@ -149,7 +149,7 @@ export default function AppPreviewTab({
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [fullscreen, onPrevProject, onNextProject, useNative, projectId]);
+  }, [fullscreen, onPrevProject, onNextProject, handleToggleDevTools]);
 
   return (
     <div

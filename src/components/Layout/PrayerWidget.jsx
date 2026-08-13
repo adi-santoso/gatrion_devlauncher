@@ -98,7 +98,7 @@ export function PrayerIcon({ data, onExpand }) {
 /* ------------------------------------------------------------------ */
 /* Topbar pill                                                         */
 /* ------------------------------------------------------------------ */
-export function PrayerPill({ data, config, onExpand }) {
+export function PrayerPill({ data, onExpand }) {
   if (!data) return null;
   return (
     <button

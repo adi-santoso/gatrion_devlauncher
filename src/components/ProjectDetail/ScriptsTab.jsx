@@ -6,7 +6,6 @@ import { ConfirmDialog } from '../Modals';
 // Module-level store so running scripts survive unmounting the component
 // (switching tabs and coming back).
 const runStore = new Map();
-const getRunId = (projectId, scriptName) => runStore.get(`${projectId}:${scriptName}`) ?? null;
 const setRunId = (projectId, scriptName, runId) => {
   if (runId == null) runStore.delete(`${projectId}:${scriptName}`);
   else runStore.set(`${projectId}:${scriptName}`, runId);

@@ -29,7 +29,7 @@ export function useTransitionMount(isOpen, duration = 160) {
  *
  * `position="top"` drops the panel from above (used by the command palette).
  */
-export default function AnimatedModal({ isOpen, onClose, children, position = 'center', panelClassName = '', id }) {
+export default function AnimatedModal({ isOpen, onClose, children, position = 'center', id }) {
   const { mounted, visible } = useTransitionMount(isOpen);
   if (!mounted) return null;
 

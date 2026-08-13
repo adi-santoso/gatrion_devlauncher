@@ -7,11 +7,11 @@ Dokumen ini berisi rencana perbaikan DevLauncher berdasarkan analisa kode saat i
 | Area | Fakta |
 |---|---|
 | Ukuran kode | ±20.900 baris (src + electron). File terbesar: `AgentChat.jsx` 1.787 baris, `App.jsx` 1.096, `ProcessManager.js` 1.059, `ipcRenderer.js` 840 |
-| Kualitas kode | Lint: **0 error, 263 warning** (239 `no-unused-vars` — mayoritas false positive JSX, 21 `react-hooks/exhaustive-deps`, 3 unused disable) |
+| Kualitas kode | Lint: **0 error, 0 warning** (sejak P0: `eslint-plugin-react` + config JSX benar, deps/import yang tidak terpakai dibersihkan) |
 | Test | 13 test CLI (Node) + 148 test Vitest + 4 e2e Playwright. **Coverage ±31% lines** |
 | Bundle | Satu chunk renderer **837 kB** (216 kB gzip) — di atas ambang warning Vite (500 kB) |
 | Security | Sudah kuat: contextIsolation, CSP, `assertTrustedIpcEvent`, allowlist field, secret env dimask. Belum ada schema validation terpusat per channel |
-| Main process | Tidak ada **auto-update**, **single-instance lock**, **crash report**, atau **global shortcut** |
+| Main process | **Single instance lock** + **error capture** (main & renderer → main.log) sudah ada sejak P0. Belum ada **auto-update**, **crash report**, atau **global shortcut** |
 | Platform | Windows x64 saja; macOS/Linux belum diuji |
 | Runtime deps | Minimal (7 paket). Tidak ada electron-updater, i18n, state manager (zustand sudah dihapus) |
 
@@ -25,7 +25,7 @@ Dokumen ini berisi rencana perbaikan DevLauncher berdasarkan analisa kode saat i
 
 | Item | Prioritas | Effort | Dampak |
 |---|---|---|---|
-| Perbaiki config ESLint: hilangkan 239 warning `no-unused-vars` JSX (parser options / `jsx-uses-vars`), bereskan 21 `exhaustive-deps` + 3 unused disable → target lint **0 warning** | P0 | S | Aturan lint benar-benar bekerja; CI lebih terbaca |
+| ~~Perbaiki config ESLint~~ → **selesai**: lint **0 error, 0 warning** (`eslint-plugin-react` + `jsx-uses-vars`, 21 `exhaustive-deps` dibereskan, 3 unused disable dihapus) | P0 ✅ | S | Aturan lint benar-benar bekerja; CI lebih terbaca |
 | Pecah file besar: `AgentChat.jsx` → komponen + hook, `App.jsx` → orchestration dipindah ke hook/context, `ProcessManager.js` → modul | P1 | L | Perawatan & onboarding jauh lebih mudah |
 | Seragamkan bentuk respons IPC (sebagian `{ success }`, sebagian bentuk langsung) | P1 | M | Kontrak konsisten, typing lebih mudah |
 | TypeScript bertahap: `// @ts-check` untuk semua file electron dulu, lalu renderer; `npm run typecheck` jadi penuh | P1 | L | Bug null/typo turun drastis |
@@ -35,8 +35,8 @@ Dokumen ini berisi rencana perbaikan DevLauncher berdasarkan analisa kode saat i
 
 | Item | Prioritas | Effort | Dampak |
 |---|---|---|---|
-| **Single instance lock** (`app.requestSingleInstanceLock`) — cegah dua instance app berjalan bersamaan | P0 | S | Hilangkan race process/port/PTY yang susah direproduksi |
-| Tangkap error renderer + `unhandledRejection` → log & dialog "Laporkan masalah" | P0 | S | Masalah user bisa didiagnosis tanpa DevTools |
+| ~~**Single instance lock**~~ → **selesai**: `app.requestSingleInstanceLock()` + focus/restore window pada `second-instance` | P0 ✅ | S | Hilangkan race process/port/PTY yang susah direproduksi |
+| ~~Tangkap error renderer + `unhandledRejection`~~ → **selesai**: `window.onerror`/`unhandledrejection` → channel `renderer-error` → main.log; `uncaughtException`/`unhandledRejection` main juga di-log. Dialog "Laporkan masalah" belum ada | P0 ✅ | S | Masalah user bisa didiagnosis tanpa DevTools |
 | Lengkapi auto-restart child process dengan backoff (config `autoRestart` sudah ada di schema) | P1 | S | Project crash tidak menghentikan workflow |
 | Naikkan coverage ke 50–60% untuk path kritis: ProcessManager, StorageManager, OmpManager, preload/security | P1 | M | Regression test lebih percaya diri |
 | E2E di luar smoke: add project → start → log → stop; agent chat (mock omp); persistensi settings | P1 | M | Flow utama teruji otomatis |
@@ -57,7 +57,7 @@ Dokumen ini berisi rencana perbaikan DevLauncher berdasarkan analisa kode saat i
 | Item | Prioritas | Effort | Dampak |
 |---|---|---|---|
 | Schema validation terpusat per channel IPC (payload shape divalidasi di satu tempat) | P1 | M | Defence-in-depth di atas allowlist |
-| `npm audit` di CI + dependabot untuk update terjadwal | P1 | S | CVE cepat terdeteksi |
+| ~~`npm audit` di CI~~ → **selesai** (audit 0 vuln, undici/tar di-patch; dependabot menyusul) | P1 ✅ | S | CVE cepat terdeteksi |
 | Test: pastikan secret env tidak pernah masuk log/diagnostics (sudah dimask di UI) | P1 | S | Jaga komitmen yang sudah ada |
 | Code signing certificate untuk distribusi | P2 | M | SmartScreen tidak menghalangi |
 
@@ -77,7 +77,7 @@ Dokumen ini berisi rencana perbaikan DevLauncher berdasarkan analisa kode saat i
 
 | Item | Prioritas | Effort | Dampak |
 |---|---|---|---|
-| CI: tambah `npm run typecheck` + `npm audit`; gate coverage minimum | P0 | S | Kualitas terjaga otomatis |
+| ~~CI: tambah `npm run typecheck` + `npm audit`; gate coverage minimum~~ → **selesai**: CI kini menjalankan lint → audit → typecheck → CLI test → vitest + coverage gate (thresholds statements/lines 28%, funcs 32%, branches 60%) → build → e2e | P0 ✅ | S | Kualitas terjaga otomatis |
 | Publish pipeline: `electron-builder publish` ke GitHub Releases + feed auto-update | P1 | M | Rilis berkala jadi rutin |
 | Changelog otomatis dari conventional commits | P2 | S | Riwayat lebih lengkap |
 
@@ -86,7 +86,7 @@ Dokumen ini berisi rencana perbaikan DevLauncher berdasarkan analisa kode saat i
 | Item | Prioritas | Effort | Dampak |
 |---|---|---|---|
 | Export **diagnostics bundle** sekali klik dari Settings: log, health, config tanpa secret, versi app | P1 | S | Troubleshooting jarak jauh |
-| Renderer error → main.log (structured logger sudah ada) | P1 | S | Error UI tidak hilang tanpa jejak |
+| ~~Renderer error → main.log~~ → **selesai** sebagai bagian dari error capture P0 | P1 ✅ | S | Error UI tidak hilang tanpa jejak |
 | Crash dump / minidump saat app crash | P2 | M | Root cause crash Windows |
 
 ## Gerbang Rilis (Definition of Done)
@@ -103,7 +103,7 @@ Checklist yang harus terpenuhi sebelum versi pertama benar-benar dirilis:
 
 ## Urutan Eksekusi yang Disarankan
 
-1. **Minggu 1** — semua P0: lint 0 warning, single instance lock, error capture, CI typecheck + audit.
+1. **Minggu 1 (selesai ✅)** — semua P0: lint 0 warning, single instance lock, error capture, CI typecheck + audit + gate coverage.
 2. **Minggu 2–4** — P1 code quality: pecah `AgentChat.jsx`/`App.jsx`, seragamkan IPC, TypeScript electron.
 3. **Minggu 5–8** — P1 reliability & performance: coverage path kritis, e2e flow, code splitting.
 4. **Minggu 9–12** — P1 product: auto-update, workspace search, agent cost tracking, diagnostics bundle.

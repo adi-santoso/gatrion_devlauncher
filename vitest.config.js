@@ -22,7 +22,15 @@ export default defineConfig({
         'src/**/*.d.ts',
         'tests/cli/**',
         '**/__tests__/**'
-      ]
+      ],
+      // Regression floor: fail CI if coverage drops below the current baseline
+      // (set slightly under today's measured numbers to allow normal churn).
+      thresholds: {
+        statements: 28,
+        branches: 60,
+        functions: 32,
+        lines: 28,
+      },
     },
     mockReset: true,
     clearMocks: true

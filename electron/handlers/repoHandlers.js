@@ -412,7 +412,6 @@ function setupRepoHandlers(storageManager, processManager, mainWindow) {
       parsed = {}
     }
     const deps = pkg.dependencies || {}
-    const devDeps = pkg.devDependencies || {}
     const outdated = Object.entries(parsed).map(([name, info]) => ({
       name,
       current: info.current || null,
@@ -448,7 +447,6 @@ function setupRepoHandlers(storageManager, processManager, mainWindow) {
   secureHandle('install-dependencies', async (event, projectId) => {
     try {
       const project = await loadProject(projectId)
-      const pkg = readPackageJson(project.path)
       const lockfile = LOCKFILES.find((entry) => fs.existsSync(path.join(project.path, entry.file)))
       const pm = lockfile ? lockfile.pm : 'npm'
       const result = await processManager.runCustomCommand(
