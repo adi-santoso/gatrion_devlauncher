@@ -132,6 +132,7 @@ export default function AgentChat({
   const [thinking, setThinking] = useState('');
   const [tools, setTools] = useState([]);
   const [error, setError] = useState(null);
+  const [historyLoading, setHistoryLoading] = useState(false);
   const [nearBottom, setNearBottom] = useState(true);
   const scrollRef = useRef(null);
   const bottomRef = useRef(null);
@@ -164,7 +165,9 @@ export default function AgentChat({
     if (nearBottom) scrollToBottom('auto');
   }, [messages, streaming, tools, nearBottom, scrollToBottom]);
 
-  // Load history when the active session changes
+  // Load history when the active session changes. Existing sessions (those
+  // with a sessionPath) show a skeleton until omp returns their transcript;
+  // brand-new sessions skip straight to the empty state.
   useEffect(() => {
     setMessages([]);
     setStreaming('');
@@ -172,12 +175,16 @@ export default function AgentChat({
     setTools([]);
     setError(null);
     setNearBottom(true);
+    const hasHistory = Boolean(project && session?.sessionPath);
+    setHistoryLoading(hasHistory);
     if (!project || !session) return;
     let cancelled = false;
     ipc.ompGetMessages(project.id, project.path, { sessionPath: session.sessionPath }).then((result) => {
-      if (cancelled || !result?.success) return;
+      if (cancelled) return;
+      setHistoryLoading(false);
+      if (!result?.success) return;
       setMessages(result.messages.map((item) => ({ role: item.role, content: item.content })));
-    }).catch(() => {});
+    }).catch(() => { if (!cancelled) setHistoryLoading(false); });
     return () => { cancelled = true; };
   }, [project?.id, session?.id, project?.path, session?.sessionPath]);
 
@@ -345,7 +352,7 @@ export default function AgentChat({
   };
 
   const notConfigured = status?.installed && !status?.configured;
-  const isFresh = messages.length === 0 && !streaming;
+  const isFresh = messages.length === 0 && !streaming && !historyLoading;
 
   return (
     <div className="flex flex-col min-w-0 h-full">
@@ -383,7 +390,31 @@ export default function AgentChat({
         onScroll={handleScroll}
         className="flex-1 min-h-0 overflow-auto px-5 py-4 bg-base"
       >
-        {isFresh ? (
+        {historyLoading ? (
+          <div className="max-w-3xl mx-auto space-y-5 pt-2">
+            <div className="flex items-center gap-2 mb-1">
+              <span className="w-5 h-5 rounded-md bg-accent/15 flex items-center justify-center">
+                <span className="w-2.5 h-2.5 rounded-full border-2 border-accent/40 border-t-transparent animate-spin" />
+              </span>
+              <span className="text-xs font-semibold text-ink-soft">Loading conversation…</span>
+            </div>
+            <div className="space-y-1.5">
+              <div className="skeleton h-3.5 w-3/4 rounded" />
+              <div className="skeleton h-3.5 w-1/2 rounded" />
+              <div className="skeleton h-3.5 w-2/3 rounded" />
+            </div>
+            <div className="flex justify-end">
+              <div className="skeleton h-9 w-40 rounded-2xl" />
+            </div>
+            <div className="space-y-1.5">
+              <div className="skeleton h-3.5 w-full rounded" />
+              <div className="skeleton h-3.5 w-4/5 rounded" />
+            </div>
+            <div className="flex justify-end">
+              <div className="skeleton h-9 w-56 rounded-2xl" />
+            </div>
+          </div>
+        ) : isFresh ? (
           <div className="h-full flex flex-col items-center justify-center max-w-xl mx-auto text-center">
             <div className="w-14 h-14 rounded-2xl bg-accent/10 border border-accent/20 flex items-center justify-center text-accent-hover mb-4">
               <Icon name="messageSquare" size={24} />
