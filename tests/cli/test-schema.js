@@ -4,8 +4,8 @@ const {
   normalizeProject,
   sanitizeProjectChanges,
   validateProject,
-} = require('./electron/projectSchema')
-const { applyConfigUpdates, normalizeConfig } = require('./electron/configSchema')
+} = require('../../electron/projectSchema')
+const { applyConfigUpdates, normalizeConfig } = require('../../electron/configSchema')
 
 const migrated = validateProject(normalizeProject({
   id: 'legacy-id',

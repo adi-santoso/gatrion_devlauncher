@@ -66,6 +66,8 @@ npm run dev:vite
 ```text
 electron/       Electron main process, IPC handlers, managers
 src/            React renderer, hooks, components, styles
+tests/cli/      Regression test CLI main process (npm test)
+tests/setup.js  Setup Vitest (globals + mock resets)
 e2e/            Playwright smoke test
 scripts/        Utility script (generate-icons)
 .github/        CI workflow (Windows: lint, test, build, e2e)

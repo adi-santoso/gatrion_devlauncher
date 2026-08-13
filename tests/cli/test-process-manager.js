@@ -1,6 +1,6 @@
 const assert = require('assert/strict')
 const net = require('net')
-const ProcessManager = require('./electron/managers/ProcessManager')
+const ProcessManager = require('../../electron/managers/ProcessManager')
 
 function listen(server, port = 0) {
   return new Promise((resolve, reject) => {

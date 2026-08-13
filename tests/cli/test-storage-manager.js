@@ -2,7 +2,7 @@ const assert = require('assert/strict')
 const fs = require('fs').promises
 const os = require('os')
 const path = require('path')
-const StorageManager = require('./electron/managers/StorageManager')
+const StorageManager = require('../../electron/managers/StorageManager')
 
 function project(id) {
   return {

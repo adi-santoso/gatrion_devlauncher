@@ -2,7 +2,7 @@ const assert = require('assert')
 const fs = require('fs').promises
 const os = require('os')
 const path = require('path')
-const ProjectDetector = require('./electron/managers/ProjectDetector')
+const ProjectDetector = require('../../electron/managers/ProjectDetector')
 
 async function writeJson(directory, name, value) {
   await fs.writeFile(path.join(directory, name), JSON.stringify(value), 'utf8')

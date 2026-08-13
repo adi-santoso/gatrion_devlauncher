@@ -3,7 +3,7 @@ const assert = require('assert')
 const fs = require('fs')
 const os = require('os')
 const path = require('path')
-const OmpConfig = require('./electron/managers/OmpConfig')
+const OmpConfig = require('../../electron/managers/OmpConfig')
 
 async function run() {
   const homeDir = fs.mkdtempSync(path.join(os.tmpdir(), 'omp-config-test-'))

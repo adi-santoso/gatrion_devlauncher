@@ -4,7 +4,7 @@ const assert = require('assert')
 const fs = require('fs')
 const os = require('os')
 const path = require('path')
-const OmpManager = require('./electron/managers/OmpManager')
+const OmpManager = require('../../electron/managers/OmpManager')
 
 async function main() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'omp-registry-'))

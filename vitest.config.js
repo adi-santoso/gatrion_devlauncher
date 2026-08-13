@@ -6,7 +6,7 @@ export default defineConfig({
   test: {
     globals: true,
     environment: 'jsdom',
-    setupFiles: ['./test-setup.js'],
+    setupFiles: ['./tests/setup.js'],
     include: [
       'src/**/*.{test,spec}.{js,jsx}', 
       'electron/managers/__tests__/*.test.js',
@@ -20,7 +20,7 @@ export default defineConfig({
       exclude: [
         'node_modules/**',
         'src/**/*.d.ts',
-        'test-*.js',
+        'tests/cli/**',
         '**/__tests__/**'
       ]
     },

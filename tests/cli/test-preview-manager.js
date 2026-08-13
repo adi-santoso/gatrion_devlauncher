@@ -59,7 +59,7 @@ Module._load = function load(request, parent, isMain) {
   return originalLoad.call(this, request, parent, isMain)
 }
 
-const PreviewManager = require('./electron/managers/PreviewManager')
+const PreviewManager = require('../../electron/managers/PreviewManager')
 Module._load = originalLoad
 
 function makeWindow() {

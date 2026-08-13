@@ -30,7 +30,7 @@ module.exports = [
     },
   },
   {
-    files: ['electron/**/*.js', 'test-*.js', '*.cjs', 'playwright.config.js', 'e2e/**/*.js'],
+    files: ['electron/**/*.js', 'tests/cli/**/*.js', '*.cjs', 'playwright.config.js', 'e2e/**/*.js'],
     languageOptions: {
       ecmaVersion: 2022,
       sourceType: 'commonjs',
@@ -74,15 +74,11 @@ module.exports = [
     },
   },
   {
-    files: ['vite.config.js', 'vitest.config.js', 'test-setup.js'],
+    files: ['vite.config.js', 'vitest.config.js', 'tests/setup.js'],
     languageOptions: {
       ecmaVersion: 2022,
       sourceType: 'module',
       globals: { __dirname: 'readonly', afterEach: 'readonly', process: 'readonly', vi: 'readonly' },
     },
-  },
-  {
-    files: ['test-integration.js'],
-    languageOptions: { globals: { window: 'readonly' } },
   },
 ]

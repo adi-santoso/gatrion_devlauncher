@@ -99,7 +99,7 @@ Module._load = function load(request, parent, isMain) {
 const originalExecFile = cp.execFile
 cp.execFile = fakeExecFile
 
-const { setupRepoHandlers, parseStatus, parseLog, readPackageJson, runGit } = require('./electron/handlers/repoHandlers')
+const { setupRepoHandlers, parseStatus, parseLog, readPackageJson, runGit } = require('../../electron/handlers/repoHandlers')
 
 Module._load = originalLoad
 cp.execFile = originalExecFile

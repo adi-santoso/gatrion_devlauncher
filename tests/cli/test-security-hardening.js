@@ -1,5 +1,5 @@
 const assert = require('assert')
-const { redactSensitiveEnv, isSensitiveKey, sanitizeProjectChanges, toRendererProject } = require('./electron/projectSchema')
+const { redactSensitiveEnv, isSensitiveKey, sanitizeProjectChanges, toRendererProject } = require('../../electron/projectSchema')
 
 function runSecurityTests() {
   console.log('[Security Hardening Test] Starting verification...')

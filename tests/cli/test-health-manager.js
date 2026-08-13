@@ -3,7 +3,7 @@ const assert = require('assert')
 const fs = require('fs')
 const os = require('os')
 const path = require('path')
-const HealthManager = require('./electron/managers/HealthManager')
+const HealthManager = require('../../electron/managers/HealthManager')
 
 async function main() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'health-test-'))

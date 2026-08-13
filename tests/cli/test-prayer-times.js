@@ -6,7 +6,7 @@ const path = require('path')
 // Load the ES module by stripping export keywords and evaluating. Node treats
 // src/*.js as CommonJS (package.json has "type": "commonjs"), so a plain
 // require/import fails on the `export` syntax.
-let src = fs.readFileSync(path.join(__dirname, 'src/utils/prayerTimes.js'), 'utf8')
+let src = fs.readFileSync(path.join(__dirname, '../../src/utils/prayerTimes.js'), 'utf8')
 src = src
   .replace(/export const /g, 'const ')
   .replace(/export function /g, 'function ')

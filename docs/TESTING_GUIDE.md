@@ -7,14 +7,16 @@ DevLauncher uses **Vitest** for unit testing React components and hooks, plus No
 ## Test Structure
 
 ```
-├── src/hooks/__tests__/        # React hook tests
-│   ├── useProjects.test.js     # Project CRUD operations
-│   └── useProcesses.test.js    # Process lifecycle management
-├── electron/managers/__tests__/ # Backend manager tests
-│   ├── ProjectDetector.test.js # Framework auto-detection
-│   └── StorageManager.test.js  # Persistence & recovery
-├── test-*.js                   # Legacy CLI tests (Node only)
-└── vitest.config.js            # Vitest configuration
+├── src/**/__tests__/            # React component/hook/utils tests (Vitest)
+├── electron/**/__tests__/       # Backend manager & handler tests (Vitest)
+├── tests/cli/                   # Legacy CLI tests (Node only, via npm test)
+│   ├── test-process-manager.js
+│   ├── test-schema.js
+│   └── ...
+├── tests/setup.js               # Vitest setup file (globals + mock resets)
+├── e2e/                         # Playwright smoke tests
+├── vitest.config.js             # Vitest configuration
+└── playwright.config.js         # Playwright configuration
 ```
 
 ## Running Tests
@@ -28,11 +30,11 @@ npm run test:coverage  # Generate coverage report
 
 ### Backend Tests (CLI)
 ```bash
-npm test              # Run legacy CLI tests
-node test-process-manager.js
-node test-schema.js
-node test-storage-manager.js
-node test-security-hardening.js
+npm test              # Run all 13 legacy CLI tests (tests/cli/)
+node tests/cli/test-process-manager.js
+node tests/cli/test-schema.js
+node tests/cli/test-storage-manager.js
+node tests/cli/test-security-hardening.js
 ```
 
 ### ESLint

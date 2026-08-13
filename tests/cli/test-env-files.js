@@ -17,7 +17,7 @@ Module._load = function load(request, parent, isMain) {
   return originalLoad.call(this, request, parent, isMain)
 }
 
-const { setupProjectHandlers } = require('./electron/handlers/projectHandlers')
+const { setupProjectHandlers } = require('../../electron/handlers/projectHandlers')
 Module._load = originalLoad
 
 async function run() {

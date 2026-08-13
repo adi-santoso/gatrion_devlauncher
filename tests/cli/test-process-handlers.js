@@ -10,7 +10,7 @@ Module._load = function load(request, parent, isMain) {
   return originalLoad.call(this, request, parent, isMain)
 }
 
-const { setupProcessHandlers, resolveLaunchConfig, withRequestedPort } = require('./electron/handlers/processHandlers')
+const { setupProcessHandlers, resolveLaunchConfig, withRequestedPort } = require('../../electron/handlers/processHandlers')
 Module._load = originalLoad
 
 async function run() {
