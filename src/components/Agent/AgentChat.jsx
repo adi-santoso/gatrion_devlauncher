@@ -122,6 +122,17 @@ export default function AgentChat({
   const [modelSearch, setModelSearch] = useState('');
   const [thinkingLevel, setThinkingLevel] = useState(null);
   const [levelOpen, setLevelOpen] = useState(false);
+  const [contextUsage, setContextUsage] = useState(null);
+  const [autoCompaction, setAutoCompaction] = useState(true);
+  const [fastMode, setFastMode] = useState(false);
+  const [autoRetry, setAutoRetry] = useState(false);
+  const [retrying, setRetrying] = useState(false);
+  const [compacting, setCompacting] = useState(false);
+  const [todos, setTodos] = useState([]);
+  const [todosOpen, setTodosOpen] = useState(true);
+  const [commands, setCommands] = useState([]);
+  const [moreOpen, setMoreOpen] = useState(false);
+  const [notice, setNotice] = useState(null);
   const [attachments, setAttachments] = useState([]); // { id, name, mimeType, dataUrl, base64, bytes }
   const fileInputRef = useRef(null);
   const scrollRef = useRef(null);
@@ -156,6 +167,28 @@ export default function AgentChat({
     setBusy(value);
     onBusyChange?.(value);
   };
+
+  // Session state from get_state: context usage, auto-compaction, fast mode,
+  // todo phases. Applied whenever get_state is fetched (mount, poll, events).
+  const applyState = useCallback((state) => {
+    if (!state) return;
+    if (state.thinkingLevel) setThinkingLevel(state.thinkingLevel);
+    setContextUsage(state.contextUsage || null);
+    if (typeof state.autoCompactionEnabled === 'boolean') setAutoCompaction(state.autoCompactionEnabled);
+    if (typeof state.fastModeEnabled === 'boolean') setFastMode(state.fastModeEnabled);
+    if (Array.isArray(state.todoPhases)) setTodos(state.todoPhases);
+  }, []);
+
+  const refreshState = useCallback(() => {
+    const currentProject = projectRef.current;
+    if (!currentProject) return;
+    ipc.ompGetState(currentProject.id, currentProject.path).then((result) => {
+      if (result?.success) applyState(result.state);
+    }).catch(() => {});
+  }, [applyState]);
+
+  const refreshStateRef = useRef(refreshState);
+  refreshStateRef.current = refreshState;
 
   const isNearBottom = useCallback(() => {
     const el = scrollRef.current;
@@ -292,15 +325,33 @@ export default function AgentChat({
         );
         apply(merged, current);
       }).catch(() => apply(configOptions, current));
-      // Read the current thinking level so the header control reflects it.
+      // Read the current session state (thinking level, context usage,
+      // auto-compaction, todo phases) so the header controls reflect it.
       ipc.ompGetState(project.id, project.path).then((stateResult) => {
-        if (!cancelled && stateResult?.success && stateResult.state?.thinkingLevel) {
-          setThinkingLevel(stateResult.state.thinkingLevel);
-        }
+        if (!cancelled && stateResult?.success) applyState(stateResult.state);
       }).catch(() => {});
     }).catch(() => {});
     return () => { cancelled = true; };
-  }, [project?.id, session?.id]);
+  }, [project?.id, session?.id, applyState]);
+
+  // Keep the context-usage indicator fresh while a conversation is active.
+  useEffect(() => {
+    if (!project || (!busy && messages.length === 0)) return;
+    refreshState();
+    const timer = setInterval(refreshState, 20000);
+    return () => clearInterval(timer);
+  }, [project?.id, busy, messages.length > 0, refreshState]);
+
+  // Load available slash commands for the / menu (also updated live through
+  // the available_commands_update event).
+  useEffect(() => {
+    if (!project) return;
+    let cancelled = false;
+    ipc.ompGetCommands(project.id, project.path).then((result) => {
+      if (!cancelled && result?.success && Array.isArray(result.commands)) setCommands(result.commands);
+    }).catch(() => {});
+    return () => { cancelled = true; };
+  }, [project?.id]);
 
   // Focus the input when a conversation is opened, ready to type.
   useEffect(() => {
@@ -310,13 +361,13 @@ export default function AgentChat({
 
   // Escape closes the header dropdowns; the search query resets on close.
   useEffect(() => {
-    if (!modelsOpen && !levelOpen) return undefined;
+    if (!modelsOpen && !levelOpen && !moreOpen) return undefined;
     const onKey = (event) => {
-      if (event.key === 'Escape') { setModelsOpen(false); setLevelOpen(false); }
+      if (event.key === 'Escape') { setModelsOpen(false); setLevelOpen(false); setMoreOpen(false); }
     };
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
-  }, [modelsOpen, levelOpen]);
+  }, [modelsOpen, levelOpen, moreOpen]);
 
   useEffect(() => {
     if (!modelsOpen) setModelSearch('');
@@ -450,6 +501,28 @@ export default function AgentChat({
       setThinking('')
       thinkingBufRef.current = ''
       setBusyState(false)
+      refreshStateRef.current?.()
+      return
+    }
+    if (type === 'todo_reminder') {
+      setTodos(Array.isArray(event.phases) ? event.phases : Array.isArray(event.todoPhases) ? event.todoPhases : [])
+      setTodosOpen(true)
+      return
+    }
+    if (type === 'todo_auto_clear') {
+      setTodos([])
+      return
+    }
+    if (type === 'available_commands_update') {
+      if (Array.isArray(event.commands)) setCommands(event.commands)
+      return
+    }
+    if (type === 'auto_retry_start') { setRetrying(true); return }
+    if (type === 'auto_retry_end') { setRetrying(false); return }
+    if (type === 'auto_compaction_start') { setCompacting(true); return }
+    if (type === 'auto_compaction_end') { setCompacting(false); return }
+    if (type === 'model_changed' || type === 'thinking_level_changed') {
+      refreshStateRef.current?.()
       return
     }
     if (type === 'rpc_error' || type === 'rpc_exit') {
@@ -523,7 +596,27 @@ export default function AgentChat({
 
   const handleSend = async (preset) => {
     const message = (preset ?? input).trim();
-    if ((!message && attachments.length === 0) || busyRef.current || !project) return;
+    if ((!message && attachments.length === 0) || !project) return;
+    // While the agent is working, sending steers the running turn with the new
+    // instruction instead of starting a fresh one.
+    if (busyRef.current) {
+      const text = message || 'Here is an attached image — please analyze it.';
+      setInput('');
+      if (inputRef.current) inputRef.current.style.height = 'auto';
+      setMessages((prev) => [...prev, {
+        id: uid(),
+        role: 'user',
+        content: text,
+        steered: true,
+        createdAt: new Date().toISOString(),
+      }]);
+      try {
+        await ipc.ompSteer(project.id, project.path, text);
+      } catch (error) {
+        setError(error.message || 'Failed to steer the agent');
+      }
+      return;
+    }
     // omp expects a text prompt; when only images are attached, use a neutral prompt.
     const text = message || 'Here is an attached image — please analyze it.';
     const images = attachments.map((attachment) => ({ dataUrl: attachment.dataUrl, base64: attachment.base64, mimeType: attachment.mimeType }));
@@ -595,6 +688,66 @@ export default function AgentChat({
     thinkingBufRef.current = '';
   };
 
+  const showNotice = useCallback((text) => {
+    setNotice(text);
+    setTimeout(() => setNotice(null), 3000);
+  }, []);
+
+  const handleCompact = async () => {
+    setMoreOpen(false);
+    if (!project) return;
+    try {
+      await ipc.ompCompact(project.id, project.path);
+      showNotice('Context compacted');
+    } catch (error) {
+      setError(error.message || 'Compact failed');
+    }
+  };
+
+  const toggleAutoCompaction = async () => {
+    setMoreOpen(false);
+    if (!project) return;
+    const next = !autoCompaction;
+    setAutoCompaction(next);
+    try {
+      await ipc.ompSetAutoCompaction(project.id, project.path, next);
+    } catch (error) {
+      setAutoCompaction(!next);
+      setError(error.message || 'Failed to toggle auto-compaction');
+    }
+  };
+
+  const toggleFastMode = async () => {
+    setMoreOpen(false);
+    if (!project) return;
+    const next = !fastMode;
+    setFastMode(next);
+    try {
+      await ipc.ompSetFastMode(project.id, project.path, next);
+    } catch (error) {
+      setFastMode(!next);
+      setError(error.message || 'Fast mode is unavailable for the current model');
+    }
+  };
+
+  const toggleAutoRetry = async () => {
+    setMoreOpen(false);
+    if (!project) return;
+    const next = !autoRetry;
+    setAutoRetry(next);
+    try {
+      await ipc.ompSetAutoRetry(project.id, project.path, next);
+    } catch (error) {
+      setAutoRetry(!next);
+      setError(error.message || 'Failed to toggle auto-retry');
+    }
+  };
+
+  const insertSlashCommand = (command) => {
+    setInput(`/${command.name} `);
+    if (inputRef.current) inputRef.current.focus();
+  };
+
   const notConfigured = status?.installed && !status?.configured;
   const isFresh = messages.length === 0 && !streaming && !historyLoading;
   // Index of the most recent user message — the only one that can be edited.
@@ -613,6 +766,16 @@ export default function AgentChat({
   const filteredModels = modelQuery
     ? models.filter((m) => `${m.ref} ${m.label}`.toLowerCase().includes(modelQuery))
     : models;
+
+  const contextPercent = contextUsage
+    ? Math.round((contextUsage.percent != null ? contextUsage.percent : (contextUsage.contextWindow ? contextUsage.tokens / contextUsage.contextWindow : 0)) * 100)
+    : null;
+  // Slash-command palette: shown while typing a / command without a space.
+  const slashOpen = input.startsWith('/') && !input.includes(' ') && input.length > 1;
+  const slashQuery = slashOpen ? input.slice(1).toLowerCase() : '';
+  const slashMatches = slashQuery
+    ? commands.filter((cmd) => `${cmd.name} ${cmd.description || ''}`.toLowerCase().includes(slashQuery))
+    : commands;
 
   const handleFiles = useCallback(async (fileList) => {
     const files = Array.from(fileList || []).filter((file) => file.type?.startsWith('image/'));
@@ -781,6 +944,81 @@ export default function AgentChat({
               {status.version ? `omp ${status.version}` : 'omp'}
             </span>
           )}
+          {contextPercent != null && (
+            <div
+              className="hidden md:flex items-center gap-1.5 text-[11px]"
+              title={`${contextUsage?.tokens?.toLocaleString() || 0} / ${contextUsage?.contextWindow?.toLocaleString() || '?'} tokens in context`}
+            >
+              <span className="w-14 h-1.5 rounded-full bg-surface-3 overflow-hidden">
+                <span
+                  className={`block h-full rounded-full transition-all ${contextPercent >= 90 ? 'bg-danger' : contextPercent >= 70 ? 'bg-warning' : 'bg-accent'}`}
+                  style={{ width: `${Math.min(100, contextPercent)}%` }}
+                />
+              </span>
+              <span className={`tabular-nums ${contextPercent >= 90 ? 'text-danger' : contextPercent >= 70 ? 'text-warning' : 'text-ink-faint'}`}>{contextPercent}%</span>
+            </div>
+          )}
+          {(compacting || retrying) && (
+            <span className="hidden md:inline-flex items-center gap-1.5 text-[11px] text-warning bg-warning/10 border border-warning/25 rounded-full px-2.5 py-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-warning animate-pulse" />
+              {compacting ? 'Compacting…' : 'Retrying…'}
+            </span>
+          )}
+          {project && status?.installed && status?.configured && (
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setMoreOpen((value) => !value)}
+                disabled={busy}
+                title="Session options"
+                className="w-7 h-7 rounded-lg text-ink-faint hover:text-ink hover:bg-surface-3 flex items-center justify-center transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                <Icon name="more" size={14} />
+              </button>
+              {moreOpen && (
+                <>
+                  <div className="fixed inset-0 z-40" onClick={() => setMoreOpen(false)} />
+                  <div className="absolute right-0 top-full mt-1.5 w-60 rounded-xl border border-border bg-surface shadow-card z-50 py-1 dropdown-menu">
+                    <button
+                      type="button"
+                      onClick={handleCompact}
+                      className="w-full flex items-center gap-2 px-3 py-1.5 text-left text-xs text-ink-soft hover:bg-surface-3 hover:text-ink transition-colors"
+                    >
+                      <Icon name="minimize" size={12} />
+                      Compact context
+                    </button>
+                    <button
+                      type="button"
+                      onClick={toggleAutoCompaction}
+                      className="w-full flex items-center gap-2 px-3 py-1.5 text-left text-xs text-ink-soft hover:bg-surface-3 hover:text-ink transition-colors"
+                    >
+                      <Icon name="refreshCw" size={12} />
+                      <span className="flex-1">Auto-compact</span>
+                      {autoCompaction && <Icon name="check" size={12} className="text-accent" />}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={toggleFastMode}
+                      className="w-full flex items-center gap-2 px-3 py-1.5 text-left text-xs text-ink-soft hover:bg-surface-3 hover:text-ink transition-colors"
+                    >
+                      <Icon name="bolt" size={12} />
+                      <span className="flex-1">Fast mode</span>
+                      {fastMode && <Icon name="check" size={12} className="text-accent" />}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={toggleAutoRetry}
+                      className="w-full flex items-center gap-2 px-3 py-1.5 text-left text-xs text-ink-soft hover:bg-surface-3 hover:text-ink transition-colors"
+                    >
+                      <Icon name="restart" size={12} />
+                      <span className="flex-1">Auto-retry</span>
+                      {autoRetry && <Icon name="check" size={12} className="text-accent" />}
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
           {busy && (
             <button
               onClick={handleStop}
@@ -797,8 +1035,51 @@ export default function AgentChat({
       <div
         ref={scrollRef}
         onScroll={handleScroll}
-        className="flex-1 min-h-0 overflow-auto px-6 pt-7 pb-5 bg-base"
+        className="relative flex-1 min-h-0 overflow-auto px-6 pt-7 pb-5 bg-base"
       >
+        {(notice || error) && (
+          <div className="max-w-[760px] mx-auto space-y-2">
+            {notice && (
+              <div className="text-sm px-4 py-3 rounded-xl border border-success/25 bg-success/10 text-success">{notice}</div>
+            )}
+            {error && (
+              <div className="text-sm px-4 py-3 rounded-xl border border-danger/25 bg-danger/10 text-danger whitespace-pre-wrap break-words">{error}</div>
+            )}
+          </div>
+        )}
+        {todos.length > 0 && (
+          <div className="absolute right-4 top-4 z-20 w-64 max-h-[60%] flex flex-col rounded-xl border border-border bg-surface shadow-card overflow-hidden">
+            <button
+              type="button"
+              onClick={() => setTodosOpen((value) => !value)}
+              className="flex items-center gap-2 px-3 py-2 text-left border-b border-border bg-surface-2"
+            >
+              <Icon name="check" size={12} className="text-accent" />
+              <span className="text-xs font-semibold text-ink flex-1">Todos</span>
+              <span className="text-[10px] text-ink-faint tabular-nums">{todos.reduce((sum, phase) => sum + (phase.tasks?.length || 0), 0)}</span>
+              <Icon name={todosOpen ? 'chevronDown' : 'chevronRight'} size={11} className="text-ink-faint" />
+            </button>
+            {todosOpen && (
+              <div className="overflow-auto p-2 space-y-2">
+                {todos.map((phase) => (
+                  <div key={phase.id}>
+                    {phase.name && phase.name !== 'Todos' && (
+                      <p className="text-[10px] font-semibold uppercase tracking-wide text-ink-faint px-1 mb-1">{phase.name}</p>
+                    )}
+                    {(phase.tasks || []).map((task) => (
+                      <div key={task.id} className="flex items-start gap-2 px-1 py-0.5">
+                        <span className={`mt-0.5 w-3.5 h-3.5 rounded-full border flex items-center justify-center shrink-0 ${task.status === 'done' ? 'bg-success border-success text-white' : task.status === 'in_progress' ? 'border-accent' : 'border-border'}`}>
+                          {task.status === 'done' && <Icon name="check" size={8} />}
+                        </span>
+                        <span className={`text-xs leading-snug ${task.status === 'done' ? 'text-ink-faint line-through' : task.status === 'in_progress' ? 'text-ink' : 'text-ink-soft'}`}>{task.content}</span>
+                      </div>
+                    ))}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
         {historyLoading ? (
           <div className="max-w-[760px] mx-auto space-y-5 pt-2">
             <div className="flex items-center gap-2 mb-1">
@@ -911,11 +1192,6 @@ export default function AgentChat({
                 </div>
               </div>
             )}
-            {error && (
-              <div className="self-start max-w-[96%] text-sm px-4 py-3 rounded-xl border border-danger/25 bg-danger/10 text-danger whitespace-pre-wrap break-words">
-                {error}
-              </div>
-            )}
             <div ref={bottomRef} />
           </div>
         )}
@@ -936,7 +1212,13 @@ export default function AgentChat({
 
       {/* Input */}
       <div className="shrink-0 border-t border-border bg-base px-5 py-3.5">
-        <div className="max-w-[760px] mx-auto">
+        <div className="relative max-w-[760px] mx-auto">
+          {busy && (
+            <p className="text-[11px] text-accent mb-1.5 flex items-center gap-1.5">
+              <Icon name="bolt" size={11} />
+              Agent is working — type a message to steer it mid-task.
+            </p>
+          )}
           <div className={`relative rounded-[13px] border bg-surface-2 px-4 py-2.5 transition-all ${busy ? 'border-border' : 'border-border hover:border-border-hover focus-within:border-border-hover'}`}>
             {attachments.length > 0 && (
               <div className="flex flex-wrap items-center gap-2 pb-2.5">
@@ -1005,13 +1287,13 @@ export default function AgentChat({
                 }}
                 rows={1}
                 placeholder={notConfigured ? 'Configure a provider to start chatting…' : 'Describe a task, ask a question…'}
-                disabled={notConfigured || !project || busy}
+                disabled={notConfigured || !project}
                 className="flex-1 min-w-0 bg-transparent text-sm text-ink placeholder:text-ink-faint focus:outline-none resize-none max-h-[130px] py-1 disabled:opacity-50"
                 style={{ overflowY: 'auto' }}
               />
               <button
                 onClick={() => handleSend()}
-                disabled={(!input.trim() && attachments.length === 0) || busy || notConfigured || !project}
+                disabled={(!input.trim() && attachments.length === 0) || notConfigured || !project}
                 className="w-[34px] h-[34px] shrink-0 rounded-lg bg-accent hover:bg-accent-hover text-white flex items-center justify-center transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                 aria-label="Send message"
               >
@@ -1019,6 +1301,21 @@ export default function AgentChat({
               </button>
             </div>
           </div>
+          {slashOpen && slashMatches.length > 0 && (
+            <div className="absolute bottom-full left-0 right-0 mb-1.5 max-h-56 overflow-auto rounded-xl border border-border bg-surface shadow-card z-30 py-1 dropdown-menu">
+              {slashMatches.map((command) => (
+                <button
+                  key={command.name}
+                  type="button"
+                  onClick={() => insertSlashCommand(command)}
+                  className="w-full flex items-center gap-2 px-3 py-1.5 text-left text-xs text-ink-soft hover:bg-surface-3 hover:text-ink transition-colors"
+                >
+                  <span className="font-mono text-accent shrink-0">/{command.name}</span>
+                  <span className="flex-1 min-w-0 truncate">{command.description || command.input?.hint || ''}</span>
+                </button>
+              ))}
+            </div>
+          )}
           {attachments.length > 0 && currentModelVision === false && (
             <p className="text-[11px] text-warning flex items-center gap-1.5 mt-2">
               <Icon name="warn" size={11} />

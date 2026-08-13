@@ -441,10 +441,26 @@ Channel: `omp-get-models` / `omp-set-model`
 
 Channel: `omp-set-thinking-level` / `omp-get-state`
 
-`omp-set-thinking-level` menerima `off | minimal | low | medium | high | xhigh | max` (RPC `set_thinking_level`); `omp-get-state` mengembalikan state sesi RPC, termasuk `thinkingLevel` dan `sessionFile`:
+`omp-set-thinking-level` menerima `off | minimal | low | medium | high | xhigh | max` (RPC `set_thinking_level`); `omp-get-state` mengembalikan state sesi RPC, termasuk `thinkingLevel`, `sessionFile`, `contextUsage` (`{ tokens, contextWindow, percent }`), `autoCompactionEnabled`, `fastModeEnabled`, dan `todoPhases`:
 
 ```js
-{ success: true, state: { thinkingLevel: 'off', sessionFile: '...', model: { provider, id }, ... } }
+{ success: true, state: { thinkingLevel: 'off', sessionFile: '...', model: { provider, id }, contextUsage: { tokens: 1100, contextWindow: 200000, percent: 0.55 }, autoCompactionEnabled: true, fastModeEnabled: false, todoPhases: [] } }
+```
+
+### `ompCompact(projectId, cwd, customInstructions?)` / `ompSetAutoCompaction(projectId, cwd, enabled)` / `ompSetFastMode(projectId, cwd, enabled)` / `ompSetAutoRetry(projectId, cwd, enabled)` / `ompAbortRetry(projectId, cwd)`
+
+Channel: `omp-compact` / `omp-set-auto-compaction` / `omp-set-fast-mode` / `omp-set-auto-retry` / `omp-abort-retry`
+
+Meneruskan ke RPC `compact` (opsional `customInstructions`), `set_auto_compaction`, `set_fast_mode`, `set_auto_retry`, dan `abort_retry`.
+
+### `ompGetCommands(projectId, cwd)`
+
+Channel: `omp-get-commands`
+
+Menormalisasi respons RPC `get_available_commands` menjadi array datar (setiap command: `name`, `description?`, `input.hint?`, `aliases?`, `subcommands?`).
+
+```js
+{ success: true, commands: [{ name: 'compact', description: '...' }] }
 ```
 
 ### Installer
@@ -470,7 +486,7 @@ Channel: `omp-set-thinking-level` / `omp-get-state`
 
 | Event | Channel | Bentuk |
 |---|---|---|
-| `onOmpEvent(callback)` | `omp-event` | `callback({ projectId, event })` — event RPC omp: `message_update` (`assistantMessageEvent.delta`), `tool_execution_start/update/end`, `agent_start`, `agent_end` (berisi `messages` transkrip), `rpc_error`/`rpc_exit` |
+| `onOmpEvent(callback)` | `omp-event` | `callback({ projectId, event })` — event RPC omp: `message_update` (`assistantMessageEvent.delta`), `tool_execution_start/update/end`, `agent_start`, `agent_end` (berisi `messages` transkrip), `todo_reminder`/`todo_auto_clear`, `available_commands_update`, `auto_compaction_start/end`, `auto_retry_start/end`, `model_changed`/`thinking_level_changed`, `rpc_error`/`rpc_exit` |
 | `onOmpInstallProgress(callback)` | `omp-install-progress` | `callback(state)` — `{ status, phase, received, total, percent, error, version }` |
 
 ## Browser Fallback

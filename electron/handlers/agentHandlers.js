@@ -161,6 +161,49 @@ function setupAgentHandlers(ompManager, installer, ompConfig, getWindow) {
     return { success: true, state }
   })
 
+  secureHandle('omp-compact', async (event, projectId, cwd, customInstructions) => {
+    assertSessionId(projectId)
+    if (cwd) assertProjectPath(cwd)
+    const instructions = typeof customInstructions === 'string' ? customInstructions.slice(0, 2000) : undefined
+    await ompManager.compact(projectId, cwd || process.env.USERPROFILE || '', instructions)
+    return { success: true }
+  })
+
+  secureHandle('omp-set-auto-compaction', async (event, projectId, cwd, enabled) => {
+    assertSessionId(projectId)
+    if (cwd) assertProjectPath(cwd)
+    await ompManager.setAutoCompaction(projectId, cwd || process.env.USERPROFILE || '', Boolean(enabled))
+    return { success: true }
+  })
+
+  secureHandle('omp-set-auto-retry', async (event, projectId, cwd, enabled) => {
+    assertSessionId(projectId)
+    if (cwd) assertProjectPath(cwd)
+    await ompManager.setAutoRetry(projectId, cwd || process.env.USERPROFILE || '', Boolean(enabled))
+    return { success: true }
+  })
+
+  secureHandle('omp-abort-retry', async (event, projectId, cwd) => {
+    assertSessionId(projectId)
+    if (cwd) assertProjectPath(cwd)
+    await ompManager.abortRetry(projectId, cwd || process.env.USERPROFILE || '')
+    return { success: true }
+  })
+
+  secureHandle('omp-set-fast-mode', async (event, projectId, cwd, enabled) => {
+    assertSessionId(projectId)
+    if (cwd) assertProjectPath(cwd)
+    await ompManager.setFastMode(projectId, cwd || process.env.USERPROFILE || '', Boolean(enabled))
+    return { success: true }
+  })
+
+  secureHandle('omp-get-commands', async (event, projectId, cwd) => {
+    assertSessionId(projectId)
+    if (cwd) assertProjectPath(cwd)
+    const commands = await ompManager.getAvailableCommands(projectId, cwd || process.env.USERPROFILE || '')
+    return { success: true, commands }
+  })
+
   // --- Installer -----------------------------------------------------------
 
   secureHandle('omp-install', async () => {

@@ -689,6 +689,36 @@ export const ompGetState = async (projectId, cwd) => {
   return window.electron.ompGetState(projectId, cwd);
 };
 
+export const ompCompact = async (projectId, cwd, customInstructions) => {
+  if (!isElectron()) return { success: true };
+  return window.electron.ompCompact(projectId, cwd, customInstructions);
+};
+
+export const ompSetAutoCompaction = async (projectId, cwd, enabled) => {
+  if (!isElectron()) return { success: true };
+  return window.electron.ompSetAutoCompaction(projectId, cwd, enabled);
+};
+
+export const ompSetAutoRetry = async (projectId, cwd, enabled) => {
+  if (!isElectron()) return { success: true };
+  return window.electron.ompSetAutoRetry(projectId, cwd, enabled);
+};
+
+export const ompAbortRetry = async (projectId, cwd) => {
+  if (!isElectron()) return { success: true };
+  return window.electron.ompAbortRetry(projectId, cwd);
+};
+
+export const ompSetFastMode = async (projectId, cwd, enabled) => {
+  if (!isElectron()) return { success: true };
+  return window.electron.ompSetFastMode(projectId, cwd, enabled);
+};
+
+export const ompGetCommands = async (projectId, cwd) => {
+  if (!isElectron()) return { success: true, commands: [] };
+  return window.electron.ompGetCommands(projectId, cwd);
+};
+
 export const ompInstall = async () => {
   if (!isElectron()) return { success: false, error: 'Electron not available' };
   return window.electron.ompInstall();

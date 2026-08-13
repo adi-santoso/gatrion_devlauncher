@@ -15,6 +15,12 @@ beforeEach(() => {
   mocks.ompGetModels.mockResolvedValue({ success: true, models: [] })
   mocks.ompSetThinkingLevel.mockResolvedValue({ success: true })
   mocks.ompGetState.mockResolvedValue({ success: true, state: { thinkingLevel: 'off' } })
+  mocks.ompSteer.mockResolvedValue({ success: true })
+  mocks.ompGetCommands.mockResolvedValue({ success: true, commands: [] })
+  mocks.ompCompact.mockResolvedValue({ success: true })
+  mocks.ompSetAutoCompaction.mockResolvedValue({ success: true })
+  mocks.ompSetAutoRetry.mockResolvedValue({ success: true })
+  mocks.ompSetFastMode.mockResolvedValue({ success: true })
 })
 
 const mocks = vi.hoisted(() => ({
@@ -28,6 +34,12 @@ const mocks = vi.hoisted(() => ({
   ompGetModels: vi.fn(),
   ompSetThinkingLevel: vi.fn(),
   ompGetState: vi.fn(),
+  ompSteer: vi.fn(),
+  ompGetCommands: vi.fn(),
+  ompCompact: vi.fn(),
+  ompSetAutoCompaction: vi.fn(),
+  ompSetAutoRetry: vi.fn(),
+  ompSetFastMode: vi.fn(),
 }))
 
 let eventCb = null
@@ -550,5 +562,105 @@ describe('AgentChat', () => {
       global.FileReader = originalFileReader
       global.Image = originalImage
     }
+  })
+
+  it('shows the context usage indicator from get_state', async () => {
+    mocks.onOmpEvent.mockImplementation((callback) => { eventCb = callback; return () => {} })
+    mocks.ompGetMessages.mockResolvedValue({ success: true, messages: [] })
+    mocks.ompGetState.mockResolvedValue({ success: true, state: {
+      thinkingLevel: 'off',
+      contextUsage: { tokens: 1100, contextWindow: 200000, percent: 0.45 },
+      autoCompactionEnabled: true,
+    } })
+
+    render(<Harness />)
+
+    expect(await screen.findByText('45%')).toBeInTheDocument()
+  })
+
+  it('steers the running agent when a message is sent while busy', async () => {
+    mocks.onOmpEvent.mockImplementation((callback) => { eventCb = callback; return () => {} })
+    mocks.ompGetMessages.mockResolvedValue({ success: true, messages: [] })
+    mocks.ompChat.mockResolvedValue({
+      success: true,
+      sessionId: 's13',
+      session: { id: 's13', title: 'Steer', sessionPath: 'C:/sessions/s13.jsonl' },
+    })
+
+    render(<Harness />)
+    const input = screen.getByPlaceholderText('Describe a task, ask a question…')
+    fireEvent.change(input, { target: { value: 'first task' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Send message' }))
+    await screen.findByText('first task')
+    await waitFor(() => expect(mocks.ompChat).toHaveBeenCalled())
+
+    // While busy the input stays enabled and shows the steer hint
+    expect(await screen.findByText(/steer it mid-task/)).toBeInTheDocument()
+
+    fireEvent.change(input, { target: { value: 'no wait, do it differently' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Send message' }))
+
+    await waitFor(() => expect(mocks.ompSteer).toHaveBeenCalledWith('p1', 'C:/demo', 'no wait, do it differently'))
+    expect(screen.getByText('no wait, do it differently')).toBeInTheDocument()
+    // Steering must not start a new chat turn
+    expect(mocks.ompChat).toHaveBeenCalledTimes(1)
+  })
+
+  it('compacts the session context from the options menu', async () => {
+    mocks.onOmpEvent.mockImplementation((callback) => { eventCb = callback; return () => {} })
+    mocks.ompGetMessages.mockResolvedValue({ success: true, messages: [] })
+
+    render(<Harness />)
+    fireEvent.click(screen.getByTitle('Session options'))
+    fireEvent.click(await screen.findByText('Compact context'))
+
+    await waitFor(() => expect(mocks.ompCompact).toHaveBeenCalledWith('p1', 'C:/demo'))
+    expect(await screen.findByText(/Context compacted/)).toBeInTheDocument()
+  })
+
+  it('toggles fast mode from the options menu', async () => {
+    mocks.onOmpEvent.mockImplementation((callback) => { eventCb = callback; return () => {} })
+    mocks.ompGetMessages.mockResolvedValue({ success: true, messages: [] })
+
+    render(<Harness />)
+    fireEvent.click(screen.getByTitle('Session options'))
+    fireEvent.click(await screen.findByText('Fast mode'))
+
+    await waitFor(() => expect(mocks.ompSetFastMode).toHaveBeenCalledWith('p1', 'C:/demo', true))
+  })
+
+  it('shows slash commands while typing / and inserts the selected one', async () => {
+    mocks.onOmpEvent.mockImplementation((callback) => { eventCb = callback; return () => {} })
+    mocks.ompGetMessages.mockResolvedValue({ success: true, messages: [] })
+    mocks.ompGetCommands.mockResolvedValue({ success: true, commands: [
+      { name: 'compact', description: 'Compact the conversation context' },
+      { name: 'clear', description: 'Clear the conversation' },
+    ] })
+
+    render(<Harness />)
+    const input = screen.getByPlaceholderText('Describe a task, ask a question…')
+    fireEvent.change(input, { target: { value: '/com' } })
+
+    expect(await screen.findByText('/compact')).toBeInTheDocument()
+    expect(screen.queryByText('/clear')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByText('/compact'))
+    await waitFor(() => expect(input.value).toBe('/compact '))
+  })
+
+  it('renders the todos panel from todo_reminder events', async () => {
+    mocks.onOmpEvent.mockImplementation((callback) => { eventCb = callback; return () => {} })
+    mocks.ompGetMessages.mockResolvedValue({ success: true, messages: [] })
+
+    render(<Harness />)
+    eventCb({ projectId: 'p1', event: { type: 'todo_reminder', phases: [
+      { id: 'phase-1', name: 'Todos', tasks: [
+        { id: 'task-1', content: 'Map the tool surface', status: 'in_progress' },
+        { id: 'task-2', content: 'Exercise edit operations', status: 'pending' },
+      ] },
+    ] } })
+
+    expect(await screen.findByText('Map the tool surface')).toBeInTheDocument()
+    expect(screen.getByText('Exercise edit operations')).toBeInTheDocument()
   })
 })

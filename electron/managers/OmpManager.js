@@ -441,6 +441,44 @@ class OmpManager extends EventEmitter {
     await this.ensureRpc(projectId, cwd)
     return this._send(projectId, { type: 'set_thinking_level', level })
   }
+
+  /** @param {string} [customInstructions] */
+  async compact(projectId, cwd, customInstructions) {
+    await this.ensureRpc(projectId, cwd)
+    const payload = { type: 'compact' }
+    if (typeof customInstructions === 'string' && customInstructions.trim()) payload.customInstructions = customInstructions.slice(0, 2000)
+    return this._send(projectId, payload)
+  }
+
+  /** @param {boolean} enabled */
+  async setAutoCompaction(projectId, cwd, enabled) {
+    await this.ensureRpc(projectId, cwd)
+    return this._send(projectId, { type: 'set_auto_compaction', enabled: Boolean(enabled) })
+  }
+
+  /** @param {boolean} enabled */
+  async setAutoRetry(projectId, cwd, enabled) {
+    await this.ensureRpc(projectId, cwd)
+    return this._send(projectId, { type: 'set_auto_retry', enabled: Boolean(enabled) })
+  }
+
+  async abortRetry(projectId, cwd) {
+    await this.ensureRpc(projectId, cwd)
+    return this._send(projectId, { type: 'abort_retry' })
+  }
+
+  /** @param {boolean} enabled */
+  async setFastMode(projectId, cwd, enabled) {
+    await this.ensureRpc(projectId, cwd)
+    return this._send(projectId, { type: 'set_fast_mode', enabled: Boolean(enabled) })
+  }
+
+  /** @returns {Promise<Array>} available slash commands */
+  async getAvailableCommands(projectId, cwd) {
+    await this.ensureRpc(projectId, cwd)
+    const data = await this._send(projectId, { type: 'get_available_commands' })
+    return Array.isArray(data) ? data : (data?.commands || [])
+  }
 }
 
 module.exports = OmpManager
