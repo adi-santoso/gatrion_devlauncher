@@ -159,10 +159,9 @@ class OmpManager extends EventEmitter {
   // RPC process management (one per project, lazy spawn, idle kill)
   // =========================================================================
 
-  /** @returns {{projectId: string, binary: string}} */
-  getProjectCwd(projectId) {
-    // The caller passes cwd explicitly; stored per RPC entry.
-    return { projectId, binary: this.binaryPath }
+  /** @returns {string|null} resolved binary path (used for spawning `omp setup`) */
+  getBinaryPath() {
+    return this.binaryPath
   }
 
   ensureRpc(projectId, cwd) {

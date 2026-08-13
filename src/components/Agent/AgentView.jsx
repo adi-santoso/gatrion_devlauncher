@@ -20,6 +20,7 @@ export default function AgentView({ projects, initialProjectId = null, onOpenPro
   const [activeSession, setActiveSession] = useState(null);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState(null);
+  const [renaming, setRenaming] = useState(null); // { projectId, sessionId }
   const loadedRef = useRef({});
 
   const selectedProject = projects.find((project) => project.id === selectedProjectId) || null;
@@ -78,6 +79,22 @@ export default function AgentView({ projects, initialProjectId = null, onOpenPro
     if (activeSession?.id === session.id) setActiveSession(null);
   };
 
+  const handleRenameSession = async (project, session, title) => {
+    const clean = title.trim();
+    if (!clean || clean === session.title) {
+      setRenaming(null);
+      return;
+    }
+    const result = await ipc.ompRenameSession(project.id, session.id, clean);
+    if (result?.success) {
+      setSessionsByProject((prev) => ({
+        ...prev,
+        [project.id]: (prev[project.id] || []).map((item) => (item.id === session.id ? { ...item, title: clean } : item)),
+      }));
+    }
+    setRenaming(null);
+  };
+
   const handleSessionCreated = (sessionId, session) => {
     setActiveSession(session || { id: sessionId });
   };
@@ -100,7 +117,7 @@ export default function AgentView({ projects, initialProjectId = null, onOpenPro
               <span className="text-[10px] text-success bg-success/10 border border-success/20 rounded-full px-2 py-0.5">provider ready</span>
             ) : (
               <button
-                onClick={() => ipc.ompOpenDocs()}
+                onClick={() => onOpenSettings?.()}
                 className="text-[10px] text-warning bg-warning/10 border border-warning/25 rounded-full px-2.5 py-0.5 hover:bg-warning/20 transition-colors"
               >
                 no provider configured — set one up
@@ -170,14 +187,36 @@ export default function AgentView({ projects, initialProjectId = null, onOpenPro
                               : 'border-transparent hover:bg-surface-3'
                           }`}
                         >
-                          <p className="text-[11px] font-medium text-ink truncate">{session.title}</p>
+                          {renaming?.sessionId === session.id ? (
+                            <input
+                              autoFocus
+                              defaultValue={session.title}
+                              onKeyDown={(event) => {
+                                if (event.key === 'Enter') handleRenameSession(project, session, event.target.value);
+                                if (event.key === 'Escape') setRenaming(null);
+                              }}
+                              onBlur={(event) => handleRenameSession(project, session, event.target.value)}
+                              onClick={(event) => event.stopPropagation()}
+                              className="w-full bg-surface-3 border border-accent/40 rounded px-1.5 py-0.5 text-[11px] font-medium text-ink focus:outline-none"
+                            />
+                          ) : (
+                            <p className="text-[11px] font-medium text-ink truncate">{session.title}</p>
+                          )}
                           <p className="text-[9px] text-ink-faint mt-0.5 flex items-center gap-1.5">
                             <span>{formatRelative(session.lastActive)}</span>
                             {session.tokens > 0 && <span className="text-warning">▦ {(session.tokens / 1000).toFixed(1)}k</span>}
                             <button
                               type="button"
+                              onClick={(event) => { event.stopPropagation(); setRenaming({ projectId: project.id, sessionId: session.id }); }}
+                              className="ml-auto text-ink-faint hover:text-accent"
+                              title="Rename session"
+                            >
+                              <Icon name="fileText" size={9} />
+                            </button>
+                            <button
+                              type="button"
                               onClick={(event) => { event.stopPropagation(); handleDeleteSession(project, session); }}
-                              className="ml-auto text-ink-faint hover:text-danger"
+                              className="text-ink-faint hover:text-danger"
                               title="Delete session"
                             >
                               <Icon name="trash" size={9} />
@@ -221,6 +260,7 @@ export default function AgentView({ projects, initialProjectId = null, onOpenPro
               session={activeSession}
               onSessionCreated={handleSessionCreated}
               onBusyChange={setBusy}
+              onOpenSettings={onOpenSettings}
               onTokensUsed={(tokens) => {
                 if (activeSession) {
                   setSessionsByProject((prev) => ({

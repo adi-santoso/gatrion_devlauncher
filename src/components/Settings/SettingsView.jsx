@@ -3,6 +3,7 @@ import ThemeSelector from './ThemeSelector';
 import ToggleSwitch from './ToggleSwitch';
 import TerminalSettings from './TerminalSettings';
 import SystemEnvCard from './SystemEnvCard';
+import OmpSettingsCard from './OmpSettingsCard';
 import Icon from '../Common/Icon';
 import { geocodeCity, checkUpdate, openExternalUrl } from '../../utils/ipcRenderer';
 
@@ -218,6 +219,8 @@ const SettingsView = ({ config, updateConfig, onExportProjects, onImportProjects
       </div>
 
       <SystemEnvCard />
+
+      <OmpSettingsCard />
 
       <div className="bg-surface border border-border rounded-xl shadow-card p-5 space-y-4">
         <p className="font-display font-bold text-sm">Pengingat Sholat</p>

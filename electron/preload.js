@@ -171,6 +171,7 @@ contextBridge.exposeInMainWorld('electron', {
   ompListSessions: (projectId) => ipcRenderer.invoke('omp-list-sessions', projectId),
   ompCreateSession: (projectId, title) => ipcRenderer.invoke('omp-create-session', projectId, title),
   ompDeleteSession: (projectId, sessionId) => ipcRenderer.invoke('omp-delete-session', projectId, sessionId),
+  ompRenameSession: (projectId, sessionId, title) => ipcRenderer.invoke('omp-rename-session', projectId, sessionId, title),
   ompChat: (projectId, cwd, message, options) => ipcRenderer.invoke('omp-chat', projectId, cwd, message, options),
   ompSteer: (projectId, cwd, message) => ipcRenderer.invoke('omp-steer', projectId, cwd, message),
   ompAbort: (projectId, cwd) => ipcRenderer.invoke('omp-abort', projectId, cwd),
@@ -181,6 +182,11 @@ contextBridge.exposeInMainWorld('electron', {
   ompInstallState: () => ipcRenderer.invoke('omp-install-state'),
   ompCheckUpdate: () => ipcRenderer.invoke('omp-check-update'),
   ompOpenDocs: () => ipcRenderer.invoke('omp-open-docs'),
+  ompConfigGet: () => ipcRenderer.invoke('omp-config-get'),
+  ompConfigSaveProvider: (input) => ipcRenderer.invoke('omp-config-save-provider', input),
+  ompConfigDeleteProvider: (name) => ipcRenderer.invoke('omp-config-delete-provider', name),
+  ompConfigSetDefault: (modelRef) => ipcRenderer.invoke('omp-config-set-default', modelRef),
+  ompRunSetup: () => ipcRenderer.invoke('omp-run-setup'),
   onOmpEvent: (callback) => {
     const listener = (event, data) => callback(data)
     ipcRenderer.on('omp-event', listener)

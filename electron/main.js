@@ -7,6 +7,7 @@ const StorageManager = require('./managers/StorageManager')
 const HealthManager = require('./managers/HealthManager')
 const OmpManager = require('./managers/OmpManager')
 const OmpInstaller = require('./managers/OmpInstaller')
+const OmpConfig = require('./managers/OmpConfig')
 const ProjectDetector = require('./managers/ProjectDetector')
 const TrayManager = require('./managers/TrayManager')
 const PreviewManager = require('./managers/PreviewManager')
@@ -29,6 +30,7 @@ let previewManager
 let healthManager
 let ompManager
 let ompInstaller
+let ompConfig
 let isQuitting = false
 
 // Content Security Policy — applied to every response (dev and production).
@@ -163,6 +165,7 @@ async function initialize() {
   ompManager = new OmpManager(app.getPath('userData'))
   await ompManager.init()
   ompInstaller = new OmpInstaller(app.getPath('userData'))
+  ompConfig = new OmpConfig()
 
   // Wait for storage to initialize
   await storageManager.init()
@@ -272,7 +275,7 @@ async function initialize() {
   setupPreviewHandlers(previewManager)
   setupRepoHandlers(storageManager, processManager, mainWindow)
   setupSystemHandlers()
-  setupAgentHandlers(ompManager, ompInstaller, () => mainWindow)
+  setupAgentHandlers(ompManager, ompInstaller, ompConfig, () => mainWindow)
   setupPrayerHandlers(mainWindow)
 
   // Health analytics IPC

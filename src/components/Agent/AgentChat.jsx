@@ -85,6 +85,7 @@ export default function AgentChat({
   onSessionCreated,
   onBusyChange,
   onTokensUsed,
+  onOpenSettings,
 }) {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
@@ -94,6 +95,7 @@ export default function AgentChat({
   const [error, setError] = useState(null);
   const bottomRef = useRef(null);
   const busyRef = useRef(false);
+  const lastEventAtRef = useRef(0);
   const projectRef = useRef(project);
   const sessionRef = useRef(session);
   projectRef.current = project;
@@ -151,6 +153,7 @@ export default function AgentChat({
 
   const handleEvent = (event) => {
     const type = event?.type || '';
+    lastEventAtRef.current = Date.now();
     if (type === 'message_update') {
       const assistantEvent = event.assistantMessageEvent;
       if (assistantEvent?.type === 'text_delta' && typeof assistantEvent.delta === 'string') {
@@ -267,13 +270,16 @@ export default function AgentChat({
       setError(error.message || 'Failed to start conversation');
       setBusyState(false);
     }
-    // Safety: if no agent_end arrives (event shape mismatch), refresh after a delay.
+    // Safety: if no agent_end arrives and no events have streamed for a while
+    // (event shape mismatch or a silent failure), refresh from omp's own
+    // transcript. Only fires when the turn is actually quiet, so long-running
+    // generations with live events are never disturbed.
     setTimeout(() => {
-      if (busyRef.current) {
+      if (busyRef.current && Date.now() - lastEventAtRef.current > 8000) {
         refreshHistory();
         setBusyState(false);
       }
-    }, 20000);
+    }, 25000);
   };
 
   const handleStop = async () => {
@@ -321,11 +327,11 @@ export default function AgentChat({
                   omp is installed but no AI provider is set up. Configure one to start chatting with the coding agent.
                 </p>
                 <button
-                  onClick={() => ipc.ompOpenDocs()}
+                  onClick={() => onOpenSettings?.()}
                   className="mt-3 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-accent hover:bg-accent-hover text-white text-xs font-semibold transition-colors"
                 >
-                  <Icon name="external" size={12} />
-                  Open provider docs
+                  <Icon name="gear" size={12} />
+                  Open Agent settings
                 </button>
               </>
             ) : (

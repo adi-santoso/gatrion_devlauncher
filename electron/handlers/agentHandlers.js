@@ -1,5 +1,6 @@
 const { ipcMain, shell } = require('electron')
 const fs = require('fs')
+const { spawn } = require('child_process')
 const { assertTrustedIpcEvent } = require('../utils/ipcSecurity')
 
 const MAX_MESSAGE = 20000
@@ -15,7 +16,7 @@ function assertSessionId(sessionId) {
   return sessionId
 }
 
-function setupAgentHandlers(ompManager, installer, getWindow) {
+function setupAgentHandlers(ompManager, installer, ompConfig, getWindow) {
   const safeSend = (channel, ...args) => {
     try {
       const win = getWindow()
@@ -58,6 +59,15 @@ function setupAgentHandlers(ompManager, installer, getWindow) {
     assertSessionId(sessionId)
     await ompManager.deleteSession(projectId, sessionId)
     return { success: true }
+  })
+
+  secureHandle('omp-rename-session', async (event, projectId, sessionId, title) => {
+    assertSessionId(projectId)
+    assertSessionId(sessionId)
+    const cleanTitle = String(title || '').trim().slice(0, 80)
+    if (!cleanTitle) throw new Error('Title is required')
+    const session = await ompManager.touchSession(projectId, sessionId, { title: cleanTitle })
+    return { success: true, session }
   })
 
   secureHandle('omp-chat', async (event, projectId, cwd, message, options = {}) => {
@@ -128,6 +138,54 @@ function setupAgentHandlers(ompManager, installer, getWindow) {
   secureHandle('omp-check-update', async () => {
     const release = await installer.fetchLatestRelease()
     return { success: true, latest: release.version, size: release.size }
+  })
+
+  // --- Config (models.yml / config.yml) -----------------------------------
+
+  secureHandle('omp-config-get', async () => {
+    const data = await ompConfig.getConfig()
+    return { success: true, ...data }
+  })
+
+  secureHandle('omp-config-save-provider', async (event, input = {}) => {
+    if (typeof input !== 'object' || input === null) throw new Error('Provider data is required')
+    const name = String(input.name || '').trim()
+    if (name.length > 60) throw new Error('Provider name is too long')
+    const result = await ompConfig.saveProvider(input)
+    if (!result.success) throw new Error(result.error)
+    return { success: true }
+  })
+
+  secureHandle('omp-config-delete-provider', async (event, name) => {
+    const result = await ompConfig.deleteProvider(String(name || '').trim())
+    if (!result.success) throw new Error(result.error)
+    return { success: true }
+  })
+
+  secureHandle('omp-config-set-default', async (event, modelRef) => {
+    const result = await ompConfig.setDefaultModel(String(modelRef || '').trim())
+    if (!result.success) throw new Error(result.error)
+    return { success: true }
+  })
+
+  // Launch `omp setup` (interactive wizard) in its own console window, so the
+  // user manages provider keys themselves without us ever reading them.
+  secureHandle('omp-run-setup', async () => {
+    const binary = ompManager.getBinaryPath()
+    if (!binary) throw new Error('omp is not installed')
+    if (process.platform === 'win32') {
+      const comspec = process.env.ComSpec || 'cmd.exe'
+      const child = spawn(comspec, ['/c', 'start', '', `"${binary}"`, 'setup'], {
+        detached: true,
+        stdio: 'ignore',
+        windowsHide: false,
+      })
+      child.unref()
+    } else {
+      const child = spawn(binary, ['setup'], { detached: true, stdio: 'ignore' })
+      child.unref()
+    }
+    return { success: true }
   })
 
   secureHandle('omp-open-docs', async () => {

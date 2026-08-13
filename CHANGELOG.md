@@ -27,12 +27,20 @@ Format mengikuti [Keep a Changelog](https://keepachangelog.com/id-ID/1.1.0/), da
 - **Health & analytics** — tab Analytics per project: crash history (waktu, exit code), run history + uptime, total runs/uptime rata-rata, trend CPU/memory harian (bar chart), clear history; data dipersist ke `userData/health.json` (HealthManager, flush berkala).
 - **Update checker** — cek rilis terbaru GitHub saat Settings dibuka; banner "versi baru tersedia" dengan tombol buka release.
 - **JSDoc typecheck** — `npm run typecheck` (tsc, `tsconfig.check.json`) untuk file yang memakai `// @ts-check`; `npm run test:coverage` (vitest v8) tersedia.
+- **AI Agent (oh-my-pi)** — menu **Agent** baru di sidebar (icon `message-square` konsisten dengan menu lain, bukan emoji AI) dengan session yang **dikelompokkan per project**:
+  - **OmpManager** (main process) — RPC client NDJSON tanpa dependency: satu proses `omp --mode rpc` per project (spawn lazy, cwd = folder project), korelasi request/response by id, fast-fail cerdas saat provider belum dikonfigurasi, idle kill 15 menit (context aman karena session omp di disk), session registry di `userData/agent-sessions.json`.
+  - **Chat streaming real-time** — dikalibrasi terhadap event nyata omp 17.x: `assistantMessageEvent.delta` untuk teks, `tool_execution_*` untuk tool cards (running → done), `agent_end.messages` sebagai transkrip akurat (fallback `get_messages`).
+  - **Transisi dua arah** — tombol "Agent · N sesi" di header Project Detail → menu Agent (group project terseleksi); CTA "↗ buka project" di group session → kembali ke Project Detail.
+  - **Session management** — new/rename/delete session per project, token usage per session, status bar omp (installed / provider ready / perlu setup).
+  - **OmpInstaller** — install terkelola binary omp (±150 MB) ke `userData/omp/` tanpa admin rights: progress stream (bytes/percent) + verifikasi SHA256 dari `SHA256SUMS.txt`; deteksi otomatis omp sistem (PATH, `%LOCALAPPDATA%`, `~/.bun`).
+  - **Settings → AI Agent (oh-my-pi)** — kartu lengkap: status/versi + tombol install dengan progress bar, **Run omp setup** (wizard provider dibuka di console sendiri), check update, daftar provider (dengan tombol hapus), **default model picker**, dan **form custom provider** (nama, base URL, API type, API key, daftar model, toggle auth header / disable strict tools) yang di-merge ke `~/.omp/agent/models.yml` dengan **backup otomatis** (js-yaml).
 
 ### Changed
 
 - **Layout Settings** — kartu settings di-center (`mx-auto`) dan memakai grid 2 kolom di layar lebar (`lg:grid-cols-2`) sehingga rapi di fullscreen.
 - **Tab Git & Scripts** — skeleton loading saat inisialisasi.
 - **Icon tombol** — perombakan seragam: ikon SVG menggantikan karakter teks (termasuk tombol ± di TerminalSettings).
+- **Agent status bar** — tombol "no provider configured" dan empty-state chat kini mengarah ke Settings (kartu AI Agent) alih-alih membuka docs.
 
 ### Fixed
 
@@ -43,9 +51,10 @@ Format mengikuti [Keep a Changelog](https://keepachangelog.com/id-ID/1.1.0/), da
 - **Max log lines bisa 0** — input di-clamp minimal 100 agar tidak diam-diam membuang log.
 - **Sidebar collapsed** — tombol Add project tidak lagi tenggelam di dark mode.
 - **Topbar light mode** — tidak lagi hitam saat tema terang.
+- **AgentChat safety timeout** — fallback refresh 20 detik dulu bisa menimpa generasi yang masih berjalan (menandai busy=false + refresh history di tengah streaming); sekarang hanya aktif jika tidak ada event RPC sama sekali selama 8 detik.
 
 ### Test
 
-- `npm test` kini 11 script (bertambah `test-prayer-times` dengan golden values).
-- Vitest: 97 test (widget PrayerWidget, GitTab, dan lainnya).
+- `npm test` kini 14 script (bertambah `test-omp-manager` untuk session registry + normalizeMessages, dan `test-omp-config` untuk read/write/merge/delete models.yml & config.yml dengan backup).
+- Vitest: 98 test (widget PrayerWidget, GitTab, dan lainnya).
 - E2E Playwright: 3 smoke test lulus.

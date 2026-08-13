@@ -64,7 +64,11 @@ Legend:
 | Health & analytics | Done | Tab Analytics: crash history, run history + uptime, total runs/uptime, trend CPU/memory harian, clear history (persist ke userData/health.json) |
 | System environment check | Done | Kartu di Settings: deteksi 17 tools (node, npm, git, php, composer, python, go, java, docker, mysql, redis, omp, dll) + versi + re-check |
 | Update checker | Done | Cek rilis terbaru GitHub saat Settings dibuka + banner "versi baru tersedia" |
-| JSDoc typecheck | Partial | `npm run typecheck` (tsc) untuk file baru bertanda `// @ts-check` (systemHandlers, HealthManager, prayerTimes); perluasan bertahap |
+| JSDoc typecheck | Partial | `npm run typecheck` (tsc) untuk file baru bertanda `// @ts-check` (systemHandlers, HealthManager, prayerTimes, OmpManager, OmpInstaller, OmpConfig); perluasan bertahap |
+| AI Agent (oh-my-pi) | Done | Menu Agent di sidebar (icon message-square): session dikelompokkan per project, chat streaming real-time (event RPC omp asli: `assistantMessageEvent.delta`, `tool_execution_*`, `agent_end.messages`), tool cards, stop, new/rename/delete session, token usage, transisi dua arah dengan Project Detail |
+| OmpManager (RPC client) | Done | Spawn `omp --mode rpc` per project (lazy, cwd = folder project), NDJSON framing + korelasi by id, fast-fail tanpa provider, idle kill 15 menit, session registry di userData/agent-sessions.json |
+| OmpInstaller | Done | Download binary omp (±150 MB) ke userData/omp tanpa admin rights, progress stream + verifikasi SHA256; deteksi omp sistem (PATH, LOCALAPPDATA, ~/.bun) |
+| Settings AI Agent | Done | Kartu di Settings: status/versi, install + progress bar, Run omp setup (wizard console sendiri), check update, daftar provider + hapus, default model picker, form custom provider (baseUrl/api type/apiKey/models) → merge ke ~/.omp/agent/models.yml dengan backup otomatis (js-yaml) |
 | Script runner | Done | Tab Scripts: jalankan script `package.json` + health check dependency |
 | Animation system | Done | AnimatedModal (entrance + exit), toast slide, sliding tab indicator, theme transition, press feedback, skeleton shimmer |
 | Pengingat Sholat | Done | Widget sidebar/topbar (bisa diatur/dinonaktifkan), countdown live per detik, algoritma PrayTimes offline (Kemenag RI + 5 metode), geocode kota, panel floating expand, notifikasi + suara |
@@ -80,7 +84,7 @@ Legend:
 | Log search & filter | Done | Search + highlight + filter type (stdout/stderr/error/warn/system) di LogsTab dan Terminal workspace |
 | Shell per project | Done | Terminal workspace membuka shell interaktif di folder project terpilih (cwd) |
 | Dashboard group by tag | Done | Toggle "Group by tag" di dashboard (termasuk grup untagged) |
-| Settings | Done | Theme, sidebar, tray, start-on-boot, autoStartProjects, notifications, terminal, pengingat sholat, **system environment check**, **update checker banner** — semua berfungsi |
+| Settings | Done | Theme, sidebar, tray, start-on-boot, autoStartProjects, notifications, terminal, pengingat sholat, **system environment check**, **update checker banner**, **AI Agent (omp)** — semua berfungsi |
 
 ## Desktop Integration
 

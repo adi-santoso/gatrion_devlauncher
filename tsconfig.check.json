@@ -17,6 +17,7 @@
     "electron/managers/HealthManager.js",
     "electron/managers/OmpManager.js",
     "electron/managers/OmpInstaller.js",
+    "electron/managers/OmpConfig.js",
     "src/utils/prayerTimes.js"
   ]
 }

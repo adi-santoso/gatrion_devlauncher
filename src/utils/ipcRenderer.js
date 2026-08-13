@@ -644,6 +644,11 @@ export const ompDeleteSession = async (projectId, sessionId) => {
   return window.electron.ompDeleteSession(projectId, sessionId);
 };
 
+export const ompRenameSession = async (projectId, sessionId, title) => {
+  if (!isElectron()) return { success: true };
+  return window.electron.ompRenameSession(projectId, sessionId, title);
+};
+
 export const ompChat = async (projectId, cwd, message, options = {}) => {
   if (!isElectron()) return { success: false, error: 'Electron not available' };
   return window.electron.ompChat(projectId, cwd, message, options);
@@ -692,6 +697,31 @@ export const ompCheckUpdate = async () => {
 export const ompOpenDocs = async () => {
   if (!isElectron()) return { success: true };
   return window.electron.ompOpenDocs();
+};
+
+export const ompConfigGet = async () => {
+  if (!isElectron()) return { success: true, providers: [], defaultModel: null, configPath: null };
+  return window.electron.ompConfigGet();
+};
+
+export const ompConfigSaveProvider = async (input) => {
+  if (!isElectron()) return { success: false, error: 'Electron not available' };
+  return window.electron.ompConfigSaveProvider(input);
+};
+
+export const ompConfigDeleteProvider = async (name) => {
+  if (!isElectron()) return { success: true };
+  return window.electron.ompConfigDeleteProvider(name);
+};
+
+export const ompConfigSetDefault = async (modelRef) => {
+  if (!isElectron()) return { success: true };
+  return window.electron.ompConfigSetDefault(modelRef);
+};
+
+export const ompRunSetup = async () => {
+  if (!isElectron()) return { success: false, error: 'Electron not available' };
+  return window.electron.ompRunSetup();
 };
 
 export const onOmpEvent = (callback) => {

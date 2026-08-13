@@ -376,6 +376,87 @@ Dipancarkan setelah add, update, dan delete.
 
 API tersedia, tetapi tidak direkomendasikan untuk komponen baru karena dapat menghapus listener milik consumer lain. Gunakan cleanup hasil subscription.
 
+## AI Agent (oh-my-pi) API
+
+Semua channel agent di bawah divalidasi `assertTrustedIpcEvent` dan menolak input tidak valid. Backend = `OmpManager` (RPC) + `OmpInstaller` + `OmpConfig`.
+
+### `ompStatus()`
+
+Channel: `omp-status`
+
+```js
+{ success: true, installed: true, version: 'v17.2.15', binaryPath: 'C:/.../omp.exe', configured: true }
+```
+
+### `ompListSessions(projectId)` / `ompCreateSession(projectId, title)` / `ompRenameSession(projectId, sessionId, title)` / `ompDeleteSession(projectId, sessionId)`
+
+Channel: `omp-list-sessions` / `omp-create-session` / `omp-rename-session` / `omp-delete-session`
+
+Metadata session disimpan di `userData/agent-sessions.json` (title, createdAt, lastActive, tokens, sessionPath) — isi percakapan tetap di file session omp.
+
+```js
+{ success: true, sessions: [{ id, title, createdAt, lastActive, tokens, sessionPath }] }
+```
+
+### `ompChat(projectId, cwd, message, { sessionId, sessionPath })`
+
+Channel: `omp-chat`
+
+Spawn RPC per project (lazy, cwd = folder project), buat/switch session, lalu kirim `prompt`. `message` dibatasi 20.000 karakter.
+
+```js
+{ success: true, sessionId: 's...', session }
+{ success: false, error: 'omp is not installed' | 'No models available…' }
+```
+
+### `ompSteer(projectId, cwd, message)` / `ompAbort(projectId, cwd)`
+
+Channel: `omp-steer` / `omp-abort`
+
+Interupsi/arahkan turn yang sedang berjalan.
+
+### `ompGetMessages(projectId, cwd, { sessionPath })`
+
+Channel: `omp-get-messages`
+
+Normalisasi defensif riwayat percakapan (string atau array block `{ type: 'text' }`).
+
+```js
+{ success: true, messages: [{ role: 'user' | 'assistant', content: '...' }] }
+```
+
+### `ompGetModels(projectId, cwd)` / `ompSetModel(projectId, cwd, provider, modelId)`
+
+Channel: `omp-get-models` / `omp-set-model`
+
+`omp-set-model` mengubah model aktif sesi (RPC `set_model`).
+
+### Installer
+
+| Method | Channel | Keterangan |
+|---|---|---|
+| `ompInstall()` | `omp-install` | Download binary ke `userData/omp/omp.exe` + verifikasi SHA256 |
+| `ompInstallState()` | `omp-install-state` | Status saat ini (`idle/downloading/installed/error` + percent) |
+| `ompCheckUpdate()` | `omp-check-update` | `{ latest, size }` dari GitHub release terbaru |
+| `ompRunSetup()` | `omp-run-setup` | Buka wizard `omp setup` di console sendiri (detached) |
+| `ompOpenDocs()` | `omp-open-docs` | Buka halaman docs provider |
+
+### Konfigurasi (models.yml / config.yml)
+
+| Method | Channel | Keterangan |
+|---|---|---|
+| `ompConfigGet()` | `omp-config-get` | `{ providers, defaultModel, configPath }` — key provider di-mask |
+| `ompConfigSaveProvider(input)` | `omp-config-save-provider` | Merge provider ke `~/.omp/agent/models.yml` (backup `.bak-<ts>` otomatis); validasi nama/baseUrl |
+| `ompConfigDeleteProvider(name)` | `omp-config-delete-provider` | Hapus provider dari models.yml (dengan backup) |
+| `ompConfigSetDefault(modelRef)` | `omp-config-set-default` | Tulis `modelRoles.default` di config.yml (format `provider/model`) |
+
+### Events
+
+| Event | Channel | Bentuk |
+|---|---|---|
+| `onOmpEvent(callback)` | `omp-event` | `callback({ projectId, event })` — event RPC omp: `message_update` (`assistantMessageEvent.delta`), `tool_execution_start/update/end`, `agent_start`, `agent_end` (berisi `messages` transkrip), `rpc_error`/`rpc_exit` |
+| `onOmpInstallProgress(callback)` | `omp-install-progress` | `callback(state)` — `{ status, phase, received, total, percent, error, version }` |
+
 ## Browser Fallback
 
 `src/utils/ipcRenderer.js` menyediakan mock untuk browser mode. Batasannya:
