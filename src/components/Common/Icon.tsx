@@ -1,5 +1,3 @@
-import React from 'react';
-
 /**
  * Shared feather-style icon set (stroke 2px, currentColor) so action buttons
  * across the UI render consistently instead of mixing emoji.
@@ -51,9 +49,18 @@ const PATHS = {
   star: <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />,
   bot: <><rect x="4" y="8" width="16" height="11" rx="3" /><path d="M12 8V5" /><circle cx="9" cy="13" r="1" /><circle cx="15" cy="13" r="1" /><path d="M9 17h6" /></>,
   bell: <><path d="M18 8a6 6 0 10-12 0c0 7-3 9-3 9h18s-3-2-3-9" /><path d="M13.73 21a2 2 0 01-3.46 0" /></>,
-};
+}
 
-export default function Icon({ name, size = 14, className = '', strokeWidth = 2 }) {
+export type IconName = keyof typeof PATHS
+
+interface IconProps {
+  name: IconName
+  size?: number
+  className?: string
+  strokeWidth?: number
+}
+
+export default function Icon({ name, size = 14, className = '', strokeWidth = 2 }: IconProps) {
   return (
     <svg
       width={size}
@@ -69,5 +76,5 @@ export default function Icon({ name, size = 14, className = '', strokeWidth = 2 
     >
       {PATHS[name]}
     </svg>
-  );
+  )
 }

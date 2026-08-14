@@ -1,10 +1,25 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { useElectronConfig } from '../../hooks/useElectronConfig';
-import usePrayerTimes, { playPrayerChime } from '../../hooks/usePrayerTimes';
-import { showNotification } from '../../utils/ipcRenderer';
-import { PrayerPanel } from './PrayerWidget';
-import Sidebar from './Sidebar';
-import TopBar from './TopBar';
+import { useState, useEffect, useCallback, useRef } from 'react'
+import type { ReactNode } from 'react'
+import { useElectronConfig } from '../../hooks/useElectronConfig'
+import usePrayerTimes, { playPrayerChime } from '../../hooks/usePrayerTimes'
+import type { PrayerTimePayload } from '../../hooks/usePrayerTimes'
+import { showNotification } from '../../utils/ipcRenderer'
+import { PrayerPanel } from './PrayerWidget'
+import Sidebar from './Sidebar'
+import type { SidebarProject } from './Sidebar'
+import TopBar from './TopBar'
+
+export interface MainLayoutProps {
+  children: ReactNode
+  currentView?: string
+  onViewChange?: (view: string, project?: unknown) => void
+  onOpenModal?: (modal: string) => void
+  projects?: SidebarProject[]
+  runningProjects?: SidebarProject[]
+  onProjectSelect?: (project: unknown) => void
+  hideTopBar?: boolean
+  onDropFolder?: (path: string) => void
+}
 
 const MainLayout = ({
   children,
@@ -16,68 +31,68 @@ const MainLayout = ({
   onProjectSelect,
   hideTopBar = false,
   onDropFolder
-}) => {
-  const { config, loading, updateSingle } = useElectronConfig();
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(!config?.sidebarExpanded);
+}: MainLayoutProps) => {
+  const { config, loading, updateSingle } = useElectronConfig()
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(!config?.sidebarExpanded)
 
   // ---- Prayer reminder widget ----
-  const prayerConfig = config?.prayer;
-  const prayerEnabled = !!(prayerConfig && prayerConfig.showIn !== 'off');
+  const prayerConfig = config?.prayer
+  const prayerEnabled = !!(prayerConfig && prayerConfig.showIn !== 'off')
   // `showIn` controls where the widget appears: sidebar, topbar, both, or off.
-  const prayerShowIn = prayerConfig?.showIn ?? 'both';
-  const prayerInSidebar = prayerEnabled && (prayerShowIn === 'sidebar' || prayerShowIn === 'both');
-  const prayerInTopbar = prayerEnabled && (prayerShowIn === 'topbar' || prayerShowIn === 'both');
-  const prayerConfigRef = useRef(prayerConfig);
-  prayerConfigRef.current = prayerConfig;
-  const [prayerPanelOpen, setPrayerPanelOpen] = useState(false);
+  const prayerShowIn = prayerConfig?.showIn ?? 'both'
+  const prayerInSidebar = prayerEnabled && (prayerShowIn === 'sidebar' || prayerShowIn === 'both')
+  const prayerInTopbar = prayerEnabled && (prayerShowIn === 'topbar' || prayerShowIn === 'both')
+  const prayerConfigRef = useRef(prayerConfig)
+  prayerConfigRef.current = prayerConfig
+  const [prayerPanelOpen, setPrayerPanelOpen] = useState(false)
 
-  const handlePrayerTime = useCallback((prayer) => {
-    const cfg = prayerConfigRef.current;
-    if (!cfg) return;
+  const handlePrayerTime = useCallback((prayer: PrayerTimePayload) => {
+    const cfg = prayerConfigRef.current
+    if (!cfg) return
     if (cfg.notify) {
       showNotification({
         title: `Waktu ${prayer.label}`,
         body: `Sudah masuk waktu ${prayer.label} (${prayer.formatted}) — ${cfg.city || 'Jakarta'}.`,
         silent: !cfg.sound,
-      });
+      })
     }
-    if (cfg.sound) playPrayerChime();
-  }, []);
+    if (cfg.sound) playPrayerChime()
+  }, [])
 
-  const prayerData = usePrayerTimes(prayerEnabled ? prayerConfig : null, handlePrayerTime);
+  const prayerData = usePrayerTimes(prayerEnabled ? prayerConfig : null, handlePrayerTime)
 
   useEffect(() => {
     if (!loading && config?.sidebarExpanded !== undefined) {
-      setSidebarCollapsed(!config.sidebarExpanded);
+      setSidebarCollapsed(!config.sidebarExpanded)
     }
-  }, [config?.sidebarExpanded, loading]);
+  }, [config?.sidebarExpanded, loading])
 
   const handleToggleCollapse = () => {
-    const newCollapsed = !sidebarCollapsed;
-    setSidebarCollapsed(newCollapsed);
-    updateSingle('sidebarExpanded', !newCollapsed);
-  };
+    const newCollapsed = !sidebarCollapsed
+    setSidebarCollapsed(newCollapsed)
+    updateSingle('sidebarExpanded', !newCollapsed)
+  }
 
   const handleCommandPalette = () => {
-    onOpenModal?.('command');
-  };
+    onOpenModal?.('command')
+  }
 
   const handleAddProject = () => {
-    onOpenModal?.('project');
-  };
+    onOpenModal?.('project')
+  }
 
   useEffect(() => {
     if (!onDropFolder) return
-    const handleDragOver = (e) => {
+    const handleDragOver = (e: DragEvent) => {
       if (e.dataTransfer?.types?.includes('Files')) {
         e.preventDefault()
         e.dataTransfer.dropEffect = 'copy'
       }
     }
-    const handleDrop = (e) => {
+    const handleDrop = (e: DragEvent) => {
       if (!e.dataTransfer?.files?.length) return
       const file = e.dataTransfer.files[0]
-      const folderPath = file?.path
+      const folderPath = (file as File & { path?: string }).path
       if (folderPath) {
         e.preventDefault()
         onDropFolder(folderPath)
@@ -91,22 +106,22 @@ const MainLayout = ({
     }
   }, [onDropFolder])
 
-  const getTitle = () => {
+  const getTitle = (): string => {
     switch (currentView) {
       case 'dashboard':
-        return 'Workspace';
+        return 'Workspace'
       case 'terminals':
-        return 'Terminals';
+        return 'Terminals'
       case 'projects':
-        return 'Projects';
+        return 'Projects'
       case 'settings':
-        return 'Settings';
+        return 'Settings'
       case 'project-detail':
-        return 'Project Detail';
+        return 'Project Detail'
       default:
-        return 'Workspace';
+        return 'Workspace'
     }
-  };
+  }
 
   return (
     <div className="h-screen flex flex-col bg-base text-ink font-sans antialiased">
@@ -152,7 +167,7 @@ const MainLayout = ({
         </div>
       </div>
     </div>
-  );
-};
+  )
+}
 
-export default MainLayout;
+export default MainLayout

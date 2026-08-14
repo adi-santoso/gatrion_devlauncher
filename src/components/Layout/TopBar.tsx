@@ -1,7 +1,17 @@
-import React from 'react';
-import { PrayerPill } from './PrayerWidget';
+import { PrayerPill } from './PrayerWidget'
+import type { PrayerConfig } from './PrayerWidget'
+import type { PrayerTimesResult } from '../../hooks/usePrayerTimes'
 
-const TopBar = ({ title = 'Workspace', subtitle = 'Gatrion', onCommandPalette, prayer = null, prayerData = null, onPrayerExpand }) => (
+interface TopBarProps {
+  title?: string
+  subtitle?: string
+  onCommandPalette?: () => void
+  prayer?: PrayerConfig | null
+  prayerData?: PrayerTimesResult | null
+  onPrayerExpand?: () => void
+}
+
+const TopBar = ({ title = 'Workspace', subtitle = 'Gatrion', onCommandPalette, prayer = null, prayerData = null, onPrayerExpand }: TopBarProps) => (
   <header className="h-[50px] shrink-0 border-b border-border flex items-center gap-2.5 px-5 bg-base/80 backdrop-blur">
     <div className="text-[11px] text-ink-faint">
       <span>{subtitle}</span>
@@ -10,7 +20,7 @@ const TopBar = ({ title = 'Workspace', subtitle = 'Gatrion', onCommandPalette, p
     </div>
     <div className="flex-1" />
     {prayer && prayerData && onPrayerExpand && (
-      <PrayerPill data={prayerData} config={prayer} onExpand={onPrayerExpand} />
+      <PrayerPill data={prayerData} onExpand={onPrayerExpand} />
     )}
     <button
       type="button"
@@ -35,6 +45,6 @@ const TopBar = ({ title = 'Workspace', subtitle = 'Gatrion', onCommandPalette, p
       <kbd className="ml-3 rounded border border-border bg-surface-2 px-1.5 py-0.5 font-mono text-[8px]">Ctrl K</kbd>
     </button>
   </header>
-);
+)
 
-export default TopBar;
+export default TopBar

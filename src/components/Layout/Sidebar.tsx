@@ -1,8 +1,17 @@
-import React from 'react';
-import { PrayerCard, PrayerIcon } from './PrayerWidget';
-import { useI18n } from '../../i18n/I18nContext';
+import { useState } from 'react'
+import { PrayerCard, PrayerIcon } from './PrayerWidget'
+import type { PrayerConfig } from './PrayerWidget'
+import type { PrayerTimesResult } from '../../hooks/usePrayerTimes'
+import { useI18n } from '../../i18n/I18nContext'
+import type { ReactNode } from 'react'
 
-const navItems = [
+interface NavItem {
+  id: string
+  labelKey: string
+  icon: ReactNode
+}
+
+const navItems: NavItem[] = [
   {
     id: 'dashboard',
     labelKey: 'nav.dashboard',
@@ -28,10 +37,27 @@ const navItems = [
     labelKey: 'nav.settings',
     icon: <><circle cx="12" cy="12" r="3" /><path d="M19 12a7 7 0 01-.1 1l2 1.5-2 3.5-2.5-1A7 7 0 0115 18l-.4 3h-4l-.4-3a7 7 0 01-1.6-1L6 18l-2-3.5L6 13a7 7 0 010-2L4 9.5 6 6l2.6 1A7 7 0 0110 6l.4-3h4l.4 3a7 7 0 011.6 1L19 6l2 3.5-2 1.5a7 7 0 010 1z" /></>
   }
-];
+]
 
-const ProjectGroup = ({ title, projects, collapsed, status, onProjectSelect }) => {
-  if (projects.length === 0) return null;
+export interface SidebarProject {
+  id?: string
+  name: string
+  type?: string
+  status?: string
+  exitCode?: number | null
+  onClick?: () => void
+}
+
+interface ProjectGroupProps {
+  title: string
+  projects: SidebarProject[]
+  collapsed: boolean
+  status: string
+  onProjectSelect?: (project: SidebarProject) => void
+}
+
+const ProjectGroup = ({ title, projects, collapsed, status, onProjectSelect }: ProjectGroupProps) => {
+  if (projects.length === 0) return null
 
   return (
     <section className="mt-4">
@@ -57,8 +83,23 @@ const ProjectGroup = ({ title, projects, collapsed, status, onProjectSelect }) =
         ))}
       </div>
     </section>
-  );
-};
+  )
+}
+
+interface SidebarProps {
+  collapsed?: boolean
+  onToggleCollapse?: (collapsed: boolean) => void
+  activeView?: string
+  onViewChange?: (view: string, project?: unknown) => void
+  projects?: SidebarProject[]
+  runningProjects?: SidebarProject[]
+  onProjectSelect?: (project: SidebarProject) => void
+  onAddProject?: () => void
+  defaultCollapsed?: boolean
+  prayer?: PrayerConfig | null
+  prayerData?: PrayerTimesResult | null
+  onPrayerExpand?: () => void
+}
 
 const Sidebar = ({
   collapsed,
@@ -73,25 +114,25 @@ const Sidebar = ({
   prayer = null,
   prayerData = null,
   onPrayerExpand
-}) => {
-  const [isCollapsed, setIsCollapsed] = React.useState(
+}: SidebarProps) => {
+  const [isCollapsed, setIsCollapsed] = useState(
     collapsed !== undefined ? collapsed : defaultCollapsed
-  );
+  )
 
-  const { t } = useI18n();
+  const { t } = useI18n()
 
-  const sourceProjects = projects.length > 0 ? projects : runningProjects;
-  const running = sourceProjects.filter((project) => !project.status || project.status.toLowerCase() === 'running');
-  const errors = projects.filter((project) => project.status?.toLowerCase() === 'error');
+  const sourceProjects = projects.length > 0 ? projects : runningProjects
+  const running = sourceProjects.filter((project) => !project.status || project.status.toLowerCase() === 'running')
+  const errors = projects.filter((project) => project.status?.toLowerCase() === 'error')
 
   const toggleCollapse = () => {
-    const newState = !isCollapsed;
-    setIsCollapsed(newState);
-    onToggleCollapse?.(newState);
-  };
+    const newState = !isCollapsed
+    setIsCollapsed(newState)
+    onToggleCollapse?.(newState)
+  }
 
   return (
-    <aside 
+    <aside
       className={`${isCollapsed ? 'w-[68px]' : 'w-[238px]'} shrink-0 bg-surface border-r border-border flex flex-col transition-[width] duration-200`}
       role="navigation"
       aria-label={t('nav.main')}
@@ -100,15 +141,15 @@ const Sidebar = ({
         <div className="w-[34px] h-[34px] rounded-[10px] bg-accent flex items-center justify-center shadow-glow shrink-0" role="img" aria-label="Gatrion logo">
           <svg width="15" height="15" viewBox="0 0 24 24"><path d="M5 3l14 9-14 9z" fill="white" /></svg>
         </div>
-      {!collapsed && <div className="min-w-0"><strong className="block font-display font-extrabold text-sm">Gatrion</strong><span className="block text-[8px] font-mono uppercase tracking-[0.12em] text-ink-faint">Local workspace</span></div>}
+        {!collapsed && <div className="min-w-0"><strong className="block font-display font-extrabold text-sm">Gatrion</strong><span className="block text-[8px] font-mono uppercase tracking-[0.12em] text-ink-faint">Local workspace</span></div>}
       </div>
 
       <div className="flex-1 overflow-y-auto px-3 py-3.5 flex flex-col">
         <nav className="space-y-1">
           {navItems.map((item) => {
-            const label = t(item.labelKey);
-            const isActive = activeView === item.id;
-            const count = item.id === 'projects' ? projects.length : item.id === 'terminals' ? running.length : null;
+            const label = t(item.labelKey)
+            const isActive = activeView === item.id
+            const count = item.id === 'projects' ? projects.length : item.id === 'terminals' ? running.length : null
             return (
               <button
                 key={item.id}
@@ -123,7 +164,7 @@ const Sidebar = ({
                 {!isCollapsed && <span>{label}</span>}
                 {!isCollapsed && count !== null && <span className="ml-auto text-[9px] font-mono text-ink-faint">{count}</span>}
               </button>
-            );
+            )
           })}
         </nav>
 
@@ -145,8 +186,8 @@ const Sidebar = ({
           <span className="text-base leading-none">+</span>{!isCollapsed && t('nav.addProject')}
         </button>
         {onToggleCollapse && (
-          <button 
-            type="button" 
+          <button
+            type="button"
             onClick={toggleCollapse}
             aria-label={isCollapsed ? t('nav.expandSidebar') : t('nav.collapseSidebar')}
             className="w-full text-[10px] text-ink-faint hover:text-ink transition-colors"
@@ -156,7 +197,7 @@ const Sidebar = ({
         )}
       </div>
     </aside>
-  );
-};
+  )
+}
 
-export default Sidebar;
+export default Sidebar

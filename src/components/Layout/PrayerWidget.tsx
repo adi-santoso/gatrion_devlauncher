@@ -1,56 +1,69 @@
-import React, { useEffect, useState } from 'react';
-import { PRAYER_LIST } from '../../hooks/usePrayerTimes';
+import { useEffect, useState } from 'react'
+import type { ReactNode } from 'react'
+import { PRAYER_LIST } from '../../hooks/usePrayerTimes'
+import type { PrayerCountdown, PrayerItem, PrayerTimesResult } from '../../hooks/usePrayerTimes'
+import type { AppConfig } from '../../types/shared'
 
-const Crescent = ({ size = 15, className = '' }) => (
+export type PrayerConfig = AppConfig['prayer']
+
+const Crescent = ({ size = 15, className = '' }: { size?: number; className?: string }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" className={className} aria-hidden="true">
     <path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z" />
   </svg>
-);
+)
 
 /** "1j 12m 34d" → "12m 34d" → "34d" → "Sekarang!" */
-export const formatCountdown = (cd) => {
-  if (!cd) return '';
-  if (cd.totalSeconds <= 0) return 'Sekarang!';
-  if (cd.hours > 0) return `${cd.hours}j ${cd.minutes}m ${cd.seconds}d`;
-  if (cd.minutes > 0) return `${cd.minutes}m ${cd.seconds}d`;
-  return `${cd.seconds}d`;
-};
+export const formatCountdown = (cd: PrayerCountdown | null | undefined): string => {
+  if (!cd) return ''
+  if (cd.totalSeconds <= 0) return 'Sekarang!'
+  if (cd.hours > 0) return `${cd.hours}j ${cd.minutes}m ${cd.seconds}d`
+  if (cd.minutes > 0) return `${cd.minutes}m ${cd.seconds}d`
+  return `${cd.seconds}d`
+}
 
 /** "01:12:34" — tabular digits so the clock does not jitter. */
-const formatClock = (date) => {
-  if (!date) return '--:--:--';
-  const pad = (n) => String(n).padStart(2, '0');
-  return `${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
-};
+const formatClock = (date: Date): string => {
+  if (!date) return '--:--:--'
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`
+}
 
 /** "Jumat, 14 Agu 2026" — Indonesian Gregorian date. */
-const formatGregorian = (date) => {
-  if (!date) return '';
-  return date.toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'short', year: 'numeric' });
-};
+const formatGregorian = (date: Date): string => {
+  if (!date) return ''
+  return date.toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'short', year: 'numeric' })
+}
 
 /** "1 Shafar 1448 H" — Hijri date via the built-in Umm al-Qura calendar. */
 const hijriFormatter = new Intl.DateTimeFormat('id-ID-u-ca-islamic-umalqura', {
   day: 'numeric',
   month: 'long',
   year: 'numeric',
-});
-export const formatHijri = (date) => {
-  if (!date) return '';
-  return hijriFormatter.format(date);
-};
+})
+export const formatHijri = (date: Date): string => {
+  if (!date) return ''
+  return hijriFormatter.format(date)
+}
 
-const methodName = (config) => {
-  const names = {
+const methodName = (config: PrayerConfig | null | undefined): string => {
+  const names: Record<string, string> = {
     KEMENAG: 'Kemenag RI',
     MWL: 'MWL',
     ISNA: 'ISNA',
     Egypt: 'Egypt',
     Makkah: 'Makkah',
     Karachi: 'Karachi',
-  };
-  return names[config?.method] || 'Kemenag RI';
-};
+  }
+  return names[config?.method ?? ''] || 'Kemenag RI'
+}
+
+interface RotatingSlideProps {
+  slides: ReactNode[]
+  interval?: number
+  duration?: number
+  heightClass?: string
+  className?: string
+}
 
 /**
  * RotatingSlide — stacks `slides` vertically in a fixed-height window and
@@ -58,14 +71,14 @@ const methodName = (config) => {
  * must share the same height (the container height), which keeps the widget
  * from jumping as content changes.
  */
-function RotatingSlide({ slides, interval = 10000, duration = 450, heightClass = '', className = '' }) {
-  const [index, setIndex] = useState(0);
+function RotatingSlide({ slides, interval = 10000, duration = 450, heightClass = '', className = '' }: RotatingSlideProps) {
+  const [index, setIndex] = useState(0)
 
   useEffect(() => {
-    if (slides.length < 2) return undefined;
-    const timer = setInterval(() => setIndex((i) => (i + 1) % slides.length), interval);
-    return () => clearInterval(timer);
-  }, [slides.length, interval]);
+    if (slides.length < 2) return undefined
+    const timer = setInterval(() => setIndex((i) => (i + 1) % slides.length), interval)
+    return () => clearInterval(timer)
+  }, [slides.length, interval])
 
   return (
     <div className={`relative overflow-hidden ${heightClass} ${className}`}>
@@ -79,30 +92,30 @@ function RotatingSlide({ slides, interval = 10000, duration = 450, heightClass =
         ))}
       </div>
     </div>
-  );
+  )
 }
 
 /** Compact countdown badge — neutral (theme-safe) or danger when the prayer is near. */
-const countBadge = (data) => {
+const countBadge = (data: PrayerTimesResult) => {
   const cls = data.near
     ? 'text-danger bg-danger/10 border-danger/25'
-    : 'text-ink-soft bg-surface-3 border-border';
+    : 'text-ink-soft bg-surface-3 border-border'
   return (
     <span className={`inline-flex items-center font-mono text-[10px] px-2 py-0.5 rounded-full border ${cls}`}>
       {formatCountdown(data.countdown)}
     </span>
-  );
-};
+  )
+}
 
 /* ------------------------------------------------------------------ */
 /* Sidebar card (expanded) — two rotating slides: clock/dates, then   */
 /* the incoming prayer + countdown. Replaced by an "ongoing" slide    */
 /* while a prayer is within its 10-minute window.                     */
 /* ------------------------------------------------------------------ */
-export function PrayerCard({ data, config, onExpand }) {
-  if (!data) return null;
-  const nextIdx = data.today.findIndex((p) => p.key === data.next.key);
-  const inProgress = data.inProgress;
+export function PrayerCard({ data, config, onExpand }: { data: PrayerTimesResult | null; config?: PrayerConfig | null; onExpand?: () => void }) {
+  if (!data) return null
+  const nextIdx = data.today.findIndex((p) => p.key === data.next.key)
+  const inProgress = data.inProgress
 
   const clockSlide = (
     <div className="h-full flex flex-col justify-center gap-0.5">
@@ -113,7 +126,7 @@ export function PrayerCard({ data, config, onExpand }) {
       <span className="text-[9px] text-ink-faint truncate">{formatGregorian(data.now)}</span>
       <span className="text-[9px] text-ink-soft font-medium truncate">{formatHijri(data.now)}</span>
     </div>
-  );
+  )
 
   const incomingSlide = (
     <div className="h-full flex flex-col justify-center gap-1.5">
@@ -123,7 +136,7 @@ export function PrayerCard({ data, config, onExpand }) {
       </span>
       <span className="self-start">{countBadge(data)}</span>
     </div>
-  );
+  )
 
   const ongoingSlide = inProgress ? (
     <div className="h-full flex flex-col justify-center gap-1">
@@ -133,9 +146,9 @@ export function PrayerCard({ data, config, onExpand }) {
       </span>
       <span className="font-display text-sm font-extrabold text-ink">Sholat {inProgress.label}</span>
     </div>
-  ) : null;
+  ) : null
 
-  const slides = inProgress ? [clockSlide, ongoingSlide] : [clockSlide, incomingSlide];
+  const slides = inProgress ? [clockSlide, ongoingSlide] : [clockSlide, incomingSlide]
 
   return (
     <button
@@ -165,13 +178,13 @@ export function PrayerCard({ data, config, onExpand }) {
         ))}
       </span>
     </button>
-  );
+  )
 }
 
 /* ------------------------------------------------------------------ */
 /* Sidebar icon (collapsed)                                            */
 /* ------------------------------------------------------------------ */
-export function PrayerIcon({ data, onExpand }) {
+export function PrayerIcon({ data, onExpand }: { data: PrayerTimesResult | null; onExpand?: () => void }) {
   return (
     <button
       type="button"
@@ -182,15 +195,15 @@ export function PrayerIcon({ data, onExpand }) {
       <Crescent size={15} />
       {data?.near && <span className="absolute top-1 right-3.5 w-1.5 h-1.5 rounded-full bg-warning pulse-dot" />}
     </button>
-  );
+  )
 }
 
 /* ------------------------------------------------------------------ */
 /* Topbar pill — two rotating slides: clock, then incoming prayer.     */
 /* ------------------------------------------------------------------ */
-export function PrayerPill({ data, onExpand }) {
-  if (!data) return null;
-  const inProgress = data.inProgress;
+export function PrayerPill({ data, onExpand }: { data: PrayerTimesResult | null; onExpand?: () => void }) {
+  if (!data) return null
+  const inProgress = data.inProgress
 
   const clockSlide = (
     <span className="h-full w-full flex items-center justify-center gap-1.5">
@@ -200,7 +213,7 @@ export function PrayerPill({ data, onExpand }) {
       <span className="font-mono tabular-nums font-semibold text-ink">{formatClock(data.now)}</span>
       <span className="w-1 h-1 rounded-full bg-accent pulse-dot" />
     </span>
-  );
+  )
 
   const incomingSlide = (
     <span className="h-full flex items-center gap-1.5">
@@ -211,7 +224,7 @@ export function PrayerPill({ data, onExpand }) {
       <span className="font-mono text-ink-soft">{data.next.formatted}</span>
       {countBadge(data)}
     </span>
-  );
+  )
 
   const ongoingSlide = inProgress ? (
     <span className="h-full w-full flex items-center justify-center gap-1.5 text-danger">
@@ -219,9 +232,9 @@ export function PrayerPill({ data, onExpand }) {
       <span className="w-1 h-1 rounded-full bg-danger pulse-dot" />
       <span className="font-bold">Sedang {inProgress.label}</span>
     </span>
-  ) : null;
+  ) : null
 
-  const slides = inProgress ? [clockSlide, ongoingSlide] : [clockSlide, incomingSlide];
+  const slides = inProgress ? [clockSlide, ongoingSlide] : [clockSlide, incomingSlide]
 
   return (
     <button
@@ -232,25 +245,25 @@ export function PrayerPill({ data, onExpand }) {
     >
       <RotatingSlide slides={slides} heightClass="h-7" />
     </button>
-  );
+  )
 }
 
 /* ------------------------------------------------------------------ */
 /* Floating expanded panel — static (no rotation); everything at once  */
 /* ------------------------------------------------------------------ */
-export function PrayerPanel({ open, data, config, onClose }) {
+export function PrayerPanel({ open, data, config, onClose }: { open: boolean; data: PrayerTimesResult | null; config?: PrayerConfig | null; onClose: () => void }) {
   useEffect(() => {
-    if (!open) return;
-    const onKey = (e) => {
-      if (e.key === 'Escape') onClose();
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [open, onClose]);
+    if (!open) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [open, onClose])
 
-  if (!open || !data) return null;
-  const nextIdx = data.today.findIndex((p) => p.key === data.next.key);
-  const inProgress = data.inProgress;
+  if (!open || !data) return null
+  const nextIdx = data.today.findIndex((p) => p.key === data.next.key)
+  const inProgress = data.inProgress
 
   return (
     <div className="fixed inset-0 z-[90] flex items-center justify-center">
@@ -299,10 +312,10 @@ export function PrayerPanel({ open, data, config, onClose }) {
         </div>
 
         <div className="px-6 py-2.5">
-          {data.today.map((p, i) => {
-            const isNext = i === nextIdx;
-            const isOngoing = inProgress?.key === p.key;
-            const dimBefore = inProgress ? nextIdx - 1 : nextIdx;
+          {data.today.map((p: PrayerItem, i: number) => {
+            const isNext = i === nextIdx
+            const isOngoing = inProgress?.key === p.key
+            const dimBefore = inProgress ? nextIdx - 1 : nextIdx
             return (
               <div key={p.key} className={`flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-xs ${isOngoing ? 'bg-danger/10' : isNext && !inProgress ? 'bg-accent/10' : i < dimBefore ? 'opacity-45' : ''}`}>
                 <span className={`w-1.5 h-1.5 rounded-full ${isOngoing ? 'bg-danger shadow-[0_0_6px_var(--color-danger)]' : isNext && !inProgress ? 'bg-accent shadow-[0_0_6px_var(--color-accent)]' : 'bg-surface-3'}`} />
@@ -311,7 +324,7 @@ export function PrayerPanel({ open, data, config, onClose }) {
                 {isOngoing && <span className="text-[8px] font-extrabold tracking-wider text-danger">● BERLANGSUNG</span>}
                 {!inProgress && isNext && <span className="text-[8px] font-extrabold tracking-wider text-accent">● SEKARANG</span>}
               </div>
-            );
+            )
           })}
         </div>
 
@@ -321,7 +334,7 @@ export function PrayerPanel({ open, data, config, onClose }) {
         </div>
       </div>
     </div>
-  );
+  )
 }
 
-export { PRAYER_LIST, Crescent };
+export { PRAYER_LIST, Crescent }

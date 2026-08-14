@@ -1,5 +1,12 @@
-export default function Input({ type = 'text', placeholder, value, onChange, className = '', icon, ...props }) {
-  const baseClasses = 'bg-surface-3 border border-border rounded-lg px-3 py-2 text-sm text-ink placeholder:text-ink-faint focus:outline-none focus:ring-2 focus:ring-accent/40 focus:border-accent';
+import type { InputHTMLAttributes, ReactNode } from 'react'
+
+export interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
+  icon?: ReactNode
+  className?: string
+}
+
+export default function Input({ type = 'text', placeholder, value, onChange, className = '', icon, ...props }: InputProps) {
+  const baseClasses = 'bg-surface-3 border border-border rounded-lg px-3 py-2 text-sm text-ink placeholder:text-ink-faint focus:outline-none focus:ring-2 focus:ring-accent/40 focus:border-accent'
 
   if (icon) {
     return (
@@ -14,7 +21,7 @@ export default function Input({ type = 'text', placeholder, value, onChange, cla
           {...props}
         />
       </div>
-    );
+    )
   }
 
   return (
@@ -26,5 +33,5 @@ export default function Input({ type = 'text', placeholder, value, onChange, cla
       className={`${baseClasses} ${className}`}
       {...props}
     />
-  );
+  )
 }

@@ -1,7 +1,16 @@
-import React from 'react'
+export type StatusKey = 'RUNNING' | 'STARTING' | 'STOPPING' | 'STOPPED' | 'ERROR'
 
-function StatusIndicator({ status = 'stopped', size = 'md', showLabel = false, className = '' }) {
-  const statusConfig = {
+export type StatusSize = 'sm' | 'md' | 'lg'
+
+interface StatusIndicatorProps {
+  status?: string
+  size?: StatusSize
+  showLabel?: boolean
+  className?: string
+}
+
+function StatusIndicator({ status = 'stopped', size = 'md', showLabel = false, className = '' }: StatusIndicatorProps) {
+  const statusConfig: Record<StatusKey, { color: string; label: string; ring: string; animate: boolean }> = {
     RUNNING: {
       color: 'bg-green-500',
       label: 'Running',
@@ -34,13 +43,13 @@ function StatusIndicator({ status = 'stopped', size = 'md', showLabel = false, c
     },
   }
 
-  const sizes = {
+  const sizes: Record<StatusSize, string> = {
     sm: 'w-2 h-2',
     md: 'w-3 h-3',
     lg: 'w-4 h-4',
   }
 
-  const config = statusConfig[status] || statusConfig.STOPPED
+  const config = statusConfig[status.toUpperCase() as StatusKey] || statusConfig.STOPPED
   const sizeClass = sizes[size]
 
   return (
