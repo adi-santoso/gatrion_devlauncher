@@ -6,6 +6,7 @@ Daftar shortcut yang benar-benar terimplementasi di source. `Ctrl` berlaku untuk
 
 | Shortcut | Action |
 |----------|--------|
+| `Ctrl/Cmd + Shift + Space` | Panggil/fokus jendela aplikasi (OS global, dari aplikasi lain mana pun) |
 | `Ctrl/Cmd + K` | Buka command palette |
 | `Ctrl/Cmd + N` | Tambah project baru (buka ProjectModal) |
 | `Ctrl + Shift + S` | Start semua project |

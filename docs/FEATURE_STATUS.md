@@ -114,7 +114,7 @@ Legend:
 | Windows installer | Partial | Ikon aplikasi (motif G, purple gradient) digenerate via `npm run icons` → `build/icon.ico/png/tray`; build NSIS/portable belum dijalankan penuh |
 | Clean machine validation | Pending | Belum dibuktikan |
 | Code signing/update | Pending | Belum dirancang |
-| CI pipeline | Done | GitHub Actions Windows: lint, `npm test`, vitest, `vite build`, Playwright e2e |
+| CI pipeline | Done | GitHub Actions matrix 3 OS (windows/macos/ubuntu): lint, `npm test` (vitest), `vite build`, Playwright e2e (Linux via xvfb) |
 | CSP | Done | `Content-Security-Policy` di main process; dev mengizinkan inline script Vite |
 
 ## Known Wiring Gaps
