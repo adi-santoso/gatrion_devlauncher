@@ -37,6 +37,7 @@ const MOCK_PROJECTS = [
 
 const MOCK_CONFIG = {
   theme: 'dark',
+  language: 'en',
   sidebarExpanded: true,
   startOnBoot: false,
   minimizeToTray: true,

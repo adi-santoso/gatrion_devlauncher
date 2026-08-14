@@ -1,0 +1,294 @@
+/**
+ * UI translations — English (default) and Indonesian.
+ * Keys must stay in sync between languages (enforced by a test).
+ * `{var}` placeholders are substituted by `t(key, { var })`.
+ */
+export const translations = {
+  en: {
+    // Navigation
+    'nav.dashboard': 'Workspace',
+    'nav.projects': 'Projects',
+    'nav.terminals': 'Terminals',
+    'nav.agent': 'Agent',
+    'nav.settings': 'Settings',
+    'nav.addProject': 'Add project',
+    'nav.expandSidebar': 'Expand sidebar',
+    'nav.collapseSidebar': 'Collapse sidebar',
+    'nav.main': 'Main navigation sidebar',
+    'nav.runningNow': 'Running now',
+    'nav.needsAttention': 'Needs attention',
+
+    // Settings — language
+    'settings.language.title': 'Language',
+    'settings.language.desc': 'Interface language for the app. Restart not needed — settings apply instantly.',
+    'settings.language.en': 'English',
+    'settings.language.id': 'Bahasa Indonesia',
+
+    // Settings — update banner
+    'settings.update.available': 'A new version is available',
+    'settings.update.ready': 'Update {version} is ready to install',
+    'settings.update.availableLine': 'Gatrion {version} is available',
+    'settings.update.failed': 'Update failed: {error}',
+    'settings.update.downloadingProgress': 'Downloading… {percent}%',
+    'settings.update.restartToApply': 'Restart the app to apply the new version.',
+    'settings.update.runningOld': 'You are running {current}. Grab the new release to get the latest fixes and features.',
+    'settings.update.download': 'Download',
+    'settings.update.downloading': 'Downloading…',
+    'settings.update.downloadInstall': 'Download & install',
+    'settings.update.viewRelease': 'View release',
+    'settings.update.install': 'Restart & install',
+    'settings.update.upToDate': 'You are on the latest version.',
+
+    // Settings — general
+    'settings.theme.title': 'Appearance',
+    'settings.theme.desc': 'Choose how Gatrion looks.',
+    'settings.theme.dark': 'Dark',
+    'settings.theme.light': 'Light',
+    'settings.theme.system': 'System',
+    'settings.general.title': 'General',
+    'settings.general.sidebarExpanded': 'Sidebar expanded by default',
+    'settings.notifications.title': 'Notifications',
+    'settings.notifications.onStart': 'Notify when a project starts',
+    'settings.notifications.onError': 'Notify when a project crashes',
+    'settings.notifications.sound': 'Play sound with notifications',
+    'settings.autoRestart.maxRetries': 'Max retries',
+    'settings.autoRestart.delay': 'Initial delay (ms)',
+    'settings.startOnBoot': 'Start on system boot',
+    'settings.minimizeToTray': 'Minimize to system tray',
+    'settings.autoStartProjects': 'Auto-start projects on launch',
+    'settings.autoRestart.title': 'Auto-restart',
+    'settings.autoRestart.enabled': 'Restart crashed projects automatically',
+    'settings.autoRestart.desc': 'Exponential backoff is applied between retries. The counter resets when a project becomes running.',
+    'settings.preview.title': 'App Preview',
+    'settings.preview.keepAlive': 'Keep preview alive when switching pages',
+    'settings.preview.desc': 'Keeps the embedded app preview mounted (hidden) while you browse other tabs or projects, so open modals, forms, and scroll position are preserved when you come back. Turn off to free memory — the preview reloads each time you return.',
+
+    // Settings — data
+    'settings.data.title': 'Data',
+    'settings.data.desc': 'Projects are stored locally in your app data folder. Export a portable JSON backup, or import one on another machine.',
+    'settings.data.exportProjects': 'Export projects…',
+    'settings.data.importProjects': 'Import projects…',
+    'settings.data.diagnostics.desc': 'Facing an issue? Export a diagnostics bundle (versions, config, health, redacted projects, and the main log) to share with support. Secrets stay on this machine.',
+    'settings.data.exportDiagnostics': 'Export diagnostics…',
+
+    // Settings — backup
+    'settings.backup.title': 'Workspace Backup',
+    'settings.backup.desc': 'Export your whole workspace — projects (including .env secrets), config, presets and health analytics — into one portable file. Optionally encrypt it with a password. Importing merges the backup without overwriting anything you already have, so it is safe to restore on a fresh machine.',
+    'settings.backup.passwordPlaceholder': 'Optional password to encrypt / decrypt',
+    'settings.backup.export': 'Export backup…',
+    'settings.backup.import': 'Import backup…',
+    'settings.backup.working': 'Working…',
+    'settings.backup.exported': 'Backup saved with {count} project(s){encrypted}.',
+    'settings.backup.encrypted': ' — encrypted with your password',
+    'settings.backup.imported': 'Imported {added} project(s){skipped}{config}{presets}.',
+    'settings.backup.skipped': ', skipped {count}',
+    'settings.backup.configUpdated': ', updated config',
+    'settings.backup.presetsAdded': ', added {count} preset(s)',
+
+    // Settings — main log
+    'settings.log.title': 'Main Log',
+    'settings.log.refresh': 'Refresh',
+    'settings.log.loading': 'Loading…',
+    'settings.log.desc': 'Last 500 lines of the main process log (rotated automatically at 10 MB, keeping the newest 1000 lines). Useful when diagnosing crashes or reporting issues.',
+    'settings.log.empty': 'No log entries yet.',
+
+    // Settings — crash reports
+    'settings.crash.title': 'Crash Reports',
+    'settings.crash.refresh': 'Refresh',
+    'settings.crash.loading': 'Loading…',
+    'settings.crash.hasDumps': '{count} crash dump(s) collected locally by the app. They are never uploaded — open the folder to inspect or share them with support.',
+    'settings.crash.noDumps': 'No crash dumps yet. Minidumps are written here if the app crashes.',
+    'settings.crash.openFolder': 'Open folder',
+    'settings.crash.clearAll': 'Clear all',
+
+    // Settings — prayer
+    'settings.prayer.title': 'Prayer Reminders',
+    'settings.prayer.showIn': 'Display in',
+    'settings.prayer.showIn.both': 'Sidebar & top bar',
+    'settings.prayer.showIn.sidebar': 'Sidebar only',
+    'settings.prayer.showIn.topbar': 'Top bar only',
+    'settings.prayer.showIn.off': 'Off',
+    'settings.prayer.method': 'Calculation method',
+    'settings.prayer.city': 'City',
+    'settings.prayer.searchCity': 'Search city…',
+    'settings.prayer.search': 'Search',
+    'settings.prayer.searching': 'Searching…',
+    'settings.prayer.notFound': 'City not found. Try another name or enter coordinates manually.',
+    'settings.prayer.manualCoords': 'Manual coordinates',
+    'settings.prayer.latitude': 'Latitude',
+    'settings.prayer.longitude': 'Longitude',
+    'settings.prayer.notify': 'Notify me',
+    'settings.prayer.sound': 'Play sound',
+    'settings.prayer.adjustments': 'Adjustments (minutes)',
+    'settings.prayer.location': 'City & location',
+    'settings.prayer.calculationNote': 'Prayer times are calculated locally (offline) using the PrayTimes algorithm. Click the prayer card in the sidebar/top bar for the full schedule.',
+    'settings.saveAuto': 'Changes save automatically.',
+
+    // Settings — terminal
+    'settings.terminal.fontSize': 'Font size',
+    'settings.terminal.maxLines': 'Max lines',
+    'settings.terminal.autoScroll': 'Auto-scroll on output',
+
+    // Settings — system env
+    'settings.env.title': 'System Environment',
+    'settings.env.desc': 'Tools detected on this machine.',
+    'settings.env.refresh': 'Re-check',
+    'settings.env.checking': 'Checking…',
+    'settings.env.found': 'Found',
+    'settings.env.missing': 'Not found',
+
+    // Settings — agent (omp)
+    'settings.agent.title': 'AI Agent (oh-my-pi)',
+    'settings.agent.status.installed': 'Installed',
+    'settings.agent.status.missing': 'Not installed',
+    'settings.agent.configure': 'Configure providers',
+    'settings.agent.checkUpdate': 'Check for update',
+    'settings.agent.notifyOnFinish': 'Notify when a turn finishes',
+    'settings.agent.sound': 'Play sound',
+  },
+  id: {
+    // Navigation
+    'nav.dashboard': 'Workspace',
+    'nav.projects': 'Proyek',
+    'nav.terminals': 'Terminal',
+    'nav.agent': 'Agen',
+    'nav.settings': 'Pengaturan',
+    'nav.addProject': 'Tambah proyek',
+    'nav.expandSidebar': 'Perluas sidebar',
+    'nav.collapseSidebar': 'Ciutkan sidebar',
+    'nav.main': 'Navigasi utama sidebar',
+    'nav.runningNow': 'Sedang berjalan',
+    'nav.needsAttention': 'Perlu perhatian',
+
+    // Settings — language
+    'settings.language.title': 'Bahasa',
+    'settings.language.desc': 'Bahasa antarmuka aplikasi. Tidak perlu restart — pengaturan langsung berlaku.',
+    'settings.language.en': 'English',
+    'settings.language.id': 'Bahasa Indonesia',
+
+    // Settings — update banner
+    'settings.update.available': 'Versi baru tersedia',
+    'settings.update.ready': 'Pembaruan {version} siap dipasang',
+    'settings.update.availableLine': 'Gatrion {version} tersedia',
+    'settings.update.failed': 'Pembaruan gagal: {error}',
+    'settings.update.downloadingProgress': 'Mengunduh… {percent}%',
+    'settings.update.restartToApply': 'Restart aplikasi untuk menerapkan versi baru.',
+    'settings.update.runningOld': 'Anda menjalankan {current}. Ambil rilis baru untuk mendapatkan perbaikan dan fitur terbaru.',
+    'settings.update.download': 'Unduh',
+    'settings.update.downloading': 'Mengunduh…',
+    'settings.update.downloadInstall': 'Unduh & pasang',
+    'settings.update.viewRelease': 'Lihat rilis',
+    'settings.update.install': 'Restart & pasang',
+    'settings.update.upToDate': 'Anda sudah di versi terbaru.',
+
+    // Settings — general
+    'settings.theme.title': 'Tampilan',
+    'settings.theme.desc': 'Pilih tampilan Gatrion.',
+    'settings.theme.dark': 'Gelap',
+    'settings.theme.light': 'Terang',
+    'settings.theme.system': 'Sistem',
+    'settings.general.title': 'Umum',
+    'settings.general.sidebarExpanded': 'Sidebar terbuka secara default',
+    'settings.notifications.title': 'Notifikasi',
+    'settings.notifications.onStart': 'Notifikasi saat proyek dimulai',
+    'settings.notifications.onError': 'Notifikasi saat proyek crash',
+    'settings.notifications.sound': 'Putar suara untuk notifikasi',
+    'settings.autoRestart.maxRetries': 'Maks. percobaan',
+    'settings.autoRestart.delay': 'Tunda awal (ms)',
+    'settings.startOnBoot': 'Mulai saat komputer dinyalakan',
+    'settings.minimizeToTray': 'Minimalkan ke system tray',
+    'settings.autoStartProjects': 'Jalankan proyek otomatis saat aplikasi dibuka',
+    'settings.autoRestart.title': 'Restart otomatis',
+    'settings.autoRestart.enabled': 'Restart proyek yang crash secara otomatis',
+    'settings.autoRestart.desc': 'Backoff eksponensial diterapkan antar percobaan. Penghitung direset saat proyek berstatus running.',
+    'settings.preview.title': 'Pratinjau Aplikasi',
+    'settings.preview.keepAlive': 'Pertahankan pratinjau saat berpindah halaman',
+    'settings.preview.desc': 'Menjaga pratinjau aplikasi tetap terpasang (tersembunyi) saat Anda membuka tab atau proyek lain, sehingga modal, form, dan posisi scroll tetap terjaga saat kembali. Matikan untuk menghemat memori — pratinjau akan dimuat ulang setiap kali kembali.',
+
+    // Settings — data
+    'settings.data.title': 'Data',
+    'settings.data.desc': 'Proyek disimpan lokal di folder data aplikasi. Ekspor cadangan JSON portabel, atau impor di mesin lain.',
+    'settings.data.exportProjects': 'Ekspor proyek…',
+    'settings.data.importProjects': 'Impor proyek…',
+    'settings.data.diagnostics.desc': 'Mengalami kendala? Ekspor bundle diagnostik (versi, konfigurasi, health, proyek ter-redaksi, dan log utama) untuk dibagikan ke dukungan. Rahasia tetap di mesin ini.',
+    'settings.data.exportDiagnostics': 'Ekspor diagnostik…',
+
+    // Settings — backup
+    'settings.backup.title': 'Cadangan Workspace',
+    'settings.backup.desc': 'Ekspor seluruh workspace — proyek (termasuk rahasia .env), konfigurasi, preset, dan analitik health — ke satu file portabel. Bisa dienkripsi dengan kata sandi. Impor menggabungkan cadangan tanpa menimpa data yang sudah ada, jadi aman untuk pemulihan di mesin baru.',
+    'settings.backup.passwordPlaceholder': 'Kata sandi opsional untuk enkripsi / dekripsi',
+    'settings.backup.export': 'Ekspor cadangan…',
+    'settings.backup.import': 'Impor cadangan…',
+    'settings.backup.working': 'Memproses…',
+    'settings.backup.exported': 'Cadangan disimpan dengan {count} proyek{encrypted}.',
+    'settings.backup.encrypted': ' — dienkripsi dengan kata sandi Anda',
+    'settings.backup.imported': 'Diimpor {added} proyek{skipped}{config}{presets}.',
+    'settings.backup.skipped': ', dilewati {count}',
+    'settings.backup.configUpdated': ', konfigurasi diperbarui',
+    'settings.backup.presetsAdded': ', ditambah {count} preset',
+
+    // Settings — main log
+    'settings.log.title': 'Log Utama',
+    'settings.log.refresh': 'Muat ulang',
+    'settings.log.loading': 'Memuat…',
+    'settings.log.desc': '500 baris terakhir log proses utama (dirotasi otomatis di 10 MB, menyimpan 1000 baris terbaru). Berguna saat mendiagnosis crash atau melaporkan masalah.',
+    'settings.log.empty': 'Belum ada entri log.',
+
+    // Settings — crash reports
+    'settings.crash.title': 'Laporan Crash',
+    'settings.crash.refresh': 'Muat ulang',
+    'settings.crash.loading': 'Memuat…',
+    'settings.crash.hasDumps': '{count} crash dump dikumpulkan lokal oleh aplikasi. Tidak pernah diunggah — buka folder untuk memeriksa atau membagikannya ke dukungan.',
+    'settings.crash.noDumps': 'Belum ada crash dump. Minidump ditulis di sini jika aplikasi crash.',
+    'settings.crash.openFolder': 'Buka folder',
+    'settings.crash.clearAll': 'Hapus semua',
+
+    // Settings — prayer
+    'settings.prayer.title': 'Pengingat Sholat',
+    'settings.prayer.showIn': 'Tampilkan di',
+    'settings.prayer.showIn.both': 'Sidebar & bar atas',
+    'settings.prayer.showIn.sidebar': 'Sidebar saja',
+    'settings.prayer.showIn.topbar': 'Bar atas saja',
+    'settings.prayer.showIn.off': 'Mati',
+    'settings.prayer.method': 'Metode perhitungan',
+    'settings.prayer.city': 'Kota',
+    'settings.prayer.searchCity': 'Cari kota…',
+    'settings.prayer.search': 'Cari',
+    'settings.prayer.searching': 'Mencari…',
+    'settings.prayer.notFound': 'Kota tidak ditemukan. Coba nama lain atau isi koordinat manual.',
+    'settings.prayer.manualCoords': 'Koordinat manual',
+    'settings.prayer.latitude': 'Lintang',
+    'settings.prayer.longitude': 'Bujur',
+    'settings.prayer.notify': 'Beri notifikasi',
+    'settings.prayer.sound': 'Putar suara',
+    'settings.prayer.adjustments': 'Penyesuaian (menit)',
+    'settings.prayer.location': 'Kota & lokasi',
+    'settings.prayer.calculationNote': 'Waktu sholat dihitung lokal (offline) menggunakan algoritma PrayTimes. Klik kartu sholat di sidebar/topbar untuk jadwal lengkap.',
+    'settings.saveAuto': 'Perubahan tersimpan otomatis.',
+
+    // Settings — terminal
+    'settings.terminal.fontSize': 'Ukuran huruf',
+    'settings.terminal.maxLines': 'Maks. baris',
+    'settings.terminal.autoScroll': 'Auto-scroll saat ada output',
+
+    // Settings — system env
+    'settings.env.title': 'Lingkungan Sistem',
+    'settings.env.desc': 'Perangkat yang terdeteksi di mesin ini.',
+    'settings.env.refresh': 'Periksa ulang',
+    'settings.env.checking': 'Memeriksa…',
+    'settings.env.found': 'Ditemukan',
+    'settings.env.missing': 'Tidak ditemukan',
+
+    // Settings — agent (omp)
+    'settings.agent.title': 'Agen AI (oh-my-pi)',
+    'settings.agent.status.installed': 'Terpasang',
+    'settings.agent.status.missing': 'Belum terpasang',
+    'settings.agent.configure': 'Konfigurasi provider',
+    'settings.agent.checkUpdate': 'Periksa pembaruan',
+    'settings.agent.notifyOnFinish': 'Notifikasi saat satu giliran selesai',
+    'settings.agent.sound': 'Putar suara',
+  },
+};
+
+/** All supported language codes. */
+export const LANGUAGES = ['en', 'id'];

@@ -67,23 +67,31 @@ test.describe('project lifecycle', () => {
     await first.window.locator('#themeLightCard').click();
     // The light card is now selected (accent border)
     await expect(first.window.locator('#themeLightCard')).toHaveClass(/border-accent/, { timeout: 10000 });
+
+    // --- Switch the interface language to Indonesian ---
+    await first.window.getByRole('button', { name: /bahasa indonesia/i }).click();
+    // The settings card title and the sidebar nav switch language immediately.
+    await expect(first.window.getByText(/^Proyek$/i).first()).toBeVisible({ timeout: 10000 });
+
     // Config is written to disk
     await expect.poll(() => {
       try {
         const raw = fs.readFileSync(path.join(userData, 'config.json'), 'utf8');
-        return JSON.parse(raw).theme;
+        return JSON.parse(raw);
       } catch {
         return null;
       }
-    }).toBe('light');
+    }).toMatchObject({ theme: 'light', language: 'id' });
     await first.app.close();
 
-    // --- Second launch: the light theme is still selected ---
+    // --- Second launch: theme + language persist across restart ---
     const second = await launchApp({ DEVLAUNCHER_USER_DATA: userData });
-    const settingsNav2 = second.window.getByRole('button', { name: /settings/i })
-      .or(second.window.getByText(/^settings$/i));
+    const settingsNav2 = second.window.getByRole('button', { name: /pengaturan|settings/i })
+      .or(second.window.getByText(/^pengaturan|^settings$/i));
     await settingsNav2.first().click();
     await expect(second.window.locator('#themeLightCard')).toHaveClass(/border-accent/, { timeout: 10000 });
+    // The sidebar is still in Indonesian after restart.
+    await expect(second.window.getByText(/^Proyek$/i).first()).toBeVisible({ timeout: 10000 });
     await second.app.close();
   });
 });

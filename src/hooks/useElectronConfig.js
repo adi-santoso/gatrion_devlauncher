@@ -8,6 +8,7 @@ import * as ipc from '../utils/ipcRenderer';
 export const useElectronConfig = () => {
   const [config, setConfig] = useState({
     theme: 'dark',
+    language: 'en',
     sidebarExpanded: true,
     startOnBoot: false,
     minimizeToTray: true,

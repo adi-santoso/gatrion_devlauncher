@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef, lazy, Suspense } from 'react';
 import { MainLayout } from './components/Layout';
 import { LoadingSkeleton } from './components/States';
+import { I18nProvider } from './i18n/I18nContext';
 
 // Views are code-split per route so the initial renderer bundle stays small.
 // Each chunk loads on first navigation and is cached by the browser afterwards.
@@ -703,7 +704,7 @@ function App() {
   };
 
   return (
-    <>
+    <I18nProvider language={config.language}>
       {projectsLoading ? (
         <LoadingSkeleton />
       ) : (
@@ -941,7 +942,7 @@ function App() {
       <ToastContainer toasts={toasts} onDismiss={dismissToast} />
     </>
       )}
-    </>
+    </I18nProvider>
   );
 }
 

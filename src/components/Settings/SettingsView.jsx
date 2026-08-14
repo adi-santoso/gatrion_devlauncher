@@ -5,6 +5,7 @@ import TerminalSettings from './TerminalSettings';
 import SystemEnvCard from './SystemEnvCard';
 import OmpSettingsCard from './OmpSettingsCard';
 import Icon from '../Common/Icon';
+import { useI18n } from '../../i18n/I18nContext';
 import { geocodeCity, checkUpdate, openExternalUrl, downloadUpdate, installUpdate, onUpdateState, getMainLog, getCrashDumps, clearCrashDumps, openCrashDumpsFolder, backupExport, backupImport } from '../../utils/ipcRenderer';
 
 /**
@@ -12,6 +13,7 @@ import { geocodeCity, checkUpdate, openExternalUrl, downloadUpdate, installUpdat
  * Lines 821-873 from template
  */
 const SettingsView = ({ config, updateConfig, onExportProjects, onImportProjects, onExportDiagnostics }) => {
+  const { t } = useI18n();
 
   const handleChange = async (key, value) => {
     await updateConfig({ [key]: value });
@@ -33,7 +35,7 @@ const SettingsView = ({ config, updateConfig, onExportProjects, onImportProjects
     if (res.success && res.results?.length) {
       setGeoResults(res.results);
     } else {
-      setGeoError(res.error || 'Kota tidak ditemukan. Coba nama lain atau isi koordinat manual.');
+      setGeoError(res.error || t('settings.prayer.notFound'));
     }
   };
 
@@ -133,7 +135,10 @@ const SettingsView = ({ config, updateConfig, onExportProjects, onImportProjects
     if (result.success) {
       setBackupResult({
         type: 'ok',
-        text: `Backup saved with ${result.projectCount} project(s)${result.encrypted ? ' — encrypted with your password' : ''}.`,
+        text: t('settings.backup.exported', {
+          count: result.projectCount || 0,
+          encrypted: result.encrypted ? t('settings.backup.encrypted') : '',
+        }),
       });
     } else if (!result.canceled) {
       setBackupResult({ type: 'err', text: result.error || 'Export failed' });
@@ -149,7 +154,12 @@ const SettingsView = ({ config, updateConfig, onExportProjects, onImportProjects
       const skipped = result.skipped?.length || 0;
       setBackupResult({
         type: 'ok',
-        text: `Imported ${result.added?.length || 0} project(s)${skipped ? `, skipped ${skipped}` : ''}${result.configUpdated ? ', updated config' : ''}${result.presetsAdded ? `, added ${result.presetsAdded} preset(s)` : ''}.`,
+        text: t('settings.backup.imported', {
+          added: result.added?.length || 0,
+          skipped: skipped ? t('settings.backup.skipped', { count: skipped }) : '',
+          config: result.configUpdated ? t('settings.backup.configUpdated') : '',
+          presets: result.presetsAdded ? t('settings.backup.presetsAdded', { count: result.presetsAdded }) : '',
+        }),
       });
     } else if (!result.canceled) {
       setBackupResult({ type: 'err', text: result.error || 'Import failed' });
@@ -166,17 +176,17 @@ const SettingsView = ({ config, updateConfig, onExportProjects, onImportProjects
           <div className="flex-1 min-w-0">
             <p className="text-xs font-semibold text-ink">
               {updateState?.state === 'downloaded'
-                ? `Update ${updateInfo.latest} is ready to install`
-                : `Gatrion ${updateInfo.latest} is available`}
+                ? t('settings.update.ready', { version: updateInfo.latest })
+                : t('settings.update.availableLine', { version: updateInfo.latest })}
             </p>
             <p className="text-[11px] text-ink-faint mt-0.5">
               {updateState?.state === 'error'
-                ? `Update failed: ${updateState.error || 'unknown error'}`
+                ? t('settings.update.failed', { error: updateState.error || 'unknown error' })
                 : downloading
-                  ? `Downloading… ${updateState?.progress?.percent ?? 0}%`
+                  ? t('settings.update.downloadingProgress', { percent: updateState?.progress?.percent ?? 0 })
                   : updateState?.state === 'downloaded'
-                    ? 'Restart the app to apply the new version.'
-                    : `You are running ${updateInfo.current}. Grab the new release to get the latest fixes and features.`}
+                    ? t('settings.update.restartToApply')
+                    : t('settings.update.runningOld', { current: updateInfo.current })}
             </p>
           </div>
           {updateState?.state === 'downloaded' ? (
@@ -184,7 +194,7 @@ const SettingsView = ({ config, updateConfig, onExportProjects, onImportProjects
               onClick={handleInstallUpdate}
               className="px-3 py-1.5 rounded-lg bg-accent hover:bg-accent-hover text-white text-xs font-semibold transition-colors"
             >
-              Restart & install
+              {t('settings.update.install')}
             </button>
           ) : (
             <>
@@ -193,84 +203,105 @@ const SettingsView = ({ config, updateConfig, onExportProjects, onImportProjects
                 disabled={downloading}
                 className="px-3 py-1.5 rounded-lg bg-accent hover:bg-accent-hover text-white text-xs font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {downloading ? 'Downloading…' : 'Download & install'}
+                {downloading ? t('settings.update.downloading') : t('settings.update.downloadInstall')}
               </button>
               <button
                 onClick={() => openExternalUrl(updateInfo.url)}
                 className="px-3 py-1.5 rounded-lg bg-surface-3 hover:bg-surface-2 text-xs font-medium text-ink-soft hover:text-ink border border-border transition-colors"
               >
-                View release
+                {t('settings.update.viewRelease')}
               </button>
             </>
           )}
         </div>
       )}
       <div className="grid gap-5 lg:grid-cols-2 items-start">
+      <div className="bg-surface border border-border rounded-xl shadow-card p-5 space-y-4">
+        <p className="font-display font-bold text-sm">{t('settings.language.title')}</p>
+        <p className="text-[11px] text-ink-faint">{t('settings.language.desc')}</p>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => handleChange('language', 'en')}
+            className={`px-3.5 py-2 rounded-lg text-xs font-medium border transition-colors ${config.language === 'en' ? 'bg-accent/15 text-ink border-accent/30' : 'bg-surface-3 hover:bg-surface-2 text-ink-soft hover:text-ink border-border'}`}
+          >
+            {t('settings.language.en')}
+          </button>
+          <button
+            type="button"
+            onClick={() => handleChange('language', 'id')}
+            className={`px-3.5 py-2 rounded-lg text-xs font-medium border transition-colors ${config.language === 'id' ? 'bg-accent/15 text-ink border-accent/30' : 'bg-surface-3 hover:bg-surface-2 text-ink-soft hover:text-ink border-border'}`}
+          >
+            {t('settings.language.id')}
+          </button>
+        </div>
+      </div>
+
       <ThemeSelector
         currentTheme={config.theme}
         onThemeChange={(theme) => handleChange('theme', theme)}
       />
 
       <div className="bg-surface border border-border rounded-xl shadow-card p-5 space-y-4">
-        <p className="font-display font-bold text-sm">General & Desktop Integration</p>
+        <p className="font-display font-bold text-sm">{t('settings.general.title')}</p>
         <ToggleSwitch
           enabled={config.sidebarExpanded}
           onChange={() => handleChange('sidebarExpanded', !config.sidebarExpanded)}
-          label="Sidebar expanded by default"
+          label={t('settings.general.sidebarExpanded')}
         />
         <ToggleSwitch
           enabled={!!config.minimizeToTray}
           onChange={() => handleChange('minimizeToTray', !config.minimizeToTray)}
-          label="Minimize to System Tray on close"
+          label={t('settings.minimizeToTray')}
         />
         <ToggleSwitch
           enabled={!!config.startOnBoot}
           onChange={() => handleChange('startOnBoot', !config.startOnBoot)}
-          label="Start Gatrion on Windows boot"
+          label={t('settings.startOnBoot')}
         />
         <ToggleSwitch
           enabled={!!config.autoStartProjects}
           onChange={() => handleChange('autoStartProjects', !config.autoStartProjects)}
-          label="Auto-start projects marked for auto-start on launch"
+          label={t('settings.autoStartProjects')}
         />
       </div>
 
       <div className="bg-surface border border-border rounded-xl shadow-card p-5 space-y-4">
-        <p className="font-display font-bold text-sm">Notifications</p>
+        <p className="font-display font-bold text-sm">{t('settings.notifications.title')}</p>
         <ToggleSwitch
           enabled={config.notifications?.onStart !== false}
           onChange={() =>
             updateConfig({ notifications: { onStart: !(config.notifications?.onStart !== false) } })
           }
-          label="Notify when a project starts"
+          label={t('settings.notifications.onStart')}
         />
         <ToggleSwitch
           enabled={config.notifications?.onError !== false}
           onChange={() =>
             updateConfig({ notifications: { onError: !(config.notifications?.onError !== false) } })
           }
-          label="Notify when a project crashes"
+          label={t('settings.notifications.onError')}
         />
         <ToggleSwitch
           enabled={!!config.notifications?.sound}
           onChange={() =>
             updateConfig({ notifications: { sound: !config.notifications?.sound } })
           }
-          label="Play sound with notifications"
+          label={t('settings.notifications.sound')}
         />
       </div>
 
       <div className="bg-surface border border-border rounded-xl shadow-card p-5 space-y-4">
-        <p className="font-display font-bold text-sm">Auto-Restart</p>
+        <p className="font-display font-bold text-sm">{t('settings.autoRestart.title')}</p>
         <ToggleSwitch
           enabled={!!config.autoRestart?.enabled}
           onChange={() =>
             updateConfig({ autoRestart: { enabled: !config.autoRestart?.enabled } })
           }
-          label="Automatically restart projects on crash"
+          label={t('settings.autoRestart.enabled')}
         />
         <div className="flex items-center gap-3 text-xs text-ink-soft">
-          <label htmlFor="maxRetries" className="whitespace-nowrap">Max retries</label>
+          <label htmlFor="maxRetries" className="whitespace-nowrap">{t('settings.autoRestart.maxRetries')}</label>
           <input
             id="maxRetries"
             type="number"
@@ -280,7 +311,7 @@ const SettingsView = ({ config, updateConfig, onExportProjects, onImportProjects
             onChange={(e) => updateConfig({ autoRestart: { maxRetries: Math.max(0, Math.min(10, Number(e.target.value) || 0)) } })}
             className="w-16 bg-surface-3 border border-border rounded-md px-2 py-1 text-ink focus:outline-none focus:ring-2 focus:ring-accent/40"
           />
-          <label htmlFor="delayMs" className="whitespace-nowrap ml-4">Initial delay (ms)</label>
+          <label htmlFor="delayMs" className="whitespace-nowrap ml-4">{t('settings.autoRestart.delay')}</label>
           <input
             id="delayMs"
             type="number"
@@ -292,7 +323,7 @@ const SettingsView = ({ config, updateConfig, onExportProjects, onImportProjects
             className="w-20 bg-surface-3 border border-border rounded-md px-2 py-1 text-ink focus:outline-none focus:ring-2 focus:ring-accent/40"
           />
         </div>
-        <p className="text-[11px] text-ink-faint">Exponential backoff is applied between retries. Counter resets when the project becomes running.</p>
+        <p className="text-[11px] text-ink-faint">{t('settings.autoRestart.desc')}</p>
       </div>
 
       <TerminalSettings
@@ -307,23 +338,23 @@ const SettingsView = ({ config, updateConfig, onExportProjects, onImportProjects
       />
 
       <div className="bg-surface border border-border rounded-xl shadow-card p-5 space-y-4">
-        <p className="font-display font-bold text-sm">App Preview</p>
+        <p className="font-display font-bold text-sm">{t('settings.preview.title')}</p>
         <ToggleSwitch
           enabled={config.preview?.keepAlive !== false}
           onChange={() =>
             updateConfig({ preview: { keepAlive: !(config.preview?.keepAlive !== false) } })
           }
-          label="Keep preview alive when switching pages"
+          label={t('settings.preview.keepAlive')}
         />
         <p className="text-[11px] text-ink-faint">
-          Keeps the embedded app preview mounted (hidden) while you browse other tabs or projects, so open modals, forms, and scroll position are preserved when you come back. Turn off to free memory — the preview will reload each time you return to it.
+          {t('settings.preview.desc')}
         </p>
       </div>
 
       <div className="bg-surface border border-border rounded-xl shadow-card p-5 space-y-4">
-        <p className="font-display font-bold text-sm">Data</p>
+        <p className="font-display font-bold text-sm">{t('settings.data.title')}</p>
         <p className="text-[11px] text-ink-faint">
-          Projects are stored locally in your app data folder. Export a portable JSON backup, or import one on another machine.
+          {t('settings.data.desc')}
         </p>
         <div className="flex items-center gap-2 pt-1">
           <button
@@ -331,41 +362,41 @@ const SettingsView = ({ config, updateConfig, onExportProjects, onImportProjects
             onClick={onExportProjects}
             className="px-3.5 py-2 rounded-lg bg-surface-3 hover:bg-surface-2 text-xs font-medium text-ink-soft hover:text-ink border border-border transition-colors"
           >
-            ⬇ Export projects…
+            ⬇ {t('settings.data.exportProjects')}
           </button>
           <button
             type="button"
             onClick={onImportProjects}
             className="px-3.5 py-2 rounded-lg bg-surface-3 hover:bg-surface-2 text-xs font-medium text-ink-soft hover:text-ink border border-border transition-colors"
           >
-            ⬆ Import projects…
+            ⬆ {t('settings.data.importProjects')}
           </button>
         </div>
         <div className="border-t border-border pt-3">
           <p className="text-[11px] text-ink-faint mb-2">
-            Facing an issue? Export a diagnostics bundle (versions, config, health, redacted projects, and the main log) to share with support. Secrets stay on this machine.
+            {t('settings.data.diagnostics.desc')}
           </p>
           <button
             type="button"
             onClick={onExportDiagnostics}
             className="px-3.5 py-2 rounded-lg bg-surface-3 hover:bg-surface-2 text-xs font-medium text-ink-soft hover:text-ink border border-border transition-colors"
           >
-            🩺 Export diagnostics…
+            🩺 {t('settings.data.exportDiagnostics')}
           </button>
         </div>
       </div>
 
       <div className="bg-surface border border-border rounded-xl shadow-card p-5 space-y-4">
-        <p className="font-display font-bold text-sm">Workspace Backup</p>
+        <p className="font-display font-bold text-sm">{t('settings.backup.title')}</p>
         <p className="text-[11px] text-ink-faint">
-          Export your whole workspace — projects (including .env secrets), config, presets and health analytics — into one portable file. Optionally encrypt it with a password. Importing merges the backup in without overwriting anything you already have, so it is safe to restore on a fresh machine.
+          {t('settings.backup.desc')}
         </p>
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
           <input
             type="password"
             value={backupPassword}
             onChange={(e) => setBackupPassword(e.target.value)}
-            placeholder="Optional password to encrypt / decrypt"
+            placeholder={t('settings.backup.passwordPlaceholder')}
             className="flex-1 min-w-0 bg-surface-3 border border-border rounded-lg px-3 py-2 text-xs text-ink placeholder:text-ink-faint focus:outline-none focus:ring-2 focus:ring-accent/40"
           />
           <div className="flex items-center gap-2">
@@ -375,7 +406,7 @@ const SettingsView = ({ config, updateConfig, onExportProjects, onImportProjects
               disabled={backupBusy}
               className="px-3.5 py-2 rounded-lg bg-surface-3 hover:bg-surface-2 text-xs font-medium text-ink-soft hover:text-ink border border-border transition-colors disabled:opacity-40"
             >
-              {backupBusy ? 'Working…' : '⬇ Export backup…'}
+              {backupBusy ? t('settings.backup.working') : `⬇ ${t('settings.backup.export')}`}
             </button>
             <button
               type="button"
@@ -383,7 +414,7 @@ const SettingsView = ({ config, updateConfig, onExportProjects, onImportProjects
               disabled={backupBusy}
               className="px-3.5 py-2 rounded-lg bg-surface-3 hover:bg-surface-2 text-xs font-medium text-ink-soft hover:text-ink border border-border transition-colors disabled:opacity-40"
             >
-              {backupBusy ? 'Working…' : '⬆ Import backup…'}
+              {backupBusy ? t('settings.backup.working') : `⬆ ${t('settings.backup.import')}`}
             </button>
           </div>
         </div>
@@ -396,41 +427,41 @@ const SettingsView = ({ config, updateConfig, onExportProjects, onImportProjects
 
       <div className="bg-surface border border-border rounded-xl shadow-card p-5 space-y-4">
         <div className="flex items-center justify-between">
-          <p className="font-display font-bold text-sm">Main Log</p>
+          <p className="font-display font-bold text-sm">{t('settings.log.title')}</p>
           <button
             type="button"
             onClick={loadMainLog}
             disabled={logLoading}
             className="px-3 py-1.5 rounded-lg bg-surface-3 hover:bg-surface-2 text-xs font-medium text-ink-soft hover:text-ink border border-border transition-colors disabled:opacity-40"
           >
-            {logLoading ? 'Loading…' : '↻ Refresh'}
+            {logLoading ? t('settings.log.loading') : `↻ ${t('settings.log.refresh')}`}
           </button>
         </div>
         <p className="text-[11px] text-ink-faint">
-          Last 500 lines of the main process log (rotated automatically at 10 MB, keeping the newest 1000 lines). Useful when diagnosing crashes or reporting issues.
+          {t('settings.log.desc')}
         </p>
         {logError && <p className="text-[11px] text-danger">{logError}</p>}
         <pre className="max-h-56 overflow-auto rounded-lg bg-[#0d0f13] border border-border p-3 text-[10px] leading-relaxed font-mono text-[#aab2c0] whitespace-pre-wrap break-words">
-          {logLines.length > 0 ? logLines.join('\n') : (logLoading ? 'Loading…' : 'No log entries yet.')}
+          {logLines.length > 0 ? logLines.join('\n') : (logLoading ? t('settings.log.loading') : t('settings.log.empty'))}
         </pre>
       </div>
 
       <div className="bg-surface border border-border rounded-xl shadow-card p-5 space-y-4">
         <div className="flex items-center justify-between">
-          <p className="font-display font-bold text-sm">Crash Reports</p>
+          <p className="font-display font-bold text-sm">{t('settings.crash.title')}</p>
           <button
             type="button"
             onClick={loadCrashDumps}
             disabled={crashLoading}
             className="px-3 py-1.5 rounded-lg bg-surface-3 hover:bg-surface-2 text-xs font-medium text-ink-soft hover:text-ink border border-border transition-colors disabled:opacity-40"
           >
-            {crashLoading ? 'Loading…' : '↻ Refresh'}
+            {crashLoading ? t('settings.crash.loading') : `↻ ${t('settings.crash.refresh')}`}
           </button>
         </div>
         <p className="text-[11px] text-ink-faint">
           {crashDumps.length > 0
-            ? `${crashDumps.length} crash dump(s) collected locally by the app. They are never uploaded — open the folder to inspect or share them with support.`
-            : 'No crash dumps yet. Minidumps are written here if the app crashes.'}
+            ? t('settings.crash.hasDumps', { count: crashDumps.length })
+            : t('settings.crash.noDumps')}
         </p>
         {crashDumps.length > 0 && (
           <ul className="max-h-32 overflow-auto rounded-lg border border-border bg-surface-2 divide-y divide-border text-[11px] font-mono text-ink-soft">
@@ -445,7 +476,7 @@ const SettingsView = ({ config, updateConfig, onExportProjects, onImportProjects
             onClick={() => openCrashDumpsFolder()}
             className="px-3 py-1.5 rounded-lg bg-surface-3 hover:bg-surface-2 text-xs font-medium text-ink-soft hover:text-ink border border-border transition-colors"
           >
-            Open folder
+            {t('settings.crash.openFolder')}
           </button>
           {crashDumps.length > 0 && (
             <button
@@ -453,7 +484,7 @@ const SettingsView = ({ config, updateConfig, onExportProjects, onImportProjects
               onClick={handleClearCrashDumps}
               className="px-3 py-1.5 rounded-lg bg-surface-3 hover:bg-surface-2 text-xs font-medium text-danger border border-border transition-colors"
             >
-              Clear all
+              {t('settings.crash.clearAll')}
             </button>
           )}
         </div>
@@ -464,31 +495,31 @@ const SettingsView = ({ config, updateConfig, onExportProjects, onImportProjects
       <OmpSettingsCard />
 
       <div className="bg-surface border border-border rounded-xl shadow-card p-5 space-y-4">
-        <p className="font-display font-bold text-sm">Pengingat Sholat</p>
+        <p className="font-display font-bold text-sm">{t('settings.prayer.title')}</p>
         <div className="flex items-center justify-between">
-          <p className="text-xs text-ink">Tampilkan di</p>
+          <p className="text-xs text-ink">{t('settings.prayer.showIn')}</p>
           <select
             value={config.prayer?.showIn ?? 'both'}
             onChange={(e) => updateConfig({ prayer: { showIn: e.target.value } })}
-            aria-label="Tampilkan pengingat sholat di"
+            aria-label={t('settings.prayer.showIn')}
             className="bg-surface-3 border border-border rounded-md px-2 py-1 text-xs text-ink-soft focus:outline-none"
           >
-            <option value="sidebar">Sidebar saja</option>
-            <option value="topbar">Topbar saja</option>
-            <option value="both">Sidebar & Topbar</option>
-            <option value="off">Nonaktif</option>
+            <option value="sidebar">{t('settings.prayer.showIn.sidebar')}</option>
+            <option value="topbar">{t('settings.prayer.showIn.topbar')}</option>
+            <option value="both">{t('settings.prayer.showIn.both')}</option>
+            <option value="off">{t('settings.prayer.showIn.off')}</option>
           </select>
         </div>
         <div>
-          <p className="text-xs text-ink mb-1.5">Kota & lokasi</p>
+          <p className="text-xs text-ink mb-1.5">{t('settings.prayer.location')}</p>
           <div className="flex gap-2">
             <input
               type="text"
               value={cityQuery}
               onChange={(e) => setCityQuery(e.target.value)}
               onKeyDown={(e) => { if (e.key === 'Enter') handleSearchCity(); }}
-              placeholder="Cari kota… (contoh: Bandung)"
-              aria-label="Cari kota"
+              placeholder={t('settings.prayer.searchCity')}
+              aria-label={t('settings.prayer.searchCity')}
               className="flex-1 bg-surface-3 border border-border rounded-lg px-3 py-1.5 text-xs text-ink placeholder:text-ink-faint focus:outline-none"
             />
             <button
@@ -497,7 +528,7 @@ const SettingsView = ({ config, updateConfig, onExportProjects, onImportProjects
               disabled={geoLoading || !cityQuery.trim()}
               className="px-3 py-1.5 rounded-lg bg-surface-3 hover:bg-surface-2 text-xs font-medium text-ink-soft hover:text-ink border border-border transition-colors disabled:opacity-40"
             >
-              {geoLoading ? 'Mencari…' : 'Cari'}
+              {geoLoading ? t('settings.prayer.searching') : t('settings.prayer.search')}
             </button>
           </div>
           {geoError && <p className="mt-1.5 text-[11px] text-danger">{geoError}</p>}
@@ -517,34 +548,34 @@ const SettingsView = ({ config, updateConfig, onExportProjects, onImportProjects
             </ul>
           )}
           <div className="mt-2 grid grid-cols-2 gap-2">
-            <label className="text-[10px] text-ink-faint">Latitude
+            <label className="text-[10px] text-ink-faint">{t('settings.prayer.latitude')}
               <input
                 type="number"
                 step="0.0001"
                 value={config.prayer?.latitude ?? ''}
                 onChange={(e) => { const v = parseFloat(e.target.value); if (Number.isFinite(v)) updateConfig({ prayer: { latitude: v } }); }}
-                aria-label="Latitude"
+                aria-label={t('settings.prayer.latitude')}
                 className="mt-0.5 w-full bg-surface-3 border border-border rounded-md px-2 py-1 text-xs font-mono text-ink focus:outline-none"
               />
             </label>
-            <label className="text-[10px] text-ink-faint">Longitude
+            <label className="text-[10px] text-ink-faint">{t('settings.prayer.longitude')}
               <input
                 type="number"
                 step="0.0001"
                 value={config.prayer?.longitude ?? ''}
                 onChange={(e) => { const v = parseFloat(e.target.value); if (Number.isFinite(v)) updateConfig({ prayer: { longitude: v } }); }}
-                aria-label="Longitude"
+                aria-label={t('settings.prayer.longitude')}
                 className="mt-0.5 w-full bg-surface-3 border border-border rounded-md px-2 py-1 text-xs font-mono text-ink focus:outline-none"
               />
             </label>
           </div>
         </div>
         <div className="flex items-center justify-between">
-          <p className="text-xs text-ink">Metode perhitungan</p>
+          <p className="text-xs text-ink">{t('settings.prayer.method')}</p>
           <select
             value={config.prayer?.method ?? 'KEMENAG'}
             onChange={(e) => updateConfig({ prayer: { method: e.target.value } })}
-            aria-label="Metode perhitungan sholat"
+            aria-label={t('settings.prayer.method')}
             className="bg-surface-3 border border-border rounded-md px-2 py-1 text-xs text-ink-soft focus:outline-none"
           >
             <option value="KEMENAG">Kemenag RI</option>
@@ -556,7 +587,7 @@ const SettingsView = ({ config, updateConfig, onExportProjects, onImportProjects
           </select>
         </div>
         <div>
-          <p className="text-xs text-ink mb-1.5">Penyesuaian waktu (± menit)</p>
+          <p className="text-xs text-ink mb-1.5">{t('settings.prayer.adjustments')}</p>
           <div className="grid grid-cols-5 gap-2">
             {[
               ['fajr', 'Subuh'],
@@ -585,18 +616,18 @@ const SettingsView = ({ config, updateConfig, onExportProjects, onImportProjects
         <ToggleSwitch
           enabled={config.prayer?.notify !== false}
           onChange={() => updateConfig({ prayer: { notify: !(config.prayer?.notify !== false) } })}
-          label="Notifikasi sistem saat waktu sholat tiba"
+          label={t('settings.prayer.notify')}
         />
         <ToggleSwitch
           enabled={!!config.prayer?.sound}
           onChange={() => updateConfig({ prayer: { sound: !config.prayer?.sound } })}
-          label="Bunyi suara saat waktu sholat tiba"
+          label={t('settings.prayer.sound')}
         />
-        <p className="text-[11px] text-ink-faint">Waktu sholat dihitung lokal (offline) menggunakan algoritma PrayTimes. Klik kartu sholat di sidebar/topbar untuk jadwal lengkap.</p>
+        <p className="text-[11px] text-ink-faint">{t('settings.prayer.calculationNote')}</p>
       </div>
 
       </div>
-      <p className="mt-5 text-right text-[11px] text-ink-faint">Changes save automatically.</p>
+      <p className="mt-5 text-right text-[11px] text-ink-faint">{t('settings.saveAuto')}</p>
     </div>
   );
 };

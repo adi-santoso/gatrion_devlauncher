@@ -1,6 +1,7 @@
 // @ts-check
 const DEFAULT_CONFIG = {
   theme: 'dark',
+  language: 'en', // 'en' | 'id'
   sidebarExpanded: true,
   startOnBoot: false,
   minimizeToTray: true,
@@ -132,6 +133,7 @@ function normalizeConfig(config = {}) {
 
   return {
     theme: ['dark', 'light', 'system'].includes(migrated.theme) ? migrated.theme : 'dark',
+    language: ['en', 'id'].includes(migrated.language) ? migrated.language : DEFAULT_CONFIG.language,
     sidebarExpanded: booleanOr(migrated.sidebarExpanded, DEFAULT_CONFIG.sidebarExpanded),
     startOnBoot: booleanOr(migrated.startOnBoot, DEFAULT_CONFIG.startOnBoot),
     minimizeToTray: booleanOr(migrated.minimizeToTray, DEFAULT_CONFIG.minimizeToTray),
@@ -193,7 +195,10 @@ function applyConfigUpdates(current, updates) {
     throw new Error('Config updates must be an object')
   }
 
-  const allowed = new Set(['theme', 'sidebarExpanded', 'startOnBoot', 'minimizeToTray', 'autoStartProjects', 'notifications', 'terminal', 'autoRestart', 'preview', 'prayer', 'agent', 'windowBounds'])
+  const allowed = new Set(['theme', 'language', 'sidebarExpanded', 'startOnBoot', 'minimizeToTray', 'autoStartProjects', 'notifications', 'terminal', 'autoRestart', 'preview', 'prayer', 'agent', 'windowBounds'])
+  if (updates.language !== undefined && !['en', 'id'].includes(updates.language)) {
+    throw new Error('language must be "en" or "id"')
+  }
   const unknown = Object.keys(updates).find((key) => !allowed.has(key))
   if (unknown) throw new Error(`Unsupported config field: ${unknown}`)
 

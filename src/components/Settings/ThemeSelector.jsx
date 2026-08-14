@@ -1,14 +1,16 @@
 import React from 'react';
+import { useI18n } from '../../i18n/I18nContext';
 
 /**
  * ThemeSelector - Grid of theme cards with preview
  * Lines 822-839 from template
  */
 const ThemeSelector = ({ currentTheme = 'dark', onThemeChange }) => {
+  const { t } = useI18n();
   return (
     <div className="bg-surface border border-border rounded-xl shadow-card p-5">
-      <p className="font-display font-bold text-sm mb-1">Appearance</p>
-      <p className="text-xs text-ink-faint mb-4">Choose how Gatrion looks.</p>
+      <p className="font-display font-bold text-sm mb-1">{t('settings.theme.title')}</p>
+      <p className="text-xs text-ink-faint mb-4">{t('settings.theme.desc')}</p>
       <div className="grid grid-cols-2 gap-3 max-w-sm">
         <button
           id="themeDarkCard"
@@ -22,7 +24,7 @@ const ThemeSelector = ({ currentTheme = 'dark', onThemeChange }) => {
             <div className="flex-1 h-3 rounded bg-[#20242C]"></div>
           </div>
           <p className="text-xs font-medium flex items-center gap-1.5">
-            Dark
+            {t('settings.theme.dark')}
             {currentTheme === 'dark' && (
               <svg
                 width="12"
@@ -50,7 +52,7 @@ const ThemeSelector = ({ currentTheme = 'dark', onThemeChange }) => {
             <div className="flex-1 h-3 rounded bg-[#EEF0F3]"></div>
           </div>
           <p className="text-xs font-medium flex items-center gap-1.5">
-            Light
+            {t('settings.theme.light')}
             {currentTheme === 'light' && (
               <svg
                 width="12"
@@ -82,7 +84,7 @@ const ThemeSelector = ({ currentTheme = 'dark', onThemeChange }) => {
             </div>
           </div>
           <p className="text-xs font-medium flex items-center gap-1.5">
-            System
+            {t('settings.theme.system')}
             {currentTheme === 'system' && (
               <svg
                 width="12"
