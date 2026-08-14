@@ -46,6 +46,38 @@ describe('ProcessManager', () => {
     })
   })
 
+  describe('late exit race after a graceful stop (POSIX)', () => {
+    test('an exit event arriving after STOPPED keeps the project stopped', () => {
+      const pm = new ProcessManager()
+      const child = { id: 'main', name: 'Application', status: pm.STATUS.STOPPED, pid: null, process: null }
+      const runId = Symbol('run')
+      pm.processes.set('p1', {
+        status: pm.STATUS.STOPPED,
+        runId,
+        commands: new Map([['main', child]]),
+        logs: [],
+      })
+      // POSIX sends SIGTERM and resolves before the 'exit' event fires, so the
+      // manager is already STOPPED when this arrives. It must not flip to ERROR.
+      pm.handleChildExit('p1', runId, child, null, 'SIGTERM', () => {}, () => {})
+      expect(pm.getProcessStatus('p1').status).toBe('STOPPED')
+    })
+
+    test('a non-zero exit while running still marks the project as errored', () => {
+      const pm = new ProcessManager()
+      const child = { id: 'main', name: 'Application', status: pm.STATUS.RUNNING, pid: 123, process: {} }
+      const runId = Symbol('run')
+      pm.processes.set('p1', {
+        status: pm.STATUS.RUNNING,
+        runId,
+        commands: new Map([['main', child]]),
+        logs: [],
+      })
+      pm.handleChildExit('p1', runId, child, 1, null, () => {}, () => {})
+      expect(pm.getProcessStatus('p1').status).toBe('ERROR')
+    })
+  })
+
   describe('auto-restart backoff', () => {
     const makeErrorData = (overrides = {}) => ({
       projectPath: 'C:/projects/demo',

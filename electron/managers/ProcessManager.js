@@ -276,7 +276,11 @@ getCommandSnapshot(processData) {
       data.exitSignal = signal
       data.pid = null
     }
-    const intentional = data.status === this.STATUS.STOPPING
+    // An exit while STOPPING is the stop itself; an exit that arrives after
+    // STOPPED is a leftover process finally dying (POSIX sends SIGTERM and
+    // resolves before the 'exit' event fires, so this race is the norm there).
+    // Both are intentional — never treat them as a crash.
+    const intentional = data.status === this.STATUS.STOPPING || data.status === this.STATUS.STOPPED
     if (data.status === this.STATUS.ERROR && child.status !== this.STATUS.ERROR) {
       child.status = this.STATUS.STOPPED
       return

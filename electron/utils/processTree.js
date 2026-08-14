@@ -6,26 +6,24 @@ const execAsync = util.promisify(exec)
 
 /**
  * Kill a process tree. On Windows this uses taskkill /T (tree kill), on
- * POSIX it signals the process group.
+ * POSIX it signals the process group (children are spawned detached, so the
+ * group id equals the child pid).
  * @param {import('child_process').ChildProcess} childProcess
- * @param {boolean} force
+ * @param {boolean} force - SIGKILL instead of graceful SIGTERM
+ * @param {NodeJS.Platform} [platform] - injectable for tests (defaults to process.platform)
  * @returns {Promise<void>}
  */
-function killProcessTree(childProcess, force) {
+async function killProcessTree(childProcess, force, platform = process.platform) {
   if (!childProcess?.pid) {
-    return Promise.reject(new Error('Process PID is unavailable'))
+    throw new Error('Process PID is unavailable')
   }
 
-  if (process.platform !== 'win32') {
-    try {
-      process.kill(-childProcess.pid, force ? 'SIGKILL' : 'SIGTERM')
-      return Promise.resolve()
-    } catch (error) {
-      return Promise.reject(error)
-    }
+  if (platform !== 'win32') {
+    await killPosixTree(childProcess.pid, force)
+    return
   }
 
-  return new Promise((resolve, reject) => {
+  await new Promise((resolve, reject) => {
     const args = ['/pid', String(childProcess.pid), '/T']
     if (force) args.push('/F')
 
@@ -36,10 +34,48 @@ function killProcessTree(childProcess, force) {
     })
     killer.once('error', reject)
     killer.once('exit', (code) => {
-      if (code === 0) resolve()
+      if (code === 0) resolve(undefined)
       else reject(new Error(stderr.trim() || `taskkill exited with code ${code}`))
     })
   })
+}
+
+/**
+ * POSIX: signal the process group. A group that is already gone (ESRCH)
+ * counts as success — the process simply died first. Graceful stops wait a
+ * short grace period and escalate to SIGKILL if the group is still alive.
+ * @param {number} pid
+ * @param {boolean} force
+ */
+async function killPosixTree(pid, force) {
+  const signal = force ? 'SIGKILL' : 'SIGTERM'
+  try {
+    process.kill(-pid, signal)
+  } catch (error) {
+    if (error.code === 'ESRCH') return // already gone — success
+    try {
+      process.kill(pid, signal)
+    } catch {
+      // also gone — success
+    }
+  }
+  if (force) return
+
+  // Graceful: wait briefly for the group to exit, then escalate to SIGKILL.
+  const deadline = Date.now() + 1500
+  while (Date.now() < deadline) {
+    try {
+      process.kill(-pid, 0)
+    } catch {
+      return // group gone — done
+    }
+    await new Promise((resolve) => setTimeout(resolve, 200))
+  }
+  try {
+    process.kill(-pid, 'SIGKILL')
+  } catch {
+    // already gone
+  }
 }
 
 /**
