@@ -193,7 +193,10 @@ export function PrayerPill({ data, onExpand }) {
   const inProgress = data.inProgress;
 
   const clockSlide = (
-    <span className="h-full flex items-center gap-1.5">
+    <span className="h-full w-full flex items-center justify-center gap-1.5">
+      <span className="w-5 h-5 rounded-md bg-accent/10 text-accent flex items-center justify-center shrink-0">
+        <Crescent size={11} />
+      </span>
       <span className="font-mono tabular-nums font-semibold text-ink">{formatClock(data.now)}</span>
       <span className="w-1 h-1 rounded-full bg-accent pulse-dot" />
     </span>
@@ -211,7 +214,7 @@ export function PrayerPill({ data, onExpand }) {
   );
 
   const ongoingSlide = inProgress ? (
-    <span className="h-full flex items-center gap-1.5 text-danger">
+    <span className="h-full w-full flex items-center justify-center gap-1.5 text-danger">
       <Crescent size={11} />
       <span className="w-1 h-1 rounded-full bg-danger pulse-dot" />
       <span className="font-bold">Sedang {inProgress.label}</span>
