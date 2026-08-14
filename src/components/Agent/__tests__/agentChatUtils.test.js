@@ -1,5 +1,5 @@
 import { describe, test, expect } from 'vitest'
-import { extractContentParts, normalizeTranscriptMessage, argsToString, uid, MARKDOWN_STREAM_LIMIT } from '../agentChatUtils'
+import { extractContentParts, normalizeTranscriptMessage, argsToString, uid, cleanIpcError, MARKDOWN_STREAM_LIMIT } from '../agentChatUtils'
 
 describe('extractContentParts', () => {
   test('keeps plain strings as text', () => {
@@ -66,5 +66,24 @@ describe('constants', () => {
 
   test('MARKDOWN_STREAM_LIMIT is a positive number', () => {
     expect(MARKDOWN_STREAM_LIMIT).toBeGreaterThan(0)
+  })
+})
+
+describe('cleanIpcError', () => {
+  test('strips Electron IPC wrapper noise', () => {
+    expect(
+      cleanIpcError(new Error("Error invoking remote method 'omp-get-messages': Error: omp command timed out: get_messages_page"))
+    ).toBe('omp command timed out: get_messages_page')
+  })
+
+  test('falls back when nothing usable is extracted', () => {
+    expect(cleanIpcError(undefined, 'fallback')).toBe('fallback')
+    expect(cleanIpcError('', 'fallback')).toBe('fallback')
+    expect(cleanIpcError(42, 'fallback')).toBe('fallback')
+    expect(cleanIpcError('   ', 'fallback')).toBe('fallback')
+  })
+
+  test('caps the message length', () => {
+    expect(cleanIpcError('x'.repeat(500)).length).toBeLessThanOrEqual(300)
   })
 })

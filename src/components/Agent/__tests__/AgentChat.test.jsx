@@ -979,4 +979,35 @@ describe('AgentChat', () => {
       Object.defineProperty(document, 'visibilityState', { value: originalVisibility, configurable: true })
     }
   })
+
+  it('shows an actionable error when loading an existing session fails, and retries', async () => {
+    mocks.ompGetMessages.mockRejectedValueOnce(
+      new Error("Error invoking remote method 'omp-get-messages': Error: omp command timed out: get_messages_page")
+    )
+    render(<Harness initialSession={{ id: 's20', title: 'Session 20', sessionPath: 'C:/sessions/s20.jsonl' }} />)
+
+    // The skeleton is replaced by an error panel with the cleaned-up reason
+    expect(await screen.findByText("Couldn't load this conversation")).toBeInTheDocument()
+    expect(screen.getByText('omp command timed out: get_messages_page')).toBeInTheDocument()
+
+    // Retry re-fetches; when it succeeds the transcript renders
+    mocks.ompGetMessages.mockResolvedValueOnce({
+      success: true,
+      messages: [
+        { id: 'entry-1', role: 'user', content: 'first task' },
+        { id: 'entry-2', role: 'assistant', content: 'on it' },
+      ],
+    })
+    fireEvent.click(screen.getByRole('button', { name: /Retry/ }))
+    expect(await screen.findByText('on it')).toBeInTheDocument()
+    expect(screen.queryByText("Couldn't load this conversation")).not.toBeInTheDocument()
+  })
+
+  it('shows an error when the transcript request resolves unsuccessfully', async () => {
+    mocks.ompGetMessages.mockResolvedValue({ success: false, error: 'omp RPC did not start' })
+    render(<Harness initialSession={{ id: 's21', title: 'Session 21', sessionPath: 'C:/sessions/s21.jsonl' }} />)
+
+    expect(await screen.findByText("Couldn't load this conversation")).toBeInTheDocument()
+    expect(screen.getByText('omp RPC did not start')).toBeInTheDocument()
+  })
 })

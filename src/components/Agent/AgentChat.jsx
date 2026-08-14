@@ -14,6 +14,7 @@ import {
   uid,
   normalizeTranscriptMessage,
   argsToString,
+  cleanIpcError,
 } from './agentChatUtils';
 
 export default function AgentChat({
@@ -38,6 +39,11 @@ export default function AgentChat({
   const [tools, setTools] = useState([]);
   const [error, setError] = useState(null);
   const [historyLoading, setHistoryLoading] = useState(false);
+  // Set when loading an existing session's transcript fails (timeout, dead
+  // proxy, omp down) so the skeleton is replaced by an actionable error
+  // instead of spinning forever. Retry bumps a counter that re-runs the load.
+  const [historyError, setHistoryError] = useState(null);
+  const [historyRetry, setHistoryRetry] = useState(0);
   const [nearBottom, setNearBottom] = useState(true);
   const [models, setModels] = useState([]);
   const [defaultModel, setDefaultModel] = useState(null);
@@ -218,6 +224,7 @@ export default function AgentChat({
     setTools([]);
     setSubagents([]);
     setError(null);
+    setHistoryError(null);
     setNearBottom(true);
     // Restore this session's draft (empty if it never had one).
     const draftKey = `${targetProject?.id}:${targetSession?.id || 'new'}`;
@@ -234,11 +241,19 @@ export default function AgentChat({
     ipc.ompGetMessages(targetProject.id, targetProject.path, { sessionPath: targetSession.sessionPath }).then((result) => {
       if (cancelled) return;
       setHistoryLoading(false);
-      if (!result?.success) return;
+      if (!result?.success) {
+        setHistoryError(cleanIpcError(result?.error, 'The agent did not respond. Check that your network/proxy is reachable, then retry.'));
+        return;
+      }
       setMessages(result.messages.map((item) => normalizeTranscriptMessage(item)));
-    }).catch(() => { if (!cancelled) setHistoryLoading(false); });
+    }).catch((loadError) => {
+      if (cancelled) return;
+      setHistoryLoading(false);
+      setHistoryError(cleanIpcError(loadError, 'The agent did not respond. Check that your network/proxy is reachable, then retry.'));
+    });
     return () => { cancelled = true; };
-  }, [project?.id, session?.id, project?.path]);
+    // historyRetry only changes when the user clicks Retry on a failed load.
+  }, [project?.id, session?.id, project?.path, historyRetry]);
 
   // Live events from the main process — uses refs so the handler always sees
   // the current project/session even though the subscription is created once.
@@ -1355,7 +1370,29 @@ export default function AgentChat({
             )}
           </div>
         )}
-        {historyLoading ? (
+        {historyError ? (
+          <div className="max-w-[560px] mx-auto pt-2 px-4">
+            <div className="rounded-xl border border-danger/30 bg-danger-soft/40 p-4">
+              <div className="flex items-start gap-3">
+                <span className="mt-0.5 w-6 h-6 rounded-md bg-danger/15 flex items-center justify-center shrink-0">
+                  <Icon name="warn" size={14} />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-semibold text-ink">Couldn&apos;t load this conversation</p>
+                  <p className="text-xs text-ink-soft mt-0.5 break-words">{historyError}</p>
+                  <button
+                    type="button"
+                    onClick={() => setHistoryRetry((n) => n + 1)}
+                    className="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-accent px-3 py-1.5 text-xs font-semibold text-white hover:bg-accent-hover"
+                  >
+                    <Icon name="refreshCw" size={12} />
+                    Retry
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : historyLoading ? (
           <div className="max-w-[760px] mx-auto space-y-5 pt-2">
             <div className="flex items-center gap-2 mb-1">
               <span className="w-5 h-5 rounded-md bg-accent/15 flex items-center justify-center">

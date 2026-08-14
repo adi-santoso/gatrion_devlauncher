@@ -37,6 +37,21 @@ export const MARKDOWN_STREAM_LIMIT = 12000;
 
 export const uid = () => `msg-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
+// Strip Electron's IPC wrapping noise ("Error invoking remote method
+// 'omp-get-messages': Error: …") so the underlying failure is readable in the
+// UI. Returns the fallback when nothing usable is extracted.
+export const cleanIpcError = (error, fallback = 'Something went wrong') => {
+  const raw = error && typeof error === 'object' ? error.message || error.error : error;
+  if (!raw || typeof raw !== 'string') return fallback;
+  return (
+    raw
+      .replace(/^Error invoking remote method '[^']+':\s*/i, '')
+      .replace(/^Error:\s*/i, '')
+      .trim()
+      .slice(0, 300) || fallback
+  );
+};
+
 // omp message content can be a plain string or an array of typed blocks
 // ({ type: 'text' | 'thinking' | ... }). Split text and reasoning apart so
 // thinking can be persisted per message instead of only shown while streaming.

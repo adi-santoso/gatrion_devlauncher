@@ -31,6 +31,11 @@ class OmpManager extends EventEmitter {
     this.rpcs = new Map() // projectId -> { proc, ready, cwd, nextId, pending, sessionFile, idleTimer, lastActive }
     this.nextRpcId = 1
     this.IDLE_TIMEOUT_MS = 15 * 60 * 1000
+    // Short timeout for read-only RPC calls (get_messages etc.): they only
+    // read local session files, so a stall means the RPC process is wedged
+    // (e.g. a dead proxy holds it up at startup). Fail fast instead of
+    // leaving the renderer's history skeleton spinning for minutes.
+    this.READ_TIMEOUT_MS = 30000
   }
 
   async init() {
@@ -385,7 +390,7 @@ class OmpManager extends EventEmitter {
     if (!entry) return
     if (typeof sessionPath !== 'string' || !sessionPath.trim()) return
     entry.sessionFile = sessionPath
-    return this._send(projectId, { type: 'switch_session', sessionPath })
+    return this._send(projectId, { type: 'switch_session', sessionPath }, this.READ_TIMEOUT_MS)
   }
 
   async steer(projectId, cwd, message) {
@@ -415,14 +420,14 @@ class OmpManager extends EventEmitter {
       for (let i = 0; i < 200; i += 1) {
         const payload = { type: 'get_messages_page' }
         if (cursor) payload.cursor = cursor
-        const page = await this._send(projectId, payload)
+        const page = await this._send(projectId, payload, this.READ_TIMEOUT_MS)
         pages.push(...(Array.isArray(page?.messages) ? page.messages : []))
         if (!page?.nextCursor) break
         cursor = page.nextCursor
       }
       if (pages.length > 0) return this.normalizeMessages(pages)
     } catch { /* fall through to the monolithic snapshot */ }
-    const data = await this._send(projectId, { type: 'get_messages' })
+    const data = await this._send(projectId, { type: 'get_messages' }, this.READ_TIMEOUT_MS)
     return this.normalizeMessages(data)
   }
 
