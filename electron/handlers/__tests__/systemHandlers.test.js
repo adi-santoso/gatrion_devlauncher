@@ -4,7 +4,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 
-const { ipcMain, dialog, shell, __reset, TEMP_USER_DATA } = createRequire(import.meta.url)('electron')
+const { ipcMain, dialog, shell, app, __reset } = createRequire(import.meta.url)('electron')
 
 import { setupSystemHandlers, TOOLS } from '../systemHandlers'
 
@@ -15,10 +15,9 @@ let tempDir
 beforeEach(() => {
   __reset()
   tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'system-handlers-'))
-  // TEMP_USER_DATA is a fixed shared path (from the electron mock) — start
-  // from a clean slate so stale files from an interrupted run or another
-  // worker can never leak into these assertions.
-  fs.rmSync(TEMP_USER_DATA, { recursive: true, force: true })
+  // Point userData at a private per-test dir so these tests never touch a
+  // shared fixed path (the old shared path caused intermittent flakes).
+  app._userDataPath = tempDir
 })
 
 describe('systemHandlers', () => {
@@ -30,9 +29,9 @@ describe('systemHandlers', () => {
 
   test('export-diagnostics writes the bundle via the save dialog', async () => {
     // Seed some userData so the bundle has real content to read.
-    fs.mkdirSync(path.join(TEMP_USER_DATA, 'logs'), { recursive: true })
-    fs.writeFileSync(path.join(TEMP_USER_DATA, 'config.json'), JSON.stringify({ theme: 'dark' }))
-    fs.writeFileSync(path.join(TEMP_USER_DATA, 'logs', 'main.log'), 'line1\nline2\n')
+    fs.mkdirSync(path.join(tempDir, 'logs'), { recursive: true })
+    fs.writeFileSync(path.join(tempDir, 'config.json'), JSON.stringify({ theme: 'dark' }))
+    fs.writeFileSync(path.join(tempDir, 'logs', 'main.log'), 'line1\nline2\n')
 
     setupSystemHandlers()
     const target = path.join(tempDir, 'diag.json')
@@ -67,9 +66,9 @@ describe('systemHandlers', () => {
   }, 30000)
 
   test('get-main-log tails main.log from userData', async () => {
-    fs.mkdirSync(path.join(TEMP_USER_DATA, 'logs'), { recursive: true })
+    fs.mkdirSync(path.join(tempDir, 'logs'), { recursive: true })
     const lines = Array.from({ length: 12 }, (_, i) => `{"line":${i}}`)
-    fs.writeFileSync(path.join(TEMP_USER_DATA, 'logs', 'main.log'), lines.join('\n'))
+    fs.writeFileSync(path.join(tempDir, 'logs', 'main.log'), lines.join('\n'))
     setupSystemHandlers()
     const handler = ipcMain._handlers.get('get-main-log')
 
@@ -83,14 +82,14 @@ describe('systemHandlers', () => {
 
   test('get-main-log returns an empty list when the file is missing', async () => {
     // Isolate: point the handler at an empty userData dir by removing the log.
-    fs.rmSync(path.join(TEMP_USER_DATA, 'logs', 'main.log'), { force: true })
+    fs.rmSync(path.join(tempDir, 'logs', 'main.log'), { force: true })
     setupSystemHandlers()
     const result = await ipcMain._handlers.get('get-main-log')(fakeEvent, undefined)
     expect(result).toEqual({ success: true, lines: [] })
   })
 
   test('crash dump channels list, clear and open the dumps folder', async () => {
-    const crashDir = path.join(TEMP_USER_DATA, 'crashDumps')
+    const crashDir = path.join(tempDir, 'crashDumps')
     fs.mkdirSync(crashDir, { recursive: true })
     fs.writeFileSync(path.join(crashDir, 'app.dmp'), 'dmp-data')
     fs.writeFileSync(path.join(crashDir, 'renderer.dmp'), 'dmp-data')
@@ -114,7 +113,7 @@ describe('systemHandlers', () => {
   })
 
   test('crash dump channels tolerate a missing folder', async () => {
-    fs.rmSync(path.join(TEMP_USER_DATA, 'crashDumps'), { recursive: true, force: true })
+    fs.rmSync(path.join(tempDir, 'crashDumps'), { recursive: true, force: true })
     setupSystemHandlers()
     const handlers = ipcMain._handlers
     expect((await handlers.get('get-crash-dumps')(fakeEvent)).dumps).toEqual([])

@@ -118,7 +118,10 @@ const dialog = {
 
 const app = {
   isPackaged: false,
-  getPath: (name) => (name === 'userData' ? TEMP_USER_DATA : TEMP_USER_DATA),
+  // Overridable so tests can point userData at a private temp dir instead of
+  // sharing a fixed path across files (which was a source of flakes).
+  _userDataPath: TEMP_USER_DATA,
+  getPath: (name) => (name === 'userData' ? app._userDataPath : app._userDataPath),
   getVersion: () => '0.0.0-test',
   getName: () => 'devlauncher-test',
 }
@@ -144,6 +147,7 @@ function __reset() {
   contextBridge._exposed = null
   views.clear()
   sessions.clear()
+  app._userDataPath = TEMP_USER_DATA
 }
 
 // Exposed for PreviewManager tests to inspect window attachment.

@@ -23,6 +23,10 @@ const MainLayout = ({
   // ---- Prayer reminder widget ----
   const prayerConfig = config?.prayer;
   const prayerEnabled = !!(prayerConfig && prayerConfig.showIn !== 'off');
+  // `showIn` controls where the widget appears: sidebar, topbar, both, or off.
+  const prayerShowIn = prayerConfig?.showIn ?? 'both';
+  const prayerInSidebar = prayerEnabled && (prayerShowIn === 'sidebar' || prayerShowIn === 'both');
+  const prayerInTopbar = prayerEnabled && (prayerShowIn === 'topbar' || prayerShowIn === 'both');
   const prayerConfigRef = useRef(prayerConfig);
   prayerConfigRef.current = prayerConfig;
   const [prayerPanelOpen, setPrayerPanelOpen] = useState(false);
@@ -116,7 +120,7 @@ const MainLayout = ({
           runningProjects={runningProjects}
           onProjectSelect={onProjectSelect || ((project) => onViewChange?.('project-detail', project))}
           onAddProject={handleAddProject}
-          prayer={prayerEnabled ? prayerConfig : null}
+          prayer={prayerInSidebar ? prayerConfig : null}
           prayerData={prayerData}
           onPrayerExpand={() => setPrayerPanelOpen(true)}
         />
@@ -127,7 +131,7 @@ const MainLayout = ({
               title={getTitle()}
               subtitle="Gatrion"
               onCommandPalette={handleCommandPalette}
-              prayer={prayerEnabled ? prayerConfig : null}
+              prayer={prayerInTopbar ? prayerConfig : null}
               prayerData={prayerData}
               onPrayerExpand={() => setPrayerPanelOpen(true)}
             />

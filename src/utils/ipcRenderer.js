@@ -518,6 +518,14 @@ export const onNavigateToProject = (callback) => {
   return window.electron.onNavigateToProject(callback);
 };
 
+export const onConfigUpdated = (callback) => {
+  if (!isElectron()) {
+    console.warn('[IPC] Running in browser mode - onConfigUpdated not available');
+    return () => {};
+  }
+  return window.electron.onConfigUpdated(callback);
+};
+
 // ==================== Resource Monitoring ====================
 
 /**

@@ -66,6 +66,10 @@ export const useElectronConfig = () => {
           document.documentElement.setAttribute('data-theme', updates.theme);
         }
 
+        // Keep every useElectronConfig instance (e.g. MainLayout's own hook)
+        // in sync — the IPC response only reaches the calling instance.
+        window.dispatchEvent(new CustomEvent('devlauncher:config-changed', { detail: response.config }));
+
         return { success: true, config: response.config };
       } else {
         return { success: false, error: response.error || 'Failed to update config' };
@@ -90,6 +94,22 @@ export const useElectronConfig = () => {
   useEffect(() => {
     loadConfig();
   }, [loadConfig]);
+
+  // Sync every instance: local CustomEvent (browser + Electron) and the
+  // main-process push channel (updates originating outside this renderer).
+  useEffect(() => {
+    const onCustomEvent = (event) => {
+      if (event.detail) setConfig(event.detail);
+    };
+    window.addEventListener('devlauncher:config-changed', onCustomEvent);
+    const cleanupIpc = ipc.onConfigUpdated((nextConfig) => {
+      if (nextConfig) setConfig(nextConfig);
+    });
+    return () => {
+      window.removeEventListener('devlauncher:config-changed', onCustomEvent);
+      cleanupIpc?.();
+    };
+  }, []);
 
   // Apply theme on config change
   useEffect(() => {

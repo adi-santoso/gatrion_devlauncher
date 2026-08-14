@@ -607,6 +607,9 @@ async function initialize() {
       if (updatedConfig?.autoRestart) {
         processManager.autoRestartConfig = updatedConfig.autoRestart
       }
+      // Broadcast so every renderer context (e.g. MainLayout's own config hook)
+      // stays in sync with the caller that just changed the config.
+      mainWindow?.webContents.send('config-updated', updatedConfig)
       return { success: true, config: updatedConfig }
     } catch (error) {
       return { success: false, error: error.message }

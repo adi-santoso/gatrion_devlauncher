@@ -58,7 +58,7 @@ const methodName = (config) => {
  * must share the same height (the container height), which keeps the widget
  * from jumping as content changes.
  */
-function RotatingSlide({ slides, interval = 5000, duration = 300, heightClass = '', className = '' }) {
+function RotatingSlide({ slides, interval = 10000, duration = 450, heightClass = '', className = '' }) {
   const [index, setIndex] = useState(0);
 
   useEffect(() => {
@@ -227,7 +227,7 @@ export function PrayerPill({ data, onExpand }) {
       title={`${data.next.label} ${data.next.formatted} — ${formatCountdown(data.countdown)} · klik untuk jadwal lengkap`}
       className="flex items-center h-7 rounded-lg border border-border bg-surface px-2.5 text-[10px] hover:border-accent hover:bg-accent/5 transition-colors cursor-pointer"
     >
-      <RotatingSlide slides={slides} heightClass="h-7" interval={5000} duration={300} />
+      <RotatingSlide slides={slides} heightClass="h-7" />
     </button>
   );
 }

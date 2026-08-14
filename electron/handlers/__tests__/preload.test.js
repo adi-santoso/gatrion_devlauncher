@@ -72,7 +72,7 @@ describe('preload API surface', () => {
     expect(cb).toHaveBeenCalledWith('p1', 'line')
   })
 
-  test('onOmpEvent / onUpdateState pass the payload through', () => {
+  test('onOmpEvent / onUpdateState / onConfigUpdated pass the payload through', () => {
     const cb = vi.fn()
     api.onOmpEvent(cb)
     for (const listener of ipcRenderer._listeners.get('omp-event')) listener({}, { type: 'agent_start' })
@@ -82,5 +82,10 @@ describe('preload API surface', () => {
     api.onUpdateState(updater)
     for (const listener of ipcRenderer._listeners.get('update-state')) listener({}, { status: 'downloaded' })
     expect(updater).toHaveBeenCalledWith({ status: 'downloaded' })
+
+    const configCb = vi.fn()
+    api.onConfigUpdated(configCb)
+    for (const listener of ipcRenderer._listeners.get('config-updated')) listener({}, { theme: 'light' })
+    expect(configCb).toHaveBeenCalledWith({ theme: 'light' })
   })
 })

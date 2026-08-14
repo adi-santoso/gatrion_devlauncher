@@ -67,11 +67,11 @@ describe('PrayerWidget', () => {
     const track = document.querySelector('[data-slide-index]')
     expect(track).toHaveAttribute('data-slide-index', '0')
     act(() => {
-      vi.advanceTimersByTime(5000)
+      vi.advanceTimersByTime(10000)
     })
     expect(track).toHaveAttribute('data-slide-index', '1')
     act(() => {
-      vi.advanceTimersByTime(5000)
+      vi.advanceTimersByTime(10000)
     })
     expect(track).toHaveAttribute('data-slide-index', '0')
   })
