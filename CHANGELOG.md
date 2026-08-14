@@ -6,6 +6,10 @@ Format mengikuti [Keep a Changelog](https://keepachangelog.com/id-ID/1.1.0/), da
 
 ## [Unreleased]
 
+### Changed
+
+- **Settings jadi tabbed layout** — halaman panjang diganti 6 tab dengan ikon: **General** (bahasa, tema, umum, notifikasi, auto-restart), **Terminal**, **Data & Backup**, **Diagnostics** (main log, crash reports, system env), **AI Agent**, **Prayer**. Semua panel tetap ter-mount (hanya disembunyikan) sehingga state di dalamnya — tail log, daftar crash dump, hasil backup, hasil pencarian kota — tidak hilang saat pindah tab. Label tab ikut i18n en/id.
+
 ### Added
 
 - **i18n UI en/id (P2)** — infrastruktur lengkap: `src/i18n/translations.js` (dictionary en/id dengan test parity key + placeholder), `src/i18n/I18nContext.jsx` (`I18nProvider` + hook `useI18n().t(key, vars)`, fallback en → raw key). Konfigurasi baru `config.language` ('en' default; validasi + normalisasi + mock update). **Toggle Bahasa di Settings** (English / Bahasa Indonesia) — seluruh kartu Settings diterjemahkan: update banner, general, notifications, auto-restart, preview, data, backup, main log, crash reports, prayer, theme selector, plus label navigasi Sidebar (workspace/proyek/terminal/agen/pengaturan). +10 test (parity, translate, provider, ThemeSelector bilingual). e2e: klik "Bahasa Indonesia" → sidebar jadi "Proyek" → `language:'id'` tersimpan di config.json dan tetap Indonesia setelah restart.

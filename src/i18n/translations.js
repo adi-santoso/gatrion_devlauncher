@@ -18,6 +18,14 @@ export const translations = {
     'nav.runningNow': 'Running now',
     'nav.needsAttention': 'Needs attention',
 
+    // Settings — tabs
+    'settings.tabs.general': 'General',
+    'settings.tabs.terminal': 'Terminal',
+    'settings.tabs.data': 'Data & Backup',
+    'settings.tabs.diagnostics': 'Diagnostics',
+    'settings.tabs.agent': 'AI Agent',
+    'settings.tabs.prayer': 'Prayer',
+
     // Settings — language
     'settings.language.title': 'Language',
     'settings.language.desc': 'Interface language for the app. Restart not needed — settings apply instantly.',
@@ -164,6 +172,14 @@ export const translations = {
     'nav.main': 'Navigasi utama sidebar',
     'nav.runningNow': 'Sedang berjalan',
     'nav.needsAttention': 'Perlu perhatian',
+
+    // Settings — tabs
+    'settings.tabs.general': 'Umum',
+    'settings.tabs.terminal': 'Terminal',
+    'settings.tabs.data': 'Data & Cadangan',
+    'settings.tabs.diagnostics': 'Diagnostik',
+    'settings.tabs.agent': 'Agen AI',
+    'settings.tabs.prayer': 'Sholat',
 
     // Settings — language
     'settings.language.title': 'Bahasa',
