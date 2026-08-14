@@ -185,6 +185,10 @@ describe('git channels (validation paths + real temp repos)', () => {
 
   test('full git flow in a real temp repo', async () => {
     execFileSync('git', ['init', '-q'], { cwd: tempRoot })
+    // CI runners have no global git identity — without it `git commit` fails
+    // with "Please tell me who you are". Set a local identity for the repo.
+    execFileSync('git', ['config', 'user.email', 'test@example.com'], { cwd: tempRoot })
+    execFileSync('git', ['config', 'user.name', 'DevLauncher Test'], { cwd: tempRoot })
     fs.writeFileSync(path.join(tempRoot, 'a.txt'), 'hello')
     setupRepoHandlers(makeStorageManager([]), makeProcessManager(), makeWindow())
     const handlers = ipcMain._handlers
