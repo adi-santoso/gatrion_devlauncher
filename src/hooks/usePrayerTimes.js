@@ -23,7 +23,9 @@ function prayerDate(day, hours) {
  * @param {object} config - the `prayer` config block (or null/undefined to disable)
  * @param {(prayer: {key:string,label:string,formatted:string}) => void} onPrayerTime
  *        fired exactly once when a prayer time arrives while the app is watching
- * @returns {{today: Array, next: object, countdown: {hours,minutes,seconds,totalSeconds}, near: boolean, arrived: boolean}}
+ * @returns {{today: Array, next: object, countdown: {hours,minutes,seconds,totalSeconds}, near: boolean, arrived: boolean, now: Date, inProgress: object|null}}
+ *   - `now`: the current ticking Date (same value the countdown was derived from)
+ *   - `inProgress`: the prayer whose time arrived within the last 10 minutes, or null
  */
 export default function usePrayerTimes(config, onPrayerTime) {
   const configRef = useRef(config);
@@ -71,6 +73,18 @@ export default function usePrayerTimes(config, onPrayerTime) {
     const diffMs = Math.max(0, next.time.getTime() - nowMs);
     const totalSeconds = Math.floor(diffMs / 1000);
 
+    // "Sedang berlangsung" window: the latest prayer whose time arrived within
+    // the last 10 minutes (checked newest-first, today's schedule only).
+    const IN_PROGRESS_WINDOW_MS = 10 * 60 * 1000;
+    let inProgress = null;
+    for (let i = todayList.length - 1; i >= 0; i--) {
+      const elapsed = nowMs - todayList[i].time.getTime();
+      if (elapsed >= 0 && elapsed <= IN_PROGRESS_WINDOW_MS) {
+        inProgress = todayList[i];
+        break;
+      }
+    }
+
     return {
       today: todayList,
       next,
@@ -82,6 +96,8 @@ export default function usePrayerTimes(config, onPrayerTime) {
       },
       near: totalSeconds <= 15 * 60,
       arrived: totalSeconds <= 0,
+      now,
+      inProgress,
     };
   }, [now]);
 

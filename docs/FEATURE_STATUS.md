@@ -71,7 +71,7 @@ Legend:
 | Settings AI Agent | Done | Kartu di Settings: status/versi, install + progress bar, Run omp setup (wizard console sendiri), check update, daftar provider + hapus, default model picker, form custom provider (baseUrl/api type/apiKey/models) → merge ke ~/.omp/agent/models.yml dengan backup otomatis (js-yaml) |
 | Script runner | Done | Tab Scripts: jalankan script `package.json` + health check dependency |
 | Animation system | Done | AnimatedModal (entrance + exit), toast slide, sliding tab indicator, theme transition, press feedback, skeleton shimmer |
-| Pengingat Sholat | Done | Widget sidebar/topbar (bisa diatur/dinonaktifkan), countdown live per detik, algoritma PrayTimes offline (Kemenag RI + 5 metode), geocode kota, panel floating expand, notifikasi + suara |
+| Pengingat Sholat | Done | Widget sidebar/topbar (bisa diatur/dinonaktifkan), algoritma PrayTimes offline (Kemenag RI + 5 metode), geocode kota, panel floating expand, notifikasi + suara. **Redesign**: konten bergantian slide up/down — jam live sampai detik + tanggal Masehi + **Hijriah** (Umm al-Qura), sholat berikutnya + countdown, banner "Sedang Berlangsung" 10 menit setelah masuk waktu; semua class theme-safe (light mode tidak lagi gelap) |
 | Stopping state | Done | Detail, dashboard card/table, grid/list |
 | PID cleanup | Done | Null setelah exit/stop |
 | Search/filter/sort | Done | Search, filter type/status, serta sorting (name, status, type, port) sudah terhubung |
