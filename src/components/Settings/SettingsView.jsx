@@ -215,25 +215,41 @@ const SettingsView = ({ config, updateConfig, onExportProjects, onImportProjects
           )}
         </div>
       )}
-      <div className="grid gap-5 lg:grid-cols-2 items-start">
-      <div className="bg-surface border border-border rounded-xl shadow-card p-5 space-y-4">
-        <p className="font-display font-bold text-sm">{t('settings.language.title')}</p>
-        <p className="text-[11px] text-ink-faint">{t('settings.language.desc')}</p>
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => handleChange('language', 'en')}
-            className={`px-3.5 py-2 rounded-lg text-xs font-medium border transition-colors ${config.language === 'en' ? 'bg-accent/15 text-ink border-accent/30' : 'bg-surface-3 hover:bg-surface-2 text-ink-soft hover:text-ink border-border'}`}
-          >
-            {t('settings.language.en')}
-          </button>
-          <button
-            type="button"
-            onClick={() => handleChange('language', 'id')}
-            className={`px-3.5 py-2 rounded-lg text-xs font-medium border transition-colors ${config.language === 'id' ? 'bg-accent/15 text-ink border-accent/30' : 'bg-surface-3 hover:bg-surface-2 text-ink-soft hover:text-ink border-border'}`}
-          >
-            {t('settings.language.id')}
-          </button>
+      <div className="grid gap-5 lg:grid-cols-2">
+      {/* Language + App Preview — paired with the theme card so both have the same height */}
+      <div className="bg-surface border border-border rounded-xl shadow-card p-5 flex flex-col gap-4">
+        <div className="space-y-4">
+          <p className="font-display font-bold text-sm">{t('settings.language.title')}</p>
+          <p className="text-[11px] text-ink-faint">{t('settings.language.desc')}</p>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => handleChange('language', 'en')}
+              className={`px-3.5 py-2 rounded-lg text-xs font-medium border transition-colors ${config.language === 'en' ? 'bg-accent/15 text-ink border-accent/30' : 'bg-surface-3 hover:bg-surface-2 text-ink-soft hover:text-ink border-border'}`}
+            >
+              {t('settings.language.en')}
+            </button>
+            <button
+              type="button"
+              onClick={() => handleChange('language', 'id')}
+              className={`px-3.5 py-2 rounded-lg text-xs font-medium border transition-colors ${config.language === 'id' ? 'bg-accent/15 text-ink border-accent/30' : 'bg-surface-3 hover:bg-surface-2 text-ink-soft hover:text-ink border-border'}`}
+            >
+              {t('settings.language.id')}
+            </button>
+          </div>
+        </div>
+        <div className="border-t border-border pt-4 mt-auto space-y-4">
+          <p className="font-display font-bold text-sm">{t('settings.preview.title')}</p>
+          <ToggleSwitch
+            enabled={config.preview?.keepAlive !== false}
+            onChange={() =>
+              updateConfig({ preview: { keepAlive: !(config.preview?.keepAlive !== false) } })
+            }
+            label={t('settings.preview.keepAlive')}
+          />
+          <p className="text-[11px] text-ink-faint">
+            {t('settings.preview.desc')}
+          </p>
         </div>
       </div>
 
@@ -242,148 +258,141 @@ const SettingsView = ({ config, updateConfig, onExportProjects, onImportProjects
         onThemeChange={(theme) => handleChange('theme', theme)}
       />
 
-      <div className="bg-surface border border-border rounded-xl shadow-card p-5 space-y-4">
-        <p className="font-display font-bold text-sm">{t('settings.general.title')}</p>
-        <ToggleSwitch
-          enabled={config.sidebarExpanded}
-          onChange={() => handleChange('sidebarExpanded', !config.sidebarExpanded)}
-          label={t('settings.general.sidebarExpanded')}
-        />
-        <ToggleSwitch
-          enabled={!!config.minimizeToTray}
-          onChange={() => handleChange('minimizeToTray', !config.minimizeToTray)}
-          label={t('settings.minimizeToTray')}
-        />
-        <ToggleSwitch
-          enabled={!!config.startOnBoot}
-          onChange={() => handleChange('startOnBoot', !config.startOnBoot)}
-          label={t('settings.startOnBoot')}
-        />
-        <ToggleSwitch
-          enabled={!!config.autoStartProjects}
-          onChange={() => handleChange('autoStartProjects', !config.autoStartProjects)}
-          label={t('settings.autoStartProjects')}
-        />
-      </div>
-
-      <div className="bg-surface border border-border rounded-xl shadow-card p-5 space-y-4">
-        <p className="font-display font-bold text-sm">{t('settings.notifications.title')}</p>
-        <ToggleSwitch
-          enabled={config.notifications?.onStart !== false}
-          onChange={() =>
-            updateConfig({ notifications: { onStart: !(config.notifications?.onStart !== false) } })
-          }
-          label={t('settings.notifications.onStart')}
-        />
-        <ToggleSwitch
-          enabled={config.notifications?.onError !== false}
-          onChange={() =>
-            updateConfig({ notifications: { onError: !(config.notifications?.onError !== false) } })
-          }
-          label={t('settings.notifications.onError')}
-        />
-        <ToggleSwitch
-          enabled={!!config.notifications?.sound}
-          onChange={() =>
-            updateConfig({ notifications: { sound: !config.notifications?.sound } })
-          }
-          label={t('settings.notifications.sound')}
-        />
-      </div>
-
-      <div className="bg-surface border border-border rounded-xl shadow-card p-5 space-y-4">
-        <p className="font-display font-bold text-sm">{t('settings.autoRestart.title')}</p>
-        <ToggleSwitch
-          enabled={!!config.autoRestart?.enabled}
-          onChange={() =>
-            updateConfig({ autoRestart: { enabled: !config.autoRestart?.enabled } })
-          }
-          label={t('settings.autoRestart.enabled')}
-        />
-        <div className="flex items-center gap-3 text-xs text-ink-soft">
-          <label htmlFor="maxRetries" className="whitespace-nowrap">{t('settings.autoRestart.maxRetries')}</label>
-          <input
-            id="maxRetries"
-            type="number"
-            min="0"
-            max="10"
-            value={config.autoRestart?.maxRetries ?? 3}
-            onChange={(e) => updateConfig({ autoRestart: { maxRetries: Math.max(0, Math.min(10, Number(e.target.value) || 0)) } })}
-            className="w-16 bg-surface-3 border border-border rounded-md px-2 py-1 text-ink focus:outline-none focus:ring-2 focus:ring-accent/40"
+      {/* General + Notifications + Auto-restart + Data + Terminal — one card */}
+      <div className="bg-surface border border-border rounded-xl shadow-card p-5 space-y-5 lg:col-span-2">
+        <section className="space-y-4">
+          <p className="font-display font-bold text-sm">{t('settings.general.title')}</p>
+          <ToggleSwitch
+            enabled={config.sidebarExpanded}
+            onChange={() => handleChange('sidebarExpanded', !config.sidebarExpanded)}
+            label={t('settings.general.sidebarExpanded')}
           />
-          <label htmlFor="delayMs" className="whitespace-nowrap ml-4">{t('settings.autoRestart.delay')}</label>
-          <input
-            id="delayMs"
-            type="number"
-            min="500"
-            max="60000"
-            step="500"
-            value={config.autoRestart?.delayMs ?? 2000}
-            onChange={(e) => updateConfig({ autoRestart: { delayMs: Math.max(500, Math.min(60000, Number(e.target.value) || 2000)) } })}
-            className="w-20 bg-surface-3 border border-border rounded-md px-2 py-1 text-ink focus:outline-none focus:ring-2 focus:ring-accent/40"
+          <ToggleSwitch
+            enabled={!!config.minimizeToTray}
+            onChange={() => handleChange('minimizeToTray', !config.minimizeToTray)}
+            label={t('settings.minimizeToTray')}
           />
-        </div>
-        <p className="text-[11px] text-ink-faint">{t('settings.autoRestart.desc')}</p>
-      </div>
+          <ToggleSwitch
+            enabled={!!config.startOnBoot}
+            onChange={() => handleChange('startOnBoot', !config.startOnBoot)}
+            label={t('settings.startOnBoot')}
+          />
+          <ToggleSwitch
+            enabled={!!config.autoStartProjects}
+            onChange={() => handleChange('autoStartProjects', !config.autoStartProjects)}
+            label={t('settings.autoStartProjects')}
+          />
+        </section>
 
-      <div className="bg-surface border border-border rounded-xl shadow-card p-5 space-y-4">
-        <p className="font-display font-bold text-sm">{t('settings.data.title')}</p>
-        <p className="text-[11px] text-ink-faint">
-          {t('settings.data.desc')}
-        </p>
-        <div className="flex items-center gap-2 pt-1">
-          <button
-            type="button"
-            onClick={onExportProjects}
-            className="px-3.5 py-2 rounded-lg bg-surface-3 hover:bg-surface-2 text-xs font-medium text-ink-soft hover:text-ink border border-border transition-colors"
-          >
-            ⬇ {t('settings.data.exportProjects')}
-          </button>
-          <button
-            type="button"
-            onClick={onImportProjects}
-            className="px-3.5 py-2 rounded-lg bg-surface-3 hover:bg-surface-2 text-xs font-medium text-ink-soft hover:text-ink border border-border transition-colors"
-          >
-            ⬆ {t('settings.data.importProjects')}
-          </button>
-        </div>
-        <div className="border-t border-border pt-3">
-          <p className="text-[11px] text-ink-faint mb-2">
-            {t('settings.data.diagnostics.desc')}
+        <section className="space-y-4 border-t border-border pt-5">
+          <p className="font-display font-bold text-sm">{t('settings.notifications.title')}</p>
+          <ToggleSwitch
+            enabled={config.notifications?.onStart !== false}
+            onChange={() =>
+              updateConfig({ notifications: { onStart: !(config.notifications?.onStart !== false) } })
+            }
+            label={t('settings.notifications.onStart')}
+          />
+          <ToggleSwitch
+            enabled={config.notifications?.onError !== false}
+            onChange={() =>
+              updateConfig({ notifications: { onError: !(config.notifications?.onError !== false) } })
+            }
+            label={t('settings.notifications.onError')}
+          />
+          <ToggleSwitch
+            enabled={!!config.notifications?.sound}
+            onChange={() =>
+              updateConfig({ notifications: { sound: !config.notifications?.sound } })
+            }
+            label={t('settings.notifications.sound')}
+          />
+        </section>
+
+        <section className="space-y-4 border-t border-border pt-5">
+          <p className="font-display font-bold text-sm">{t('settings.autoRestart.title')}</p>
+          <ToggleSwitch
+            enabled={!!config.autoRestart?.enabled}
+            onChange={() =>
+              updateConfig({ autoRestart: { enabled: !config.autoRestart?.enabled } })
+            }
+            label={t('settings.autoRestart.enabled')}
+          />
+          <div className="flex items-center gap-3 text-xs text-ink-soft">
+            <label htmlFor="maxRetries" className="whitespace-nowrap">{t('settings.autoRestart.maxRetries')}</label>
+            <input
+              id="maxRetries"
+              type="number"
+              min="0"
+              max="10"
+              value={config.autoRestart?.maxRetries ?? 3}
+              onChange={(e) => updateConfig({ autoRestart: { maxRetries: Math.max(0, Math.min(10, Number(e.target.value) || 0)) } })}
+              className="w-16 bg-surface-3 border border-border rounded-md px-2 py-1 text-ink focus:outline-none focus:ring-2 focus:ring-accent/40"
+            />
+            <label htmlFor="delayMs" className="whitespace-nowrap ml-4">{t('settings.autoRestart.delay')}</label>
+            <input
+              id="delayMs"
+              type="number"
+              min="500"
+              max="60000"
+              step="500"
+              value={config.autoRestart?.delayMs ?? 2000}
+              onChange={(e) => updateConfig({ autoRestart: { delayMs: Math.max(500, Math.min(60000, Number(e.target.value) || 2000)) } })}
+              className="w-20 bg-surface-3 border border-border rounded-md px-2 py-1 text-ink focus:outline-none focus:ring-2 focus:ring-accent/40"
+            />
+          </div>
+          <p className="text-[11px] text-ink-faint">{t('settings.autoRestart.desc')}</p>
+        </section>
+
+        <section className="space-y-4 border-t border-border pt-5">
+          <p className="font-display font-bold text-sm">{t('settings.data.title')}</p>
+          <p className="text-[11px] text-ink-faint">
+            {t('settings.data.desc')}
           </p>
-          <button
-            type="button"
-            onClick={onExportDiagnostics}
-            className="px-3.5 py-2 rounded-lg bg-surface-3 hover:bg-surface-2 text-xs font-medium text-ink-soft hover:text-ink border border-border transition-colors"
-          >
-            🩺 {t('settings.data.exportDiagnostics')}
-          </button>
-        </div>
-      </div>
+          <div className="flex items-center gap-2 pt-1">
+            <button
+              type="button"
+              onClick={onExportProjects}
+              className="px-3.5 py-2 rounded-lg bg-surface-3 hover:bg-surface-2 text-xs font-medium text-ink-soft hover:text-ink border border-border transition-colors"
+            >
+              ⬇ {t('settings.data.exportProjects')}
+            </button>
+            <button
+              type="button"
+              onClick={onImportProjects}
+              className="px-3.5 py-2 rounded-lg bg-surface-3 hover:bg-surface-2 text-xs font-medium text-ink-soft hover:text-ink border border-border transition-colors"
+            >
+              ⬆ {t('settings.data.importProjects')}
+            </button>
+          </div>
+          <div className="border-t border-border pt-3">
+            <p className="text-[11px] text-ink-faint mb-2">
+              {t('settings.data.diagnostics.desc')}
+            </p>
+            <button
+              type="button"
+              onClick={onExportDiagnostics}
+              className="px-3.5 py-2 rounded-lg bg-surface-3 hover:bg-surface-2 text-xs font-medium text-ink-soft hover:text-ink border border-border transition-colors"
+            >
+              🩺 {t('settings.data.exportDiagnostics')}
+            </button>
+          </div>
+        </section>
 
-      <TerminalSettings
-        fontSize={config.terminal?.fontSize}
-        onFontSizeChange={(size) => updateConfig({ terminal: { fontSize: size } })}
-        maxLines={config.terminal?.maxLines}
-        onMaxLinesChange={(lines) => updateConfig({ terminal: { maxLines: lines } })}
-        autoScroll={config.terminal?.autoScroll}
-        onAutoScrollChange={() =>
-          updateConfig({ terminal: { autoScroll: !config.terminal?.autoScroll } })
-        }
-      />
-
-      <div className="bg-surface border border-border rounded-xl shadow-card p-5 space-y-4">
-        <p className="font-display font-bold text-sm">{t('settings.preview.title')}</p>
-        <ToggleSwitch
-          enabled={config.preview?.keepAlive !== false}
-          onChange={() =>
-            updateConfig({ preview: { keepAlive: !(config.preview?.keepAlive !== false) } })
-          }
-          label={t('settings.preview.keepAlive')}
-        />
-        <p className="text-[11px] text-ink-faint">
-          {t('settings.preview.desc')}
-        </p>
+        <section className="space-y-4 border-t border-border pt-5">
+          <p className="font-display font-bold text-sm">{t('settings.terminal.title')}</p>
+          <TerminalSettings
+            embedded
+            fontSize={config.terminal?.fontSize}
+            onFontSizeChange={(size) => updateConfig({ terminal: { fontSize: size } })}
+            maxLines={config.terminal?.maxLines}
+            onMaxLinesChange={(lines) => updateConfig({ terminal: { maxLines: lines } })}
+            autoScroll={config.terminal?.autoScroll}
+            onAutoScrollChange={() =>
+              updateConfig({ terminal: { autoScroll: !config.terminal?.autoScroll } })
+            }
+          />
+        </section>
       </div>
 
       <div className="bg-surface border border-border rounded-xl shadow-card p-5 space-y-4 lg:col-span-2">

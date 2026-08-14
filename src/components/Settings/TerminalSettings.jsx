@@ -1,10 +1,13 @@
 import React, { useEffect, useState } from 'react';
 import Icon from '../Common/Icon';
+import { useI18n } from '../../i18n/I18nContext';
 
 const MIN_MAX_LINES = 100;
 
 /**
- * TerminalSettings - Terminal font size controls, max log lines input, auto-scroll toggle
+ * TerminalSettings - Terminal font size controls, max log lines input, auto-scroll toggle.
+ * `embedded` renders without the card wrapper so the controls can live inside
+ * another card (the merged General card in SettingsView).
  */
 const TerminalSettings = ({
   fontSize = 14,
@@ -13,7 +16,10 @@ const TerminalSettings = ({
   onMaxLinesChange,
   autoScroll = true,
   onAutoScrollChange,
+  embedded = false,
 }) => {
+  const { t } = useI18n();
+
   // Keep a raw draft so typing is free; the value is clamped and committed on blur.
   const [maxLinesDraft, setMaxLinesDraft] = useState(String(maxLines ?? 1000));
   useEffect(() => setMaxLinesDraft(String(maxLines ?? 1000)), [maxLines]);
@@ -37,15 +43,14 @@ const TerminalSettings = ({
     onMaxLinesChange(next);
   };
 
-  return (
-    <div className="bg-surface border border-border rounded-xl shadow-card p-5 space-y-4">
-      <p className="font-display font-bold text-sm">Terminal</p>
+  const controls = (
+    <>
       <div className="flex items-center justify-between">
-        <p className="text-xs text-ink">Font size</p>
+        <p className="text-xs text-ink">{t('settings.terminal.fontSize')}</p>
         <div className="flex items-center gap-2">
           <button
             onClick={decreaseFontSize}
-            aria-label="Decrease font size"
+            aria-label={t('settings.terminal.decreaseFont')}
             className="w-6 h-6 rounded-md bg-surface-3 text-ink-soft hover:text-ink transition-colors"
           >
             <Icon name="minus" size={14} />
@@ -53,7 +58,7 @@ const TerminalSettings = ({
           <span className="text-xs font-mono w-6 text-center">{fontSize}</span>
           <button
             onClick={increaseFontSize}
-            aria-label="Increase font size"
+            aria-label={t('settings.terminal.increaseFont')}
             className="w-6 h-6 rounded-md bg-surface-3 text-ink-soft hover:text-ink transition-colors"
           >
             <Icon name="plus" size={14} />
@@ -61,7 +66,7 @@ const TerminalSettings = ({
         </div>
       </div>
       <div className="flex items-center justify-between">
-        <p className="text-xs text-ink">Max log lines</p>
+        <p className="text-xs text-ink">{t('settings.terminal.maxLines')}</p>
         <div className="flex items-center gap-2">
           <input
             type="text"
@@ -74,17 +79,17 @@ const TerminalSettings = ({
                 e.currentTarget.blur();
               }
             }}
-            aria-label="Max log lines"
+            aria-label={t('settings.terminal.maxLines')}
             className="w-20 bg-surface-3 border border-border rounded-lg px-2 py-1 text-xs font-mono text-ink text-right focus:outline-none"
           />
-          <span className="text-[10px] text-ink-faint">min {MIN_MAX_LINES}</span>
+          <span className="text-[10px] text-ink-faint">{t('settings.terminal.min', { count: MIN_MAX_LINES })}</span>
         </div>
       </div>
       <div className="flex items-center justify-between">
-        <p className="text-xs text-ink">Auto-scroll logs</p>
+        <p className="text-xs text-ink">{t('settings.terminal.autoScroll')}</p>
         <button
           onClick={onAutoScrollChange}
-          aria-label="Toggle auto-scroll logs"
+          aria-label={t('settings.terminal.toggleAutoScroll')}
           className={`w-9 h-5 rounded-full relative shrink-0 ${
             autoScroll ? 'bg-accent' : 'bg-surface-3 border border-border'
           }`}
@@ -96,6 +101,17 @@ const TerminalSettings = ({
           ></span>
         </button>
       </div>
+    </>
+  );
+
+  if (embedded) {
+    return <div className="space-y-4">{controls}</div>;
+  }
+
+  return (
+    <div className="bg-surface border border-border rounded-xl shadow-card p-5 space-y-4">
+      <p className="font-display font-bold text-sm">{t('settings.terminal.title')}</p>
+      {controls}
     </div>
   );
 };

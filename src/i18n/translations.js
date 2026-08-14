@@ -125,9 +125,14 @@ export const translations = {
     'settings.saveAuto': 'Changes save automatically.',
 
     // Settings — terminal
+    'settings.terminal.title': 'Terminal',
     'settings.terminal.fontSize': 'Font size',
-    'settings.terminal.maxLines': 'Max lines',
-    'settings.terminal.autoScroll': 'Auto-scroll on output',
+    'settings.terminal.maxLines': 'Max log lines',
+    'settings.terminal.min': 'min {count}',
+    'settings.terminal.autoScroll': 'Auto-scroll logs',
+    'settings.terminal.decreaseFont': 'Decrease font size',
+    'settings.terminal.increaseFont': 'Increase font size',
+    'settings.terminal.toggleAutoScroll': 'Toggle auto-scroll logs',
 
     // Settings — system env
     'settings.env.title': 'System Environment',
@@ -267,9 +272,14 @@ export const translations = {
     'settings.saveAuto': 'Perubahan tersimpan otomatis.',
 
     // Settings — terminal
+    'settings.terminal.title': 'Terminal',
     'settings.terminal.fontSize': 'Ukuran huruf',
-    'settings.terminal.maxLines': 'Maks. baris',
-    'settings.terminal.autoScroll': 'Auto-scroll saat ada output',
+    'settings.terminal.maxLines': 'Maks. baris log',
+    'settings.terminal.min': 'min {count}',
+    'settings.terminal.autoScroll': 'Auto-scroll log',
+    'settings.terminal.decreaseFont': 'Perkecil ukuran huruf',
+    'settings.terminal.increaseFont': 'Perbesar ukuran huruf',
+    'settings.terminal.toggleAutoScroll': 'Alihkan auto-scroll log',
 
     // Settings — system env
     'settings.env.title': 'Lingkungan Sistem',
