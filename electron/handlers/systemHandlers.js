@@ -1,7 +1,10 @@
 // @ts-check
-const { ipcMain } = require('electron')
+const fs = require('fs').promises
+const path = require('path')
+const { ipcMain, app, dialog } = require('electron')
 const { execFile } = require('child_process')
 const { assertTrustedIpcEvent } = require('../utils/ipcSecurity')
+const { toRendererProject } = require('../projectSchema')
 
 // Tools checked on the host system. `args` is the version flag, `stdoutOnly`
 // marks tools that print the version to stdout (all others may use stderr).
@@ -86,6 +89,55 @@ function firstLine(text) {
   return line.trim().slice(0, 120)
 }
 
+async function readTextIfExists(filePath) {
+  try {
+    return await fs.readFile(filePath, 'utf8')
+  } catch {
+    return null
+  }
+}
+
+async function readJsonIfExists(filePath) {
+  const text = await readTextIfExists(filePath)
+  if (text == null) return null
+  try {
+    return JSON.parse(text)
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Collect everything needed to troubleshoot the app on a remote machine:
+ * app/OS versions, config, health, redacted projects (secret env stripped),
+ * and the tail of main.log. Free of Electron calls so it can be unit-tested.
+ * @param {{ userDataPath: string, version: string, meta?: object }} options
+ */
+async function buildDiagnosticsBundle({ userDataPath, version, meta = {} }) {
+  const logsDir = path.join(userDataPath, 'logs')
+  const [config, health, projects, activities, presets, mainLog] = await Promise.all([
+    readJsonIfExists(path.join(userDataPath, 'config.json')),
+    readJsonIfExists(path.join(userDataPath, 'health.json')),
+    readJsonIfExists(path.join(userDataPath, 'projects.json')),
+    readJsonIfExists(path.join(userDataPath, 'activities.json')),
+    readJsonIfExists(path.join(userDataPath, 'presets.json')),
+    readTextIfExists(path.join(logsDir, 'main.log')),
+  ])
+  return {
+    generatedAt: new Date().toISOString(),
+    app: { version, ...meta },
+    config,
+    health,
+    activities,
+    presets,
+    // Secret env values must never leave the machine — apply the same
+    // redaction the renderer already receives (values blanked, kept as
+    // `unchanged` secrets).
+    projects: Array.isArray(projects) ? projects.map(toRendererProject) : projects,
+    mainLog: (mainLog || '').split(/\r?\n/).filter(Boolean).slice(-500).join('\n'),
+  }
+}
+
 function setupSystemHandlers() {
   ipcMain.handle('system-env-check', async (event) => {
     try {
@@ -96,6 +148,37 @@ function setupSystemHandlers() {
       return { success: false, error: error.message }
     }
   })
+
+  // Export a support bundle: versions + config + health + redacted projects +
+  // main.log tail, saved via the native save dialog.
+  ipcMain.handle('export-diagnostics', async (event) => {
+    try {
+      assertTrustedIpcEvent(event)
+      const bundle = await buildDiagnosticsBundle({
+        userDataPath: app.getPath('userData'),
+        version: app.getVersion(),
+        meta: {
+          name: app.getName(),
+          electron: process.versions.electron,
+          node: process.versions.node,
+          platform: process.platform,
+          arch: process.arch,
+          packaged: app.isPackaged,
+        },
+      })
+      const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)
+      const result = await dialog.showSaveDialog({
+        title: 'Export diagnostics',
+        defaultPath: `devlauncher-diagnostics-${stamp}.json`,
+        filters: [{ name: 'JSON', extensions: ['json'] }],
+      })
+      if (result.canceled || !result.filePath) return { success: false, canceled: true }
+      await fs.writeFile(result.filePath, JSON.stringify(bundle, null, 2), 'utf8')
+      return { success: true, filePath: result.filePath }
+    } catch (error) {
+      return { success: false, error: error.message }
+    }
+  })
 }
 
-module.exports = { setupSystemHandlers, TOOLS }
+module.exports = { setupSystemHandlers, TOOLS, buildDiagnosticsBundle }

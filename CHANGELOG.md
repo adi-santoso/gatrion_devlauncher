@@ -8,6 +8,7 @@ Format mengikuti [Keep a Changelog](https://keepachangelog.com/id-ID/1.1.0/), da
 
 ### Added
 
+- **Export diagnostics bundle** — tombol **"Export diagnostics…"** di Settings → Data: membuat satu file JSON berisi versi app/OS, config, health, activities, presets, **proyek dengan env secret yang di-redact** (`toRendererProject` — nilai secret tidak pernah keluar dari mesin), dan ekor `main.log` (500 baris terakhir), lalu disimpan lewat save dialog native. Backend: `buildDiagnosticsBundle` di `systemHandlers.js` (Electron-free, unit-testable) + channel IPC `export-diagnostics` (divalidasi `assertTrustedIpcEvent`).
 - **Code splitting renderer** — view utama kini di-`React.lazy` (Dashboard, Projects, ProjectDetail, Settings, Agent, TerminalWorkspace) dan dirender di dalam satu `Suspense` dengan fallback `LoadingSkeleton`. Bundle awal renderer turun dari **838 kB → 313 kB** (gzip 216 → 96 kB); tiap view jadi chunk terpisah yang dimuat saat pertama kali dibuka dan di-cache setelahnya — TerminalWorkspace (xterm, 284 kB) tidak lagi memblokir startup.
 - **Validasi payload IPC terpusat** — `electron/utils/ipcValidation.js` (defense-in-depth di atas `assertTrustedIpcEvent` dan validasi per-handler): channel terminal (`terminal-create/input/resize/kill` — input di-cap 64 kB agar PTY tidak dibanjiri string raksasa, resize dibatasi 1–500) dan process (`stop-project` force wajib boolean, `stop-custom-command` runId integer, `start-all-projects` projectIds array string non-empty + options object). Payload malformed kini **ditolak dengan error**, bukan diam-diam dipakai/diabaikan.
 - **Pengingat Sholat** — widget pengingat waktu sholat yang tampil di sidebar (kartu di atas tombol Add project), topbar (pill), atau keduanya (bisa dinonaktifkan dari Settings):
@@ -39,6 +40,7 @@ Format mengikuti [Keep a Changelog](https://keepachangelog.com/id-ID/1.1.0/), da
 
 ### Changed
 
+- **AgentChat dipecah (1.795 → 1.575 baris)** — bagian yang bisa berdiri sendiri diekstrak dari `AgentChat.jsx`: `agentChatUtils.js` (konstanta + pure helpers: `uid`, `extractContentParts`, `normalizeTranscriptMessage`, `argsToString`), `ToolCard.jsx` (tool card dengan state expand), dan `ChatComposer.jsx` (input bar: attach gambar, bash inline, slash commands, textarea draft). Perilaku dijamin tidak berubah oleh 46 test Agent/AgentChat yang sudah ada + 10 unit test baru untuk helper.
 - **Roadmap baru** — `docs/ROADMAP.md` ditulis ulang total berdasarkan analisa kode aktual: kondisi saat ini (263 warning lint, coverage ±31%, bundle 837 kB, file terbesar, gap main process) + 7 area peningkatan (code quality, reliability, performance, security, product, CI, observability) dengan prioritas P0/P1/P2, effort, dampak, gerbang rilis, dan urutan eksekusi 12 minggu.
 - **README + dokumentasi dirapikan** — README diperbarui (fitur AI Agent, daftar commands lengkap, struktur & data lokal terkini); `docs/KEYBOARD_SHORTCUTS.md` ditulis ulang sesuai shortcut yang benar-benar terimplementasi; `docs/ARCHITECTURE.md` diperbarui (struktur source aktual, security boundary yang sudah di-hardening, model project/config terkini); `docs/SETUP.md` dan `docs/ROADMAP.md` dikoreksi bagian yang usang.
 - **Dokumen/folder yang tidak relevan dihapus** — `PHASE8_9_SUMMARY.md` dan `docs/IMPLEMENTATION_PHASE8_9.md` (laporan selesai sekali pakai, sudah terserap CHANGELOG/FEATURE_STATUS/ROADMAP, ber-footer spam), mockup desain usang (`devlauncher-mockup.html`, `template/devlauncher-template.html`), artefak temp (`temp-StorageManager.js` UTF-16, `test-integration.js` helper console yang tidak dipakai), serta folder kosong `logs/` dan `public/`. Dependency `zustand` (tidak diimport di mana pun) dihapus dari `package.json`/lockfile.
@@ -136,6 +138,7 @@ Format mengikuti [Keep a Changelog](https://keepachangelog.com/id-ID/1.1.0/), da
 
 ### Test
 
+- **13 test Vitest baru (total 191, coverage lines 36.3%)** — `agentChatUtils` (10 test: `extractContentParts`, `normalizeTranscriptMessage`, `argsToString`, uid, konstanta — helper yang baru diekstrak dari AgentChat) dan `buildDiagnosticsBundle` (3 test: bundle lengkap dengan **redaksi secret env terverifikasi**, file hilang → null, JSON corrupt dilewati tanpa menggagalkan bundle).
 - **30 test Vitest baru (total 178)** — coverage lines naik **30.6% → 35.7%** (branches 61.3%):
   - `electron/utils/__tests__/ipcValidation.test.js` (11 test) — tipe/bounds/maxLength per channel, channel tanpa rule no-op.
   - `electron/utils/__tests__/ipcSecurity.test.js` (5 test) — aturan URL trusted ditarik ke pure function `isTrustedSenderUrl` (dev vs packaged, origin asing, URL kosong) + `getPackagedIndexUrl` mengarah ke `dist-react/index.html`.

@@ -11,7 +11,7 @@ import { geocodeCity, checkUpdate, openExternalUrl } from '../../utils/ipcRender
  * SettingsView - Full settings view assembly
  * Lines 821-873 from template
  */
-const SettingsView = ({ config, updateConfig, onExportProjects, onImportProjects }) => {
+const SettingsView = ({ config, updateConfig, onExportProjects, onImportProjects, onExportDiagnostics }) => {
 
   const handleChange = async (key, value) => {
     await updateConfig({ [key]: value });
@@ -214,6 +214,18 @@ const SettingsView = ({ config, updateConfig, onExportProjects, onImportProjects
             className="px-3.5 py-2 rounded-lg bg-surface-3 hover:bg-surface-2 text-xs font-medium text-ink-soft hover:text-ink border border-border transition-colors"
           >
             ⬆ Import projects…
+          </button>
+        </div>
+        <div className="border-t border-border pt-3">
+          <p className="text-[11px] text-ink-faint mb-2">
+            Facing an issue? Export a diagnostics bundle (versions, config, health, redacted projects, and the main log) to share with support. Secrets stay on this machine.
+          </p>
+          <button
+            type="button"
+            onClick={onExportDiagnostics}
+            className="px-3.5 py-2 rounded-lg bg-surface-3 hover:bg-surface-2 text-xs font-medium text-ink-soft hover:text-ink border border-border transition-colors"
+          >
+            🩺 Export diagnostics…
           </button>
         </div>
       </div>

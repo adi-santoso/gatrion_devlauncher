@@ -270,6 +270,18 @@ Menampilkan dialog buka, membaca file, memvalidasi/normalisasi tiap entry, lalu 
 { success: false, canceled: true }
 ```
 
+### `exportDiagnostics()`
+
+Channel: `export-diagnostics`
+
+Menampilkan dialog simpan dan menulis bundle support ke satu file JSON: versi app/OS, config, health, activities, presets, **proyek dengan env secret di-redact** (nilai secret tidak pernah keluar dari mesin), dan ekor `main.log` (500 baris terakhir).
+
+```js
+{ success: true, filePath: 'D:/backup/devlauncher-diagnostics-2026-08-14.json' }
+{ success: false, canceled: true }
+{ success: false, error: '...' }
+```
+
 ## Presets & Activities API
 
 ### `getPresets()` / `savePresets(presets)`

@@ -117,6 +117,14 @@ export const importProjects = async () => {
   return window.electron.importProjects();
 };
 
+export const exportDiagnostics = async () => {
+  if (!isElectron()) {
+    console.warn('[IPC] Running in browser mode - exportDiagnostics not available');
+    return { success: false, canceled: true };
+  }
+  return window.electron.exportDiagnostics();
+};
+
 export const listEnvFiles = async (projectPath) => {
   if (!isElectron()) {
     console.warn('[IPC] Running in browser mode - mock listEnvFiles called');

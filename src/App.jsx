@@ -21,7 +21,7 @@ import {
 import PortConflictModal from './components/Modals/PortConflictModal';
 import { PRESET_COLORS } from './components/Modals/PresetModal';
 import { useProjects, useProcesses, useElectronConfig } from './hooks';
-import { checkPortConflict, isElectronAvailable, onNavigateToProject, onPreviewConsole, getActivities, appendActivities, getPresets, savePresets, exportProjects, importProjects } from './utils/ipcRenderer';
+import { checkPortConflict, isElectronAvailable, onNavigateToProject, onPreviewConsole, getActivities, appendActivities, getPresets, savePresets, exportProjects, importProjects, exportDiagnostics } from './utils/ipcRenderer';
 import { summarizeWorkspaceStart } from './utils/workspaceResults';
 
 // Pure helper — kept at module scope so its identity is stable across renders.
@@ -794,6 +794,17 @@ function App() {
     }
   };
 
+  // Export a support bundle (versions + config + health + redacted projects + main.log)
+  const handleExportDiagnostics = async () => {
+    const result = await exportDiagnostics();
+    if (result.success) {
+      showToast('success', `Diagnostics exported to ${result.filePath}`);
+      addActivity('faint', 'System', 'diagnostics exported');
+    } else if (!result.canceled) {
+      showToast('error', result.error || 'Failed to export diagnostics');
+    }
+  };
+
   // Duplicate a project: prefill the create modal with the source configuration
   const handleDuplicateProject = (project) => {
     if (!project) return;
@@ -1024,7 +1035,7 @@ function App() {
 
         {/* Settings View */}
         {currentView === 'settings' && (
-          <SettingsView config={config} updateConfig={updateElectronConfig} onExportProjects={handleExportProjects} onImportProjects={handleImportProjects} />
+          <SettingsView config={config} updateConfig={updateElectronConfig} onExportProjects={handleExportProjects} onImportProjects={handleImportProjects} onExportDiagnostics={handleExportDiagnostics} />
         )}
         </Suspense>
       </MainLayout>

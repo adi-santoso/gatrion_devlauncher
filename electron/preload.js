@@ -31,6 +31,7 @@ contextBridge.exposeInMainWorld('electron', {
   // Export / Import
   exportProjects: () => ipcRenderer.invoke('export-projects'),
   importProjects: () => ipcRenderer.invoke('import-projects'),
+  exportDiagnostics: () => ipcRenderer.invoke('export-diagnostics'),
 
   // Env Files
   listEnvFiles: (projectPath) => ipcRenderer.invoke('list-env-files', projectPath),
