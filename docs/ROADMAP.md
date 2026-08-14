@@ -79,7 +79,7 @@ Dokumen ini berisi rencana perbaikan DevLauncher berdasarkan analisa kode saat i
 |---|---|---|---|
 | ~~CI: tambah `npm run typecheck` + `npm audit`; gate coverage minimum~~ → **selesai**: CI kini menjalankan lint → audit → typecheck → vitest (regression) → vitest + coverage gate (thresholds statements/lines 28%, funcs 32%, branches 60%) → build → e2e | P0 ✅ | S | Kualitas terjaga otomatis |
 | ~~Publish pipeline: `electron-builder publish` ke GitHub Releases + feed auto-update~~ → **selesai**: `.github/workflows/release.yml` — push tag `v*` menjalankan quality gate penuh lalu `npx electron-builder --win --x64 --publish always` (NSIS + portable + `latest.yml` feed) ke GitHub Releases | P1 ✅ | M | Rilis berkala jadi rutin |
-| Changelog otomatis dari conventional commits | P2 | S | Riwayat lebih lengkap |
+| ~~Changelog otomatis dari conventional commits~~ → **selesai**: `scripts/changelog.js` (CLI) + `scripts/changelogLib.js` (pure: parse/group/render/insert, 8 test). `npm run changelog` = dry-run ke stdout, `npm run changelog:apply` = insert ke CHANGELOG.md sebelum `## [Unreleased]`. Auto-detect tag terbaru (`--from`), fallback 100 commit terakhir (`--since`), `--version` untuk heading rilis, breaking `!`/scope ditandai. 481 test total | P2 ✅ | S | Riwayat lebih lengkap |
 
 ## 7. Observability & Support
 

@@ -36,7 +36,7 @@ module.exports = [
     },
   },
   {
-    files: ['electron/**/*.js', 'tests/cli/**/*.js', 'tests/fixtures/**/*.js', 'tests/mocks/**/*.js', '*.cjs', 'playwright.config.js', 'e2e/**/*.js'],
+    files: ['electron/**/*.js', 'tests/fixtures/**/*.js', 'tests/mocks/**/*.js', '*.cjs', 'playwright.config.js', 'e2e/**/*.js'],
     languageOptions: {
       ecmaVersion: 2022,
       sourceType: 'commonjs',
@@ -77,6 +77,14 @@ module.exports = [
     rules: {
       'no-unused-vars': ['warn', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
       'no-console': 'off',
+    },
+  },
+  {
+    // Changelog library tests are ESM (vitest) even though scripts/ is CommonJS
+    files: ['scripts/__tests__/*.test.js'],
+    languageOptions: {
+      ecmaVersion: 2022,
+      sourceType: 'module',
     },
   },
   {

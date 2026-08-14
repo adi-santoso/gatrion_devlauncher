@@ -12,6 +12,8 @@
     "build": "vite build && electron-builder",
     "build:win": "vite build && electron-builder --win --x64",
     "icons": "node scripts/generate-icons.js",
+    "changelog": "node scripts/changelog.js",
+    "changelog:apply": "node scripts/changelog.js --apply",
     "test": "vitest run",
     "test:unit": "vitest run",
     "test:e2e": "playwright test",

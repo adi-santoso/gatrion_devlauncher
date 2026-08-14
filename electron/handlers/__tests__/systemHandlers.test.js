@@ -15,6 +15,10 @@ let tempDir
 beforeEach(() => {
   __reset()
   tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'system-handlers-'))
+  // TEMP_USER_DATA is shared with other test files/workers — start clean so a
+  // stale main.log from an interrupted run cannot leak into these assertions.
+  fs.rmSync(path.join(TEMP_USER_DATA, 'logs'), { recursive: true, force: true })
+  fs.rmSync(path.join(TEMP_USER_DATA, 'crashDumps'), { recursive: true, force: true })
 })
 
 describe('systemHandlers', () => {
