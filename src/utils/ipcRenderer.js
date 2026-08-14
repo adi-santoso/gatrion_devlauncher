@@ -630,6 +630,21 @@ export const checkUpdate = async () => {
   return window.electron.checkUpdate();
 };
 
+export const downloadUpdate = async () => {
+  if (!isElectron()) return { success: false, error: 'Electron not available' };
+  return window.electron.downloadUpdate();
+};
+
+export const installUpdate = async () => {
+  if (!isElectron()) return { success: false, error: 'Electron not available' };
+  return window.electron.installUpdate();
+};
+
+export const onUpdateState = (callback) => {
+  if (!isElectron()) return () => {};
+  return window.electron.onUpdateState(callback);
+};
+
 // ==================== AI Agent (oh-my-pi) ====================
 
 export const ompStatus = async () => {

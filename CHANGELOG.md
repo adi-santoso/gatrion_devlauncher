@@ -8,6 +8,11 @@ Format mengikuti [Keep a Changelog](https://keepachangelog.com/id-ID/1.1.0/), da
 
 ### Added
 
+- **Auto-update (electron-updater)** — packaged build kini bisa memperbarui dirinya sendiri tanpa install ulang:
+  - `electron/utils/updater.js` — state machine update (check → available → downloading → downloaded/error) dengan `autoUpdater` di-inject agar unit-testable; tiap transisi diforward ke renderer via event `update-state`.
+  - `main.js` — wire event electron-updater, auto-check 8 detik setelah start (packaged only), IPC `update-download` / `update-install`, dan fix `check-update`: perbandingan versi kini **semver numerik** (`isVersionNewer` di `electron/utils/versionCompare.js`) — `1.0.10` kini benar-benar lebih baru dari `1.0.9` (string `!==` salah arah) dan rilis lama tidak pernah diiklankan sebagai update.
+  - **Settings banner upgrade** — tombol **Download & install** (dengan progress % saat mengunduh) → **Restart & install** saat selesai; error update ditampilkan; link "View release" tetap ada.
+  - `electron-builder.json` mendapat publish config github; workflow baru `.github/workflows/release.yml`: push tag `v*` → lint/typecheck/CLI/vitest+coverage/audit → `electron-builder --win --x64 --publish always` (NSIS + portable + `latest.yml` feed) ke GitHub Releases.
 - **Export diagnostics bundle** — tombol **"Export diagnostics…"** di Settings → Data: membuat satu file JSON berisi versi app/OS, config, health, activities, presets, **proyek dengan env secret yang di-redact** (`toRendererProject` — nilai secret tidak pernah keluar dari mesin), dan ekor `main.log` (500 baris terakhir), lalu disimpan lewat save dialog native. Backend: `buildDiagnosticsBundle` di `systemHandlers.js` (Electron-free, unit-testable) + channel IPC `export-diagnostics` (divalidasi `assertTrustedIpcEvent`).
 - **Code splitting renderer** — view utama kini di-`React.lazy` (Dashboard, Projects, ProjectDetail, Settings, Agent, TerminalWorkspace) dan dirender di dalam satu `Suspense` dengan fallback `LoadingSkeleton`. Bundle awal renderer turun dari **838 kB → 313 kB** (gzip 216 → 96 kB); tiap view jadi chunk terpisah yang dimuat saat pertama kali dibuka dan di-cache setelahnya — TerminalWorkspace (xterm, 284 kB) tidak lagi memblokir startup.
 - **Validasi payload IPC terpusat** — `electron/utils/ipcValidation.js` (defense-in-depth di atas `assertTrustedIpcEvent` dan validasi per-handler): channel terminal (`terminal-create/input/resize/kill` — input di-cap 64 kB agar PTY tidak dibanjiri string raksasa, resize dibatasi 1–500) dan process (`stop-project` force wajib boolean, `stop-custom-command` runId integer, `start-all-projects` projectIds array string non-empty + options object). Payload malformed kini **ditolak dengan error**, bukan diam-diam dipakai/diabaikan.
@@ -138,6 +143,7 @@ Format mengikuti [Keep a Changelog](https://keepachangelog.com/id-ID/1.1.0/), da
 
 ### Test
 
+- **15 test Vitest baru (total 206, coverage lines 36.6%)** — `versionCompare` (8 test: parse, numeric compare `1.0.10 > 1.0.9`, older release tidak pernah dianggap update, unparsable aman) dan `updater` state machine (7 test: transisi diforward ke window, error → state error, disabled guard, quitAndInstall delegate, unsubscribe).
 - **13 test Vitest baru (total 191, coverage lines 36.3%)** — `agentChatUtils` (10 test: `extractContentParts`, `normalizeTranscriptMessage`, `argsToString`, uid, konstanta — helper yang baru diekstrak dari AgentChat) dan `buildDiagnosticsBundle` (3 test: bundle lengkap dengan **redaksi secret env terverifikasi**, file hilang → null, JSON corrupt dilewati tanpa menggagalkan bundle).
 - **30 test Vitest baru (total 178)** — coverage lines naik **30.6% → 35.7%** (branches 61.3%):
   - `electron/utils/__tests__/ipcValidation.test.js` (11 test) — tipe/bounds/maxLength per channel, channel tanpa rule no-op.

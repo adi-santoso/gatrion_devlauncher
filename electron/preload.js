@@ -167,8 +167,15 @@ contextBridge.exposeInMainWorld('electron', {
   // Renderer error reporting (window.onerror / unhandledrejection → main.log)
   reportRendererError: (payload) => ipcRenderer.invoke('renderer-error', payload),
 
-  // Update checker
+  // Update checker + auto-update (electron-updater)
   checkUpdate: () => ipcRenderer.invoke('check-update'),
+  downloadUpdate: () => ipcRenderer.invoke('update-download'),
+  installUpdate: () => ipcRenderer.invoke('update-install'),
+  onUpdateState: (callback) => {
+    const listener = (event, state) => callback(state)
+    ipcRenderer.on('update-state', listener)
+    return () => ipcRenderer.removeListener('update-state', listener)
+  },
 
   // AI Agent (oh-my-pi)
   ompStatus: () => ipcRenderer.invoke('omp-status'),

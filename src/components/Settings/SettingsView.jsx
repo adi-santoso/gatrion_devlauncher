@@ -5,7 +5,7 @@ import TerminalSettings from './TerminalSettings';
 import SystemEnvCard from './SystemEnvCard';
 import OmpSettingsCard from './OmpSettingsCard';
 import Icon from '../Common/Icon';
-import { geocodeCity, checkUpdate, openExternalUrl } from '../../utils/ipcRenderer';
+import { geocodeCity, checkUpdate, openExternalUrl, downloadUpdate, installUpdate, onUpdateState } from '../../utils/ipcRenderer';
 
 /**
  * SettingsView - Full settings view assembly
@@ -61,23 +61,74 @@ const SettingsView = ({ config, updateConfig, onExportProjects, onImportProjects
     return () => { cancelled = true; };
   }, []);
 
+  // Auto-update state streamed from the main process (downloading % → downloaded).
+  const [updateState, setUpdateState] = useState(null);
+  const [downloading, setDownloading] = useState(false);
+  useEffect(() => {
+    return onUpdateState((payload) => {
+      setUpdateState(payload);
+      if (payload?.state === 'downloading') setDownloading(true);
+      if (payload?.state && payload.state !== 'downloading') setDownloading(false);
+    });
+  }, []);
+
+  const handleDownloadUpdate = async () => {
+    setDownloading(true);
+    const result = await downloadUpdate();
+    if (!result?.success && result?.error) setDownloading(false);
+  };
+
+  const handleInstallUpdate = async () => {
+    await installUpdate();
+  };
+
   return (
     <div className="view mx-auto max-w-5xl">
       {updateInfo?.updateAvailable && updateInfo.latest && (
         <div className="flex items-center gap-3 px-4 py-3 rounded-xl border border-accent/25 bg-accent/10 mb-5">
           <div className="w-8 h-8 rounded-full bg-accent/20 text-accent flex items-center justify-center shrink-0">
-            <Icon name="download" size={15} />
+            <Icon name={updateState?.state === 'downloaded' ? 'check' : 'download'} size={15} />
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-xs font-semibold text-ink">Gatrion {updateInfo.latest} is available</p>
-            <p className="text-[11px] text-ink-faint mt-0.5">You are running {updateInfo.current}. Grab the new release to get the latest fixes and features.</p>
+            <p className="text-xs font-semibold text-ink">
+              {updateState?.state === 'downloaded'
+                ? `Update ${updateInfo.latest} is ready to install`
+                : `Gatrion ${updateInfo.latest} is available`}
+            </p>
+            <p className="text-[11px] text-ink-faint mt-0.5">
+              {updateState?.state === 'error'
+                ? `Update failed: ${updateState.error || 'unknown error'}`
+                : downloading
+                  ? `Downloading… ${updateState?.progress?.percent ?? 0}%`
+                  : updateState?.state === 'downloaded'
+                    ? 'Restart the app to apply the new version.'
+                    : `You are running ${updateInfo.current}. Grab the new release to get the latest fixes and features.`}
+            </p>
           </div>
-          <button
-            onClick={() => openExternalUrl(updateInfo.url)}
-            className="px-3 py-1.5 rounded-lg bg-accent hover:bg-accent-hover text-white text-xs font-semibold transition-colors"
-          >
-            View release
-          </button>
+          {updateState?.state === 'downloaded' ? (
+            <button
+              onClick={handleInstallUpdate}
+              className="px-3 py-1.5 rounded-lg bg-accent hover:bg-accent-hover text-white text-xs font-semibold transition-colors"
+            >
+              Restart & install
+            </button>
+          ) : (
+            <>
+              <button
+                onClick={handleDownloadUpdate}
+                disabled={downloading}
+                className="px-3 py-1.5 rounded-lg bg-accent hover:bg-accent-hover text-white text-xs font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {downloading ? 'Downloading…' : 'Download & install'}
+              </button>
+              <button
+                onClick={() => openExternalUrl(updateInfo.url)}
+                className="px-3 py-1.5 rounded-lg bg-surface-3 hover:bg-surface-2 text-xs font-medium text-ink-soft hover:text-ink border border-border transition-colors"
+              >
+                View release
+              </button>
+            </>
+          )}
         </div>
       )}
       <div className="grid gap-5 lg:grid-cols-2 items-start">

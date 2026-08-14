@@ -65,7 +65,7 @@ Dokumen ini berisi rencana perbaikan DevLauncher berdasarkan analisa kode saat i
 
 | Item | Prioritas | Effort | Dampak |
 |---|---|---|---|
-| **Auto-update (electron-updater)** + rilis via GitHub Releases | P1 | M | User selalu dapat fix tanpa install ulang |
+| ~~**Auto-update (electron-updater)** + rilis via GitHub Releases~~ → **selesai**: `electron-updater` di-wire di main process (`createUpdater` — state machine unit-tested dengan DI), auto-check saat start, banner Settings kini bisa **Download & install** (progress %) → **Restart & install**; perbandingan versi di `check-update` diperbaiki ke semver numerik (`isVersionNewer`, 8 test); `electron-builder.json` punya publish config github + workflow `release.yml` (tag `v*` → lint/typecheck/test/audit → `electron-builder --publish always`) | P1 ✅ | M | User selalu dapat fix tanpa install ulang |
 | **Workspace search**: satu palette untuk cari project, session agent, file, command | P1 | M | Navigasi jauh lebih cepat |
 | Agent: tracking cost/token per project + estimasi, template prompt, pencarian session lintas project | P1 | M | Pengguna agent harian diuntungkan |
 | Notifikasi Windows dengan action button (Restart/Open) | P2 | S | UX notifikasi lebih baik |
@@ -78,7 +78,7 @@ Dokumen ini berisi rencana perbaikan DevLauncher berdasarkan analisa kode saat i
 | Item | Prioritas | Effort | Dampak |
 |---|---|---|---|
 | ~~CI: tambah `npm run typecheck` + `npm audit`; gate coverage minimum~~ → **selesai**: CI kini menjalankan lint → audit → typecheck → CLI test → vitest + coverage gate (thresholds statements/lines 28%, funcs 32%, branches 60%) → build → e2e | P0 ✅ | S | Kualitas terjaga otomatis |
-| Publish pipeline: `electron-builder publish` ke GitHub Releases + feed auto-update | P1 | M | Rilis berkala jadi rutin |
+| ~~Publish pipeline: `electron-builder publish` ke GitHub Releases + feed auto-update~~ → **selesai**: `.github/workflows/release.yml` — push tag `v*` menjalankan quality gate penuh lalu `npx electron-builder --win --x64 --publish always` (NSIS + portable + `latest.yml` feed) ke GitHub Releases | P1 ✅ | M | Rilis berkala jadi rutin |
 | Changelog otomatis dari conventional commits | P2 | S | Riwayat lebih lengkap |
 
 ## 7. Observability & Support
@@ -106,7 +106,7 @@ Checklist yang harus terpenuhi sebelum versi pertama benar-benar dirilis:
 1. **Minggu 1 (selesai ✅)** — semua P0: lint 0 warning, single instance lock, error capture, CI typecheck + audit + gate coverage.
 2. **Minggu 2–4** — P1 code quality: pecah `AgentChat.jsx` **sebagian selesai** (utils + ToolCard + ChatComposer diekstrak); `App.jsx`, seragamkan IPC, TypeScript electron menyusul.
 3. **Minggu 5–8** — P1 reliability & performance: **coverage path kritis naik ke 35.7% lines** (test ProcessManager backoff + secret masking, StorageManager, ipcSecurity, ipcValidation) **dan code splitting selesai**; tersisa: e2e non-smoke, virtualisasi log.
-4. **Minggu 9–12** — P1 product: auto-update, workspace search, agent cost tracking, diagnostics bundle.
+4. **Minggu 9–12** — P1 product: **auto-update + publish pipeline selesai**; tersisa workspace search, agent cost tracking.
 5. **Setelah itu** — P2: i18n, macOS/Linux, backup bundle, crash dump, dependabot.
 
 Setiap item P0–P1 punya acceptance criteria sederhana: **"terverifikasi lewat test/CI"**, bukan "terlihat berjalan".

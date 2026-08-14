@@ -20,6 +20,8 @@ const { setupRepoHandlers } = require('./handlers/repoHandlers')
 const { setupSystemHandlers } = require('./handlers/systemHandlers')
 const { setupAgentHandlers } = require('./handlers/agentHandlers')
 const { assertTrustedIpcEvent } = require('./utils/ipcSecurity')
+const { isVersionNewer } = require('./utils/versionCompare')
+const { createUpdater } = require('./utils/updater')
 const Logger = require('./utils/logger')
 
 // Global error capture — log anything that escapes normal error handling so
@@ -230,6 +232,53 @@ async function initialize() {
 
   // Create window
   createWindow(initialConfig?.windowBounds)
+
+  // Auto-update (electron-updater) — packaged builds only. The state machine
+  // forwards every transition to the renderer on the `update-state` channel so
+  // the Settings banner can show download progress and a restart prompt.
+  let autoUpdaterHandle = null
+  try {
+    const { autoUpdater } = require('electron-updater')
+    autoUpdaterHandle = createUpdater({
+      autoUpdater,
+      getWindow: () => mainWindow,
+      isEnabled: () => app.isPackaged,
+    })
+    autoUpdaterHandle.wireEvents()
+    autoUpdaterHandle.onChange((payload) => {
+      Logger.info('Updater', 'State changed', { state: payload.state, error: payload.error || undefined })
+    })
+  } catch (error) {
+    console.warn('[App] Auto-update unavailable:', error.message)
+  }
+
+  ipcMain.handle('update-download', async (event) => {
+    try {
+      assertTrustedIpcEvent(event)
+      if (!autoUpdaterHandle) return { success: false, error: 'Auto-update is unavailable' }
+      return await autoUpdaterHandle.startDownload()
+    } catch (error) {
+      return { success: false, error: error.message }
+    }
+  })
+
+  ipcMain.handle('update-install', async (event) => {
+    try {
+      assertTrustedIpcEvent(event)
+      if (!autoUpdaterHandle) return { success: false, error: 'Auto-update is unavailable' }
+      return autoUpdaterHandle.quitAndInstall()
+    } catch (error) {
+      return { success: false, error: error.message }
+    }
+  })
+
+  // Silent check shortly after launch (packaged only) so a ready update can be
+  // surfaced in the Settings banner / notification without user action.
+  if (app.isPackaged && autoUpdaterHandle) {
+    setTimeout(() => {
+      autoUpdaterHandle.check().catch(() => {})
+    }, 8000)
+  }
 
     // Prayer reminder: native notifications + city geocoding (renderer CSP blocks external fetch)
   function setupPrayerHandlers() {
@@ -484,7 +533,9 @@ async function initialize() {
       const parsed = JSON.parse(body)
       const latest = String(parsed.tag_name || '').replace(/^v/, '')
       const current = app.getVersion()
-      const updateAvailable = Boolean(latest) && latest !== current
+      // Numeric compare (not string !==) so 1.0.10 > 1.0.9 and an older
+      // release is never advertised as an available update.
+      const updateAvailable = Boolean(latest) && isVersionNewer(latest, current)
       return {
         success: true,
         current,

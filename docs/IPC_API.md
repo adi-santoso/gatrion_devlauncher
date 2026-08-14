@@ -282,6 +282,27 @@ Menampilkan dialog simpan dan menulis bundle support ke satu file JSON: versi ap
 { success: false, error: '...' }
 ```
 
+### `downloadUpdate()` / `installUpdate()` / `onUpdateState()`
+
+Channel: `update-download` / `update-install` / event `update-state`
+
+Auto-update via **electron-updater** (packaged builds saja). `downloadUpdate` mengunduh rilis terbaru dari GitHub Releases; `installUpdate` me-restart app dan menerapkan update; state streaming dikirim ke renderer di event `update-state`:
+
+```json
+{ "state": "checking" }
+{ "state": "available" }
+{ "state": "downloading", "progress": { "percent": 42.5, "transferred": 10485760, "total": 25165824, "bytesPerSecond": 204800 } }
+{ "state": "downloaded" }
+{ "state": "error", "error": "..." }
+```
+
+```js
+{ success: true }          // downloadUpdate / installUpdate
+{ success: false, error: 'Auto-update is unavailable in this build' }
+```
+
+`checkUpdate` (manual, GitHub Releases API) tetap ada untuk banner Settings dan menyediakan URL release; perbandingan versi kini memakai semver numerik (`isVersionNewer`), jadi `1.0.10 > 1.0.9` dan rilis lama tidak pernah diiklankan sebagai update.
+
 ## Presets & Activities API
 
 ### `getPresets()` / `savePresets(presets)`
