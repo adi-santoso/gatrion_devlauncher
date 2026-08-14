@@ -1,5 +1,5 @@
 // @ts-check
-const { app, BrowserWindow, ipcMain, Notification, session, globalShortcut } = require('electron')
+const { app, BrowserWindow, ipcMain, Notification, session, globalShortcut, crashReporter } = require('electron')
 const path = require('path')
 const fs = require('fs').promises
 const https = require('https')
@@ -70,6 +70,40 @@ let ompManager
 let ompInstaller
 let ompConfig
 let isQuitting = false
+
+// Bring the main window to the front (used by notification click handlers).
+function focusAppWindow() {
+  if (!mainWindow) return
+  if (mainWindow.isMinimized()) mainWindow.restore()
+  mainWindow.show()
+  mainWindow.focus()
+}
+
+// Restart a project from a notification action: reload the persisted project
+// and delegate to ProcessManager (state/status events keep flowing to the
+// renderer as usual).
+async function restartProjectFromNotification(projectId) {
+  try {
+    const projects = await storageManager.loadProjects()
+    const project = projects.find((item) => item.id === projectId)
+    if (!project) return
+    const { resolveLaunchConfig } = require('./handlers/processHandlers')
+    const launch = resolveLaunchConfig(project)
+    await processManager.restartProcess(
+      project.id,
+      project.path,
+      launch.command,
+      Object.fromEntries((project.envVars || []).map((item) => [item.key, item.value])),
+      launch.port,
+      () => {},
+      () => {},
+      () => {},
+      () => {}
+    )
+  } catch (error) {
+    Logger.error('Notify', 'Failed to restart project from notification', { projectId, error: error.message })
+  }
+}
 
 // Identity: notifications, taskbar grouping, and the default window title all
 // fall back to the app name. Without this, dev runs attribute notifications to
@@ -201,6 +235,23 @@ async function applyOSSettings(config) {
 async function initialize() {
   applyContentSecurityPolicy()
 
+  // Local crash dump collection: minidumps are written to
+  // userData/crashDumps (never uploaded — uploadToServer: false). The
+  // Settings "Crash Reports" card lists them for manual inspection.
+  try {
+    const crashDumpsDir = path.join(app.getPath('userData'), 'crashDumps')
+    app.setPath('crashDumps', crashDumpsDir)
+    crashReporter.start({
+      productName: APP_NAME,
+      companyName: 'DevLauncher',
+      submitURL: 'https://example.invalid/crash',
+      uploadToServer: false,
+      compress: false,
+    })
+  } catch (error) {
+    Logger.error('Crash', 'Failed to start crash reporter', { error: error.message })
+  }
+
   // Create managers
   processManager = new ProcessManager()
   storageManager = new StorageManager()
@@ -267,6 +318,20 @@ async function initialize() {
     autoUpdaterHandle.wireEvents()
     autoUpdaterHandle.onChange((payload) => {
       Logger.info('Updater', 'State changed', { state: payload.state, error: payload.error || undefined })
+      // Update ready → Windows toast with a "Restart & install" action button.
+      if (payload.state === 'downloaded' && app.isPackaged) {
+        const notification = new Notification({
+          title: 'Gatrion - Update ready',
+          body: `Version ${app.getVersion()} is downloaded. Restart to apply it.`,
+          actions: [{ type: 'button', text: 'Restart & install' }],
+          timeoutType: 'never',
+        })
+        notification.on('action', (event) => {
+          if (event.actionIndex === 0) autoUpdaterHandle.quitAndInstall()
+        })
+        notification.on('click', () => focusAppWindow())
+        notification.show()
+      }
     })
   } catch (error) {
     console.warn('[App] Auto-update unavailable:', error.message)
@@ -444,11 +509,23 @@ async function initialize() {
     const projectName = projects.find((p) => p.id === data.projectId)?.name || data.projectId
 
     if (data.status === 'error' && notifications.onError) {
-      new Notification({
+      // Windows toast action button: restart the project without opening the
+      // app. Clicking the toast body focuses the app and opens the project.
+      const notification = new Notification({
         title: 'Gatrion - Project Crash',
         body: `Project "${projectName}" encountered an error.`,
-        silent: !notifications.sound
-      }).show()
+        silent: !notifications.sound,
+        actions: [{ type: 'button', text: 'Restart' }],
+        timeoutType: 'never',
+      })
+      notification.on('action', (event) => {
+        if (event.actionIndex === 0) restartProjectFromNotification(data.projectId)
+      })
+      notification.on('click', () => {
+        focusAppWindow()
+        mainWindow?.webContents.send('navigate-to-project', data.projectId)
+      })
+      notification.show()
     } else if (data.status === 'running' && notifications.onStart) {
       new Notification({
         title: 'Gatrion - Project Started',

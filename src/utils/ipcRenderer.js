@@ -881,3 +881,18 @@ export const getMainLog = async (limit = 500) => {
   if (!isElectron()) return { success: true, lines: [] };
   return window.electron.getMainLog(limit);
 };
+
+export const getCrashDumps = async () => {
+  if (!isElectron()) return { success: true, dir: '', dumps: [] };
+  return window.electron.getCrashDumps();
+};
+
+export const clearCrashDumps = async () => {
+  if (!isElectron()) return { success: true };
+  return window.electron.clearCrashDumps();
+};
+
+export const openCrashDumpsFolder = async () => {
+  if (!isElectron()) return { success: false, error: 'Electron not available' };
+  return window.electron.openCrashDumpsFolder();
+};

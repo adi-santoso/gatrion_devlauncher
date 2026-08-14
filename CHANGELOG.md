@@ -8,6 +8,8 @@ Format mengikuti [Keep a Changelog](https://keepachangelog.com/id-ID/1.1.0/), da
 
 ### Added
 
+- **Notifikasi Windows dengan action button (P2)** — memakai `actions` + event `action` (didukung Electron 43 di Windows): notifikasi **project crash** punya tombol **Restart** (restart project via ProcessManager tanpa membuka app; klik badan toast mem-focus app dan membuka project), dan notifikasi **update ready** punya tombol **Restart & install** (`quitAndInstall`). `timeoutType: 'never'` menjaga toast tetap tersedia untuk aksi.
+- **Crash dump / minidump (P2)** — `crashReporter.start` (uploadToServer:false) menulis minidump ke `userData/crashDumps`; kartu **Crash Reports** di Settings menampilkan daftar dump lokal, tombol buka folder, dan hapus semua. Channel IPC: `get-crash-dumps` / `clear-crash-dumps` / `open-crash-dumps-folder` (safeHandle + rule terpusat).
 - **Global shortcut summon window (P2)** — `Ctrl+Shift+Space` (Cmd di macOS) untuk toggle show/hide + fokus jendela utama dari aplikasi lain mana pun (`globalShortcut`), dengan unregister saat quit.
 - **Theme auto-follow system (P2)** — opsi **System** baru di ThemeSelector: app mengikuti preferensi OS secara live via `prefers-color-scheme` (media query listener), jadi ganti tema OS langsung tercermin tanpa sentuh pengaturan. `config.theme` menerima `'dark' | 'light' | 'system'` (validasi + normalisasi diperbarui).
 - **Viewer Main Log di Settings (P2)** — kartu "Main Log" menampilkan 500 baris terakhir `main.log` dengan tombol refresh; channel IPC baru `get-main-log` (safeHandle, limit di-clamp 10–5000) + preload + ipcRenderer.

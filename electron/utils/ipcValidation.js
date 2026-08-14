@@ -188,6 +188,9 @@ const CHANNEL_RULES = {
   'get-main-log': [
     ['limit', 'integer', { optional: true, min: 10, max: 5000 }],
   ],
+  'get-crash-dumps': [],
+  'clear-crash-dumps': [],
+  'open-crash-dumps-folder': [],
 
   // --- omp agent (oh-my-pi) --------------------------------------------
   'omp-status': [],

@@ -5,7 +5,7 @@ import TerminalSettings from './TerminalSettings';
 import SystemEnvCard from './SystemEnvCard';
 import OmpSettingsCard from './OmpSettingsCard';
 import Icon from '../Common/Icon';
-import { geocodeCity, checkUpdate, openExternalUrl, downloadUpdate, installUpdate, onUpdateState, getMainLog } from '../../utils/ipcRenderer';
+import { geocodeCity, checkUpdate, openExternalUrl, downloadUpdate, installUpdate, onUpdateState, getMainLog, getCrashDumps, clearCrashDumps, openCrashDumpsFolder } from '../../utils/ipcRenderer';
 
 /**
  * SettingsView - Full settings view assembly
@@ -101,6 +101,23 @@ const SettingsView = ({ config, updateConfig, onExportProjects, onImportProjects
     loadMainLog();
     // Intentional: load once on mount; refresh is manual via the button.
   }, []);
+
+  // Crash reports — local minidumps collected by the main process
+  const [crashDumps, setCrashDumps] = useState([]);
+  const [crashLoading, setCrashLoading] = useState(false);
+  const loadCrashDumps = async () => {
+    setCrashLoading(true);
+    const result = await getCrashDumps();
+    setCrashLoading(false);
+    if (result.success) setCrashDumps(result.dumps || []);
+  };
+  useEffect(() => {
+    loadCrashDumps();
+  }, []);
+  const handleClearCrashDumps = async () => {
+    const result = await clearCrashDumps();
+    if (result.success) setCrashDumps([]);
+  };
 
   return (
     <div className="view mx-auto max-w-5xl">
@@ -320,6 +337,50 @@ const SettingsView = ({ config, updateConfig, onExportProjects, onImportProjects
         <pre className="max-h-56 overflow-auto rounded-lg bg-[#0d0f13] border border-border p-3 text-[10px] leading-relaxed font-mono text-[#aab2c0] whitespace-pre-wrap break-words">
           {logLines.length > 0 ? logLines.join('\n') : (logLoading ? 'Loading…' : 'No log entries yet.')}
         </pre>
+      </div>
+
+      <div className="bg-surface border border-border rounded-xl shadow-card p-5 space-y-4">
+        <div className="flex items-center justify-between">
+          <p className="font-display font-bold text-sm">Crash Reports</p>
+          <button
+            type="button"
+            onClick={loadCrashDumps}
+            disabled={crashLoading}
+            className="px-3 py-1.5 rounded-lg bg-surface-3 hover:bg-surface-2 text-xs font-medium text-ink-soft hover:text-ink border border-border transition-colors disabled:opacity-40"
+          >
+            {crashLoading ? 'Loading…' : '↻ Refresh'}
+          </button>
+        </div>
+        <p className="text-[11px] text-ink-faint">
+          {crashDumps.length > 0
+            ? `${crashDumps.length} crash dump(s) collected locally by the app. They are never uploaded — open the folder to inspect or share them with support.`
+            : 'No crash dumps yet. Minidumps are written here if the app crashes.'}
+        </p>
+        {crashDumps.length > 0 && (
+          <ul className="max-h-32 overflow-auto rounded-lg border border-border bg-surface-2 divide-y divide-border text-[11px] font-mono text-ink-soft">
+            {crashDumps.map((dump) => (
+              <li key={dump.name} className="px-3 py-1.5 truncate">{dump.name}</li>
+            ))}
+          </ul>
+        )}
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => openCrashDumpsFolder()}
+            className="px-3 py-1.5 rounded-lg bg-surface-3 hover:bg-surface-2 text-xs font-medium text-ink-soft hover:text-ink border border-border transition-colors"
+          >
+            Open folder
+          </button>
+          {crashDumps.length > 0 && (
+            <button
+              type="button"
+              onClick={handleClearCrashDumps}
+              className="px-3 py-1.5 rounded-lg bg-surface-3 hover:bg-surface-2 text-xs font-medium text-danger border border-border transition-colors"
+            >
+              Clear all
+            </button>
+          )}
+        </div>
       </div>
 
       <SystemEnvCard />

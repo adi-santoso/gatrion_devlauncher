@@ -164,6 +164,11 @@ contextBridge.exposeInMainWorld('electron', {
   // Main log tail for the Settings log viewer
   getMainLog: (limit) => ipcRenderer.invoke('get-main-log', limit),
 
+  // Crash dumps (local minidumps, never uploaded)
+  getCrashDumps: () => ipcRenderer.invoke('get-crash-dumps'),
+  clearCrashDumps: () => ipcRenderer.invoke('clear-crash-dumps'),
+  openCrashDumpsFolder: () => ipcRenderer.invoke('open-crash-dumps-folder'),
+
   // Health analytics
   getHealth: (projectId) => ipcRenderer.invoke('get-health', projectId),
   clearHealth: (projectId) => ipcRenderer.invoke('clear-health', projectId),

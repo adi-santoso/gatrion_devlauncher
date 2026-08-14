@@ -1,7 +1,7 @@
 // @ts-check
 const fs = require('fs').promises
 const path = require('path')
-const { ipcMain, app, dialog } = require('electron')
+const { ipcMain, app, dialog, shell } = require('electron')
 const { execFile } = require('child_process')
 const { assertTrustedIpcEvent } = require('../utils/ipcSecurity')
 const { safeHandle } = require('../utils/ipcValidation')
@@ -155,6 +155,44 @@ function setupSystemHandlers() {
     const text = await readTextIfExists(logPath)
     const lines = (text || '').split(/\r?\n/).filter(Boolean)
     return { success: true, lines: lines.slice(-safeLimit) }
+  })
+
+  // Crash dumps: minidumps collected locally by crashReporter (never
+  // uploaded). The Settings card lists them and can open/clear the folder.
+  const crashDumpsDir = () => path.join(app.getPath('userData'), 'crashDumps')
+
+  handle('get-crash-dumps', async () => {
+    const dir = crashDumpsDir()
+    let dumps = []
+    try {
+      const entries = await fs.readdir(dir, { withFileTypes: true })
+      dumps = entries
+        .filter((entry) => entry.isFile() && /\.dmp$/i.test(entry.name))
+        .map((entry) => ({ name: entry.name, path: path.join(dir, entry.name) }))
+        .sort((a, b) => b.name.localeCompare(a.name))
+    } catch { /* no dumps yet */ }
+    return { success: true, dir, dumps }
+  })
+
+  handle('clear-crash-dumps', async () => {
+    const dir = crashDumpsDir()
+    try {
+      const entries = await fs.readdir(dir, { withFileTypes: true })
+      for (const entry of entries) {
+        if (entry.isFile() && /\.dmp$/i.test(entry.name)) {
+          await fs.unlink(path.join(dir, entry.name)).catch(() => {})
+        }
+      }
+    } catch { /* nothing to clear */ }
+    return { success: true }
+  })
+
+  handle('open-crash-dumps-folder', async () => {
+    const dir = crashDumpsDir()
+    await fs.mkdir(dir, { recursive: true }).catch(() => {})
+    const error = await shell.openPath(dir)
+    if (error) return { success: false, error }
+    return { success: true, dir }
   })
 
   // Export a support bundle: versions + config + health + redacted projects +
