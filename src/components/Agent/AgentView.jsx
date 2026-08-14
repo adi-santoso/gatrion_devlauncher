@@ -118,12 +118,19 @@ export default function AgentView({ projects, initialProjectId = null, onOpenPro
     setActiveSession(created);
     // Surface implicitly-created sessions (first message sent in a fresh chat)
     // in the sidebar immediately, so the conversation can be resumed after
-    // navigating away instead of silently living only in omp's registry.
+    // navigating away instead of silently living only in omp's registry. If
+    // the entry already exists (e.g. created via "New session"), MERGE the
+    // enriched data back — critically sessionPath, which is only known after
+    // the first prompt and lets the transcript reload when re-selected.
     if (created.id && selectedProjectId) {
       setSessionsByProject((prev) => {
         const list = prev[selectedProjectId] || [];
-        if (list.some((item) => item.id === created.id)) return prev;
-        return { ...prev, [selectedProjectId]: [...list, created] };
+        const index = list.findIndex((item) => item.id === created.id);
+        if (index === -1) return { ...prev, [selectedProjectId]: [...list, created] };
+        const merged = { ...list[index], ...created };
+        const next = [...list];
+        next[index] = merged;
+        return { ...prev, [selectedProjectId]: next };
       });
     }
   };
@@ -365,13 +372,17 @@ export default function AgentView({ projects, initialProjectId = null, onOpenPro
               onBusyChange={setBusy}
               onOpenSettings={onOpenSettings}
               onTokensUsed={(tokens) => {
-                if (activeSession) {
-                  setSessionsByProject((prev) => ({
-                    ...prev,
-                    [selectedProjectId]: (prev[selectedProjectId] || []).map((item) =>
-                      item.id === activeSession.id ? { ...item, tokens } : item
-                    ),
-                  }));
+                if (!activeSession) return;
+                setSessionsByProject((prev) => ({
+                  ...prev,
+                  [selectedProjectId]: (prev[selectedProjectId] || []).map((item) =>
+                    item.id === activeSession.id ? { ...item, tokens } : item
+                  ),
+                }));
+                // Persist the usage so the badge survives restarts and shows on
+                // every session, not just the one active during the turn.
+                if (selectedProjectId && activeSession.id && Number.isFinite(tokens)) {
+                  ipc.ompUpdateSessionTokens(selectedProjectId, activeSession.id, tokens).catch(() => {});
                 }
               }}
             />

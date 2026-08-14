@@ -1010,4 +1010,31 @@ describe('AgentChat', () => {
     expect(await screen.findByText("Couldn't load this conversation")).toBeInTheDocument()
     expect(screen.getByText('omp RPC did not start')).toBeInTheDocument()
   })
+
+  it('reloads history when returning to a session after switching away', async () => {
+    const sessionA = { id: 'sA', title: 'Session A', sessionPath: 'C:/sessions/sA.jsonl' }
+    const sessionB = { id: 'sB', title: 'Session B', sessionPath: 'C:/sessions/sB.jsonl' }
+    mocks.ompChat.mockResolvedValue({ success: true, sessionId: 'sA', session: sessionA })
+    mocks.ompGetMessages.mockResolvedValue({ success: true, messages: [
+      { id: 'e1', role: 'user', content: 'first task' },
+      { id: 'e2', role: 'assistant', content: 'done it' },
+    ] })
+
+    const { rerender } = render(<Harness initialSession={sessionA} />)
+    // Send a message so sentSessionIdRef is armed for the just-created session
+    const input = screen.getByPlaceholderText('Describe a task, ask a question…')
+    fireEvent.change(input, { target: { value: 'first task' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Send message' }))
+    await screen.findByText('first task')
+
+    // Navigate to another session, then back to A
+    rerender(<Harness initialSession={sessionB} />)
+    rerender(<Harness initialSession={sessionA} />)
+
+    // Returning must reload A's transcript — not sit on the empty state
+    await waitFor(() => {
+      expect(mocks.ompGetMessages).toHaveBeenCalledWith('p1', 'C:/demo', { sessionPath: 'C:/sessions/sA.jsonl' })
+    })
+    expect(await screen.findByText('done it')).toBeInTheDocument()
+  })
 })

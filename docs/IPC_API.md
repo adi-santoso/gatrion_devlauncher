@@ -421,9 +421,9 @@ Channel: `omp-status`
 { success: true, installed: true, version: 'v17.2.15', binaryPath: 'C:/.../omp.exe', configured: true }
 ```
 
-### `ompListSessions(projectId)` / `ompCreateSession(projectId, title)` / `ompRenameSession(projectId, sessionId, title)` / `ompDeleteSession(projectId, sessionId)`
+### `ompListSessions(projectId)` / `ompCreateSession(projectId, title)` / `ompRenameSession(projectId, sessionId, title)` / `ompDeleteSession(projectId, sessionId)` / `ompUpdateSessionTokens(projectId, sessionId, tokens)`
 
-Channel: `omp-list-sessions` / `omp-create-session` / `omp-rename-session` / `omp-delete-session`
+Channel: `omp-list-sessions` / `omp-create-session` / `omp-rename-session` / `omp-delete-session` / `omp-update-session-tokens`
 
 Metadata session disimpan di `userData/agent-sessions.json` (title, createdAt, lastActive, tokens, sessionPath) — isi percakapan tetap di file session omp.
 

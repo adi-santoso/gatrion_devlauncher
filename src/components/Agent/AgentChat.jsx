@@ -212,6 +212,12 @@ export default function AgentChat({
     const targetSession = sessionRef.current;
     // The very first message can create the session implicitly (no active
     // session selected). That transition must not wipe the live conversation.
+    // But the guard is only for THAT immediate transition: once the user has
+    // navigated to a different session (or deselects), the "just created"
+    // moment is over — returning here must reload the transcript normally.
+    if (sentSessionIdRef.current && targetSession?.id !== sentSessionIdRef.current) {
+      sentSessionIdRef.current = null;
+    }
     if (targetSession?.id && targetSession.id === sentSessionIdRef.current) {
       sentSessionIdRef.current = null;
       setHistoryLoading(false);

@@ -183,6 +183,7 @@ contextBridge.exposeInMainWorld('electron', {
   ompCreateSession: (projectId, title) => ipcRenderer.invoke('omp-create-session', projectId, title),
   ompDeleteSession: (projectId, sessionId) => ipcRenderer.invoke('omp-delete-session', projectId, sessionId),
   ompRenameSession: (projectId, sessionId, title) => ipcRenderer.invoke('omp-rename-session', projectId, sessionId, title),
+  ompUpdateSessionTokens: (projectId, sessionId, tokens) => ipcRenderer.invoke('omp-update-session-tokens', projectId, sessionId, tokens),
   ompChat: (projectId, cwd, message, options) => ipcRenderer.invoke('omp-chat', projectId, cwd, message, options),
   ompSteer: (projectId, cwd, message) => ipcRenderer.invoke('omp-steer', projectId, cwd, message),
   ompAbort: (projectId, cwd) => ipcRenderer.invoke('omp-abort', projectId, cwd),

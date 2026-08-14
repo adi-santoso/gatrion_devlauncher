@@ -1,7 +1,12 @@
 import React from 'react';
 import { fireEvent, render, screen } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import AgentView from '../AgentView';
+
+beforeAll(() => {
+  // jsdom does not implement scrollIntoView
+  window.Element.prototype.scrollIntoView = vi.fn();
+});
 
 const mocks = vi.hoisted(() => ({
   ompStatus: vi.fn(),
@@ -10,6 +15,7 @@ const mocks = vi.hoisted(() => ({
   ompDeleteSession: vi.fn(),
   ompTogglePin: vi.fn(),
   ompRenameSession: vi.fn(),
+  ompUpdateSessionTokens: vi.fn(),
   onOmpEvent: vi.fn(),
   ompGetMessages: vi.fn(),
   ompChat: vi.fn(),
@@ -50,6 +56,7 @@ beforeEach(() => {
   mocks.ompDeleteSession.mockResolvedValue({ success: true });
   mocks.ompTogglePin.mockResolvedValue({ success: true });
   mocks.ompRenameSession.mockResolvedValue({ success: true });
+  mocks.ompUpdateSessionTokens.mockResolvedValue({ success: true });
   mocks.onOmpEvent.mockReturnValue(() => {});
   mocks.ompGetMessages.mockResolvedValue({ success: true, messages: [] });
   mocks.ompChat.mockResolvedValue({ success: true, sessionId: 's1', session });
@@ -143,5 +150,32 @@ describe('AgentView', () => {
     // The newly created session surfaces in the sidebar so it can be resumed later
     // (the text also appears in the chat header + user bubble — any match proves it)
     expect((await screen.findAllByText('my first task')).length).toBeGreaterThan(0);
+  });
+
+  it('persists token usage to the registry when a turn finishes', async () => {
+    let eventCb = null;
+    mocks.onOmpEvent.mockImplementation((callback) => { eventCb = callback; return () => {}; });
+    render(<AgentView projects={[project]} />);
+    fireEvent.click(screen.getByText('Demo'));
+    fireEvent.click(await screen.findByText('Session 1'));
+    await vi.waitFor(() => expect(eventCb).toBeTruthy());
+
+    const input = screen.getByPlaceholderText('Describe a task, ask a question…');
+    fireEvent.change(input, { target: { value: 'count tokens' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Send message' }));
+
+    eventCb({ projectId: 'p1', event: { type: 'agent_start' } });
+    eventCb({ projectId: 'p1', event: {
+      type: 'agent_end',
+      messages: [
+        { role: 'user', content: 'count tokens' },
+        { role: 'assistant', content: 'done', usage: { totalTokens: 2345 } },
+      ],
+    } });
+
+    // Usage is persisted so the badge survives restarts and shows on the session
+    await vi.waitFor(() => {
+      expect(mocks.ompUpdateSessionTokens).toHaveBeenCalledWith('p1', 's1', 2345);
+    });
   });
 });

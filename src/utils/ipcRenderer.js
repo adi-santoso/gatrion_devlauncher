@@ -672,6 +672,11 @@ export const ompRenameSession = async (projectId, sessionId, title) => {
   return window.electron.ompRenameSession(projectId, sessionId, title);
 };
 
+export const ompUpdateSessionTokens = async (projectId, sessionId, tokens) => {
+  if (!isElectron()) return { success: true };
+  return window.electron.ompUpdateSessionTokens(projectId, sessionId, tokens);
+};
+
 export const ompChat = async (projectId, cwd, message, options = {}) => {
   if (!isElectron()) return { success: false, error: 'Electron not available' };
   return window.electron.ompChat(projectId, cwd, message, options);

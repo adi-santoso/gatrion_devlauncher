@@ -60,6 +60,14 @@ let ompInstaller
 let ompConfig
 let isQuitting = false
 
+// Identity: notifications, taskbar grouping, and the default window title all
+// fall back to the app name. Without this, dev runs attribute notifications to
+// the electron binary ("electron") and windows can flash an untitled title.
+const APP_NAME = 'DevLauncher'
+const APP_ID = 'com.devlauncher.desktop'
+app.setName(APP_NAME)
+app.setAppUserModelId(APP_ID)
+
 // Content Security Policy — applied to every response (dev and production).
 // Must be registered after `app.whenReady()` because session.defaultSession is
 // only available once the app is ready.
@@ -93,6 +101,7 @@ function createWindow(windowBounds) {
 
   mainWindow = new BrowserWindow({
     ...bounds,
+    title: APP_NAME,
     minWidth: defaults.minWidth,
     minHeight: defaults.minHeight,
     webPreferences: {

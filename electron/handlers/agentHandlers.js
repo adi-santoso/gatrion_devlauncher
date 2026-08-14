@@ -57,6 +57,16 @@ function setupAgentHandlers(ompManager, installer, ompConfig, getWindow) {
     return { success: true }
   })
 
+  secureHandle('omp-update-session-tokens', async (event, projectId, sessionId, tokens) => {
+    assertSessionId(projectId)
+    if (typeof sessionId !== 'string' || !sessionId.trim()) throw new Error('Session ID is required')
+    const count = Number(tokens)
+    if (!Number.isInteger(count) || count < 0) throw new Error('Tokens must be a non-negative integer')
+    const session = await ompManager.touchSession(projectId, sessionId, { tokens: count })
+    if (!session) throw new Error('Session not found')
+    return { success: true, session }
+  })
+
   secureHandle('omp-rename-session', async (event, projectId, sessionId, title) => {
     assertSessionId(projectId)
     assertSessionId(sessionId)
