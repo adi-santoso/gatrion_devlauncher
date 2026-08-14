@@ -3,11 +3,12 @@ import { createRequire } from 'node:module'
 
 const { ipcRenderer, contextBridge, __reset } = createRequire(import.meta.url)('electron')
 
-// preload.js runs its exposeInMainWorld at require time and Node caches the
-// module, so load it exactly once per worker.
+// preload.ts runs its exposeInMainWorld at require time and Node caches the
+// module, so load it exactly once per worker. Node's type stripping loads the
+// .ts via the same native require path the mock loader hooks.
 let api
 beforeAll(() => {
-  createRequire(import.meta.url)('../../preload.js')
+  createRequire(import.meta.url)('../../preload.ts')
   api = contextBridge._exposed.api
 })
 

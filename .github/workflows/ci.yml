@@ -44,8 +44,8 @@ jobs:
       - name: Unit tests + coverage gate
         run: npm run test:coverage
 
-      - name: Renderer build
-        run: npx vite build
+      - name: Build main + preload + renderer (electron-vite)
+        run: npx electron-vite build
 
       - name: E2E smoke (Electron + Playwright)
         run: npm run test:e2e

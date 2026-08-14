@@ -32,7 +32,7 @@
     }
   ],
   "files": [
-    "electron/**/*",
+    "out/**/*",
     "dist-react/**/*",
     "package.json"
   ]

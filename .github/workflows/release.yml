@@ -44,8 +44,8 @@ jobs:
       - name: Audit
         run: npm audit --audit-level=high
 
-      - name: Build renderer
-        run: npx vite build
+      - name: Build main + preload + renderer (electron-vite)
+        run: npx electron-vite build
 
       - name: Build & publish
         run: npx electron-builder --win --x64 --publish always

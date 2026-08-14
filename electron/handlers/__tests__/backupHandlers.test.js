@@ -7,6 +7,7 @@ import path from 'node:path'
 const { ipcMain, dialog, __reset } = createRequire(import.meta.url)('electron')
 
 import { setupBackupHandlers, mergeConfigAndPresets } from '../backupHandlers'
+import { encryptBundle } from '../../utils/workspaceBackup'
 
 const fakeEvent = { senderFrame: { url: 'http://localhost:5173/' } }
 
@@ -161,7 +162,6 @@ describe('backupHandlers', () => {
       presets: [],
       health: {},
     })
-    const { encryptBundle } = createRequire(import.meta.url)('../../utils/workspaceBackup')
     const source = path.join(tempRoot, 'enc.json')
     fs.writeFileSync(source, JSON.stringify(encryptBundle(json, 'pw-123')))
     dialog.showOpenDialog = vi.fn(async () => ({ canceled: false, filePaths: [source] }))

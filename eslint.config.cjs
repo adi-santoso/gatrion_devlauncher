@@ -128,6 +128,14 @@ module.exports = [
     },
   },
   {
+    files: ['electron.vite.config.mjs'],
+    languageOptions: {
+      ecmaVersion: 2022,
+      sourceType: 'module',
+      globals: { __dirname: 'readonly', process: 'readonly', console: 'readonly', Buffer: 'readonly' },
+    },
+  },
+  {
     files: ['vite.config.js', 'vitest.config.js', 'tests/setup.js'],
     languageOptions: {
       ecmaVersion: 2022,
