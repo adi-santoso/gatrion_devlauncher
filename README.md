@@ -104,6 +104,7 @@ npm run dev:vite
 - [IPC contract](docs/IPC_API.md)
 - [Feature status](docs/FEATURE_STATUS.md)
 - [Roadmap to release](docs/ROADMAP.md)
+- [TypeScript rewrite roadmap](docs/ROADMAP_TS.md)
 - [Keyboard shortcuts](docs/KEYBOARD_SHORTCUTS.md)
 - [Testing guide](docs/TESTING_GUIDE.md)
 - [Changelog](CHANGELOG.md)

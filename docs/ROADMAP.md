@@ -1,5 +1,7 @@
 # Roadmap DevLauncher — Rencana Peningkatan
 
+> **STATUS: SELESAI** (keputusan 14 Agu 2026) — seluruh item P0/P1 tuntas; P2 tersisa hanya item yang di-skip dengan sengaja (code signing, berbayar) dan sisanya yang menunggu platform nyata (verifikasi runtime macOS/Linux). Arah teknis berikutnya: **rewrite TypeScript renderer** — lihat [ROADMAP_TS.md](ROADMAP_TS.md).
+
 Dokumen ini berisi rencana perbaikan DevLauncher berdasarkan analisa kode saat ini (commit `8fb48f6`). Ini bukan daftar fitur marketing — tiap item diturunkan dari kondisi nyata repo, diberi prioritas, perkiraan effort, dan dampak. Status per fitur eksisting tetap di [FEATURE_STATUS.md](FEATURE_STATUS.md); riwayat perubahan di [CHANGELOG.md](../CHANGELOG.md).
 
 ## Kondisi Saat Ini (hasil analisa)

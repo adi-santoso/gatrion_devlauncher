@@ -104,6 +104,7 @@ npm run dev:vite
 - [Kontrak IPC](docs/IPC_API.md)
 - [Status fitur aktual](docs/FEATURE_STATUS.md)
 - [Roadmap sampai release](docs/ROADMAP.md)
+- [Roadmap rewrite TypeScript](docs/ROADMAP_TS.md)
 - [Keyboard shortcuts](docs/KEYBOARD_SHORTCUTS.md)
 - [Panduan testing](docs/TESTING_GUIDE.md)
 - [Changelog](CHANGELOG.md)
