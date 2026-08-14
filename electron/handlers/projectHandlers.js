@@ -12,9 +12,7 @@ const log = Logger || { info: () => {}, warn: () => {}, error: () => {} }
 const { assertTrustedIpcEvent } = require('../utils/ipcSecurity')
 const { safeHandle } = require('../utils/ipcValidation')
 const { searchWorkspaceFiles } = require('../utils/workspaceSearch')
-const normalizePathKey = (projectPath) => projectPath
-  ? path.normalize(projectPath).toLowerCase().replace(/[/\\]+$/, '')
-  : ''
+const { normalizePathKey } = require('../utils/pathKey')
 const assertProjectDirectory = (projectPath) => {
   let stats
   try {

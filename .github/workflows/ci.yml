@@ -7,10 +7,14 @@ on:
     branches: [master, main]
 
 jobs:
-  windows:
-    name: Windows (lint, test, build, e2e)
-    runs-on: windows-latest
+  test:
+    name: ${{ matrix.os }} (lint, test, build, e2e)
+    runs-on: ${{ matrix.os }}
     timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest, ubuntu-latest]
 
     steps:
       - name: Checkout
@@ -45,3 +49,8 @@ jobs:
 
       - name: E2E smoke (Electron + Playwright)
         run: npm run test:e2e
+        if: runner.os != 'Linux'
+      # Electron needs a virtual display on headless Linux runners.
+      - name: E2E smoke (Electron + Playwright, xvfb)
+        run: xvfb-run -a npm run test:e2e
+        if: runner.os == 'Linux'

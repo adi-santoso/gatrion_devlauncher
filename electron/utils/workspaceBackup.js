@@ -1,6 +1,7 @@
 // @ts-check
 const crypto = require('crypto')
 const { migrateProjects, normalizeProject, validateProject } = require('../projectSchema')
+const { normalizePathKey } = require('./pathKey')
 
 const BACKUP_TYPE = 'devlauncher-workspace-backup'
 const BACKUP_VERSION = 1
@@ -130,7 +131,7 @@ function mergeProjects(currentProjects, incoming) {
   })
 
   const next = [...currentProjects]
-  const existingPaths = new Set(next.map((project) => normalizeProjectPath(project.path)))
+  const existingPaths = new Set(next.map((project) => normalizePathKey(project.path)))
   const existingNames = new Set(next.map((project) => project.name.toLowerCase()))
   const added = []
   const skipped = []
@@ -140,7 +141,7 @@ function mergeProjects(currentProjects, incoming) {
       skipped.push({ name: error, reason: 'invalid' })
       continue
     }
-    const normPath = normalizeProjectPath(project.path)
+    const normPath = normalizePathKey(project.path)
     if (existingPaths.has(normPath)) {
       skipped.push({ name: project.name, reason: 'path already exists' })
       continue
@@ -155,11 +156,6 @@ function mergeProjects(currentProjects, incoming) {
     added.push(project)
   }
   return { projects: next, added, skipped }
-}
-
-function normalizeProjectPath(projectPath) {
-  const path = require('path')
-  return projectPath ? path.normalize(projectPath).toLowerCase().replace(/[/\\]+$/, '') : ''
 }
 
 module.exports = {
