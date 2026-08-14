@@ -197,10 +197,19 @@ export default function AgentView({ projects, initialProjectId = null, onOpenPro
               const isSelected = selectedProjectId === project.id;
               return (
                 <div key={project.id} className="mb-1.5">
-                  <button
-                    type="button"
+                  {/* Row is a div[role=button] (not a native button element) so
+                      the inner "Open project detail" action stays valid HTML. */}
+                  <div
+                    role="button"
+                    tabIndex={0}
                     onClick={() => selectProject(project)}
-                    className={`w-full flex items-center gap-2 px-2.5 py-2 rounded-lg text-left transition-colors ${
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter' || event.key === ' ') {
+                        event.preventDefault();
+                        selectProject(project);
+                      }
+                    }}
+                    className={`w-full flex items-center gap-2 px-2.5 py-2 rounded-lg text-left cursor-pointer transition-colors ${
                       isSelected ? 'bg-surface-3/80' : 'hover:bg-surface-3/50'
                     }`}
                   >
@@ -215,7 +224,7 @@ export default function AgentView({ projects, initialProjectId = null, onOpenPro
                     >
                       <Icon name="external" size={11} />
                     </button>
-                  </button>
+                  </div>
                   {isSelected && (
                     <div className="mt-1 space-y-0.5">
                       {sessions.length === 0 && (
