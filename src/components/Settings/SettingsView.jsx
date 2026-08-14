@@ -326,31 +326,6 @@ const SettingsView = ({ config, updateConfig, onExportProjects, onImportProjects
         <p className="text-[11px] text-ink-faint">{t('settings.autoRestart.desc')}</p>
       </div>
 
-      <TerminalSettings
-        fontSize={config.terminal?.fontSize}
-        onFontSizeChange={(size) => updateConfig({ terminal: { fontSize: size } })}
-        maxLines={config.terminal?.maxLines}
-        onMaxLinesChange={(lines) => updateConfig({ terminal: { maxLines: lines } })}
-        autoScroll={config.terminal?.autoScroll}
-        onAutoScrollChange={() =>
-          updateConfig({ terminal: { autoScroll: !config.terminal?.autoScroll } })
-        }
-      />
-
-      <div className="bg-surface border border-border rounded-xl shadow-card p-5 space-y-4">
-        <p className="font-display font-bold text-sm">{t('settings.preview.title')}</p>
-        <ToggleSwitch
-          enabled={config.preview?.keepAlive !== false}
-          onChange={() =>
-            updateConfig({ preview: { keepAlive: !(config.preview?.keepAlive !== false) } })
-          }
-          label={t('settings.preview.keepAlive')}
-        />
-        <p className="text-[11px] text-ink-faint">
-          {t('settings.preview.desc')}
-        </p>
-      </div>
-
       <div className="bg-surface border border-border rounded-xl shadow-card p-5 space-y-4">
         <p className="font-display font-bold text-sm">{t('settings.data.title')}</p>
         <p className="text-[11px] text-ink-faint">
@@ -386,7 +361,32 @@ const SettingsView = ({ config, updateConfig, onExportProjects, onImportProjects
         </div>
       </div>
 
+      <TerminalSettings
+        fontSize={config.terminal?.fontSize}
+        onFontSizeChange={(size) => updateConfig({ terminal: { fontSize: size } })}
+        maxLines={config.terminal?.maxLines}
+        onMaxLinesChange={(lines) => updateConfig({ terminal: { maxLines: lines } })}
+        autoScroll={config.terminal?.autoScroll}
+        onAutoScrollChange={() =>
+          updateConfig({ terminal: { autoScroll: !config.terminal?.autoScroll } })
+        }
+      />
+
       <div className="bg-surface border border-border rounded-xl shadow-card p-5 space-y-4">
+        <p className="font-display font-bold text-sm">{t('settings.preview.title')}</p>
+        <ToggleSwitch
+          enabled={config.preview?.keepAlive !== false}
+          onChange={() =>
+            updateConfig({ preview: { keepAlive: !(config.preview?.keepAlive !== false) } })
+          }
+          label={t('settings.preview.keepAlive')}
+        />
+        <p className="text-[11px] text-ink-faint">
+          {t('settings.preview.desc')}
+        </p>
+      </div>
+
+      <div className="bg-surface border border-border rounded-xl shadow-card p-5 space-y-4 lg:col-span-2">
         <p className="font-display font-bold text-sm">{t('settings.backup.title')}</p>
         <p className="text-[11px] text-ink-faint">
           {t('settings.backup.desc')}
@@ -425,7 +425,7 @@ const SettingsView = ({ config, updateConfig, onExportProjects, onImportProjects
         )}
       </div>
 
-      <div className="bg-surface border border-border rounded-xl shadow-card p-5 space-y-4">
+      <div className="bg-surface border border-border rounded-xl shadow-card p-5 space-y-4 lg:col-span-2">
         <div className="flex items-center justify-between">
           <p className="font-display font-bold text-sm">{t('settings.log.title')}</p>
           <button
@@ -446,7 +446,7 @@ const SettingsView = ({ config, updateConfig, onExportProjects, onImportProjects
         </pre>
       </div>
 
-      <div className="bg-surface border border-border rounded-xl shadow-card p-5 space-y-4">
+      <div className="bg-surface border border-border rounded-xl shadow-card p-5 space-y-4 lg:col-span-2">
         <div className="flex items-center justify-between">
           <p className="font-display font-bold text-sm">{t('settings.crash.title')}</p>
           <button
@@ -490,11 +490,11 @@ const SettingsView = ({ config, updateConfig, onExportProjects, onImportProjects
         </div>
       </div>
 
-      <SystemEnvCard />
+      <div className="lg:col-span-2"><SystemEnvCard /></div>
 
-      <OmpSettingsCard />
+      <div className="lg:col-span-2"><OmpSettingsCard /></div>
 
-      <div className="bg-surface border border-border rounded-xl shadow-card p-5 space-y-4">
+      <div className="bg-surface border border-border rounded-xl shadow-card p-5 space-y-4 lg:col-span-2">
         <p className="font-display font-bold text-sm">{t('settings.prayer.title')}</p>
         <div className="flex items-center justify-between">
           <p className="text-xs text-ink">{t('settings.prayer.showIn')}</p>
