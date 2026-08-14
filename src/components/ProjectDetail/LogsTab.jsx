@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import Icon from '../Common/Icon';
+import VirtualList from '../Common/VirtualList';
 
 const stripAnsi = (value) => String(value ?? '')
   .replace(/[\u001b\u009b][[()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-ORZcf-nqry=><]/g, '');
@@ -50,6 +51,7 @@ export default function LogsTab({ logs = [], autoScroll = true, onAutoScrollChan
   // When the user scrolls up to read older lines, stop forcing the view to the
   // bottom; offer a "jump to latest" affordance instead.
   const [stickToBottom, setStickToBottom] = useState(true);
+  const [scrollTop, setScrollTop] = useState(0);
   const outputRef = useRef(null);
   const normalizedLogs = useMemo(() => (Array.isArray(logs) ? logs : [logs]).map(normalizeLog), [logs]);
   const query = filter.trim().toLowerCase();
@@ -67,6 +69,7 @@ export default function LogsTab({ logs = [], autoScroll = true, onAutoScrollChan
   const handleScroll = () => {
     const el = outputRef.current;
     if (!el) return;
+    setScrollTop(el.scrollTop || 0);
     const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 40;
     setStickToBottom(atBottom);
   };
@@ -114,15 +117,22 @@ export default function LogsTab({ logs = [], autoScroll = true, onAutoScrollChan
         )}
         <div ref={outputRef} onScroll={handleScroll} style={fontSize ? { fontSize: `${fontSize}px` } : undefined} className="scan-line bg-[#08090C] px-5 py-4 font-mono text-[12.5px] leading-relaxed h-72 overflow-y-auto">
         {visibleLogs.length === 0 ? <p className="text-ink-faint italic">{normalizedLogs.length === 0 ? 'No logs captured yet.' : 'No logs match this filter.'}</p>
-          : visibleLogs.map((log, index) => {
-            const parsedTime = log.timestamp ? new Date(log.timestamp) : null;
-            const time = parsedTime && !Number.isNaN(parsedTime.getTime()) ? parsedTime.toLocaleTimeString() : '';
-            return <p key={`${log.timestamp || 'log'}-${index}`} className={`whitespace-pre-wrap break-words ${getLogColor(log.level)}`}>
-              {time && <span className="text-ink-faint mr-1.5">{time}</span>}
-              {log.commandName && <span className="text-accent mr-1.5">[{log.commandName}]</span>}
-              {log.level !== 'info' && <span className="mr-1.5">[{log.level.toUpperCase()}]</span>}<HighlightedMessage text={log.message} query={filter.trim()} />
-            </p>;
-          })}
+          : <VirtualList
+              items={visibleLogs}
+              scrollRef={outputRef}
+              scrollTop={scrollTop}
+              estimatedHeight={20}
+              renderItem={(log) => {
+                const parsedTime = log.timestamp ? new Date(log.timestamp) : null;
+                const time = parsedTime && !Number.isNaN(parsedTime.getTime()) ? parsedTime.toLocaleTimeString() : '';
+                return <p className={`whitespace-pre-wrap break-words ${getLogColor(log.level)}`}>
+                  {time && <span className="text-ink-faint mr-1.5">{time}</span>}
+                  {log.commandName && <span className="text-accent mr-1.5">[{log.commandName}]</span>}
+                  {log.level !== 'info' && <span className="mr-1.5">[{log.level.toUpperCase()}]</span>}<HighlightedMessage text={log.message} query={filter.trim()} />
+                </p>;
+              }}
+              getKey={(log, index) => `${log.timestamp || 'log'}-${index}`}
+            />}
         </div>
       </div>
     </div>

@@ -1,4 +1,6 @@
+// @ts-check
 const fs = require('fs')
+const fsp = require('fs').promises
 const path = require('path')
 const { execFile } = require('child_process')
 const { ipcMain } = require('electron')
@@ -6,6 +8,9 @@ const { envVarsToObject } = require('../projectSchema')
 const { assertTrustedIpcEvent } = require('../utils/ipcSecurity')
 const { safeHandle } = require('../utils/ipcValidation')
 const { execNpm, assertSafePackageName } = require('../utils/npmRunner')
+/** @typedef {import('../managers/StorageManager')} StorageManager */
+/** @typedef {import('../managers/ProcessManager')} ProcessManager */
+/** @typedef {import('electron').BrowserWindow} BrowserWindow */
 
 // Run git with no shell, GIT_TERMINAL_PROMPT disabled so a missing credential
 // helper fails fast instead of hanging the app waiting for input.
@@ -402,7 +407,7 @@ function setupRepoHandlers(storageManager, processManager, mainWindow) {
     for (const file of backupFiles) {
       const source = path.join(projectPath, file)
       const target = path.join(projectPath, `${file}.bak-${Date.now()}`)
-      await fs.copyFile(source, target).catch(() => {})
+      await fsp.copyFile(source, target).catch(() => {})
     }
     const args = packageName ? ['install', `${packageName.trim()}@latest`] : ['update']
     const output = await execNpm(projectPath, args, { timeoutMs: 300000 })

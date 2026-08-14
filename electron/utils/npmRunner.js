@@ -23,7 +23,7 @@ function assertSafePackageName(packageName) {
  * execFile/spawn with shell:false, so every npm command must go through a
  * shell (PATHEXT resolves npm.cmd) — same pattern ProcessManager already
  * uses for start commands. `spawnFn` is injectable for tests.
- * @param {import('child_process').ChildProcessWithoutNullStreams} cwd
+ * @param {typeof import('child_process').spawn} spawnFn
  */
 function createNpmRunner(spawnFn = spawn) {
   return {

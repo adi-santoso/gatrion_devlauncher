@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Render a conversation transcript as readable Markdown for export.
  * @param {Array<{role: string, content: string}>} messages

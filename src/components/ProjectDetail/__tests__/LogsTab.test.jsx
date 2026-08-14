@@ -58,4 +58,23 @@ describe('LogsTab', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Clear' }))
     expect(onClear).toHaveBeenCalledTimes(1)
   })
+
+  it('virtualizes huge log lists — only a window of rows is rendered', () => {
+    // Large enough to cross the virtualization threshold (500) but small
+    // enough to render quickly in jsdom's DOM.
+    const bigLogs = Array.from({ length: 1500 }, (_, i) => ({ message: `line ${i}`, level: 'info' }))
+    render(<LogsTab logs={bigLogs} />)
+    const container = screen.getByText('line 0').closest('.overflow-y-auto')
+
+    // jsdom has no layout: simulate a viewport + scroll position.
+    Object.defineProperty(container, 'clientHeight', { configurable: true, value: 300 })
+    Object.defineProperty(container, 'scrollTop', { configurable: true, value: 10000 })
+    fireEvent.scroll(container)
+
+    // Row ~500 (10000 / ~20px estimate) is rendered; the ends are not.
+    expect(screen.getByText('line 500')).toBeInTheDocument()
+    expect(screen.queryByText('line 0')).not.toBeInTheDocument()
+    expect(screen.queryByText('line 4999')).not.toBeInTheDocument()
+    expect(screen.getAllByText(/^line /).length).toBeLessThan(100)
+  })
 })

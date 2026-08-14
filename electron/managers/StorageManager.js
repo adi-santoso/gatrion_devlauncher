@@ -1,3 +1,4 @@
+// @ts-check
 const fs = require('fs').promises
 const path = require('path')
 const { app } = require('electron')
@@ -5,7 +6,7 @@ const { v4: uuidv4 } = require('uuid')
 const { DEFAULT_CONFIG, applyConfigUpdates, normalizeConfig, migrateConfig, CONFIG_SCHEMA_VERSION } = require('../configSchema')
 const { normalizeProject, validateProject, migrateProjects, PROJECT_SCHEMA_VERSION } = require('../projectSchema')
 const Logger = require('../utils/logger')
-const log = Logger || {}
+const log = Logger || { info() {}, warn() {}, error() {}, debug() {}, fatal() {} }
 
 const PRESET_DEFAULT_COLOR = '#6D5EF5'
 const MAX_STAGGER_DELAY_MS = 60000
@@ -14,7 +15,7 @@ const PRESET_COLOR_PATTERN = /^#[0-9a-fA-F]{3,8}$/
 /**
  * Normalize a workspace preset, migrating legacy shapes (v1: id/name/projectIds/createdAt)
  * into the v2 shape and sanitizing every field. Returns null for entries without a valid name.
- * @param {object} preset - Raw preset value
+ * @param {Record<string, any>} preset - Raw preset value
  * @param {number} index - Position in the list (used for generated ids)
  */
 function normalizePreset(preset, index = 0) {
@@ -479,7 +480,7 @@ class StorageManager {
   }
 }
 
+StorageManager.normalizePreset = normalizePreset
+StorageManager.PRESET_DEFAULT_COLOR = PRESET_DEFAULT_COLOR
 module.exports = StorageManager
-module.exports.normalizePreset = normalizePreset
-module.exports.PRESET_DEFAULT_COLOR = PRESET_DEFAULT_COLOR
 

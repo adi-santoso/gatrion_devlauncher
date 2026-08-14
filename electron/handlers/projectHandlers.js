@@ -1,8 +1,12 @@
+// @ts-check
 const fs = require('fs')
 const path = require('path')
 const { ipcMain, dialog } = require('electron')
 const { v4: uuidv4 } = require('uuid')
 const { normalizeProject, sanitizeProjectChanges, toRendererProject, validateProject, migrateProjects } = require('../projectSchema')
+/** @typedef {import('../managers/StorageManager')} StorageManager */
+/** @typedef {import('../managers/ProcessManager')} ProcessManager */
+/** @typedef {import('electron').BrowserWindow} BrowserWindow */
 const Logger = require('../utils/logger')
 const log = Logger || { info: () => {}, warn: () => {}, error: () => {} }
 const { assertTrustedIpcEvent } = require('../utils/ipcSecurity')

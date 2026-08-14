@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import Icon from '../Common/Icon';
+import VirtualList from '../Common/VirtualList';
 import * as ipc from '../../utils/ipcRenderer';
 import Markdown from './Markdown';
 import ThinkingBlock from './ThinkingBlock';
@@ -8,6 +9,7 @@ import { fileToAttachment, MAX_ATTACHMENTS, MAX_IMAGE_BYTES } from './imageAttac
 import ChatComposer from './ChatComposer';
 import ToolCard from './ToolCard';
 import ChatHeader from './ChatHeader';
+import { estimateCost } from '../../utils/costEstimate';
 import {
   SUGGESTIONS,
   MARKDOWN_STREAM_LIMIT,
@@ -45,6 +47,10 @@ export default function AgentChat({
   const [historyError, setHistoryError] = useState(null);
   const [historyRetry, setHistoryRetry] = useState(0);
   const [nearBottom, setNearBottom] = useState(true);
+  const [scrollTop, setScrollTop] = useState(0);
+  // Last finished turn: token count + estimated cost (computed from usage and
+  // the active model's list price). Shown under the composer.
+  const [lastTurn, setLastTurn] = useState(null);
   const [models, setModels] = useState([]);
   const [defaultModel, setDefaultModel] = useState(null);
   const [modelsOpen, setModelsOpen] = useState(false);
@@ -151,7 +157,10 @@ export default function AgentChat({
     bottomRef.current?.scrollIntoView({ behavior, block: 'end' });
   }, []);
 
-  const handleScroll = () => setNearBottom(isNearBottom());
+  const handleScroll = () => {
+    setScrollTop(scrollRef.current?.scrollTop || 0);
+    setNearBottom(isNearBottom());
+  };
 
   // Push whatever accumulated in the streaming buffers into React state. The
   // pending text is captured before clearing the ref so the updater closes
@@ -490,7 +499,13 @@ export default function AgentChat({
       const promptTokens = typeof usage.promptTokens === 'number' ? usage.promptTokens : undefined
       const completionTokens = typeof usage.completionTokens === 'number' ? usage.completionTokens : undefined
       const totalTokens = typeof usage.totalTokens === 'number' ? usage.totalTokens : undefined
-      onTokensUsed?.(totalTokens || 0)
+      const cost = estimateCost(currentModelRef, {
+        prompt: promptTokens,
+        completion: completionTokens,
+        total: totalTokens,
+      })
+      setLastTurn({ tokens: totalTokens || 0, cost: cost.total })
+      onTokensUsed?.(totalTokens || 0, cost.total)
       setMessages((prev) => {
         const turnUser = turnMessages.filter((item) => item.role === 'user').pop()
         const assistantContent = turnMessages.filter((item) => item.role === 'assistant').map((item) => item.content).join('\n\n') || streaming.trim() || streamingBufRef.current.trim()
@@ -1268,50 +1283,61 @@ export default function AgentChat({
             )}
           </div>
         ) : (
-          <div className="max-w-[760px] mx-auto space-y-[26px]">
-            {messages.map((message, index) => (
-              <div key={message.id || index} className="message-in" style={{ animationDelay: `${Math.min(index * 30, 150)}ms` }}>
-                {message.role === 'user' ? (
-                  <UserMessage message={message} isLast={index === lastUserIndex} busy={busy} onSave={handleEditSave} onBranch={handleBranch} />
-                ) : (
-                  <AssistantMessage message={message} isLast={index === messages.length - 1} busy={busy} onRetry={handleRetry} onBranch={handleBranch} />
-                )}
-              </div>
-            ))}
-            {tools.length > 0 && (
-              <div className="max-w-[760px] mx-auto">
-                {tools.map((tool, index) => <ToolCard key={`tool-${index}`} tool={tool} />)}
-              </div>
-            )}
-            {busy && !streaming && !thinking && tools.length === 0 && (
-              <div className="flex items-center gap-1.5 self-start pl-1 pt-1">
-                <span className="w-2 h-2 rounded-full bg-ink-faint animate-dot-pulse" />
-                <span className="w-2 h-2 rounded-full bg-ink-faint animate-dot-pulse-delay-1" />
-                <span className="w-2 h-2 rounded-full bg-ink-faint animate-dot-pulse-delay-2" />
-              </div>
-            )}
-            {thinking && <ThinkingBlock content={thinking} isStreaming />}
-            {streaming && (
-              <div className="flex gap-[13px]">
-                <div className="w-7 h-7 rounded-[7px] bg-accent text-white shadow-[0_0_10px_rgba(109,94,245,.35)] flex items-center justify-center shrink-0 mt-0.5">
-                  <Icon name="messageSquare" size={12} />
+          <div className="max-w-[760px] mx-auto">
+            <VirtualList
+              items={messages}
+              scrollRef={scrollRef}
+              scrollTop={scrollTop}
+              estimatedHeight={120}
+              rowGap={26}
+              threshold={400}
+              renderItem={(message, index) => (
+                <div className="message-in" style={{ animationDelay: `${Math.min(index * 30, 150)}ms` }}>
+                  {message.role === 'user' ? (
+                    <UserMessage message={message} isLast={index === lastUserIndex} busy={busy} onSave={handleEditSave} onBranch={handleBranch} />
+                  ) : (
+                    <AssistantMessage message={message} isLast={index === messages.length - 1} busy={busy} onRetry={handleRetry} onBranch={handleBranch} />
+                  )}
                 </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="text-[10.5px] font-semibold font-mono uppercase tracking-[0.07em] text-ink-faint">Assistant</span>
+              )}
+              getKey={(message, index) => message.id || index}
+            />
+            <div className="mt-[26px] space-y-[26px]">
+              {tools.length > 0 && (
+                <div className="max-w-[760px] mx-auto">
+                  {tools.map((tool, index) => <ToolCard key={`tool-${index}`} tool={tool} />)}
+                </div>
+              )}
+              {busy && !streaming && !thinking && tools.length === 0 && (
+                <div className="flex items-center gap-1.5 self-start pl-1 pt-1">
+                  <span className="w-2 h-2 rounded-full bg-ink-faint animate-dot-pulse" />
+                  <span className="w-2 h-2 rounded-full bg-ink-faint animate-dot-pulse-delay-1" />
+                  <span className="w-2 h-2 rounded-full bg-ink-faint animate-dot-pulse-delay-2" />
+                </div>
+              )}
+              {thinking && <ThinkingBlock content={thinking} isStreaming />}
+              {streaming && (
+                <div className="flex gap-[13px]">
+                  <div className="w-7 h-7 rounded-[7px] bg-accent text-white shadow-[0_0_10px_rgba(109,94,245,.35)] flex items-center justify-center shrink-0 mt-0.5">
+                    <Icon name="messageSquare" size={12} />
                   </div>
-                  <div className="text-sm text-ink leading-[1.7]">
-                    {streaming.length < MARKDOWN_STREAM_LIMIT ? (
-                      <Markdown content={streaming} />
-                    ) : (
-                      <div className="whitespace-pre-wrap break-words">{streaming}</div>
-                    )}
-                    <span className="inline-block w-1.5 h-4 bg-accent animate-cursor-blink ml-0.5 align-middle rounded-sm" />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="text-[10.5px] font-semibold font-mono uppercase tracking-[0.07em] text-ink-faint">Assistant</span>
+                    </div>
+                    <div className="text-sm text-ink leading-[1.7]">
+                      {streaming.length < MARKDOWN_STREAM_LIMIT ? (
+                        <Markdown content={streaming} />
+                      ) : (
+                        <div className="whitespace-pre-wrap break-words">{streaming}</div>
+                      )}
+                      <span className="inline-block w-1.5 h-4 bg-accent animate-cursor-blink ml-0.5 align-middle rounded-sm" />
+                    </div>
                   </div>
                 </div>
-              </div>
-            )}
-            <div ref={bottomRef} />
+              )}
+              <div ref={bottomRef} />
+            </div>
           </div>
         )}
       </div>
@@ -1413,6 +1439,7 @@ export default function AgentChat({
         slashMatches={slashMatches}
         insertSlashCommand={insertSlashCommand}
         currentModelVision={currentModelVision}
+        lastTurn={lastTurn}
       />
     </div>
   );

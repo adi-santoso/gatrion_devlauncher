@@ -1,3 +1,4 @@
+// @ts-check
 const { app, Tray, Menu, nativeImage } = require('electron');
 const path = require('path');
 const fs = require('fs');
@@ -69,6 +70,7 @@ class TrayManager {
         return status && (status.status === 'RUNNING' || status.status === 'STARTING');
       });
 
+      /** @type {import('electron').MenuItemConstructorOptions[]} */
       const menuTemplate = [
         {
           label: this.mainWindow?.isVisible() ? 'Hide DevLauncher' : 'Show DevLauncher',
@@ -160,7 +162,7 @@ class TrayManager {
         {
           label: 'Quit DevLauncher',
           click: () => {
-            app.isQuitting = true;
+            /** @type {any} */ (app).isQuitting = true;
             app.quit();
           }
         }

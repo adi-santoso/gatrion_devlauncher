@@ -1,6 +1,19 @@
-import React from 'react';
+import React, { useRef, useState } from 'react';
 import Icon from '../Common/Icon';
+import { formatCost } from '../../utils/costEstimate';
 import { MAX_ATTACHMENTS } from './imageAttachment';
+
+const TEMPLATES_KEY = 'devlauncher:promptTemplates';
+
+const loadTemplates = () => {
+  try {
+    const raw = localStorage.getItem(TEMPLATES_KEY);
+    const parsed = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+};
 
 /**
  * Chat input bar: attach images, inline bash command line, textarea with
@@ -30,7 +43,42 @@ export default function ChatComposer({
   slashMatches,
   insertSlashCommand,
   currentModelVision,
+  lastTurn,
 }) {
+  // Saved prompt templates (name + content), persisted in localStorage so
+  // they survive restarts without touching the config/registry schema.
+  const [templates, setTemplates] = useState(loadTemplates);
+  const [templateOpen, setTemplateOpen] = useState(false);
+  const [templateName, setTemplateName] = useState('');
+  const templateInputRef = useRef(null);
+
+  const saveCurrentAsTemplate = () => {
+    const content = input.trim();
+    if (!content) return;
+    const name = templateName.trim() || content.slice(0, 42);
+    const next = [
+      ...templates.filter((template) => template.name !== name),
+      { id: String(Date.now()), name, content },
+    ];
+    localStorage.setItem(TEMPLATES_KEY, JSON.stringify(next));
+    setTemplates(next);
+    setTemplateName('');
+    setInput('');
+    setTemplateOpen(false);
+  };
+
+  const deleteTemplate = (id) => {
+    const next = templates.filter((template) => template.id !== id);
+    localStorage.setItem(TEMPLATES_KEY, JSON.stringify(next));
+    setTemplates(next);
+  };
+
+  const insertTemplate = (template) => {
+    setInput(template.content);
+    setTemplateOpen(false);
+    requestAnimationFrame(() => inputRef.current?.focus());
+  };
+
   return (
     <div className="shrink-0 border-t border-border bg-base px-5 py-3.5">
       <div className="relative max-w-[760px] mx-auto">
@@ -101,6 +149,16 @@ export default function ChatComposer({
             </button>
             <button
               type="button"
+              onClick={() => { setTemplateOpen((value) => !value); if (!templateOpen) setTimeout(() => templateInputRef.current?.focus(), 0); }}
+              disabled={busy || notConfigured || !project}
+              className="w-7 h-7 shrink-0 rounded-md text-ink-faint hover:text-ink hover:bg-surface-3 flex items-center justify-center transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              title="Prompt templates"
+              aria-label="Prompt templates"
+            >
+              <Icon name="fileText" size={14} />
+            </button>
+            <button
+              type="button"
               onClick={() => fileInputRef.current?.click()}
               disabled={busy || notConfigured || !project}
               className="w-7 h-7 shrink-0 rounded-md text-ink-faint hover:text-ink hover:bg-surface-3 flex items-center justify-center transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
@@ -157,6 +215,56 @@ export default function ChatComposer({
             </button>
           </div>
         </div>
+        {templateOpen && (
+          <div className="absolute bottom-full left-0 right-0 mb-1.5 max-h-64 overflow-auto rounded-xl border border-border bg-surface shadow-card z-30 py-1.5 px-1.5 dropdown-menu">
+            <p className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-ink-faint">Templates</p>
+            {templates.length === 0 && (
+              <p className="px-2 py-1.5 text-[11px] text-ink-faint">No templates yet — save the current prompt below.</p>
+            )}
+            {templates.map((template) => (
+              <div key={template.id} className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => insertTemplate(template)}
+                  className="flex-1 min-w-0 flex items-center gap-2 px-2 py-1.5 text-left text-xs text-ink-soft hover:bg-surface-3 hover:text-ink rounded-md transition-colors"
+                >
+                  <span className="flex-1 min-w-0 truncate font-medium">{template.name}</span>
+                  <span className="max-w-[40%] truncate text-[10px] text-ink-faint">{template.content}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => deleteTemplate(template.id)}
+                  className="text-ink-faint hover:text-danger px-1 py-1 shrink-0 rounded-md transition-colors"
+                  aria-label={`Delete template ${template.name}`}
+                >
+                  <Icon name="x" size={11} />
+                </button>
+              </div>
+            ))}
+            <div className="flex items-center gap-1.5 pt-1.5 mt-1.5 border-t border-border">
+              <input
+                ref={templateInputRef}
+                value={templateName}
+                onChange={(event) => setTemplateName(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter') { event.preventDefault(); saveCurrentAsTemplate(); }
+                }}
+                placeholder="Template name (optional)"
+                aria-label="Template name"
+                className="flex-1 min-w-0 bg-surface-3 border border-border rounded-md px-2 py-1 text-xs text-ink placeholder:text-ink-faint focus:outline-none focus:border-accent/50"
+              />
+              <button
+                type="button"
+                onClick={saveCurrentAsTemplate}
+                disabled={!input.trim()}
+                className="shrink-0 inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-accent hover:bg-accent-hover text-white text-[11px] font-semibold transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                <Icon name="plus" size={11} />
+                Save current prompt
+              </button>
+            </div>
+          </div>
+        )}
         {slashOpen && slashMatches.length > 0 && (
           <div className="absolute bottom-full left-0 right-0 mb-1.5 max-h-56 overflow-auto rounded-xl border border-border bg-surface shadow-card z-30 py-1 dropdown-menu">
             {slashMatches.map((command) => (
@@ -180,6 +288,11 @@ export default function ChatComposer({
         )}
         <div className="text-center text-[11px] font-mono text-ink-faint mt-2 flex items-center justify-center gap-2 flex-wrap">
           <span><kbd className="px-1 py-0.5 rounded bg-surface-3 border border-border text-[10px]">Enter</kbd> to send · <kbd className="px-1 py-0.5 rounded bg-surface-3 border border-border text-[10px]">Shift+Enter</kbd> newline</span>
+          {lastTurn && (lastTurn.tokens > 0 || lastTurn.cost > 0) && (
+            <span className="tabular-nums text-ink-soft" title="Estimated from the active model's list price">
+              last turn · {lastTurn.tokens.toLocaleString()} tokens · ≈{formatCost(lastTurn.cost)}
+            </span>
+          )}
           {input.length > 0 && <span className="tabular-nums">{input.length.toLocaleString()} chars</span>}
         </div>
         <div className="text-center text-[10px] text-ink-faint mt-1">Sessions &amp; context are stored by omp locally</div>

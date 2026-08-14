@@ -1,3 +1,4 @@
+// @ts-check
 const { app, BrowserWindow, ipcMain, Notification, session } = require('electron')
 const path = require('path')
 const fs = require('fs').promises
@@ -28,10 +29,12 @@ const Logger = require('./utils/logger')
 // crashes and silent failures are visible in main.log instead of dying
 // quietly (or only showing in the terminal).
 process.on('uncaughtException', (error) => {
-  Logger.error('main', 'Uncaught exception', { stack: error?.stack || String(error) })
+  const stack = error instanceof Error ? error.stack : String(error)
+  Logger.error('main', 'Uncaught exception', { stack })
 })
 process.on('unhandledRejection', (reason) => {
-  Logger.error('main', 'Unhandled promise rejection', { reason: reason?.stack || String(reason) })
+  const detail = reason instanceof Error ? reason.stack || reason.message : String(reason)
+  Logger.error('main', 'Unhandled promise rejection', { reason: detail })
 })
 
 // E2E test hook: point the app at an isolated userData directory so tests never
@@ -385,7 +388,7 @@ async function initialize() {
   setupRepoHandlers(storageManager, processManager, mainWindow)
   setupSystemHandlers()
   setupAgentHandlers(ompManager, ompInstaller, ompConfig, () => mainWindow)
-  setupPrayerHandlers(mainWindow)
+  setupPrayerHandlers()
 
   // Health analytics IPC
   ipcMain.handle('get-health', async (event, projectId) => {

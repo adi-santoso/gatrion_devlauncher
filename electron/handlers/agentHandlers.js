@@ -1,3 +1,4 @@
+// @ts-check
 const { ipcMain, shell, dialog } = require('electron')
 const fs = require('fs')
 const { spawn } = require('child_process')
@@ -62,12 +63,18 @@ function setupAgentHandlers(ompManager, installer, ompConfig, getWindow) {
     return { success: true }
   })
 
-  secureHandle('omp-update-session-tokens', async (event, projectId, sessionId, tokens) => {
+  secureHandle('omp-update-session-tokens', async (event, projectId, sessionId, tokens, cost) => {
     assertSessionId(projectId)
     if (typeof sessionId !== 'string' || !sessionId.trim()) throw new Error('Session ID is required')
     const count = Number(tokens)
     if (!Number.isInteger(count) || count < 0) throw new Error('Tokens must be a non-negative integer')
-    const session = await ompManager.touchSession(projectId, sessionId, { tokens: count })
+    const meta = { tokens: count }
+    if (cost !== undefined && cost !== null) {
+      const amount = Number(cost)
+      if (!Number.isFinite(amount) || amount < 0) throw new Error('Cost must be a non-negative number')
+      meta.cost = amount
+    }
+    const session = await ompManager.touchSession(projectId, sessionId, meta)
     if (!session) throw new Error('Session not found')
     return { success: true, session }
   })
@@ -336,9 +343,13 @@ function setupAgentHandlers(ompManager, installer, ompConfig, getWindow) {
     return { success: true, ...data }
   })
 
+  /**
+   * @param {Electron.IpcMainInvokeEvent} event
+   * @param {Record<string, any>} [input]
+   */
   secureHandle('omp-config-save-provider', async (event, input = {}) => {
     if (typeof input !== 'object' || input === null) throw new Error('Provider data is required')
-    const name = String(input.name || '').trim()
+    const name = String((/** @type {Record<string, any>} */ (input)).name || '').trim()
     if (name.length > 60) throw new Error('Provider name is too long')
     const result = await ompConfig.saveProvider(input)
     if (!result.success) throw new Error(result.error)

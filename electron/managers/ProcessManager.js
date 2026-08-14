@@ -1,3 +1,4 @@
+// @ts-check
 const { spawn, exec } = require('child_process')
 const util = require('util')
 const { EventEmitter } = require('events')
@@ -15,6 +16,9 @@ class ProcessManager extends EventEmitter {
     this.nextLogId = 1
     this.maxLogLines = 1000
     this.logsDir = null
+    // Auto-restart preferences — assigned externally from the workspace config.
+    /** @type {Record<string, any> | null} */
+    this.autoRestartConfig = null
     this.customRuns = new Map() // runId -> { projectId, commandId, label, process }
     this.nextRunId = 1
     this.STATUS = {
@@ -172,7 +176,7 @@ getCommandSnapshot(processData) {
    * @param {string} command - Shell command to run
    * @param {object} env - Environment variables
    * @param {function} onLog - Callback for log lines
-   * @returns {Promise<{runId: number, pid: number}>}
+   * @returns {Promise<{success: boolean, runId: number, pid: number}>}
    */
   async runCustomCommand(projectId, projectPath, commandId, label, command, env = {}, onLog) {
     if (!projectId || !projectPath) throw new Error('Project id and path are required')

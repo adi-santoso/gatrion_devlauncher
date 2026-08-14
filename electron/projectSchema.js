@@ -1,3 +1,4 @@
+// @ts-check
 const PROJECT_TYPES = {
   LARAVEL: { labels: ['Laravel', '🔴 Laravel'], emoji: '🔴', color: '#FF2D20' },
   NEXTJS: { labels: ['Next.js', '⚡ Next.js'], emoji: '⚡', color: '#000000' },

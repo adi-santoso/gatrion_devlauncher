@@ -1,3 +1,4 @@
+// @ts-check
 const { WebContentsView, session } = require('electron')
 
 /**
@@ -74,9 +75,11 @@ class PreviewManager {
     // Forward the project app's console output to the renderer so it can be
     // surfaced (e.g. logged alongside the process log stream).
     view.webContents.on('console-message', (event, level, message, line, sourceId) => {
+      // Electron 43 passes level as a numeric code (0-3), not a string.
+      const levelName = ['verbose', 'info', 'warning', 'error'][level] || 'info'
       this.onConsoleMessage?.({
         projectId,
-        level: ['verbose', 'info', 'warning', 'error'].includes(level) ? level : 'info',
+        level: levelName,
         message: String(message || '').slice(0, 2000),
         source: sourceId || '',
         line,
@@ -182,7 +185,7 @@ class PreviewManager {
       await ses.clearCache()
       await ses.clearAuthCache()
       if (typeof ses.cookies?.flushStore === 'function') {
-        await new Promise((resolve) => ses.cookies.flushStore(resolve))
+        await ses.cookies.flushStore()
       }
       return { success: true }
     } catch (error) {

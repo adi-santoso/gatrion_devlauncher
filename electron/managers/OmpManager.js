@@ -169,6 +169,7 @@ class OmpManager extends EventEmitter {
     if (!session) return null
     if (meta.sessionPath) session.sessionPath = meta.sessionPath
     if (typeof meta.tokens === 'number' && Number.isFinite(meta.tokens)) session.tokens = meta.tokens
+    if (typeof meta.cost === 'number' && Number.isFinite(meta.cost)) session.cost = meta.cost
     if (meta.title) session.title = meta.title
     if (typeof meta.pinned === 'boolean') session.pinned = meta.pinned
     session.lastActive = Date.now()

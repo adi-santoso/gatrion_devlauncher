@@ -1,3 +1,4 @@
+// @ts-check
 const { app } = require('electron')
 const path = require('path')
 const { pathToFileURL } = require('url')

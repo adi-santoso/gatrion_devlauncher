@@ -173,9 +173,9 @@ describe('AgentView', () => {
       ],
     } });
 
-    // Usage is persisted so the badge survives restarts and shows on the session
+    // Usage + estimated cost are persisted so the badge survives restarts
     await vi.waitFor(() => {
-      expect(mocks.ompUpdateSessionTokens).toHaveBeenCalledWith('p1', 's1', 2345);
+      expect(mocks.ompUpdateSessionTokens).toHaveBeenCalledWith('p1', 's1', 2345, expect.any(Number));
     });
   });
 

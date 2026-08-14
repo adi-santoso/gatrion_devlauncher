@@ -1,3 +1,4 @@
+// @ts-check
 const DEFAULT_CONFIG = {
   theme: 'dark',
   sidebarExpanded: true,

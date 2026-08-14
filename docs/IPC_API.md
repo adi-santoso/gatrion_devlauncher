@@ -425,10 +425,10 @@ Channel: `omp-status`
 
 Channel: `omp-list-sessions` / `omp-create-session` / `omp-rename-session` / `omp-delete-session` / `omp-update-session-tokens`
 
-Metadata session disimpan di `userData/agent-sessions.json` (title, createdAt, lastActive, tokens, sessionPath) — isi percakapan tetap di file session omp.
+Metadata session disimpan di `userData/agent-sessions.json` (title, createdAt, lastActive, tokens, sessionPath, cost) — isi percakapan tetap di file session omp. `omp-update-session-tokens` menerima arg ke-4 `cost` (estimasi USD, opsional) yang disimpan ke `session.cost`.
 
 ```js
-{ success: true, sessions: [{ id, title, createdAt, lastActive, tokens, sessionPath }] }
+{ success: true, sessions: [{ id, title, createdAt, lastActive, tokens, sessionPath, cost }] }
 ```
 
 ### `ompListAllSessions()`

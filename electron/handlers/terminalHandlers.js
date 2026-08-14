@@ -1,3 +1,4 @@
+// @ts-check
 const { ipcMain } = require('electron');
 const os = require('os');
 const { assertTrustedIpcEvent } = require('../utils/ipcSecurity');

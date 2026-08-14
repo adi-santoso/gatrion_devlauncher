@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import Icon from '../Common/Icon';
 import { ConfirmDialog } from '../Modals';
 import * as ipc from '../../utils/ipcRenderer';
+import { formatCost } from '../../utils/costEstimate';
 import AgentChat from './AgentChat';
 
 function formatRelative(timestamp) {
@@ -261,6 +262,19 @@ export default function AgentView({ projects, initialProjectId = null, initialSe
                     <Icon name={isSelected ? 'chevronDown' : 'chevronRight'} size={12} className="text-ink-faint shrink-0" />
                     <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${isSelected ? 'bg-accent' : 'bg-ink-faint/40'}`} />
                     <span className="flex-1 min-w-0 truncate text-[13px] font-semibold text-ink-soft">{project.name}</span>
+                    {isSelected && (() => {
+                      const list = sessionsByProject[project.id] || [];
+                      const totalTokens = list.reduce((sum, item) => sum + (item.tokens || 0), 0);
+                      const totalCost = list.reduce((sum, item) => sum + (item.cost || 0), 0);
+                      if (totalTokens === 0 && totalCost === 0) return null;
+                      return (
+                        <span className="shrink-0 text-[10px] text-ink-faint tabular-nums" title="All sessions in this project">
+                          {totalTokens > 0 && `${(totalTokens / 1000).toFixed(1)}k tokens`}
+                          {totalTokens > 0 && totalCost > 0 && ' · '}
+                          {totalCost > 0 && `≈${formatCost(totalCost)}`}
+                        </span>
+                      );
+                    })()}
                     <button
                       type="button"
                       onClick={(event) => { event.stopPropagation(); onOpenProject?.(project); }}
@@ -308,6 +322,7 @@ export default function AgentView({ projects, initialProjectId = null, initialSe
                           <div className="flex items-center gap-2 mt-1">
                             <span className="text-[11px] text-ink-faint">{formatRelative(session.lastActive)}</span>
                             {session.tokens > 0 && <span className="text-[11px] text-warning tabular-nums">{(session.tokens / 1000).toFixed(1)}k tokens</span>}
+                            {session.cost > 0 && <span className="text-[11px] text-ink-soft tabular-nums" title="Estimated cost (list price of the active model)">≈{formatCost(session.cost)}</span>}
                             <span className="ml-auto flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                               <button
                                 type="button"
@@ -390,12 +405,12 @@ export default function AgentView({ projects, initialProjectId = null, initialSe
               onSessionCreated={handleSessionCreated}
               onBusyChange={setBusy}
               onOpenSettings={onOpenSettings}
-              onTokensUsed={(tokens) => {
+              onTokensUsed={(tokens, cost) => {
                 if (!activeSession) return;
                 setSessionsByProject((prev) => ({
                   ...prev,
                   [selectedProjectId]: (prev[selectedProjectId] || []).map((item) =>
-                    item.id === activeSession.id ? { ...item, tokens } : item
+                    item.id === activeSession.id ? { ...item, tokens, ...(Number.isFinite(cost) ? { cost } : {}) } : item
                   ),
                 }));
                 // Persist the usage so the badge survives restarts and shows on
@@ -406,7 +421,7 @@ export default function AgentView({ projects, initialProjectId = null, initialSe
                 if (selectedProjectId && activeSession.id && Number.isFinite(tokens) && tokens > 0) {
                   const previous = (sessionsByProject[selectedProjectId] || []).find((item) => item.id === activeSession.id)?.tokens;
                   if (previous !== tokens) {
-                    ipc.ompUpdateSessionTokens(selectedProjectId, activeSession.id, tokens).catch(() => {});
+                    ipc.ompUpdateSessionTokens(selectedProjectId, activeSession.id, tokens, Number.isFinite(cost) ? cost : undefined).catch(() => {});
                   }
                 }
               }}

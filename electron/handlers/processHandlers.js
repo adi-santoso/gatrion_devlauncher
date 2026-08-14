@@ -1,3 +1,4 @@
+// @ts-check
 const { ipcMain } = require('electron')
 const { envVarsToObject } = require('../projectSchema')
 const { assertTrustedIpcEvent } = require('../utils/ipcSecurity')
@@ -47,12 +48,6 @@ function resolveLaunchConfig(project) {
   return { command: commands, port: primary?.port ?? requestedPort }
 }
 
-/**
- * Setup process-related IPC handlers
- * @param {ProcessManager} processManager - ProcessManager instance
- * @param {StorageManager} storageManager - StorageManager instance
- * @param {BrowserWindow} mainWindow - Main window instance
- */
 function topologicalSort(projects) {
   const projectMap = new Map(projects.map((p) => [p.id, p]))
   const visited = new Set()
@@ -74,6 +69,12 @@ function topologicalSort(projects) {
   return result
 }
 
+/**
+ * Setup process-related IPC handlers
+ * @param {import('../managers/ProcessManager')} processManager - ProcessManager instance
+ * @param {import('../managers/StorageManager')} storageManager - StorageManager instance
+ * @param {import('electron').BrowserWindow} mainWindow - Main window instance
+ */
 function setupProcessHandlers(processManager, storageManager, mainWindow) {
   // Helper to safely send to renderer (skip if window is destroyed or app is quitting)
   const safeSend = (channel, ...args) => {

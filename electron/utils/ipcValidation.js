@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Centralized IPC payload validation (defense-in-depth).
  *

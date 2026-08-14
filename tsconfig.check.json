@@ -1,7 +1,7 @@
 {
   "compilerOptions": {
     "allowJs": true,
-    "checkJs": false,
+    "checkJs": true,
     "noEmit": true,
     "target": "ES2022",
     "module": "CommonJS",
@@ -10,14 +10,14 @@
     "strict": false,
     "noImplicitAny": false,
     "skipLibCheck": true,
-    "types": ["node"]
+    "types": ["node"],
+    "paths": {
+      "electron": ["./node_modules/electron/electron.d.ts"]
+    }
   },
   "include": [
-    "electron/handlers/systemHandlers.js",
-    "electron/managers/HealthManager.js",
-    "electron/managers/OmpManager.js",
-    "electron/managers/OmpInstaller.js",
-    "electron/managers/OmpConfig.js",
+    "electron/**/*.js",
     "src/utils/prayerTimes.js"
-  ]
+  ],
+  "exclude": ["electron/**/__tests__/**"]
 }
