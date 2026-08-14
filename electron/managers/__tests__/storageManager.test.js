@@ -56,6 +56,64 @@ describe('StorageManager', () => {
     await expect(manager.loadProjects()).rejects.toThrow()
   })
 
+  test('loadProjects recovers the latest backup after corruption', async () => {
+    await manager.init()
+    await manager.saveProjects([{ id: 'recoverable', name: 'R', path: 'C:/r', startCommand: 'npm start', type: 'NODEJS', envVars: [] }])
+    await manager.saveProjects([{ id: 'latest', name: 'L', path: 'C:/l', startCommand: 'npm start', type: 'NODEJS', envVars: [] }])
+    await fs.writeFile(path.join(tempDir, 'projects.json'), '{broken json', 'utf8')
+
+    const recovered = await manager.loadProjects()
+    expect(recovered).toHaveLength(1)
+    expect(recovered[0].id).toBe('recoverable')
+    // The file is rewritten to valid JSON after recovery.
+    expect(JSON.parse(await fs.readFile(path.join(tempDir, 'projects.json'), 'utf8'))).toHaveLength(1)
+  })
+
+  test('loadProjects recovers from backups when the file has an invalid shape', async () => {
+    await manager.init()
+    // Two saves: the first save backs up the (empty) initial file, the second
+    // backs up the project itself — recovery returns that latest valid backup.
+    await manager.saveProjects([{ id: 'recoverable', name: 'R', path: 'C:/r', startCommand: 'npm start', type: 'NODEJS', envVars: [] }])
+    await manager.saveProjects([{ id: 'latest', name: 'L', path: 'C:/l', startCommand: 'npm start', type: 'NODEJS', envVars: [] }])
+    await fs.writeFile(path.join(tempDir, 'projects.json'), '{}', 'utf8')
+
+    const recovered = await manager.loadProjects()
+    expect(recovered).toHaveLength(1)
+    expect(recovered[0].id).toBe('recoverable')
+  })
+
+  test('concurrent updateProjects calls serialize through the queue', async () => {
+    await manager.init()
+    await Promise.all(
+      Array.from({ length: 10 }, (_, index) => manager.updateProjects((projects) => ({
+        projects: [...projects, { id: String(index), name: `P${index}`, path: `C:/p${index}`, startCommand: 'npm start', type: 'NODEJS', envVars: [] }],
+      })))
+    )
+    const projects = await manager.loadProjects()
+    expect(projects).toHaveLength(10)
+    expect(new Set(projects.map((item) => item.id))).toEqual(new Set(Array.from({ length: 10 }, (_, index) => String(index))))
+  })
+
+  test('concurrent config updates merge without losing fields', async () => {
+    await manager.init()
+    await Promise.all([
+      manager.updateConfig({ notifications: { sound: true } }),
+      manager.updateConfig({ terminal: { maxLines: 2500 } }),
+    ])
+    const config = await manager.loadConfig()
+    expect(config.notifications.sound).toBe(true)
+    expect(config.terminal.maxLines).toBe(2500)
+  })
+
+  test('no stale .tmp files remain after recovery', async () => {
+    await manager.init()
+    await manager.saveProjects([{ id: 'a', name: 'A', path: 'C:/a', startCommand: 'npm start', type: 'NODEJS', envVars: [] }])
+    await fs.writeFile(path.join(tempDir, 'projects.json'), '{broken', 'utf8')
+    await manager.loadProjects()
+    const entries = await fs.readdir(tempDir)
+    expect(entries.some((entry) => entry.endsWith('.tmp'))).toBe(false)
+  })
+
   test('loadActivities returns [] when the file is missing', async () => {
     await manager.init()
     expect(await manager.loadActivities()).toEqual([])

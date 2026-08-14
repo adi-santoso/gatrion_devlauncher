@@ -8,7 +8,7 @@ Dokumen ini berisi rencana perbaikan DevLauncher berdasarkan analisa kode saat i
 |---|---|
 | Ukuran kode | ±21.000 baris (src + electron). File terbesar: `AgentChat.jsx` 1.413 baris (dipecah dari 1.787: utils + ToolCard + ChatComposer + ChatHeader diekstrak), `App.jsx` 912 (orchestration pindah ke useToasts/useActivities/usePresets), `ProcessManager.js` 863 (processTree/portCheck/logStore diekstrak), `ipcRenderer.js` 840 |
 | Kualitas kode | Lint: **0 error, 0 warning** (sejak P0: `eslint-plugin-react` + config JSX benar, deps/import yang tidak terpakai dibersihkan) |
-| Test | 13 test CLI (Node) + **273 test Vitest** + **7 e2e Playwright** (smoke + flow agent/process/settings via mock omp & userData isolasi). **Coverage ±43% lines** |
+| Test | **473 test Vitest** (60 file) + **7 e2e Playwright** (smoke + flow agent/process/settings via mock omp & userData isolasi). Satu alat test sejak konversi CLI. **Coverage ±58% lines** |
 | Bundle | **Code splitting aktif**: main chunk 313 kB (96 kB gzip) + chunk per view (Dashboard/Projects/Settings/Agent/Detail/Terminal). Tidak ada lagi warning Vite >500 kB |
 | Security | Sudah kuat: contextIsolation, CSP, `assertTrustedIpcEvent`, allowlist field, secret env dimask. Belum ada schema validation terpusat per channel |
 | Main process | **Single instance lock** + **error capture** (main & renderer → main.log) sudah ada sejak P0. Belum ada **auto-update**, **crash report**, atau **global shortcut** |
@@ -29,7 +29,7 @@ Dokumen ini berisi rencana perbaikan DevLauncher berdasarkan analisa kode saat i
 | ~~Pecah file besar~~ → **selesai**: `AgentChat.jsx` (1.787 → 1.413 baris) — `agentChatUtils.js`, `ToolCard.jsx`, `ChatComposer.jsx`, `ChatHeader.jsx` diekstrak; `App.jsx` (1.096 → 912 baris) — orchestration toast/activity/preset pindah ke `useToasts.js`/`useActivities.js`/`usePresets.js` (+9 test baru); `ProcessManager.js` (1.059 → 863 baris) — helper platform diekstrak ke `processTree.js` (kill tree, resource sampling), `portCheck.js`, `logStore.js` (persist JSONL) | P1 ✅ | L | Perawatan & onboarding jauh lebih mudah |
 | ~~Seragamkan bentuk respons IPC~~ → **selesai**: `safeHandle(ipcMain, assertTrusted, channel, handler)` di `ipcValidation.js` — satu wrapper yang menjamin tiap channel mengembalikan `{ success: true, ... }` / `{ success: false, error }` (tidak pernah reject), selalu `assertTrustedIpcEvent` + validasi payload, dipakai oleh **semua 8 file handler** (104 channel); 4 test envelope baru | P1 ✅ | M | Kontrak konsisten, typing lebih mudah |
 | ~~TypeScript bertahap~~ → **selesai (fase electron)**: `// @ts-check` di 33 file electron (handler, manager, utils, main, preload), `tsconfig.check.json` kini `checkJs: true` + include `electron/**/*.js` → `npm run typecheck` 0 error. Bonus: ketemu & fix bug nyata `fs.copyFile` callback-style yang dipanggil promise-style di backup Dependencies. Fase renderer (JSX) menyusul | P1 ✅ | L | Bug null/typo turun drastis |
-| Konversi 13 test CLI legacy ke Vitest — satu alat test | P2 | M | Satu cara menulis & menjalankan test |
+| ~~Konversi 13 test CLI legacy ke Vitest — satu alat test~~ → **selesai**: semua 13 test CLI dihapus, `npm test` kini `vitest run` (satu alat test; CI step di-update). Cakupan unik di-port & diperluas: **ProcessManager lifecycle nyata** (spawn sungguhan: start/stop/exit code/composite/staggered readiness/port conflict/waitForPort — 13 test), **processHandlers trusted-id** (arg attacker diabaikan, port injection per-command, untrusted sender — 5 test), **PreviewManager** (8 test via mock WebContentsView + session partition), **prayerTimes** golden values (5 test), **configSchema** (6 test, sebelumnya 0%), legacy schema migration + envVarsToObject (4 test), **StorageManager recovery dari backup** + serialisasi queue (5 test) | P2 ✅ | M | Satu cara menulis & menjalankan test |
 
 ## 2. Reliability & Robustness
 
@@ -77,7 +77,7 @@ Dokumen ini berisi rencana perbaikan DevLauncher berdasarkan analisa kode saat i
 
 | Item | Prioritas | Effort | Dampak |
 |---|---|---|---|
-| ~~CI: tambah `npm run typecheck` + `npm audit`; gate coverage minimum~~ → **selesai**: CI kini menjalankan lint → audit → typecheck → CLI test → vitest + coverage gate (thresholds statements/lines 28%, funcs 32%, branches 60%) → build → e2e | P0 ✅ | S | Kualitas terjaga otomatis |
+| ~~CI: tambah `npm run typecheck` + `npm audit`; gate coverage minimum~~ → **selesai**: CI kini menjalankan lint → audit → typecheck → vitest (regression) → vitest + coverage gate (thresholds statements/lines 28%, funcs 32%, branches 60%) → build → e2e | P0 ✅ | S | Kualitas terjaga otomatis |
 | ~~Publish pipeline: `electron-builder publish` ke GitHub Releases + feed auto-update~~ → **selesai**: `.github/workflows/release.yml` — push tag `v*` menjalankan quality gate penuh lalu `npx electron-builder --win --x64 --publish always` (NSIS + portable + `latest.yml` feed) ke GitHub Releases | P1 ✅ | M | Rilis berkala jadi rutin |
 | Changelog otomatis dari conventional commits | P2 | S | Riwayat lebih lengkap |
 

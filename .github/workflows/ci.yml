@@ -34,7 +34,7 @@ jobs:
       - name: Typecheck
         run: npm run typecheck
 
-      - name: CLI regression tests
+      - name: Regression tests (vitest)
         run: npm test
 
       - name: Unit tests + coverage gate

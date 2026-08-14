@@ -1,17 +1,5 @@
-/* global getPrayerTimes, formatHour */
-const assert = require('assert/strict')
-const fs = require('fs')
-const path = require('path')
-
-// Load the ES module by stripping export keywords and evaluating. Node treats
-// src/*.js as CommonJS (package.json has "type": "commonjs"), so a plain
-// require/import fails on the `export` syntax.
-let src = fs.readFileSync(path.join(__dirname, '../../src/utils/prayerTimes.js'), 'utf8')
-src = src
-  .replace(/export const /g, 'const ')
-  .replace(/export function /g, 'function ')
-  .replace(/export \{ TIME_NAMES \};/g, '')
-eval(src)
+import { describe, test, expect } from 'vitest'
+import { getPrayerTimes, formatHour, METHODS } from '../prayerTimes'
 
 // Golden values produced by the canonical PrayTimes.js v2.3 (verified 1:1 in
 // development). Each covers a different method / location / timezone.
@@ -46,26 +34,41 @@ const CASES = [
   },
 ]
 
-for (const c of CASES) {
-  const res = getPrayerTimes(new Date(c.y, c.m - 1, c.d, 12, 0, 0), c.lat, c.lon, c.tz, { method: c.method })
-  for (const key of Object.keys(c.expected)) {
-    assert.equal(res.formatted[key], c.expected[key], `${c.label}: ${key} mismatch`)
-  }
-}
+describe('prayerTimes', () => {
+  test('golden values match canonical PrayTimes v2.3 across methods and locations', () => {
+    for (const c of CASES) {
+      const res = getPrayerTimes(new Date(c.y, c.m - 1, c.d, 12, 0, 0), c.lat, c.lon, c.tz, { method: c.method })
+      for (const key of Object.keys(c.expected)) {
+        expect(res.formatted[key], `${c.label}: ${key}`).toBe(c.expected[key])
+      }
+    }
+  })
 
-// Per-prayer adjustments (tune in minutes)
-const tuned = getPrayerTimes(new Date(2026, 7, 12), -6.2088, 106.8456, 7, {
-  method: 'KEMENAG',
-  adjustments: { fajr: 5, asr: -3 },
+  test('per-prayer adjustments (tune in minutes) shift the schedule', () => {
+    const tuned = getPrayerTimes(new Date(2026, 7, 12), -6.2088, 106.8456, 7, {
+      method: 'KEMENAG',
+      adjustments: { fajr: 5, asr: -3 },
+    })
+    expect(tuned.formatted.fajr).toBe('04:46')
+    expect(tuned.formatted.asr).toBe('15:16')
+  })
+
+  test('formatHour rounding matches the formatted output', () => {
+    expect(formatHour(15.35)).toBe('15:21')
+    expect(formatHour(0.1)).toBe('00:06')
+    expect(formatHour(Number.NaN)).toBe('-----')
+  })
+
+  test('unknown method falls back to KEMENAG instead of crashing', () => {
+    expect(getPrayerTimes(new Date(2026, 7, 12), -6.2088, 106.8456, 7, { method: 'NOPE' }).formatted.dhuhr).toBe('11:58')
+  })
+
+  test('every supported method produces a full schedule', () => {
+    for (const method of Object.keys(METHODS)) {
+      const res = getPrayerTimes(new Date(2026, 7, 12), -6.2088, 106.8456, 7, { method })
+      for (const key of ['fajr', 'sunrise', 'dhuhr', 'asr', 'maghrib', 'isha']) {
+        expect(res.formatted[key]).toMatch(/^\d{2}:\d{2}$/)
+      }
+    }
+  })
 })
-assert.equal(tuned.formatted.fajr, '04:46')
-assert.equal(tuned.formatted.asr, '15:16')
-
-// formatHour rounding matches the formatted output
-assert.equal(formatHour(15.35), '15:21')
-assert.equal(formatHour(0.1), '00:06')
-
-// Unknown method falls back to KEMENAG instead of crashing
-assert.equal(getPrayerTimes(new Date(2026, 7, 12), -6.2088, 106.8456, 7, { method: 'NOPE' }).formatted.dhuhr, '11:58')
-
-console.log('Prayer times checks passed')

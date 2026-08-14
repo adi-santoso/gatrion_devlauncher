@@ -6,6 +6,7 @@ import {
   redactSensitiveEnv,
   isSensitiveKey,
   toRendererProject,
+  envVarsToObject,
 } from '../../projectSchema'
 
 const base = {
@@ -89,6 +90,70 @@ describe('project schema v3 (tags / customCommands / dependsOn)', () => {
       customCommands: [{ id: 'cc1', label: 'Lint', command: 'npm run lint' }],
       dependsOn: ['db'],
     })
+  })
+})
+
+describe('legacy migration (pre-v3 shapes)', () => {
+  test('migrates a legacy project with emoji type, env object and string port', () => {
+    const migrated = validateProject(normalizeProject({
+      id: 'legacy-id',
+      name: ' Legacy App ',
+      path: ' C:/projects/legacy ',
+      type: '⚛️ React (Vite)',
+      port: '5173',
+      command: ' npm run dev ',
+      env: { NODE_ENV: 'development', PORT: 5173 },
+      icon: '⚛️',
+      color: '#61DAFB',
+    }))
+    expect(migrated.type).toBe('REACT_VITE')
+    expect(migrated.port).toBe(5173)
+    expect(migrated.startCommand).toBe('npm run dev')
+    expect(migrated.envVars).toEqual([
+      { key: 'NODE_ENV', value: 'development' },
+      { key: 'PORT', value: '5173' },
+    ])
+    expect(envVarsToObject(migrated.envVars)).toEqual({ NODE_ENV: 'development', PORT: '5173' })
+    expect(migrated.commands).toEqual([
+      { id: 'main', name: 'Application', command: 'npm run dev', port: 5173, primary: true },
+    ])
+  })
+
+  test('empty port normalizes to null and sanitize passes null through', () => {
+    const withoutPort = validateProject(normalizeProject({ ...base, port: null }))
+    expect(withoutPort.port).toBeNull()
+    expect(normalizeProject({ ...base, port: '' }).port).toBeNull()
+    expect(sanitizeProjectChanges({ port: null })).toEqual({ port: null })
+  })
+
+  test('composite commands require exactly one primary', () => {
+    const composite = validateProject(normalizeProject({
+      ...base,
+      commands: [
+        { id: 'app', name: 'Laravel', command: 'php artisan serve', port: 8000, primary: true },
+        { id: 'assets', name: 'Frontend assets', command: 'npm run dev', port: 5173, primary: false },
+      ],
+      startCommand: 'php artisan serve',
+      port: 8000,
+    }))
+    expect(composite.commands).toHaveLength(2)
+    expect(composite.startCommand).toBe('php artisan serve')
+    expect(() => validateProject({
+      ...composite,
+      commands: composite.commands.map((item) => ({ ...item, primary: true })),
+    })).toThrow(/exactly one primary/)
+  })
+
+  test('sanitize rejects unsupported fields and out-of-range ports', () => {
+    expect(() => sanitizeProjectChanges({ commands: [{ id: 'app', name: 'App', command: 'npm start', pid: 1 }] }))
+      .toThrow(/Unsupported project command field: pid/)
+    expect(() => sanitizeProjectChanges({ id: 'changed' })).toThrow(/Unsupported project field: id/)
+    expect(() => sanitizeProjectChanges({ type: 'React (Vite)' })).toThrow(/Project type is invalid/)
+    expect(() => sanitizeProjectChanges({ port: '5173' })).toThrow(/Port must be an integer/)
+    expect(() => validateProject({ ...base, port: 70000 })).toThrow(/Port must be an integer/)
+    const withCommands = validateProject(normalizeProject({ ...base, commands: [{ id: 'main', name: 'App', command: 'npm start', primary: true }] }))
+    expect(() => validateProject({ ...withCommands, envVars: [{ key: 'BAD KEY', value: '' }] }))
+      .toThrow(/Invalid environment variable name/)
   })
 })
 

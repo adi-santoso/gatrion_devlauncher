@@ -12,7 +12,7 @@
     "build": "vite build && electron-builder",
     "build:win": "vite build && electron-builder --win --x64",
     "icons": "node scripts/generate-icons.js",
-    "test": "node tests/cli/test-process-manager.js && node tests/cli/test-schema.js && node tests/cli/test-storage-manager.js && node tests/cli/test-security-hardening.js && node tests/cli/test-process-handlers.js && node tests/cli/test-project-detector.js && node tests/cli/test-env-files.js && node tests/cli/test-prayer-times.js && node tests/cli/test-preview-manager.js && node tests/cli/test-repo-handlers.js && node tests/cli/test-health-manager.js && node tests/cli/test-omp-manager.js && node tests/cli/test-omp-config.js",
+    "test": "vitest run",
     "test:unit": "vitest run",
     "test:e2e": "playwright test",
     "test:coverage": "vitest run --coverage",

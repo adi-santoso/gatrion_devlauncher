@@ -21,7 +21,6 @@ export default defineConfig({
       exclude: [
         'node_modules/**',
         'src/**/*.d.ts',
-        'tests/cli/**',
         'tests/mocks/**',
         '**/__tests__/**',
         // Build artifacts, e2e specs and tool configs are not unit-testable

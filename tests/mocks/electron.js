@@ -61,6 +61,56 @@ const shell = {
   openPath: async () => '',
 }
 
+// WebContentsView + session partition fakes used by PreviewManager tests.
+const views = new Map() // view -> true (attached to a window)
+const sessions = new Map() // partition -> fake session
+
+class FakeWebContentsView {
+  constructor(options) {
+    this.options = options
+    this.visible = false
+    this.bounds = null
+    this.loadedUrls = []
+    this.devtoolsOpen = false
+    this.consoleHandlers = {}
+    this.reloadCount = 0
+    this.webContents = {
+      loadURL: (url) => { this.loadedUrls.push(url); return Promise.resolve() },
+      reload: () => { this.reloadCount += 1 },
+      setZoomFactor: (f) => { this.zoomFactor = f },
+      setWindowOpenHandler: () => {},
+      on: (event, cb) => { this.consoleHandlers[event] = cb },
+      isDevToolsOpened: () => this.devtoolsOpen,
+      openDevTools: () => { this.devtoolsOpen = true },
+      closeDevTools: () => { this.devtoolsOpen = false },
+      isDestroyed: () => false,
+      close: () => {},
+    }
+  }
+  setVisible(v) { this.visible = v }
+  setBounds(b) { this.bounds = b }
+  emitConsole(level, message, sourceId, line) {
+    this.consoleHandlers['console-message']?.({}, level, message, line, sourceId)
+  }
+}
+
+const session = {
+  fromPartition(partition) {
+    if (!sessions.has(partition)) {
+      sessions.set(partition, {
+        partition,
+        clearStorageData: async () => {},
+        clearCache: async () => {},
+        clearAuthCache: async () => {},
+        cookies: { flushStore: async () => {} },
+      })
+    }
+    return sessions.get(partition)
+  },
+}
+
+const WebContentsView = FakeWebContentsView
+
 const dialog = {
   showSaveDialog: async () => ({ canceled: true }),
   showOpenDialog: async () => ({ canceled: true }),
@@ -92,6 +142,25 @@ function __reset() {
   dialog.showSaveDialog = async () => ({ canceled: true })
   dialog.showOpenDialog = async () => ({ canceled: true })
   contextBridge._exposed = null
+  views.clear()
+  sessions.clear()
 }
 
-module.exports = { ipcMain, ipcRenderer, shell, dialog, app, contextBridge, __reset, TEMP_USER_DATA }
+// Exposed for PreviewManager tests to inspect window attachment.
+function __previewState() {
+  return { views, sessions }
+}
+
+module.exports = {
+  ipcMain,
+  ipcRenderer,
+  shell,
+  dialog,
+  app,
+  contextBridge,
+  WebContentsView,
+  session,
+  __reset,
+  __previewState,
+  TEMP_USER_DATA,
+}
