@@ -1,7 +1,7 @@
 const { ipcMain } = require('electron');
 const os = require('os');
 const { assertTrustedIpcEvent } = require('../utils/ipcSecurity');
-const { assertPayload } = require('../utils/ipcValidation');
+const { safeHandle } = require('../utils/ipcValidation');
 
 let pty;
 try {
@@ -20,88 +20,66 @@ function getDefaultShell() {
 }
 
 function setupTerminalHandlers(mainWindow) {
-  ipcMain.handle('terminal-create', async (event, options = {}) => {
-    try {
-      assertTrustedIpcEvent(event);
-      assertPayload('terminal-create', [options]);
-      if (!pty) {
-        return { success: false, error: 'node-pty is not available' };
-      }
-      const id = `term-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-      const shell = options.shell || getDefaultShell();
-      const cwd = options.cwd || os.homedir();
-      const cols = Number.isInteger(options.cols) && options.cols > 0 ? options.cols : 80;
-      const rows = Number.isInteger(options.rows) && options.rows > 0 ? options.rows : 24;
+  const handle = (channel, handler) => safeHandle(ipcMain, assertTrustedIpcEvent, channel, handler)
 
-      const term = pty.spawn(shell, [], {
-        name: 'xterm-256color',
-        cols,
-        rows,
-        cwd,
-        env: process.env,
-      });
-
-      term.onData((data) => {
-        if (mainWindow && !mainWindow.isDestroyed()) {
-          mainWindow.webContents.send('terminal-data', id, data);
-        }
-      });
-
-      term.onExit(({ exitCode }) => {
-        terminals.delete(id);
-        if (mainWindow && !mainWindow.isDestroyed()) {
-          mainWindow.webContents.send('terminal-exit', id, exitCode);
-        }
-      });
-
-      terminals.set(id, term);
-      return { success: true, id };
-    } catch (error) {
-      return { success: false, error: error.message };
+  handle('terminal-create', async (event, options = {}) => {
+    if (!pty) {
+      return { success: false, error: 'node-pty is not available' };
     }
+    const id = `term-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const shell = options.shell || getDefaultShell();
+    const cwd = options.cwd || os.homedir();
+    const cols = Number.isInteger(options.cols) && options.cols > 0 ? options.cols : 80;
+    const rows = Number.isInteger(options.rows) && options.rows > 0 ? options.rows : 24;
+
+    const term = pty.spawn(shell, [], {
+      name: 'xterm-256color',
+      cols,
+      rows,
+      cwd,
+      env: process.env,
+    });
+
+    term.onData((data) => {
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('terminal-data', id, data);
+      }
+    });
+
+    term.onExit(({ exitCode }) => {
+      terminals.delete(id);
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('terminal-exit', id, exitCode);
+      }
+    });
+
+    terminals.set(id, term);
+    return { success: true, id };
   });
 
-  ipcMain.handle('terminal-input', async (event, id, data) => {
-    try {
-      assertTrustedIpcEvent(event);
-      assertPayload('terminal-input', [id, data]);
-      const term = terminals.get(id);
-      if (!term) return { success: false, error: 'Terminal not found' };
-      term.write(String(data ?? ''));
-      return { success: true };
-    } catch (error) {
-      return { success: false, error: error.message };
-    }
+  handle('terminal-input', async (event, id, data) => {
+    const term = terminals.get(id);
+    if (!term) return { success: false, error: 'Terminal not found' };
+    term.write(String(data ?? ''));
+    return { success: true };
   });
 
-  ipcMain.handle('terminal-resize', async (event, id, cols, rows) => {
-    try {
-      assertTrustedIpcEvent(event);
-      assertPayload('terminal-resize', [id, cols, rows]);
-      const term = terminals.get(id);
-      if (!term) return { success: false, error: 'Terminal not found' };
-      if (Number.isInteger(cols) && Number.isInteger(rows) && cols > 0 && rows > 0) {
-        term.resize(cols, rows);
-      }
-      return { success: true };
-    } catch (error) {
-      return { success: false, error: error.message };
+  handle('terminal-resize', async (event, id, cols, rows) => {
+    const term = terminals.get(id);
+    if (!term) return { success: false, error: 'Terminal not found' };
+    if (Number.isInteger(cols) && Number.isInteger(rows) && cols > 0 && rows > 0) {
+      term.resize(cols, rows);
     }
+    return { success: true };
   });
 
-  ipcMain.handle('terminal-kill', async (event, id) => {
-    try {
-      assertTrustedIpcEvent(event);
-      assertPayload('terminal-kill', [id]);
-      const term = terminals.get(id);
-      if (term) {
-        term.kill();
-        terminals.delete(id);
-      }
-      return { success: true };
-    } catch (error) {
-      return { success: false, error: error.message };
+  handle('terminal-kill', async (event, id) => {
+    const term = terminals.get(id);
+    if (term) {
+      term.kill();
+      terminals.delete(id);
     }
+    return { success: true };
   });
 }
 

@@ -19,17 +19,9 @@ import {
   PresetModal,
 } from './components/Modals';
 import PortConflictModal from './components/Modals/PortConflictModal';
-import { PRESET_COLORS } from './components/Modals/PresetModal';
-import { useProjects, useProcesses, useElectronConfig } from './hooks';
-import { checkPortConflict, isElectronAvailable, onNavigateToProject, onPreviewConsole, getActivities, appendActivities, getPresets, savePresets, exportProjects, importProjects, exportDiagnostics } from './utils/ipcRenderer';
+import { useProjects, useProcesses, useElectronConfig, useToasts, useActivities, usePresets } from './hooks';
+import { checkPortConflict, isElectronAvailable, onNavigateToProject, onPreviewConsole, exportProjects, importProjects, exportDiagnostics } from './utils/ipcRenderer';
 import { summarizeWorkspaceStart } from './utils/workspaceResults';
-
-// Pure helper — kept at module scope so its identity is stable across renders.
-const formatActivityTime = (timestamp, detail = '') => {
-  const date = new Date(timestamp);
-  const base = Number.isNaN(date.getTime()) ? '' : date.toLocaleString();
-  return `${base}${detail ? ' · ' + detail : ''}`;
-};
 
 function App() {
   // Initialize hooks
@@ -43,43 +35,12 @@ function App() {
 
   // UI state
   const [openModal, setOpenModal] = useState(null);
-  const [toasts, setToasts] = useState([]);
   const [confirmTarget, setConfirmTarget] = useState(null);
   const [editingProject, setEditingProject] = useState(null);
 
-  // Activities state
-  const [activities, setActivities] = useState([]);
-
-  // Workspace presets state
-  const [presets, setPresets] = useState([]);
-  const [presetModalOpen, setPresetModalOpen] = useState(false);
-  const [presetModalInitial, setPresetModalInitial] = useState(null); // preset being edited (null = create mode)
-  const [presetModalPreselect, setPresetModalPreselect] = useState(null);
-  const [presetToDelete, setPresetToDelete] = useState(null);
-
-  const addActivity = useCallback((type, project, message, detail = '') => {
-    const timestamp = new Date().toISOString();
-    setActivities(prev => [
-      { type, project, message, time: formatActivityTime(timestamp, detail) },
-      ...prev.slice(0, 19)
-    ]);
-    appendActivities([{ type, project, message, detail, timestamp }]).catch(() => {});
-  }, []);
-
-  // Hydrate persisted activity feed once on mount
-  useEffect(() => {
-    let cancelled = false;
-    getActivities().then((result) => {
-      if (cancelled || !result?.success || !Array.isArray(result.activities)) return;
-      setActivities(result.activities.slice(0, 20).map((entry) => ({
-        type: entry.type,
-        project: entry.project,
-        message: entry.message,
-        time: formatActivityTime(entry.timestamp, entry.detail)
-      })));
-    }).catch(() => {});
-    return () => { cancelled = true; };
-  }, []);
+  // Toast + activity-feed orchestration (extracted hooks)
+  const { toasts, dismissToast, showToast } = useToasts();
+  const { activities, addActivity } = useActivities();
 
   // Handle project updates from process events (runtime state only — no IPC persist)
   const handleProjectUpdate = useCallback((projectId, updates) => {
@@ -97,6 +58,28 @@ function App() {
     clearLogs,
     getMetricHistory
   } = useProcesses(projects, handleProjectUpdate, { maxLines: config.terminal?.maxLines });
+
+  // Workspace-preset orchestration (extracted hook; needs startAll/stop above)
+  const {
+    presets,
+    presetModalOpen,
+    presetModalInitial,
+    presetModalPreselect,
+    presetToDelete,
+    openPresetModal,
+    handleStartPreset,
+    handleStopPreset,
+    handleRestartPreset,
+    handleDeletePreset,
+    clearPresetDelete,
+    confirmDeletePreset,
+    handleCreatePreset,
+    handleUpdatePreset,
+    handleDuplicatePreset,
+    handleSaveSelectionAsPreset,
+    handleMovePreset,
+    closePresetModal,
+  } = usePresets({ projects, startAll, stopProjectProcess, showToast, addActivity });
 
   // Check Electron availability on mount
   useEffect(() => {
@@ -258,21 +241,6 @@ function App() {
     setEditingProject(null);
     setDroppedProject(null);
   };
-
-  // Toast notifications
-  const dismissToast = useCallback((id) => {
-    setToasts(prev => prev.filter(toast => toast.id !== id));
-  }, []);
-
-  const showToast = useCallback((type, message) => {
-    const id = Date.now();
-    setToasts(prev => [...prev, { id, type, message }]);
-
-    // Auto-dismiss after 5 seconds
-    setTimeout(() => {
-      dismissToast(id);
-    }, 5000);
-  }, [dismissToast]);
 
   const [portConflictTarget, setPortConflictTarget] = useState(null);
 
@@ -594,178 +562,6 @@ function App() {
     }
   };
 
-  // Workspace presets
-  const openPresetModal = (preset = null) => {
-    setPresetModalInitial(preset);
-    setPresetModalPreselect(null);
-    setPresetModalOpen(true);
-  };
-
-  const handleStartPreset = async (preset) => {
-    const presetProjects = (preset.projectIds || [])
-      .map((id) => projects.find((p) => p.id === id))
-      .filter(Boolean);
-    if (presetProjects.length === 0) {
-      showToast('info', `Preset "${preset.name}" has no projects`);
-      return [];
-    }
-    const pending = presetProjects.filter((p) =>
-      !['running', 'starting', 'stopping'].includes(p.status?.toLowerCase())
-    );
-    if (pending.length === 0) {
-      showToast('info', `Preset "${preset.name}": all projects already active`);
-      return [];
-    }
-    showToast('info', `Starting preset "${preset.name}"...`);
-    const delayMs = Math.max(0, Math.min(60000, Number(preset.startDelayMs) || 0));
-    const results = await startAll(pending.map((p) => p.id), delayMs);
-    const summary = Array.isArray(results) ? results : [];
-    const started = summary.filter((r) => r.success).length;
-    const failed = summary.filter((r) => !r.success).length;
-    if (failed > 0) {
-      showToast('warning', `Preset "${preset.name}": ${started} starting, ${failed} failed`);
-      addActivity('warning', preset.name, 'preset started with issues', `${started} started, ${failed} failed`);
-    } else if (started > 0) {
-      showToast('success', `Preset "${preset.name}": ${started} project(s) starting`);
-      addActivity('accent', preset.name, 'preset started', `${started} projects`);
-    }
-    return summary;
-  };
-
-  const handleStopPreset = async (preset) => {
-    const targets = (preset.projectIds || [])
-      .map((id) => projects.find((p) => p.id === id))
-      .filter((p) => ['running', 'starting'].includes(p.status?.toLowerCase()));
-    if (targets.length === 0) {
-      showToast('info', `Preset "${preset.name}": nothing to stop`);
-      return [];
-    }
-    showToast('info', `Stopping preset "${preset.name}"...`);
-    const settled = await Promise.allSettled(targets.map((p) => stopProjectProcess(p.id)));
-    const stopped = settled.filter((r) => r.status === 'fulfilled' && r.value?.success).length;
-    const failed = settled.filter((r) => r.status === 'rejected' || (r.status === 'fulfilled' && !r.value?.success)).length;
-    if (failed > 0) {
-      showToast('warning', `Preset "${preset.name}": ${stopped} stopped, ${failed} failed`);
-    } else {
-      showToast('info', `Preset "${preset.name}": ${stopped} project(s) stopped`);
-    }
-    addActivity('faint', preset.name, 'preset stopped', `${stopped} projects`);
-    return settled;
-  };
-
-  const handleRestartPreset = async (preset) => {
-    await handleStopPreset(preset);
-    return handleStartPreset(preset);
-  };
-
-  const handleDeletePreset = async (preset) => {
-    setPresetToDelete(preset);
-  };
-
-  const confirmDeletePreset = async () => {
-    if (!presetToDelete) return;
-    const updated = presets.filter((p) => p.id !== presetToDelete.id);
-    setPresets(updated);
-    setPresetToDelete(null);
-    const result = await savePresets(updated);
-    if (result.success) {
-      showToast('info', `Preset "${presetToDelete.name}" removed`);
-      addActivity('faint', presetToDelete.name, 'preset removed');
-    } else {
-      showToast('error', result.error || 'Failed to remove preset');
-    }
-  };
-
-  const buildPresetPayload = (data) => ({
-    name: (data.name || '').trim(),
-    description: (data.description || '').trim(),
-    color: data.color || PRESET_COLORS[0],
-    projectIds: Array.isArray(data.projectIds) ? data.projectIds : [],
-    startDelayMs: Math.max(0, Math.min(60000, Number(data.startDelayMs) || 0)),
-    autoStart: data.autoStart === true,
-  });
-
-  const handleCreatePreset = async (data) => {
-    const payload = buildPresetPayload(data);
-    if (!payload.name || payload.projectIds.length === 0) return;
-    const newPreset = {
-      id: `preset-${Date.now()}`,
-      ...payload,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
-    const updated = [...presets, newPreset];
-    setPresets(updated);
-    const result = await savePresets(updated);
-    if (result.success) {
-      showToast('success', `Preset "${payload.name}" created`);
-      addActivity('accent', payload.name, 'preset created', `${payload.projectIds.length} projects`);
-    } else {
-      showToast('error', result.error || 'Failed to save preset');
-      setPresets(presets);
-    }
-    setPresetModalOpen(false);
-    setPresetModalInitial(null);
-    setPresetModalPreselect(null);
-  };
-
-  const handleUpdatePreset = async (presetId, data) => {
-    const payload = buildPresetPayload(data);
-    if (!payload.name || payload.projectIds.length === 0) return;
-    const updated = presets.map((preset) => preset.id === presetId
-      ? { ...preset, ...payload, updatedAt: new Date().toISOString() }
-      : preset);
-    setPresets(updated);
-    const result = await savePresets(updated);
-    if (result.success) {
-      showToast('success', `Preset "${payload.name}" updated`);
-      addActivity('accent', payload.name, 'preset updated');
-    } else {
-      showToast('error', result.error || 'Failed to update preset');
-      setPresets(presets);
-    }
-    setPresetModalOpen(false);
-    setPresetModalInitial(null);
-    setPresetModalPreselect(null);
-  };
-
-  const handleDuplicatePreset = async (preset) => {
-    const copy = {
-      ...preset,
-      id: `preset-${Date.now()}`,
-      name: `${preset.name} (copy)`,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
-    const updated = [...presets, copy];
-    setPresets(updated);
-    const result = await savePresets(updated);
-    if (result.success) {
-      showToast('success', `Preset "${copy.name}" created`);
-      addActivity('accent', copy.name, 'preset duplicated');
-    } else {
-      showToast('error', result.error || 'Failed to duplicate preset');
-    }
-  };
-
-  // Open preset creation modal, optionally prefilled with a selection
-  const handleSaveSelectionAsPreset = (projectIds) => {
-    setPresetModalInitial(null);
-    setPresetModalPreselect(Array.isArray(projectIds) ? projectIds : null);
-    setPresetModalOpen(true);
-  };
-
-  const handleMovePreset = async (presetId, direction) => {
-    const index = presets.findIndex((preset) => preset.id === presetId);
-    const target = index + direction;
-    if (index === -1 || target < 0 || target >= presets.length) return;
-    const updated = [...presets];
-    [updated[index], updated[target]] = [updated[target], updated[index]];
-    setPresets(updated);
-    const result = await savePresets(updated);
-    if (!result.success) showToast('error', result.error || 'Failed to reorder presets');
-  };
-
   // Export / import project registry as JSON
   const handleExportProjects = async () => {
     const result = await exportProjects();
@@ -824,15 +620,6 @@ function App() {
     setEditingProject(null);
     openModalHandler('project');
   };
-
-  // Hydrate presets on mount
-  useEffect(() => {
-    getPresets().then((result) => {
-      if (result?.success && Array.isArray(result.presets)) {
-        setPresets(result.presets);
-      }
-    }).catch(() => {});
-  }, []);
 
   // Command palette actions
   const handleCommandSelect = (command) => {
@@ -1071,7 +858,7 @@ function App() {
         confirmLabel="Delete"
         confirmVariant="danger"
         onConfirm={confirmDeletePreset}
-        onCancel={() => setPresetToDelete(null)}
+        onCancel={clearPresetDelete}
       />
 
       {/* Command Palette */}
@@ -1108,7 +895,7 @@ function App() {
       {/* Preset create/edit modal */}
       <PresetModal
         isOpen={presetModalOpen}
-        onClose={() => { setPresetModalOpen(false); setPresetModalInitial(null); setPresetModalPreselect(null); }}
+        onClose={closePresetModal}
         projects={projects}
         initialPreset={presetModalInitial}
         initialSelected={presetModalPreselect}

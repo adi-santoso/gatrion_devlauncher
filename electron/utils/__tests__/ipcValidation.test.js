@@ -1,5 +1,51 @@
-import { describe, test, expect } from 'vitest'
-import { assertPayload } from '../ipcValidation'
+import { describe, test, expect, vi } from 'vitest'
+import { assertPayload, safeHandle } from '../ipcValidation'
+
+function fakeIpcMain() {
+  const handlers = new Map()
+  return {
+    handlers,
+    handle: (channel, callback) => handlers.set(channel, callback),
+  }
+}
+
+describe('safeHandle', () => {
+  test('registers the channel and returns the handler result on success', async () => {
+    const ipcMain = fakeIpcMain()
+    safeHandle(ipcMain, vi.fn(), 'test-ok', async () => ({ success: true, data: 42 }))
+    const result = await ipcMain.handlers.get('test-ok')({ senderFrame: { url: 'x' } })
+    expect(result).toEqual({ success: true, data: 42 })
+  })
+
+  test('asserts the sender before running the handler', async () => {
+    const ipcMain = fakeIpcMain()
+    const assertTrusted = vi.fn(() => { throw new Error('Unauthorized IPC sender') })
+    const handler = vi.fn()
+    safeHandle(ipcMain, assertTrusted, 'test-auth', handler)
+    const result = await ipcMain.handlers.get('test-auth')({})
+    expect(result).toEqual({ success: false, error: 'Unauthorized IPC sender' })
+    expect(handler).not.toHaveBeenCalled()
+  })
+
+  test('never rejects: handler throws become { success: false, error }', async () => {
+    const ipcMain = fakeIpcMain()
+    safeHandle(ipcMain, vi.fn(), 'test-throw', async () => { throw new Error('boom') })
+    const result = await ipcMain.handlers.get('test-throw')({ senderFrame: { url: 'x' } })
+    expect(result).toEqual({ success: false, error: 'boom' })
+  })
+
+  test('validates payloads for channels with rules', async () => {
+    const ipcMain = fakeIpcMain()
+    const handler = vi.fn(async () => ({ success: true }))
+    safeHandle(ipcMain, vi.fn(), 'terminal-input', handler)
+    const bad = await ipcMain.handlers.get('terminal-input')({ senderFrame: { url: 'x' } }, 't1', 'y'.repeat(65537))
+    expect(bad).toEqual({ success: false, error: expect.stringMatching(/too long/) })
+    expect(handler).not.toHaveBeenCalled()
+    const good = await ipcMain.handlers.get('terminal-input')({ senderFrame: { url: 'x' } }, 't1', 'ls')
+    expect(good).toEqual({ success: true })
+    expect(handler).toHaveBeenCalledTimes(1)
+  })
+})
 
 describe('assertPayload', () => {
   test('valid terminal-input payload passes', () => {

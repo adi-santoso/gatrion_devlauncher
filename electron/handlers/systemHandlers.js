@@ -4,6 +4,7 @@ const path = require('path')
 const { ipcMain, app, dialog } = require('electron')
 const { execFile } = require('child_process')
 const { assertTrustedIpcEvent } = require('../utils/ipcSecurity')
+const { safeHandle } = require('../utils/ipcValidation')
 const { toRendererProject } = require('../projectSchema')
 
 // Tools checked on the host system. `args` is the version flag, `stdoutOnly`
@@ -139,45 +140,37 @@ async function buildDiagnosticsBundle({ userDataPath, version, meta = {} }) {
 }
 
 function setupSystemHandlers() {
-  ipcMain.handle('system-env-check', async (event) => {
-    try {
-      assertTrustedIpcEvent(event)
-      const results = await Promise.all(TOOLS.map(detectTool))
-      return { success: true, tools: results, checkedAt: new Date().toISOString() }
-    } catch (error) {
-      return { success: false, error: error.message }
-    }
+  const handle = (channel, handler) => safeHandle(ipcMain, assertTrustedIpcEvent, channel, handler)
+
+  handle('system-env-check', async () => {
+    const results = await Promise.all(TOOLS.map(detectTool))
+    return { success: true, tools: results, checkedAt: new Date().toISOString() }
   })
 
   // Export a support bundle: versions + config + health + redacted projects +
   // main.log tail, saved via the native save dialog.
-  ipcMain.handle('export-diagnostics', async (event) => {
-    try {
-      assertTrustedIpcEvent(event)
-      const bundle = await buildDiagnosticsBundle({
-        userDataPath: app.getPath('userData'),
-        version: app.getVersion(),
-        meta: {
-          name: app.getName(),
-          electron: process.versions.electron,
-          node: process.versions.node,
-          platform: process.platform,
-          arch: process.arch,
-          packaged: app.isPackaged,
-        },
-      })
-      const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)
-      const result = await dialog.showSaveDialog({
-        title: 'Export diagnostics',
-        defaultPath: `devlauncher-diagnostics-${stamp}.json`,
-        filters: [{ name: 'JSON', extensions: ['json'] }],
-      })
-      if (result.canceled || !result.filePath) return { success: false, canceled: true }
-      await fs.writeFile(result.filePath, JSON.stringify(bundle, null, 2), 'utf8')
-      return { success: true, filePath: result.filePath }
-    } catch (error) {
-      return { success: false, error: error.message }
-    }
+  handle('export-diagnostics', async () => {
+    const bundle = await buildDiagnosticsBundle({
+      userDataPath: app.getPath('userData'),
+      version: app.getVersion(),
+      meta: {
+        name: app.getName(),
+        electron: process.versions.electron,
+        node: process.versions.node,
+        platform: process.platform,
+        arch: process.arch,
+        packaged: app.isPackaged,
+      },
+    })
+    const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)
+    const result = await dialog.showSaveDialog({
+      title: 'Export diagnostics',
+      defaultPath: `devlauncher-diagnostics-${stamp}.json`,
+      filters: [{ name: 'JSON', extensions: ['json'] }],
+    })
+    if (result.canceled || !result.filePath) return { success: false, canceled: true }
+    await fs.writeFile(result.filePath, JSON.stringify(bundle, null, 2), 'utf8')
+    return { success: true, filePath: result.filePath }
   })
 }
 

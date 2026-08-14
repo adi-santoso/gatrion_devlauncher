@@ -79,4 +79,27 @@ function assertPayload(channel, args, overrides) {
   }
 }
 
-module.exports = { assertPayload, CHANNEL_RULES }
+/**
+ * Register an IPC channel with a uniform envelope.
+ *
+ * Every channel in the app speaks the same contract: success returns the
+ * handler's `{ success: true, ... }` value; any throw (including untrusted
+ * sender or invalid payload) becomes `{ success: false, error }`. No channel
+ * ever rejects, so the renderer can always check `result?.success`.
+ *
+ * `ipcMain` and `assertTrusted` are passed in (not imported) so this helper
+ * stays Electron-free and unit-testable.
+ */
+function safeHandle(ipcMain, assertTrusted, channel, handler) {
+  ipcMain.handle(channel, async (event, ...args) => {
+    try {
+      assertTrusted(event)
+      assertPayload(channel, args)
+      return await handler(event, ...args)
+    } catch (error) {
+      return { success: false, error: error.message }
+    }
+  })
+}
+
+module.exports = { assertPayload, safeHandle, CHANNEL_RULES }

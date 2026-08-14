@@ -6,9 +6,9 @@ Dokumen ini berisi rencana perbaikan DevLauncher berdasarkan analisa kode saat i
 
 | Area | Fakta |
 |---|---|
-| Ukuran kode | ±21.000 baris (src + electron). File terbesar: `AgentChat.jsx` 1.575 baris (dipecah dari 1.787: utils + ToolCard + ChatComposer diekstrak), `App.jsx` 1.096, `ProcessManager.js` 1.059, `ipcRenderer.js` 840 |
+| Ukuran kode | ±21.000 baris (src + electron). File terbesar: `AgentChat.jsx` 1.413 baris (dipecah dari 1.787: utils + ToolCard + ChatComposer + ChatHeader diekstrak), `App.jsx` 912 (orchestration pindah ke useToasts/useActivities/usePresets), `ProcessManager.js` 863 (processTree/portCheck/logStore diekstrak), `ipcRenderer.js` 840 |
 | Kualitas kode | Lint: **0 error, 0 warning** (sejak P0: `eslint-plugin-react` + config JSX benar, deps/import yang tidak terpakai dibersihkan) |
-| Test | 13 test CLI (Node) + 178 test Vitest + 4 e2e Playwright. **Coverage ±36% lines** |
+| Test | 13 test CLI (Node) + **223 test Vitest** + 4 e2e Playwright. **Coverage ±38.4% lines** |
 | Bundle | **Code splitting aktif**: main chunk 313 kB (96 kB gzip) + chunk per view (Dashboard/Projects/Settings/Agent/Detail/Terminal). Tidak ada lagi warning Vite >500 kB |
 | Security | Sudah kuat: contextIsolation, CSP, `assertTrustedIpcEvent`, allowlist field, secret env dimask. Belum ada schema validation terpusat per channel |
 | Main process | **Single instance lock** + **error capture** (main & renderer → main.log) sudah ada sejak P0. Belum ada **auto-update**, **crash report**, atau **global shortcut** |
@@ -26,8 +26,8 @@ Dokumen ini berisi rencana perbaikan DevLauncher berdasarkan analisa kode saat i
 | Item | Prioritas | Effort | Dampak |
 |---|---|---|---|
 | ~~Perbaiki config ESLint~~ → **selesai**: lint **0 error, 0 warning** (`eslint-plugin-react` + `jsx-uses-vars`, 21 `exhaustive-deps` dibereskan, 3 unused disable dihapus) | P0 ✅ | S | Aturan lint benar-benar bekerja; CI lebih terbaca |
-| Pecah file besar: `AgentChat.jsx` → komponen + hook, `App.jsx` → orchestration dipindah ke hook/context, `ProcessManager.js` → modul — **AgentChat sebagian ✅**: `agentChatUtils.js` (pure helpers + konstanta), `ToolCard.jsx`, `ChatComposer.jsx` diekstrak (1.795 → 1.575 baris); sisa komponen besar (header, chat area) + App.jsx + ProcessManager masih utuh | P1 | L | Perawatan & onboarding jauh lebih mudah |
-| Seragamkan bentuk respons IPC (sebagian `{ success }`, sebagian bentuk langsung) | P1 | M | Kontrak konsisten, typing lebih mudah |
+| ~~Pecah file besar~~ → **selesai**: `AgentChat.jsx` (1.787 → 1.413 baris) — `agentChatUtils.js`, `ToolCard.jsx`, `ChatComposer.jsx`, `ChatHeader.jsx` diekstrak; `App.jsx` (1.096 → 912 baris) — orchestration toast/activity/preset pindah ke `useToasts.js`/`useActivities.js`/`usePresets.js` (+9 test baru); `ProcessManager.js` (1.059 → 863 baris) — helper platform diekstrak ke `processTree.js` (kill tree, resource sampling), `portCheck.js`, `logStore.js` (persist JSONL) | P1 ✅ | L | Perawatan & onboarding jauh lebih mudah |
+| ~~Seragamkan bentuk respons IPC~~ → **selesai**: `safeHandle(ipcMain, assertTrusted, channel, handler)` di `ipcValidation.js` — satu wrapper yang menjamin tiap channel mengembalikan `{ success: true, ... }` / `{ success: false, error }` (tidak pernah reject), selalu `assertTrustedIpcEvent` + validasi payload, dipakai oleh **semua 8 file handler** (104 channel); 4 test envelope baru | P1 ✅ | M | Kontrak konsisten, typing lebih mudah |
 | TypeScript bertahap: `// @ts-check` untuk semua file electron dulu, lalu renderer; `npm run typecheck` jadi penuh | P1 | L | Bug null/typo turun drastis |
 | Konversi 13 test CLI legacy ke Vitest — satu alat test | P2 | M | Satu cara menulis & menjalankan test |
 
@@ -104,7 +104,7 @@ Checklist yang harus terpenuhi sebelum versi pertama benar-benar dirilis:
 ## Urutan Eksekusi yang Disarankan
 
 1. **Minggu 1 (selesai ✅)** — semua P0: lint 0 warning, single instance lock, error capture, CI typecheck + audit + gate coverage.
-2. **Minggu 2–4** — P1 code quality: pecah `AgentChat.jsx` **sebagian selesai** (utils + ToolCard + ChatComposer diekstrak); `App.jsx`, seragamkan IPC, TypeScript electron menyusul.
+2. **Minggu 2–4 (selesai ✅)** — P1 code quality: pecah `AgentChat.jsx` (utils + ToolCard + ChatComposer + ChatHeader), `App.jsx` (orchestration → hook), `ProcessManager.js` (helper → modul), seragamkan respons IPC (`safeHandle` di 8 file handler). Tersisa: TypeScript electron.
 3. **Minggu 5–8** — P1 reliability & performance: **coverage path kritis naik ke 35.7% lines** (test ProcessManager backoff + secret masking, StorageManager, ipcSecurity, ipcValidation) **dan code splitting selesai**; tersisa: e2e non-smoke, virtualisasi log.
 4. **Minggu 9–12** — P1 product: **auto-update + publish pipeline selesai**; tersisa workspace search, agent cost tracking.
 5. **Setelah itu** — P2: i18n, macOS/Linux, backup bundle, crash dump, dependabot.

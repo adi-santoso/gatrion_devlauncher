@@ -2,6 +2,7 @@ const { ipcMain, shell, dialog } = require('electron')
 const fs = require('fs')
 const { spawn } = require('child_process')
 const { assertTrustedIpcEvent } = require('../utils/ipcSecurity')
+const { safeHandle } = require('../utils/ipcValidation')
 const { messagesToMarkdown } = require('../utils/messagesToMarkdown')
 
 const MAX_MESSAGE = 20000
@@ -34,14 +35,7 @@ function setupAgentHandlers(ompManager, installer, ompConfig, getWindow) {
     safeSend('omp-install-progress', state)
   })
 
-  const secureHandle = (channel, handler) => ipcMain.handle(channel, async (event, ...args) => {
-    try {
-      assertTrustedIpcEvent(event)
-      return await handler(event, ...args)
-    } catch (error) {
-      return { success: false, error: error.message }
-    }
-  })
+  const secureHandle = (channel, handler) => safeHandle(ipcMain, assertTrustedIpcEvent, channel, handler)
 
   secureHandle('omp-status', async () => ({ success: true, ...(await ompManager.getStatus()) }))
 

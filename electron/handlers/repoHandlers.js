@@ -4,6 +4,7 @@ const { execFile } = require('child_process')
 const { ipcMain } = require('electron')
 const { envVarsToObject } = require('../projectSchema')
 const { assertTrustedIpcEvent } = require('../utils/ipcSecurity')
+const { safeHandle } = require('../utils/ipcValidation')
 
 // Run git with no shell, GIT_TERMINAL_PROMPT disabled so a missing credential
 // helper fails fast instead of hanging the app waiting for input.
@@ -156,14 +157,7 @@ function setupRepoHandlers(storageManager, processManager, mainWindow) {
     return project
   }
 
-  const secureHandle = (channel, handler) => ipcMain.handle(channel, async (event, ...args) => {
-    try {
-      assertTrustedIpcEvent(event)
-      return await handler(event, ...args)
-    } catch (error) {
-      return { success: false, error: error.message }
-    }
-  })
+  const secureHandle = (channel, handler) => safeHandle(ipcMain, assertTrustedIpcEvent, channel, handler)
 
   // --- Git: read ---------------------------------------------------------
 

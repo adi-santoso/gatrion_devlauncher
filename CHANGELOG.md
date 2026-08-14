@@ -8,6 +8,10 @@ Format mengikuti [Keep a Changelog](https://keepachangelog.com/id-ID/1.1.0/), da
 
 ### Added
 
+- **Respons IPC seragam via `safeHandle`** — `electron/utils/ipcValidation.js` kini punya `safeHandle(ipcMain, assertTrusted, channel, handler)`: satu wrapper yang menjamin **setiap** channel IPC mengembalikan `{ success: true, ... }` / `{ success: false, error }` (tidak pernah reject), selalu memeriksa sender trusted + validasi payload sebelum handler jalan. Kedelapan file handler (terminal, desktop, preview, project, system, agent, process, repo — 104 channel) dimigrasi ke wrapper ini, menggantikan boilerplate try/catch + `secureHandle` lokal yang di-copy-paste per file; 4 test envelope baru.
+- **`useToasts` / `useActivities` / `usePresets`** — orchestration toast, activity feed, dan workspace presets dipindah dari `App.jsx` ke tiga hook (masing-masing +9 test unit). `App.jsx` turun 1.096 → 912 baris.
+- **`ChatHeader.jsx`** — header chat (judul session, thinking level, model switcher, indikator context, opsi session, tombol Stop) diekstrak dari `AgentChat.jsx` (1.612 → 1.413 baris).
+- **Modul `processTree.js` / `portCheck.js` / `logStore.js`** — helper platform (kill process tree + resource sampling, cek port TCP, persist log JSONL) diekstrak dari `ProcessManager.js` (1.059 → 863 baris); class tetap punya delegator tipis sehingga perilaku dan call-site tidak berubah.
 - **Auto-update (electron-updater)** — packaged build kini bisa memperbarui dirinya sendiri tanpa install ulang:
   - `electron/utils/updater.js` — state machine update (check → available → downloading → downloaded/error) dengan `autoUpdater` di-inject agar unit-testable; tiap transisi diforward ke renderer via event `update-state`.
   - `main.js` — wire event electron-updater, auto-check 8 detik setelah start (packaged only), IPC `update-download` / `update-install`, dan fix `check-update`: perbandingan versi kini **semver numerik** (`isVersionNewer` di `electron/utils/versionCompare.js`) — `1.0.10` kini benar-benar lebih baru dari `1.0.9` (string `!==` salah arah) dan rilis lama tidak pernah diiklankan sebagai update.
