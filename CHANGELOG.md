@@ -6,6 +6,10 @@ Format mengikuti [Keep a Changelog](https://keepachangelog.com/id-ID/1.1.0/), da
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-08-14
+
+Rilis pertama — seluruh pekerjaan P0/P1/P2 dan fitur hingga saat ini dikunci sebagai baseline `0.1.0` sebelum migrasi TypeScript dimulai. Fitur utama: manajemen project (start/stop/log streaming), terminal terintegrasi, dashboard analytics, AI agent dengan cost tracking, auto-update + notifikasi action, tema dark/light/system, i18n en/id, widget pengingat sholat, workspace backup terenkripsi, dan pipeline CI matrix 3 OS + release otomatis.
+
 ### Changed
 
 - **Fix e2e Linux: stop process tidak lagi berubah jadi ERROR** — race khusus POSIX di `ProcessManager.handleChildExit`: `killProcessTree` di Linux mengirim SIGTERM dan resolve **sebelum** event `exit` tiba, jadi status sudah `STOPPED` saat exit datang → dianggap crash (`code !== 0`) → `failComposite` mengubahnya ke ERROR (di Windows `taskkill` menunggu proses mati, jadi aman — itu sebabnya hanya CI Ubuntu yang gagal). Exit yang tiba saat `STOPPING` **atau `STOPPED`** kini dianggap intentional. Sekalian `killProcessTree` POSIX diperkuat: ESRCH (proses sudah mati) dianggap sukses, fallback ke kill langsung, dan graceful stop menunggu ±1,5 detik lalu eskalasi SIGKILL bila masih hidup (platform injectable untuk test). +7 test (5 processTree, 2 regression race).

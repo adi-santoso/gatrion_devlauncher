@@ -71,6 +71,25 @@ src/types/shared.d.ts   ← Project, Config, PrayerConfig, Session, ProcessStatu
 5. **Hijau tiap fase** — lint, typecheck (strict), 512+ test, build, 7 e2e; CI gate tetap.
 6. **Strict sejak awal** — `strict: true` di kedua tsconfig dari Fase 0; bukan lagi "bertahap".
 
+## Kebijakan Versi & Rilis
+
+- **Baseline: `0.1.0`** — ditandai & dirilis 14 Agu 2026 (semua pekerjaan P0/P1/P2 dikunci sebelum migrasi TS dimulai).
+- **Setiap fase selesai → patch version naik 1** (angka paling belakang):
+
+  | Selesai fase | Versi |
+  |---|---|
+  | Fase 0 — Fondasi strict | `0.1.1` |
+  | Fase 1 — Bundler + main process TS | `0.1.2` |
+  | Fase 2 — Tipe bersama IPC | `0.1.3` |
+  | Fase 3 — Utils & data layer | `0.1.4` |
+  | Fase 4 — Common & Layout | `0.1.5` |
+  | Fase 5 — Views | `0.1.6` |
+  | Fase 6 — Pengetatan & audit `any` | `0.1.7` |
+  | Migrasi TS tuntas (DoD penuh) | **`0.2.0`** (minor, penanda selesai) |
+
+- **Mekanisme rilis per fase:** `npm version <x.y.z> --no-git-tag-version` (sinkron package.json + package-lock) → update CHANGELOG → commit → `git tag v0.1.x && git push origin v0.1.x` → **`release.yml`** menjalankan quality gate (lint, typecheck, test, coverage, audit) lalu `electron-builder --publish always` → installer Windows (NSIS + portable) + feed auto-update (`latest.yml`) dipublikasikan ke GitHub Releases.
+- Perubahan di luar fase (hotfix/feature) juga naik patch (0.1.x) dengan alur yang sama.
+
 ## Aturan Arsitektur & Batas Ukuran File
 
 Rewrite TypeScript adalah kesempatan merapikan struktur, bukan sekadar ganti sintaks. Aturan ini **berlaku untuk semua file baru sejak Fase 0**, dan **wajib dipatuhi saat konversi file lama** — konversi = kesempatan memecah, bukan refactor terpisah.
