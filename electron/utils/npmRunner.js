@@ -59,7 +59,8 @@ function createNpmRunner(spawnFn = spawn) {
           if (settled) return
           settled = true
           clearTimeout(timer)
-          reject(new Error(`npm could not be started (${error.code || error.message})`))
+          const err = /** @type {NodeJS.ErrnoException} */ (error)
+          reject(new Error(`npm could not be started (${err.code || err.message})`))
         })
         child.on('close', (code) => {
           if (settled) return

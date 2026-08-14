@@ -1,4 +1,3 @@
-// @ts-check
 /**
  * Prayer time calculation — port of PrayTimes.js v2.3 (http://praytimes.org)
  * Copyright (C) 2007-2011 PrayTimes.org — developer Hamid Zarrabi-Zadeh.

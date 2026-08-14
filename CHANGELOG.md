@@ -6,6 +6,10 @@ Format mengikuti [Keep a Changelog](https://keepachangelog.com/id-ID/1.1.0/), da
 
 ## [Unreleased]
 
+### Added
+
+- **TS rewrite — Fase 0: fondasi strict (ROADMAP_TS)** — `tsconfig.app.json` untuk renderer dengan **`strict: true`** (sebelumnya renderer 0 type checking); `npm run typecheck` kini menjalankan dua config (electron + renderer). ESLint mendapat parser TypeScript + `@typescript-eslint/no-explicit-any` (warn, kebijakan unknown-first) + `max-lines` 400 (warn, skip blank/comment). Folder `src/types` & `src/data` dibuat sesuai aturan arsitektur. File percontohan TSX pertama: **`PulseDot` & `Kbd`** (Common) — lulus typecheck strict, build, dan test. Toolchain renderer turun **vite 8 → 7.3** + `@vitejs/plugin-react` 6 → 5 (electron-vite 5 — keputusan Jalur B — belum mendukung vite 8; stack stabil, build + 512 test + 7 e2e terverifikasi ulang). TypeScript **7 → 5.9** karena `typescript-eslint` belum mendukung TS 7. Perbaikan yang baru terdeteksi tsc 5.9: param callback `ProcessManager.startProcess` ditandai optional di JSDoc, `npmRunner` error.code di-cast ke `ErrnoException`, `prayerTimes.js` tidak lagi `@ts-check` (tetap ter-cek di config electron).
+
 ## [0.1.0] - 2026-08-14
 
 Rilis pertama — seluruh pekerjaan P0/P1/P2 dan fitur hingga saat ini dikunci sebagai baseline `0.1.0` sebelum migrasi TypeScript dimulai. Fitur utama: manajemen project (start/stop/log streaming), terminal terintegrasi, dashboard analytics, AI agent dengan cost tracking, auto-update + notifikasi action, tema dark/light/system, i18n en/id, widget pengingat sholat, workspace backup terenkripsi, dan pipeline CI matrix 3 OS + release otomatis.

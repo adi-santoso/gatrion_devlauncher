@@ -5,7 +5,7 @@
     "noEmit": true,
     "target": "ES2022",
     "module": "CommonJS",
-    "moduleResolution": "bundler",
+    "moduleResolution": "node10",
     "lib": ["ES2022", "DOM"],
     "strict": false,
     "noImplicitAny": false,

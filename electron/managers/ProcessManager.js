@@ -59,10 +59,10 @@ class ProcessManager extends EventEmitter {
    * @param {string} projectPath - Project directory path
    * @param {string} command - Command to execute (e.g., 'npm run dev')
    * @param {object} env - Environment variables
-   * @param {function} onLog - Callback for log lines
-   * @param {function} onExit - Callback for process exit
-   * @param {function} onError - Callback for errors
-   * @param {function} onReady - Callback when readiness succeeds
+   * @param {function} [onLog] - Callback for log lines
+   * @param {function} [onExit] - Callback for process exit
+   * @param {function} [onError] - Callback for errors
+   * @param {function} [onReady] - Callback when readiness succeeds
    */
   async startProcess(projectId, projectPath, command, env = {}, port = null, onLog, onExit, onError, onReady) {
     // Validate required parameters

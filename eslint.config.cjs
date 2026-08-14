@@ -1,12 +1,45 @@
 const js = require('@eslint/js')
 const reactHooks = require('eslint-plugin-react-hooks')
 const react = require('eslint-plugin-react')
+const tseslint = require('typescript-eslint')
 
 module.exports = [
   {
-    ignores: ['node_modules/**', 'dist/**', 'dist-react/**', 'build/**', 'coverage/**', 'temp-*.js'],
+    ignores: ['node_modules/**', 'dist/**', 'dist-react/**', 'out/**', 'build/**', 'coverage/**', 'temp-*.js'],
   },
   js.configs.recommended,
+  {
+    // TypeScript renderer — strict since Fase 0 (ROADMAP_TS)
+    files: ['src/**/*.{ts,tsx}'],
+    languageOptions: {
+      ecmaVersion: 2022,
+      sourceType: 'module',
+      parser: tseslint.parser,
+      parserOptions: { ecmaFeatures: { jsx: true } },
+      globals: {
+        alert: 'readonly', Blob: 'readonly', clearInterval: 'readonly', clearTimeout: 'readonly', confirm: 'readonly',
+        console: 'readonly', CustomEvent: 'readonly', document: 'readonly', File: 'readonly', FileReader: 'readonly', global: 'readonly',
+        Image: 'readonly', localStorage: 'readonly', module: 'readonly', navigator: 'readonly', process: 'readonly', queueMicrotask: 'readonly',
+        requestAnimationFrame: 'readonly', ResizeObserver: 'readonly', setInterval: 'readonly', setTimeout: 'readonly',
+        SpeechSynthesisUtterance: 'readonly', URL: 'readonly', window: 'readonly',
+      },
+    },
+    plugins: { '@typescript-eslint': tseslint.plugin, 'react-hooks': reactHooks, react },
+    settings: { react: { version: 'detect' } },
+    rules: {
+      ...react.configs.flat.recommended.rules,
+      'react/react-in-jsx-scope': 'off', // React 17+ JSX transform
+      'react/prop-types': 'off', // TypeScript props instead of PropTypes
+      'react/no-unescaped-entities': 'off',
+      'react-hooks/rules-of-hooks': 'error',
+      'react-hooks/exhaustive-deps': 'warn',
+      'no-undef': 'off', // TS parser handles type references
+      'no-unused-vars': 'off', // use the TS-aware rule below
+      '@typescript-eslint/no-unused-vars': ['warn', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
+      '@typescript-eslint/no-explicit-any': 'warn', // unknown-first: any needs // TODO(ts)
+      'max-lines': ['warn', { max: 400, skipBlankLines: true, skipComments: true }],
+    },
+  },
   {
     files: ['src/**/*.{js,jsx}'],
     languageOptions: {
@@ -36,10 +69,12 @@ module.exports = [
     },
   },
   {
-    files: ['electron/**/*.js', 'tests/fixtures/**/*.js', 'tests/mocks/**/*.js', '*.cjs', 'playwright.config.js', 'e2e/**/*.js'],
+    // Main process — TypeScript since Fase 1 (Jalur B); still CommonJS-shaped
+    files: ['electron/**/*.{js,ts}', 'tests/fixtures/**/*.js', 'tests/mocks/**/*.js', '*.cjs', 'playwright.config.js', 'e2e/**/*.js'],
     languageOptions: {
       ecmaVersion: 2022,
       sourceType: 'commonjs',
+      parser: tseslint.parser,
       globals: {
         console: 'readonly', process: 'readonly', Buffer: 'readonly', __dirname: 'readonly',
         require: 'readonly', module: 'readonly', setTimeout: 'readonly', clearTimeout: 'readonly',
@@ -47,8 +82,13 @@ module.exports = [
         document: 'readonly',
       },
     },
+    plugins: { '@typescript-eslint': tseslint.plugin },
     rules: {
-      'no-unused-vars': ['warn', { argsIgnorePattern: '^_', varsIgnorePattern: '^_', caughtErrors: 'none' }],
+      'no-undef': 'off',
+      'no-unused-vars': 'off',
+      '@typescript-eslint/no-unused-vars': ['warn', { argsIgnorePattern: '^_', varsIgnorePattern: '^_', caughtErrors: 'none' }],
+      '@typescript-eslint/no-explicit-any': 'warn',
+      'max-lines': ['warn', { max: 400, skipBlankLines: true, skipComments: true }],
       'no-console': 'off',
       'no-control-regex': 'off',
       'no-empty': ['error', { allowEmptyCatch: true }],
