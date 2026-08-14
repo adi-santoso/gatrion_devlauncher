@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import StackLogo from '../Common/StackLogo';
 import AnimatedModal from '../Common/AnimatedModal';
 import { typeLabel } from '../../utils/typeLabels';
+import * as ipc from '../../utils/ipcRenderer';
 
 const Svg = ({ children, size = 15 }) => (
   <svg
@@ -31,6 +32,8 @@ const Icons = {
   stop: <Svg><rect x="6" y="6" width="12" height="12" rx="2" /></Svg>,
   layers: <Svg><path d="M12 3l9 5-9 5-9-5 9-5z" /><path d="M3 13l9 5 9-5" /></Svg>,
   search: <Svg size={14}><circle cx="11" cy="11" r="8" /><path d="M21 21l-4.35-4.35" /></Svg>,
+  message: <Svg><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" /></Svg>,
+  file: <Svg><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" /><path d="M14 2v6h6" /></Svg>,
 };
 
 const ACTIONS = [
@@ -72,6 +75,11 @@ const CommandPalette = ({
   const [activeIndex, setActiveIndex] = useState(0);
   const inputRef = useRef(null);
   const listRef = useRef(null);
+  // Workspace search results (agent sessions across projects + filenames).
+  const [sessions, setSessions] = useState([]);
+  const [files, setFiles] = useState([]);
+  const [filesLoading, setFilesLoading] = useState(false);
+  const searchSeqRef = useRef(0);
   const handleSelect = onItemSelect || onSelectCommand;
 
   useEffect(() => {
@@ -83,6 +91,48 @@ const CommandPalette = ({
       setActiveIndex(0);
     }
   }, [isOpen]);
+
+  // Refresh the session index every time the palette opens so newly created
+  // conversations show up immediately.
+  useEffect(() => {
+    if (!isOpen) return;
+    let cancelled = false;
+    ipc.ompListAllSessions().then((result) => {
+      if (!cancelled && result?.success) setSessions(result.sessions || []);
+    }).catch(() => {});
+    return () => { cancelled = true; };
+  }, [isOpen]);
+
+  // Debounced filename search across project roots (min 2 chars to avoid
+  // noise). A sequence ref discards stale results from a previous query.
+  useEffect(() => {
+    if (!isOpen) {
+      setFiles([]);
+      setFilesLoading(false);
+      return;
+    }
+    const query = searchQuery.trim();
+    const seq = ++searchSeqRef.current;
+    if (query.length < 2) {
+      setFiles([]);
+      setFilesLoading(false);
+      return;
+    }
+    setFilesLoading(true);
+    const timer = setTimeout(async () => {
+      const roots = projects.map((project) => project.path).filter(Boolean);
+      try {
+        const result = await ipc.searchWorkspaceFiles(query, roots);
+        if (searchSeqRef.current !== seq) return;
+        setFiles(result?.success ? (result.files || []) : []);
+      } catch {
+        if (searchSeqRef.current === seq) setFiles([]);
+      } finally {
+        if (searchSeqRef.current === seq) setFilesLoading(false);
+      }
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [isOpen, searchQuery, projects]);
 
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -114,6 +164,34 @@ const CommandPalette = ({
       ...(Array.isArray(project.customCommands) ? project.customCommands.map((c) => c.label) : []),
     ],
   })), [projects]);
+
+  // Agent sessions across every project (from the omp registry).
+  const sessionItems = useMemo(() => {
+    const projectNameById = new Map(projects.map((project) => [project.id, project.name]));
+    return (sessions || []).map((session) => ({
+      kind: 'session',
+      id: `session-${session.projectId}-${session.id}`,
+      name: session.title || 'Untitled session',
+      subtitle: projectNameById.get(session.projectId) || session.projectId || '',
+      meta: session.tokens > 0 ? `${(session.tokens / 1000).toFixed(1)}k tokens` : '',
+      icon: Icons.message,
+      projectId: session.projectId,
+      sessionId: session.id,
+      searchable: [session.title, projectNameById.get(session.projectId) || '', session.id],
+    }));
+  }, [sessions, projects]);
+
+  // Filename hits from the workspace scanner.
+  const fileItems = useMemo(() => (files || []).map((file) => ({
+    kind: 'file',
+    id: `file-${file.path}`,
+    name: file.name,
+    subtitle: file.dir || '',
+    meta: file.project || '',
+    icon: Icons.file,
+    filePath: file.path,
+    searchable: [file.name, file.dir, file.path, file.project],
+  })), [files]);
 
   const presetItems = useMemo(() => presets.map((preset) => ({
     kind: 'preset',
@@ -148,12 +226,17 @@ const CommandPalette = ({
     const filter = (items) => items.filter((item) =>
       !searchQuery || item.searchable.some(matches)
     );
+    const fileSection = searchQuery.trim().length >= 2
+      ? [{ title: 'Files', items: filter(fileItems) }]
+      : [];
     return [
       { title: 'Projects', items: filter(projectItems) },
+      ...fileSection,
+      { title: 'Sessions', items: filter(sessionItems) },
       { title: 'Presets', items: filter(presetItems) },
       { title: 'Actions', items: filter(actionItems) },
     ].filter((section) => section.items.length > 0);
-  }, [projectItems, presetItems, actionItems, searchQuery]);
+  }, [projectItems, sessionItems, fileItems, presetItems, actionItems, searchQuery]);
 
   const flatItems = useMemo(() => sections.flatMap((section) => section.items), [sections]);
 
@@ -184,6 +267,22 @@ const CommandPalette = ({
         });
       } else if (item.kind === 'preset') {
         handleSelect({ id: item.id, presetId: item.preset.id, type: 'preset', name: item.name });
+      } else if (item.kind === 'session') {
+        handleSelect({
+          id: item.id,
+          type: 'session',
+          projectId: item.projectId,
+          sessionId: item.sessionId,
+          name: item.name,
+        });
+      } else if (item.kind === 'file') {
+        handleSelect({
+          id: item.id,
+          type: 'file',
+          filePath: item.filePath,
+          project: item.project,
+          name: item.name,
+        });
       } else {
         handleSelect(item.action);
       }
@@ -207,6 +306,7 @@ const CommandPalette = ({
   };
 
   const hasResults = flatItems.length > 0;
+  const canSearchFiles = searchQuery.trim().length >= 2;
 
   return (
     <AnimatedModal id="commandPalette" isOpen={isOpen} onClose={onClose} position="top">
@@ -223,9 +323,9 @@ const CommandPalette = ({
               }}
               onKeyDown={handleKeyDown}
               type="text"
-              placeholder="Search projects, presets, or run a command…"
+              placeholder="Search projects, sessions, files, or run a command…"
               className="flex-1 bg-transparent text-sm text-ink placeholder:text-ink-faint focus:outline-none"
-              aria-label="Search projects, presets, or commands"
+              aria-label="Search projects, sessions, files, or commands"
             />
             <kbd className="text-[10px] font-mono text-ink-faint border border-border rounded px-1.5 py-0.5">
               Esc
@@ -272,7 +372,9 @@ const CommandPalette = ({
             ))}
             {!hasResults && (
               <p className="px-4 py-8 text-center text-xs text-ink-faint">
-                {searchQuery ? 'No results found' : 'Type to search projects, presets, and commands'}
+                {searchQuery
+                  ? (filesLoading && canSearchFiles ? 'Searching files…' : 'No results found')
+                  : 'Type to search projects, sessions, files, and commands'}
               </p>
             )}
           </div>

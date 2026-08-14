@@ -44,6 +44,11 @@ function setupAgentHandlers(ompManager, installer, ompConfig, getWindow) {
     return { success: true, sessions: ompManager.getSessions(projectId) }
   })
 
+  // All sessions across every project (workspace-wide search in the palette).
+  secureHandle('omp-list-all-sessions', async () => {
+    return { success: true, sessions: ompManager.getAllSessions() }
+  })
+
   secureHandle('omp-create-session', async (event, projectId, title) => {
     assertSessionId(projectId)
     const session = await ompManager.createSession(projectId, typeof title === 'string' ? title.slice(0, 80) : '')

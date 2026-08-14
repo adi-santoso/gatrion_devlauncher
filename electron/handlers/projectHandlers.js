@@ -7,6 +7,7 @@ const Logger = require('../utils/logger')
 const log = Logger || { info: () => {}, warn: () => {}, error: () => {} }
 const { assertTrustedIpcEvent } = require('../utils/ipcSecurity')
 const { safeHandle } = require('../utils/ipcValidation')
+const { searchWorkspaceFiles } = require('../utils/workspaceSearch')
 const normalizePathKey = (projectPath) => projectPath
   ? path.normalize(projectPath).toLowerCase().replace(/[/\\]+$/, '')
   : ''
@@ -271,6 +272,20 @@ function setupProjectHandlers(storageManager, processManager, mainWindow) {
     }
     log.info('projectHandlers', 'Projects imported', { path: filePath, added: added.length, skipped: skipped.length })
     return { success: true, added: added.map(toRendererProject), skipped }
+  })
+
+  // Workspace search: filenames across project roots (bounded depth, build
+  // dirs excluded) for the command palette. The renderer passes the project
+  // paths it already has; a short query returns nothing to avoid noise.
+  handle('workspace-search-files', async (event, query, projectPaths) => {
+    const roots = Array.isArray(projectPaths)
+      ? projectPaths.filter((item) => typeof item === 'string' && item.trim())
+      : []
+    if (typeof query !== 'string' || query.trim().length < 2 || query.length > 100) {
+      return { success: true, files: [] }
+    }
+    const files = await searchWorkspaceFiles(roots, query)
+    return { success: true, files }
   })
 
   // Browse folder

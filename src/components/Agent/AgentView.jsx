@@ -13,7 +13,7 @@ function formatRelative(timestamp) {
   return `${Math.floor(diff / 86400000)}d ago`;
 }
 
-export default function AgentView({ projects, initialProjectId = null, onOpenProject, onOpenSettings, visible = true }) {
+export default function AgentView({ projects, initialProjectId = null, initialSessionId = null, onOpenProject, onOpenSettings, visible = true }) {
   const [status, setStatus] = useState({ installed: false, configured: false });
   const [statusLoading, setStatusLoading] = useState(true);
   const [sessionsByProject, setSessionsByProject] = useState({});
@@ -23,6 +23,7 @@ export default function AgentView({ projects, initialProjectId = null, onOpenPro
   const [renaming, setRenaming] = useState(null); // { projectId, sessionId }
   const [confirmDelete, setConfirmDelete] = useState(null); // { project, session }
   const [sessionSearch, setSessionSearch] = useState('');
+  const [pendingSessionId, setPendingSessionId] = useState(null);
   const loadedRef = useRef({});
 
   const selectedProject = projects.find((project) => project.id === selectedProjectId) || null;
@@ -40,6 +41,24 @@ export default function AgentView({ projects, initialProjectId = null, onOpenPro
       setSelectedProjectId(initialProjectId);
     }
   }, [initialProjectId, projects]);
+
+  // Navigation from the workspace search palette can target a specific session
+  // across ANY project. Hold it as pending until its project's session list has
+  // loaded, then select it. Re-running on initialSessionId lets the user jump
+  // between sessions of the same project without leaving the view.
+  useEffect(() => {
+    if (initialSessionId) setPendingSessionId(initialSessionId);
+  }, [initialSessionId]);
+
+  useEffect(() => {
+    if (!pendingSessionId) return;
+    const list = selectedProjectId ? (sessionsByProject[selectedProjectId] || []) : [];
+    const session = list.find((item) => item.id === pendingSessionId);
+    if (session) {
+      setPendingSessionId(null);
+      setActiveSession(session);
+    }
+  }, [pendingSessionId, selectedProjectId, sessionsByProject]);
 
   const loadSessions = useCallback(async (projectId) => {
     if (loadedRef.current[projectId]) return;

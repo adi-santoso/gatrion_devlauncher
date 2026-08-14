@@ -66,7 +66,7 @@ Dokumen ini berisi rencana perbaikan DevLauncher berdasarkan analisa kode saat i
 | Item | Prioritas | Effort | Dampak |
 |---|---|---|---|
 | ~~**Auto-update (electron-updater)** + rilis via GitHub Releases~~ → **selesai**: `electron-updater` di-wire di main process (`createUpdater` — state machine unit-tested dengan DI), auto-check saat start, banner Settings kini bisa **Download & install** (progress %) → **Restart & install**; perbandingan versi di `check-update` diperbaiki ke semver numerik (`isVersionNewer`, 8 test); `electron-builder.json` punya publish config github + workflow `release.yml` (tag `v*` → lint/typecheck/test/audit → `electron-builder --publish always`) | P1 ✅ | M | User selalu dapat fix tanpa install ulang |
-| **Workspace search**: satu palette untuk cari project, session agent, file, command | P1 | M | Navigasi jauh lebih cepat |
+| ~~**Workspace search**~~ → **selesai** (batch 6): Command Palette kini mencari project, **session agent lintas semua project** (dari registry `agent-sessions.json` via `omp-list-all-sessions`), **file** (scanner `electron/utils/workspaceSearch.js`, max 6 level, ignore node_modules/dist/lockfile, debounce 250 ms, highlight match), dan command; pilih session → langsung buka chat-nya di Agent, pilih file → buka di editor default OS | P1 ✅ | M | Navigasi jauh lebih cepat |
 | Agent: tracking cost/token per project + estimasi, template prompt, pencarian session lintas project | P1 | M | Pengguna agent harian diuntungkan |
 | Notifikasi Windows dengan action button (Restart/Open) | P2 | S | UX notifikasi lebih baik |
 | i18n UI (en/id) — ikuti README yang sudah bilingual; toggle di Settings | P2 | L | Jangkauan lebih luas |

@@ -8,6 +8,10 @@ Format mengikuti [Keep a Changelog](https://keepachangelog.com/id-ID/1.1.0/), da
 
 ### Added
 
+- **Workspace search di Command Palette** (batch 6) — palette kini bisa mencari 4 hal sekaligus, tidak hanya project/preset/command:
+  - **Session agent lintas semua project** — backend baru `omp-list-all-sessions` (aggregasi registry `agent-sessions.json` dari `OmpManager.getAllSessions`); pilih session → app pindah ke Agent dan langsung membuka chat itu (`AgentView` kini menerima `initialSessionId` dan menunggu list session termuat sebelum auto-select).
+  - **File** — scanner baru `electron/utils/workspaceSearch.js` (channel `workspace-search-files`): substring nama file case-insensitive, kedalaman maks. 6, limit 25 hasil, skip `node_modules`/`dist`/lockfile, debounce 250 ms, query min. 2 karakter, highlight bagian yang cocok; pilih file → dibuka di editor default OS (`open-in-editor`).
+  - +17 test baru: 7 unit `workspaceSearch`, 2 CommandPalette (sessions + file search), 1 AgentView (navigasi `initialSessionId`).
 - **E2E non-smoke (Playwright, 3 test baru)** — alur utama kini teruji otomatis di app sungguhan, tidak hanya unit test:
   - **Add project → start → log → stop** — modal add project di-drive penuh lewat UI (browse folder di-bypass dengan env test `DEVLAUNCHER_TEST_FOLDER`, folder fixture `npm start` ber-log periodik), start sampai status Running, log streaming muncul di dashboard & tab Terminal Project Detail, lalu stop.
   - **Persistensi settings lintas restart** — ganti theme → config.json di disk → relaunch app → theme tetap terpilih.

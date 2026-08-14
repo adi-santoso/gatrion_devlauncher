@@ -135,6 +135,17 @@ class OmpManager extends EventEmitter {
     return this.registry.projects[projectId] || []
   }
 
+  /** All sessions across every project (for workspace-wide search). */
+  getAllSessions() {
+    const all = []
+    for (const [projectId, sessions] of Object.entries(this.registry.projects || {})) {
+      for (const session of Array.isArray(sessions) ? sessions : []) {
+        all.push({ projectId, ...session })
+      }
+    }
+    return all
+  }
+
   async createSession(projectId, title) {
     const list = this.registry.projects[projectId] || []
     const session = {

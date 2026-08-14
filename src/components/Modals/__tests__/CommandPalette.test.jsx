@@ -1,6 +1,6 @@
 import React from 'react'
 import { fireEvent, render, screen } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi, afterEach } from 'vitest'
 import CommandPalette from '../CommandPalette'
 
 const projects = [
@@ -9,7 +9,11 @@ const projects = [
 ]
 const presets = [{ id: 'pr1', name: 'Full Stack', projectIds: ['p1', 'p2'] }]
 
-const input = () => screen.getByLabelText('Search projects, presets, or commands')
+const input = () => screen.getByLabelText('Search projects, sessions, files, or commands')
+
+afterEach(() => {
+  delete window.electron
+})
 
 describe('CommandPalette', () => {
   it('navigates items with arrow keys and selects with Enter', () => {
@@ -78,5 +82,61 @@ describe('CommandPalette', () => {
     expect(onSelect).toHaveBeenCalledTimes(1)
     expect(onSelect.mock.calls[0][0].id).toBe('new-project')
     expect(onClose.mock.invocationCallOrder[0]).toBeLessThan(onSelect.mock.invocationCallOrder[0])
+  })
+
+  it('lists agent sessions from the workspace index and selects one', async () => {
+    window.electron = {
+      ompListAllSessions: vi.fn().mockResolvedValue({
+        success: true,
+        sessions: [
+          { id: 's1', projectId: 'p2', title: 'Refactor auth', tokens: 3500 },
+          { id: 's2', projectId: 'p1', title: 'Setup staging', tokens: 0 },
+        ],
+      }),
+      searchWorkspaceFiles: vi.fn().mockResolvedValue({ success: true, files: [] }),
+    }
+    const onSelect = vi.fn()
+    render(<CommandPalette isOpen projects={projects} onSelectCommand={onSelect} />)
+
+    const session = await screen.findByText('Refactor auth')
+    expect(session).toBeInTheDocument()
+    expect(screen.getByText('Setup staging')).toBeInTheDocument()
+    expect(screen.getByText('3.5k tokens')).toBeInTheDocument()
+
+    // flat order: Alpha(0), Beta(1), Refactor auth(2), Setup staging(3), ...
+    fireEvent.keyDown(input(), { key: 'ArrowDown' })
+    fireEvent.keyDown(input(), { key: 'ArrowDown' })
+    fireEvent.keyDown(input(), { key: 'Enter' })
+
+    expect(onSelect).toHaveBeenCalledTimes(1)
+    expect(onSelect.mock.calls[0][0]).toMatchObject({ type: 'session', projectId: 'p2', sessionId: 's1' })
+  })
+
+  it('debounces a filename search and selects a file hit', async () => {
+    window.electron = {
+      ompListAllSessions: vi.fn().mockResolvedValue({ success: true, sessions: [] }),
+      searchWorkspaceFiles: vi.fn().mockResolvedValue({
+        success: true,
+        files: [
+          { path: 'C:/alpha/src/router.js', name: 'router.js', dir: 'C:/alpha/src', project: 'Alpha' },
+        ],
+      }),
+    }
+    const onSelect = vi.fn()
+    render(<CommandPalette isOpen projects={projects} onSelectCommand={onSelect} />)
+
+    // Below 2 chars: no file search yet.
+    fireEvent.change(input(), { target: { value: 'r' } })
+    expect(window.electron.searchWorkspaceFiles).not.toHaveBeenCalled()
+
+    fireEvent.change(input(), { target: { value: 'router' } })
+    // The name is split by the <mark> highlight, so target the mark and
+    // assert the parent span carries the full name.
+    const mark = await screen.findByText('router', { selector: 'mark' })
+    expect(mark.parentElement.textContent).toBe('router.js')
+    expect(window.electron.searchWorkspaceFiles).toHaveBeenCalledWith('router', ['C:/alpha', 'C:/beta'])
+
+    fireEvent.keyDown(input(), { key: 'Enter' })
+    expect(onSelect.mock.calls[0][0]).toMatchObject({ type: 'file', filePath: 'C:/alpha/src/router.js' })
   })
 })

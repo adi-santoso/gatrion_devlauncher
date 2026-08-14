@@ -657,6 +657,16 @@ export const ompListSessions = async (projectId) => {
   return window.electron.ompListSessions(projectId);
 };
 
+export const ompListAllSessions = async () => {
+  if (!isElectron()) return { success: true, sessions: [] };
+  return window.electron.ompListAllSessions();
+};
+
+export const searchWorkspaceFiles = async (query, projectPaths) => {
+  if (!isElectron()) return { success: true, files: [] };
+  return window.electron.searchWorkspaceFiles(query, projectPaths);
+};
+
 export const ompCreateSession = async (projectId, title = '') => {
   if (!isElectron()) return { success: true, session: { id: 'mock', title: title || 'Session' } };
   return window.electron.ompCreateSession(projectId, title);

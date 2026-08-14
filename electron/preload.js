@@ -180,6 +180,8 @@ contextBridge.exposeInMainWorld('electron', {
   // AI Agent (oh-my-pi)
   ompStatus: () => ipcRenderer.invoke('omp-status'),
   ompListSessions: (projectId) => ipcRenderer.invoke('omp-list-sessions', projectId),
+  ompListAllSessions: () => ipcRenderer.invoke('omp-list-all-sessions'),
+  searchWorkspaceFiles: (query, projectPaths) => ipcRenderer.invoke('workspace-search-files', query, projectPaths),
   ompCreateSession: (projectId, title) => ipcRenderer.invoke('omp-create-session', projectId, title),
   ompDeleteSession: (projectId, sessionId) => ipcRenderer.invoke('omp-delete-session', projectId, sessionId),
   ompRenameSession: (projectId, sessionId, title) => ipcRenderer.invoke('omp-rename-session', projectId, sessionId, title),

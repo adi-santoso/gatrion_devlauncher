@@ -431,6 +431,26 @@ Metadata session disimpan di `userData/agent-sessions.json` (title, createdAt, l
 { success: true, sessions: [{ id, title, createdAt, lastActive, tokens, sessionPath }] }
 ```
 
+### `ompListAllSessions()`
+
+Channel: `omp-list-all-sessions`
+
+Sama seperti `ompListSessions` tapi lintas **semua** project (untuk workspace search di Command Palette).
+
+```js
+{ success: true, sessions: [{ projectId, id, title, createdAt, lastActive, tokens }] }
+```
+
+### `searchWorkspaceFiles(query, projectPaths)`
+
+Channel: `workspace-search-files`
+
+Scan nama file di root project (maks. 6 level, hasil dibatasi 25, `node_modules`/`dist`/lockfile di-skip). `query` minimal 2 karakter. Backend = `electron/utils/workspaceSearch.js`.
+
+```js
+{ success: true, files: [{ path, name, dir, project }] }
+```
+
 ### `ompChat(projectId, cwd, message, { sessionId, sessionPath, images })`
 
 Channel: `omp-chat`

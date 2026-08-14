@@ -195,4 +195,13 @@ describe('AgentView', () => {
     await new Promise((resolve) => setTimeout(resolve, 50));
     expect(mocks.ompUpdateSessionTokens).not.toHaveBeenCalled();
   });
+
+  it('navigating with initialSessionId opens that session once its list loads', async () => {
+    render(<AgentView projects={[project]} initialProjectId="p1" initialSessionId="s1" />);
+
+    // The project list auto-expands and the session auto-selects — no clicks.
+    const composer = await screen.findByPlaceholderText('Describe a task, ask a question…');
+    expect(composer).toBeInTheDocument();
+    await vi.waitFor(() => expect(mocks.ompGetMessages).toHaveBeenCalled());
+  });
 });

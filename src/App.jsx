@@ -20,7 +20,7 @@ import {
 } from './components/Modals';
 import PortConflictModal from './components/Modals/PortConflictModal';
 import { useProjects, useProcesses, useElectronConfig, useToasts, useActivities, usePresets } from './hooks';
-import { checkPortConflict, isElectronAvailable, onNavigateToProject, onPreviewConsole, exportProjects, importProjects, exportDiagnostics } from './utils/ipcRenderer';
+import { checkPortConflict, isElectronAvailable, onNavigateToProject, onPreviewConsole, exportProjects, importProjects, exportDiagnostics, openInEditor } from './utils/ipcRenderer';
 import { summarizeWorkspaceStart } from './utils/workspaceResults';
 
 function App() {
@@ -31,6 +31,7 @@ function App() {
   // View state
   const [currentView, setCurrentView] = useState('dashboard');
   const [agentProjectId, setAgentProjectId] = useState(null);
+  const [agentSessionId, setAgentSessionId] = useState(null);
   const [selectedProject, setSelectedProject] = useState(null);
 
   // UI state
@@ -221,6 +222,9 @@ function App() {
     }
     if (viewName === 'agent' && data) {
       setAgentProjectId(typeof data === 'string' ? data : (data.projectId || null));
+      setAgentSessionId(typeof data === 'object' && !Array.isArray(data) ? (data.sessionId || null) : null);
+    } else if (viewName === 'agent') {
+      setAgentSessionId(null);
     }
   };
 
@@ -625,6 +629,21 @@ function App() {
   const handleCommandSelect = (command) => {
     closeModalHandler();
 
+    // Agent session from the workspace search palette: jump straight into it.
+    if (command.type === 'session') {
+      showView('agent', { projectId: command.projectId, sessionId: command.sessionId });
+      return;
+    }
+    // File hit: open it in the OS default editor.
+    if (command.type === 'file') {
+      openInEditor(command.filePath).then((result) => {
+        if (result && !result.success) {
+          showToast('error', result.error || 'Failed to open file');
+        }
+      });
+      return;
+    }
+
     switch (command.id) {
       case 'new-project':
         openModalHandler('project');
@@ -814,6 +833,7 @@ function App() {
           <AgentView
             projects={projects}
             initialProjectId={agentProjectId}
+            initialSessionId={agentSessionId}
             visible={currentView === 'agent'}
             onOpenProject={(project) => showView('project-detail', project)}
             onOpenSettings={() => showView('settings')}
