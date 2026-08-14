@@ -19,6 +19,7 @@ const { setupTerminalHandlers, killAllTerminals } = require('./handlers/terminal
 const { setupPreviewHandlers } = require('./handlers/previewHandlers')
 const { setupRepoHandlers } = require('./handlers/repoHandlers')
 const { setupSystemHandlers } = require('./handlers/systemHandlers')
+const { setupBackupHandlers } = require('./handlers/backupHandlers')
 const { setupAgentHandlers } = require('./handlers/agentHandlers')
 const { assertTrustedIpcEvent } = require('./utils/ipcSecurity')
 const { isVersionNewer } = require('./utils/versionCompare')
@@ -473,6 +474,7 @@ async function initialize() {
   setupPreviewHandlers(previewManager)
   setupRepoHandlers(storageManager, processManager, mainWindow)
   setupSystemHandlers()
+  setupBackupHandlers(storageManager, healthManager, mainWindow)
   setupAgentHandlers(ompManager, ompInstaller, ompConfig, () => mainWindow)
   setupPrayerHandlers()
 

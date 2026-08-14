@@ -192,6 +192,10 @@ const CHANNEL_RULES = {
   'clear-crash-dumps': [],
   'open-crash-dumps-folder': [],
 
+  // --- workspace backup -------------------------------------------------
+  'backup-export': [['password', 'string', { optional: true, maxLength: 512 }]],
+  'backup-import': [['password', 'string', { optional: true, maxLength: 512 }]],
+
   // --- omp agent (oh-my-pi) --------------------------------------------
   'omp-status': [],
   'omp-list-sessions': [['projectId', 'string', { minLength: 1 }]],

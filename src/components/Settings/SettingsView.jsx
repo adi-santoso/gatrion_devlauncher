@@ -5,7 +5,7 @@ import TerminalSettings from './TerminalSettings';
 import SystemEnvCard from './SystemEnvCard';
 import OmpSettingsCard from './OmpSettingsCard';
 import Icon from '../Common/Icon';
-import { geocodeCity, checkUpdate, openExternalUrl, downloadUpdate, installUpdate, onUpdateState, getMainLog, getCrashDumps, clearCrashDumps, openCrashDumpsFolder } from '../../utils/ipcRenderer';
+import { geocodeCity, checkUpdate, openExternalUrl, downloadUpdate, installUpdate, onUpdateState, getMainLog, getCrashDumps, clearCrashDumps, openCrashDumpsFolder, backupExport, backupImport } from '../../utils/ipcRenderer';
 
 /**
  * SettingsView - Full settings view assembly
@@ -117,6 +117,43 @@ const SettingsView = ({ config, updateConfig, onExportProjects, onImportProjects
   const handleClearCrashDumps = async () => {
     const result = await clearCrashDumps();
     if (result.success) setCrashDumps([]);
+  };
+
+  // Workspace backup — one portable file (optionally encrypted) with projects,
+  // config, presets and health analytics. Import merges without overwriting.
+  const [backupPassword, setBackupPassword] = useState('');
+  const [backupBusy, setBackupBusy] = useState(false);
+  const [backupResult, setBackupResult] = useState(null);
+
+  const handleBackupExport = async () => {
+    setBackupBusy(true);
+    setBackupResult(null);
+    const result = await backupExport(backupPassword.trim() || undefined);
+    setBackupBusy(false);
+    if (result.success) {
+      setBackupResult({
+        type: 'ok',
+        text: `Backup saved with ${result.projectCount} project(s)${result.encrypted ? ' — encrypted with your password' : ''}.`,
+      });
+    } else if (!result.canceled) {
+      setBackupResult({ type: 'err', text: result.error || 'Export failed' });
+    }
+  };
+
+  const handleBackupImport = async () => {
+    setBackupBusy(true);
+    setBackupResult(null);
+    const result = await backupImport(backupPassword.trim() || undefined);
+    setBackupBusy(false);
+    if (result.success) {
+      const skipped = result.skipped?.length || 0;
+      setBackupResult({
+        type: 'ok',
+        text: `Imported ${result.added?.length || 0} project(s)${skipped ? `, skipped ${skipped}` : ''}${result.configUpdated ? ', updated config' : ''}${result.presetsAdded ? `, added ${result.presetsAdded} preset(s)` : ''}.`,
+      });
+    } else if (!result.canceled) {
+      setBackupResult({ type: 'err', text: result.error || 'Import failed' });
+    }
   };
 
   return (
@@ -316,6 +353,45 @@ const SettingsView = ({ config, updateConfig, onExportProjects, onImportProjects
             🩺 Export diagnostics…
           </button>
         </div>
+      </div>
+
+      <div className="bg-surface border border-border rounded-xl shadow-card p-5 space-y-4">
+        <p className="font-display font-bold text-sm">Workspace Backup</p>
+        <p className="text-[11px] text-ink-faint">
+          Export your whole workspace — projects (including .env secrets), config, presets and health analytics — into one portable file. Optionally encrypt it with a password. Importing merges the backup in without overwriting anything you already have, so it is safe to restore on a fresh machine.
+        </p>
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+          <input
+            type="password"
+            value={backupPassword}
+            onChange={(e) => setBackupPassword(e.target.value)}
+            placeholder="Optional password to encrypt / decrypt"
+            className="flex-1 min-w-0 bg-surface-3 border border-border rounded-lg px-3 py-2 text-xs text-ink placeholder:text-ink-faint focus:outline-none focus:ring-2 focus:ring-accent/40"
+          />
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={handleBackupExport}
+              disabled={backupBusy}
+              className="px-3.5 py-2 rounded-lg bg-surface-3 hover:bg-surface-2 text-xs font-medium text-ink-soft hover:text-ink border border-border transition-colors disabled:opacity-40"
+            >
+              {backupBusy ? 'Working…' : '⬇ Export backup…'}
+            </button>
+            <button
+              type="button"
+              onClick={handleBackupImport}
+              disabled={backupBusy}
+              className="px-3.5 py-2 rounded-lg bg-surface-3 hover:bg-surface-2 text-xs font-medium text-ink-soft hover:text-ink border border-border transition-colors disabled:opacity-40"
+            >
+              {backupBusy ? 'Working…' : '⬆ Import backup…'}
+            </button>
+          </div>
+        </div>
+        {backupResult && (
+          <p className={`text-[11px] ${backupResult.type === 'ok' ? 'text-accent' : 'text-danger'}`}>
+            {backupResult.text}
+          </p>
+        )}
       </div>
 
       <div className="bg-surface border border-border rounded-xl shadow-card p-5 space-y-4">

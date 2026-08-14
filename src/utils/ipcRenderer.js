@@ -125,6 +125,22 @@ export const exportDiagnostics = async () => {
   return window.electron.exportDiagnostics();
 };
 
+export const backupExport = async (password) => {
+  if (!isElectron()) {
+    console.warn('[IPC] Running in browser mode - backupExport not available');
+    return { success: false, canceled: true };
+  }
+  return window.electron.backupExport(password);
+};
+
+export const backupImport = async (password) => {
+  if (!isElectron()) {
+    console.warn('[IPC] Running in browser mode - backupImport not available');
+    return { success: false, canceled: true };
+  }
+  return window.electron.backupImport(password);
+};
+
 export const listEnvFiles = async (projectPath) => {
   if (!isElectron()) {
     console.warn('[IPC] Running in browser mode - mock listEnvFiles called');
