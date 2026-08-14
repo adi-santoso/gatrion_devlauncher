@@ -161,6 +161,9 @@ contextBridge.exposeInMainWorld('electron', {
   // System environment check
   checkSystemEnv: () => ipcRenderer.invoke('system-env-check'),
 
+  // Main log tail for the Settings log viewer
+  getMainLog: (limit) => ipcRenderer.invoke('get-main-log', limit),
+
   // Health analytics
   getHealth: (projectId) => ipcRenderer.invoke('get-health', projectId),
   clearHealth: (projectId) => ipcRenderer.invoke('clear-health', projectId),

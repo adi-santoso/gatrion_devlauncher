@@ -131,7 +131,7 @@ function normalizeConfig(config = {}) {
   const windowBounds = migrated.windowBounds && typeof migrated.windowBounds === 'object' && !Array.isArray(migrated.windowBounds) ? migrated.windowBounds : null
 
   return {
-    theme: migrated.theme === 'light' ? 'light' : 'dark',
+    theme: ['dark', 'light', 'system'].includes(migrated.theme) ? migrated.theme : 'dark',
     sidebarExpanded: booleanOr(migrated.sidebarExpanded, DEFAULT_CONFIG.sidebarExpanded),
     startOnBoot: booleanOr(migrated.startOnBoot, DEFAULT_CONFIG.startOnBoot),
     minimizeToTray: booleanOr(migrated.minimizeToTray, DEFAULT_CONFIG.minimizeToTray),
@@ -276,7 +276,7 @@ function applyConfigUpdates(current, updates) {
   }
   const normalized = normalizeConfig(merged)
 
-  if (updates.theme !== undefined && !['dark', 'light'].includes(updates.theme)) throw new Error('Theme must be dark or light')
+  if (updates.theme !== undefined && !['dark', 'light', 'system'].includes(updates.theme)) throw new Error('Theme must be dark, light or system')
   if (updates.terminal?.fontSize !== undefined && normalized.terminal.fontSize !== updates.terminal.fontSize) throw new Error('Terminal font size must be an integer between 8 and 32')
   if (updates.terminal?.maxLines !== undefined && normalized.terminal.maxLines !== updates.terminal.maxLines) throw new Error('Terminal max lines must be an integer between 100 and 10000')
   for (const adjustmentKey of ['fajr', 'dhuhr', 'asr', 'maghrib', 'isha']) {

@@ -1,6 +1,7 @@
 // @ts-check
 const fs = require('fs').promises
 const path = require('path')
+const { rotateLogFile } = require('./logRotation')
 
 let LOG_DIR
 let MAIN_LOG_FILE
@@ -54,49 +55,11 @@ async function writeLog(level, module, message, metadata = {}) {
   try {
     await ensureLogDir()
     await fs.appendFile(MAIN_LOG_FILE, jsonString + '\n', 'utf8')
-    
-    // Keep only last 1000 lines (~10MB max)
-    await rotateLogFile()
+
+    // Keep only last 1000 lines (~10MB max).
+    await rotateLogFile(MAIN_LOG_FILE)
   } catch (error) {
     console.error('[Logger] Failed to write to file:', error)
-  }
-}
-
-async function rotateLogFile() {
-  try {
-    const stats = await fs.stat(MAIN_LOG_FILE).catch(() => null)
-    if (!stats || stats.size < 10 * 1024 * 1024) return
-    
-    const backupPath = MAIN_LOG_FILE + '.old'
-    await fs.rename(MAIN_LOG_FILE, backupPath)
-    
-    const lines = await countLines(backupPath)
-    if (lines > 1000) {
-      const truncated = await truncateToLastLines(backupPath, 1000)
-      await fs.writeFile(MAIN_LOG_FILE, truncated, 'utf8')
-      await fs.unlink(backupPath)
-    }
-  } catch (error) {
-    // Ignore rotation errors
-  }
-}
-
-async function countLines(filePath) {
-  try {
-    const content = await fs.readFile(filePath, 'utf8')
-    return content.split('\n').length - 1
-  } catch {
-    return 0
-  }
-}
-
-async function truncateToLastLines(filePath, lineCount) {
-  try {
-    const content = await fs.readFile(filePath, 'utf8')
-    const lines = content.split('\n')
-    return lines.slice(-lineCount).join('\n')
-  } catch {
-    return ''
   }
 }
 

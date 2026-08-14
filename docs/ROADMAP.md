@@ -40,7 +40,7 @@ Dokumen ini berisi rencana perbaikan DevLauncher berdasarkan analisa kode saat i
 | ~~Lengkapi auto-restart child process dengan backoff~~ → **selesai**: exponential backoff (`delay × 2^n`) + `maxRetries` + tunggu port bebas sudah ada di `maybeAutoRestart`; kini **terverifikasi via vitest** (test backoff: delay 100/200/400 ms, cap retries, disabled) | P1 ✅ | S | Project crash tidak menghentikan workflow |
 | ~~Naikkan coverage ke 50–60% untuk path kritis~~ → **selesai ✅**: OmpManager 0 → **83%** (16 test via mock RPC fixture `tests/fixtures/mock-omp-rpc.js`), ProjectDetector 0 → **~90%** (10 test), StorageManager 84%, ProcessManager 49%; handler IPC 6.79% → **86%**, preload 0% → **91%**, HealthManager/OmpConfig 0% → **~98%**; total **±55% lines** (dari 38.4%). Sisa gap: `main.js`, OmpInstaller, PreviewManager/TrayManager | P1 ✅ | M | Regression test lebih percaya diri |
 | ~~E2E di luar smoke~~ → **selesai**: add project (modal + browse test-hook) → start → log stream → stop; agent chat end-to-end pakai mock omp (session baru, prompt, reply streaming, token badge + persist); persistensi settings lintas restart — **7 test Playwright** | P1 | M | Flow utama teruji otomatis |
-| Verifikasi rotasi log main process + viewer log di Settings | P2 | S | Support lebih mudah |
+| ~~Verifikasi rotasi log main process + viewer log di Settings~~ → **selesai**: rotasi diekstrak ke `electron/utils/logRotation.js` (murni, unit-testable — 4 test), dipakai `logger.js`; kartu **Main Log** di Settings menampilkan 500 baris terakhir `main.log` lewat channel baru `get-main-log` (refresh manual) | P2 ✅ | S | Support lebih mudah |
 
 ## 3. Performance & UX
 
@@ -49,8 +49,8 @@ Dokumen ini berisi rencana perbaikan DevLauncher berdasarkan analisa kode saat i
 | ~~Code splitting renderer~~ → **selesai**: `React.lazy` + `Suspense` per view (Dashboard, Projects, Settings, Agent, Detail, TerminalWorkspace). Chunk 838 kB → main 313 kB + per-view; xterm (284 kB) tidak lagi memblokir startup | P0/P1 ✅ | M | Startup & memory turun |
 | ~~Virtualisasi list log & percakapan~~ → **selesai**: komponen `VirtualList` (windowing + pengukuran tinggi dinamis via ResizeObserver, cache per item key, spacer layout) dipakai di LogsTab dan daftar pesan AgentChat; render penuh di bawah threshold 500/400 baris jadi perilaku kecil tidak berubah | P1 ✅ | M | Scroll tetap halus |
 | ~~Throttle/batch update resource CPU/mem~~ → **selesai** (sudah ada, kini terverifikasi): backend throttle `tasklist` 5 s/project + skip in-flight, renderer poll 4 s hanya untuk project running, dan hanya notify saat nilai berubah — tidak ada re-render storm | P1 ✅ | S | Dashboard stabil saat banyak project |
-| Global shortcut (mis. `Ctrl+Shift+Space`) untuk summon window dari tray | P2 | S | Akses cepat dari mana saja |
-| Theme: tambah opsi auto-follow system (dark/light sudah ada) | P2 | S | Default lebih nyaman |
+| ~~Global shortcut (mis. `Ctrl+Shift+Space`) untuk summon window dari tray~~ → **selesai**: `globalShortcut.register('CommandOrControl+Shift+Space')` — toggle show/hide + focus window dari mana saja (Cmd di macOS, Ctrl di Windows/Linux); unregister saat quit | P2 ✅ | S | Akses cepat dari mana saja |
+| ~~Theme: tambah opsi auto-follow system (dark/light sudah ada)~~ → **selesai**: opsi **System** di ThemeSelector — mengikuti `prefers-color-scheme` OS secara live (media query listener); `config.theme` kini menerima `'system'` (validasi + normalisasi diperbarui) | P2 ✅ | S | Default lebih nyaman |
 
 ## 4. Security
 

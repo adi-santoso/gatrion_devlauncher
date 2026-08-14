@@ -876,3 +876,8 @@ export const checkSystemEnv = async () => {
   }
   return window.electron.checkSystemEnv();
 };
+
+export const getMainLog = async (limit = 500) => {
+  if (!isElectron()) return { success: true, lines: [] };
+  return window.electron.getMainLog(limit);
+};

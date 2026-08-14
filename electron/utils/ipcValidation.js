@@ -185,6 +185,9 @@ const CHANNEL_RULES = {
   // --- system ----------------------------------------------------------
   'system-env-check': [],
   'export-diagnostics': [],
+  'get-main-log': [
+    ['limit', 'integer', { optional: true, min: 10, max: 5000 }],
+  ],
 
   // --- omp agent (oh-my-pi) --------------------------------------------
   'omp-status': [],

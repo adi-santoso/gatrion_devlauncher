@@ -5,7 +5,7 @@ import TerminalSettings from './TerminalSettings';
 import SystemEnvCard from './SystemEnvCard';
 import OmpSettingsCard from './OmpSettingsCard';
 import Icon from '../Common/Icon';
-import { geocodeCity, checkUpdate, openExternalUrl, downloadUpdate, installUpdate, onUpdateState } from '../../utils/ipcRenderer';
+import { geocodeCity, checkUpdate, openExternalUrl, downloadUpdate, installUpdate, onUpdateState, getMainLog } from '../../utils/ipcRenderer';
 
 /**
  * SettingsView - Full settings view assembly
@@ -81,6 +81,26 @@ const SettingsView = ({ config, updateConfig, onExportProjects, onImportProjects
   const handleInstallUpdate = async () => {
     await installUpdate();
   };
+
+  // Main log viewer — tail of main.log from the main process
+  const [logLines, setLogLines] = useState([]);
+  const [logLoading, setLogLoading] = useState(false);
+  const [logError, setLogError] = useState(null);
+  const loadMainLog = async () => {
+    setLogLoading(true);
+    setLogError(null);
+    const result = await getMainLog(500);
+    setLogLoading(false);
+    if (result.success) {
+      setLogLines(result.lines || []);
+    } else {
+      setLogError(result.error || 'Failed to read the main log');
+    }
+  };
+  useEffect(() => {
+    loadMainLog();
+    // Intentional: load once on mount; refresh is manual via the button.
+  }, []);
 
   return (
     <div className="view mx-auto max-w-5xl">
@@ -279,6 +299,27 @@ const SettingsView = ({ config, updateConfig, onExportProjects, onImportProjects
             🩺 Export diagnostics…
           </button>
         </div>
+      </div>
+
+      <div className="bg-surface border border-border rounded-xl shadow-card p-5 space-y-4">
+        <div className="flex items-center justify-between">
+          <p className="font-display font-bold text-sm">Main Log</p>
+          <button
+            type="button"
+            onClick={loadMainLog}
+            disabled={logLoading}
+            className="px-3 py-1.5 rounded-lg bg-surface-3 hover:bg-surface-2 text-xs font-medium text-ink-soft hover:text-ink border border-border transition-colors disabled:opacity-40"
+          >
+            {logLoading ? 'Loading…' : '↻ Refresh'}
+          </button>
+        </div>
+        <p className="text-[11px] text-ink-faint">
+          Last 500 lines of the main process log (rotated automatically at 10 MB, keeping the newest 1000 lines). Useful when diagnosing crashes or reporting issues.
+        </p>
+        {logError && <p className="text-[11px] text-danger">{logError}</p>}
+        <pre className="max-h-56 overflow-auto rounded-lg bg-[#0d0f13] border border-border p-3 text-[10px] leading-relaxed font-mono text-[#aab2c0] whitespace-pre-wrap break-words">
+          {logLines.length > 0 ? logLines.join('\n') : (logLoading ? 'Loading…' : 'No log entries yet.')}
+        </pre>
       </div>
 
       <SystemEnvCard />

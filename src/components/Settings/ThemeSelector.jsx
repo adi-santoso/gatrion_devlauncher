@@ -66,6 +66,38 @@ const ThemeSelector = ({ currentTheme = 'dark', onThemeChange }) => {
             )}
           </p>
         </button>
+        <button
+          id="themeSystemCard"
+          onClick={() => onThemeChange('system')}
+          className={`text-left border-2 ${
+            currentTheme === 'system' ? 'border-accent' : 'border-border'
+          } rounded-xl p-3 transition-colors`}
+        >
+          <div className="h-14 rounded-lg border border-[#232830] flex items-center gap-1.5 px-2 mb-2 overflow-hidden">
+            <div className="h-14 w-1/2 bg-white flex items-center justify-center">
+              <div className="w-4 h-8 rounded bg-[#EEF0F3]"></div>
+            </div>
+            <div className="h-14 w-1/2 bg-[#12151A] flex items-center justify-center">
+              <div className="w-4 h-8 rounded bg-[#20242C]"></div>
+            </div>
+          </div>
+          <p className="text-xs font-medium flex items-center gap-1.5">
+            System
+            {currentTheme === 'system' && (
+              <svg
+                width="12"
+                height="12"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="3"
+                className="text-accent"
+              >
+                <path d="M20 6L9 17l-5-5" />
+              </svg>
+            )}
+          </p>
+        </button>
       </div>
     </div>
   );

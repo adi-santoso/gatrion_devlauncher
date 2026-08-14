@@ -1,5 +1,5 @@
 // @ts-check
-const { app, BrowserWindow, ipcMain, Notification, session } = require('electron')
+const { app, BrowserWindow, ipcMain, Notification, session, globalShortcut } = require('electron')
 const path = require('path')
 const fs = require('fs').promises
 const https = require('https')
@@ -354,6 +354,27 @@ async function initialize() {
   trayManager = new TrayManager(mainWindow, processManager, storageManager)
   trayManager.init()
 
+  // Global shortcut: summon/toggle the main window from anywhere (while
+  // another app has focus). CommandOrControl maps to Cmd on macOS and Ctrl on
+  // Windows/Linux.
+  try {
+    const registered = globalShortcut.register('CommandOrControl+Shift+Space', () => {
+      if (!mainWindow) return
+      if (mainWindow.isMinimized()) mainWindow.restore()
+      if (mainWindow.isVisible()) {
+        mainWindow.hide()
+      } else {
+        mainWindow.show()
+        mainWindow.focus()
+      }
+    })
+    if (!registered) {
+      Logger.warn('Shortcut', 'Failed to register global shortcut CommandOrControl+Shift+Space')
+    }
+  } catch (error) {
+    Logger.error('Shortcut', 'Failed to register global shortcut', { error: error.message })
+  }
+
   // Embedded preview (WebContentsView) manager
   previewManager = new PreviewManager()
   previewManager.setWindow(mainWindow)
@@ -638,6 +659,11 @@ app.on('before-quit', async (event) => {
   if (trayManager) {
     trayManager.destroy()
   }
+
+  // Release the global shortcut so it does not linger after quit.
+  try {
+    globalShortcut.unregisterAll()
+  } catch { /* already gone */ }
 
   if (processManager) {
     event.preventDefault()

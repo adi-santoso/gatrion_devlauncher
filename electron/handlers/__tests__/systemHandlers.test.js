@@ -61,4 +61,27 @@ describe('systemHandlers', () => {
       if (tool.found) expect(typeof tool.version).toBe('string')
     }
   }, 30000)
+
+  test('get-main-log tails main.log from userData', async () => {
+    fs.mkdirSync(path.join(TEMP_USER_DATA, 'logs'), { recursive: true })
+    const lines = Array.from({ length: 12 }, (_, i) => `{"line":${i}}`)
+    fs.writeFileSync(path.join(TEMP_USER_DATA, 'logs', 'main.log'), lines.join('\n'))
+    setupSystemHandlers()
+    const handler = ipcMain._handlers.get('get-main-log')
+
+    const full = await handler(fakeEvent, undefined)
+    expect(full.success).toBe(true)
+    expect(full.lines).toEqual(lines)
+
+    const limited = await handler(fakeEvent, 10)
+    expect(limited.lines).toEqual(lines.slice(-10))
+  })
+
+  test('get-main-log returns an empty list when the file is missing', async () => {
+    // Isolate: point the handler at an empty userData dir by removing the log.
+    fs.rmSync(path.join(TEMP_USER_DATA, 'logs', 'main.log'), { force: true })
+    setupSystemHandlers()
+    const result = await ipcMain._handlers.get('get-main-log')(fakeEvent, undefined)
+    expect(result).toEqual({ success: true, lines: [] })
+  })
 })

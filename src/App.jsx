@@ -93,11 +93,23 @@ function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Initialize theme from config
+  // Initialize theme from config. 'system' follows the OS preference live via
+  // the prefers-color-scheme media query (same source as nativeTheme), so a
+  // user switching their OS theme is reflected without touching the app.
   useEffect(() => {
-    if (config.theme) {
-      document.documentElement.setAttribute('data-theme', config.theme);
+    const applyTheme = () => {
+      const theme = config.theme === 'system'
+        ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
+        : config.theme;
+      if (theme) document.documentElement.setAttribute('data-theme', theme);
+    };
+    applyTheme();
+    if (config.theme === 'system') {
+      const media = window.matchMedia('(prefers-color-scheme: dark)');
+      media.addEventListener('change', applyTheme);
+      return () => media.removeEventListener('change', applyTheme);
     }
+    return undefined;
   }, [config.theme]);
 
   // Keyboard shortcuts
@@ -657,9 +669,13 @@ function App() {
       case 'view-settings':
         showView('settings');
         break;
-      case 'toggle-theme':
-        setThemeHandler(config.theme === 'dark' ? 'light' : 'dark');
+      case 'toggle-theme': {
+        const effective = config.theme === 'system'
+          ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
+          : config.theme;
+        setThemeHandler(effective === 'dark' ? 'light' : 'dark');
         break;
+      }
       case 'shortcuts':
         openModalHandler('shortcuts');
         break;

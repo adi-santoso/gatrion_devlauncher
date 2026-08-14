@@ -147,6 +147,16 @@ function setupSystemHandlers() {
     return { success: true, tools: results, checkedAt: new Date().toISOString() }
   })
 
+  // Tail of main.log (JSON lines) for the Settings log viewer. The renderer
+  // never gets the raw file path, only the last N lines.
+  handle('get-main-log', async (event, limit = 500) => {
+    const safeLimit = Number.isInteger(limit) ? Math.min(Math.max(limit, 10), 5000) : 500
+    const logPath = path.join(app.getPath('userData'), 'logs', 'main.log')
+    const text = await readTextIfExists(logPath)
+    const lines = (text || '').split(/\r?\n/).filter(Boolean)
+    return { success: true, lines: lines.slice(-safeLimit) }
+  })
+
   // Export a support bundle: versions + config + health + redacted projects +
   // main.log tail, saved via the native save dialog.
   handle('export-diagnostics', async () => {
