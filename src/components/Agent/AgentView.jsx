@@ -55,9 +55,17 @@ export default function AgentView({ projects, initialProjectId = null, onOpenPro
     if (selectedProjectId) loadSessions(selectedProjectId);
   }, [selectedProjectId, loadSessions]);
 
-  const selectProject = (project) => {
+  // Clicking a project name only expands/collapses its session list — it does
+  // NOT open the chat. The chat opens when a session (or New session) is picked,
+  // so a stray click can never start an invisible, un-resumable conversation.
+  const toggleProject = (project) => {
+    if (selectedProjectId === project.id) {
+      setSelectedProjectId(null);
+      setActiveSession(null);
+      return;
+    }
     setSelectedProjectId(project.id);
-    setActiveSession(null);
+    setActiveSession(null); // the chat is per-project; switching resets it
     loadSessions(project.id);
   };
 
@@ -106,7 +114,18 @@ export default function AgentView({ projects, initialProjectId = null, onOpenPro
   };
 
   const handleSessionCreated = (sessionId, session) => {
-    setActiveSession(session || { id: sessionId });
+    const created = session || { id: sessionId };
+    setActiveSession(created);
+    // Surface implicitly-created sessions (first message sent in a fresh chat)
+    // in the sidebar immediately, so the conversation can be resumed after
+    // navigating away instead of silently living only in omp's registry.
+    if (created.id && selectedProjectId) {
+      setSessionsByProject((prev) => {
+        const list = prev[selectedProjectId] || [];
+        if (list.some((item) => item.id === created.id)) return prev;
+        return { ...prev, [selectedProjectId]: [...list, created] };
+      });
+    }
   };
 
   const sessionCount = Object.values(sessionsByProject).reduce((sum, list) => sum + list.length, 0);
@@ -202,11 +221,11 @@ export default function AgentView({ projects, initialProjectId = null, onOpenPro
                   <div
                     role="button"
                     tabIndex={0}
-                    onClick={() => selectProject(project)}
+                    onClick={() => toggleProject(project)}
                     onKeyDown={(event) => {
                       if (event.key === 'Enter' || event.key === ' ') {
                         event.preventDefault();
-                        selectProject(project);
+                        toggleProject(project);
                       }
                     }}
                     className={`w-full flex items-center gap-2 px-2.5 py-2 rounded-lg text-left cursor-pointer transition-colors ${
@@ -322,14 +341,18 @@ export default function AgentView({ projects, initialProjectId = null, onOpenPro
 
         {/* Chat */}
         <div className="flex-1 min-w-0 flex flex-col min-h-0 relative">
-          {!selectedProject ? (
+          {!selectedProject || !activeSession ? (
             <div className="flex-1 flex flex-col items-center justify-center bg-base gap-3">
               <div className="w-16 h-16 rounded-2xl bg-surface-2 border border-border flex items-center justify-center text-ink-faint">
                 <Icon name="messageSquare" size={26} />
               </div>
-              <p className="text-base font-semibold text-ink-soft">Select a project to start chatting</p>
+              <p className="text-base font-semibold text-ink-soft">
+                {!selectedProject ? 'Select a project to start chatting' : 'Select a session to continue'}
+              </p>
               <p className="text-sm text-ink-faint max-w-sm text-center leading-relaxed">
-                Sessions are grouped per project — pick one from the list to begin a conversation with the coding agent.
+                {!selectedProject
+                  ? 'Sessions are grouped per project — pick one from the list to begin a conversation with the coding agent.'
+                  : 'Pick an existing session from the list, or start a new one — a conversation always belongs to a session.'}
               </p>
             </div>
           ) : (
