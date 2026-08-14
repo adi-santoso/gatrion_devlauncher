@@ -8,8 +8,8 @@ Dokumen ini berisi rencana perbaikan DevLauncher berdasarkan analisa kode saat i
 |---|---|
 | Ukuran kode | ±20.900 baris (src + electron). File terbesar: `AgentChat.jsx` 1.787 baris, `App.jsx` 1.096, `ProcessManager.js` 1.059, `ipcRenderer.js` 840 |
 | Kualitas kode | Lint: **0 error, 0 warning** (sejak P0: `eslint-plugin-react` + config JSX benar, deps/import yang tidak terpakai dibersihkan) |
-| Test | 13 test CLI (Node) + 148 test Vitest + 4 e2e Playwright. **Coverage ±31% lines** |
-| Bundle | Satu chunk renderer **837 kB** (216 kB gzip) — di atas ambang warning Vite (500 kB) |
+| Test | 13 test CLI (Node) + 178 test Vitest + 4 e2e Playwright. **Coverage ±36% lines** |
+| Bundle | **Code splitting aktif**: main chunk 313 kB (96 kB gzip) + chunk per view (Dashboard/Projects/Settings/Agent/Detail/Terminal). Tidak ada lagi warning Vite >500 kB |
 | Security | Sudah kuat: contextIsolation, CSP, `assertTrustedIpcEvent`, allowlist field, secret env dimask. Belum ada schema validation terpusat per channel |
 | Main process | **Single instance lock** + **error capture** (main & renderer → main.log) sudah ada sejak P0. Belum ada **auto-update**, **crash report**, atau **global shortcut** |
 | Platform | Windows x64 saja; macOS/Linux belum diuji |
@@ -37,7 +37,7 @@ Dokumen ini berisi rencana perbaikan DevLauncher berdasarkan analisa kode saat i
 |---|---|---|---|
 | ~~**Single instance lock**~~ → **selesai**: `app.requestSingleInstanceLock()` + focus/restore window pada `second-instance` | P0 ✅ | S | Hilangkan race process/port/PTY yang susah direproduksi |
 | ~~Tangkap error renderer + `unhandledRejection`~~ → **selesai**: `window.onerror`/`unhandledrejection` → channel `renderer-error` → main.log; `uncaughtException`/`unhandledRejection` main juga di-log. Dialog "Laporkan masalah" belum ada | P0 ✅ | S | Masalah user bisa didiagnosis tanpa DevTools |
-| Lengkapi auto-restart child process dengan backoff (config `autoRestart` sudah ada di schema) | P1 | S | Project crash tidak menghentikan workflow |
+| ~~Lengkapi auto-restart child process dengan backoff~~ → **selesai**: exponential backoff (`delay × 2^n`) + `maxRetries` + tunggu port bebas sudah ada di `maybeAutoRestart`; kini **terverifikasi via vitest** (test backoff: delay 100/200/400 ms, cap retries, disabled) | P1 ✅ | S | Project crash tidak menghentikan workflow |
 | Naikkan coverage ke 50–60% untuk path kritis: ProcessManager, StorageManager, OmpManager, preload/security | P1 | M | Regression test lebih percaya diri |
 | E2E di luar smoke: add project → start → log → stop; agent chat (mock omp); persistensi settings | P1 | M | Flow utama teruji otomatis |
 | Verifikasi rotasi log main process + viewer log di Settings | P2 | S | Support lebih mudah |
@@ -46,9 +46,9 @@ Dokumen ini berisi rencana perbaikan DevLauncher berdasarkan analisa kode saat i
 
 | Item | Prioritas | Effort | Dampak |
 |---|---|---|---|
-| Code splitting renderer: `React.lazy` per view (Dashboard, Projects, Settings, Agent, Detail) — potong chunk 837 kB | P0/P1 | M | Startup & memory turun |
+| ~~Code splitting renderer~~ → **selesai**: `React.lazy` + `Suspense` per view (Dashboard, Projects, Settings, Agent, Detail, TerminalWorkspace). Chunk 838 kB → main 313 kB + per-view; xterm (284 kB) tidak lagi memblokir startup | P0/P1 ✅ | M | Startup & memory turun |
 | Virtualisasi list log & percakapan (project dengan log puluhan ribu baris) | P1 | M | Scroll tetap halus |
-| Throttle/batch update resource CPU/mem agar tidak memicu re-render storm | P1 | S | Dashboard stabil saat banyak project |
+| ~~Throttle/batch update resource CPU/mem~~ → **selesai** (sudah ada, kini terverifikasi): backend throttle `tasklist` 5 s/project + skip in-flight, renderer poll 4 s hanya untuk project running, dan hanya notify saat nilai berubah — tidak ada re-render storm | P1 ✅ | S | Dashboard stabil saat banyak project |
 | Global shortcut (mis. `Ctrl+Shift+Space`) untuk summon window dari tray | P2 | S | Akses cepat dari mana saja |
 | Theme: tambah opsi auto-follow system (dark/light sudah ada) | P2 | S | Default lebih nyaman |
 
@@ -56,9 +56,9 @@ Dokumen ini berisi rencana perbaikan DevLauncher berdasarkan analisa kode saat i
 
 | Item | Prioritas | Effort | Dampak |
 |---|---|---|---|
-| Schema validation terpusat per channel IPC (payload shape divalidasi di satu tempat) | P1 | M | Defence-in-depth di atas allowlist |
+| Schema validation terpusat per channel IPC — **sebagian ✅**: `electron/utils/ipcValidation.js` memvalidasi payload channel terminal (`input` di-cap 64 kB, `resize` bounds, `kill`) dan process (`stop-project` force boolean, `stop-custom-command` runId, `start-all-projects` id array non-empty) dengan 11 test; handler lain tetap punya validasi per-argumen + `projectSchema` | P1 | M | Defence-in-depth di atas allowlist |
 | ~~`npm audit` di CI~~ → **selesai** (audit 0 vuln, undici/tar di-patch; dependabot menyusul) | P1 ✅ | S | CVE cepat terdeteksi |
-| Test: pastikan secret env tidak pernah masuk log/diagnostics (sudah dimask di UI) | P1 | S | Jaga komitmen yang sudah ada |
+| ~~Test: pastikan secret env tidak pernah masuk log/diagnostics~~ → **selesai**: regression test vitest memulai project dengan env ber-secret dan memastikan nilai secret tidak muncul di log buffered, callback `onLog`, maupun file log yang dipersist | P1 ✅ | S | Jaga komitmen yang sudah ada |
 | Code signing certificate untuk distribusi | P2 | M | SmartScreen tidak menghalangi |
 
 ## 5. Product & Fitur (nilai tinggi)
@@ -105,7 +105,7 @@ Checklist yang harus terpenuhi sebelum versi pertama benar-benar dirilis:
 
 1. **Minggu 1 (selesai ✅)** — semua P0: lint 0 warning, single instance lock, error capture, CI typecheck + audit + gate coverage.
 2. **Minggu 2–4** — P1 code quality: pecah `AgentChat.jsx`/`App.jsx`, seragamkan IPC, TypeScript electron.
-3. **Minggu 5–8** — P1 reliability & performance: coverage path kritis, e2e flow, code splitting.
+3. **Minggu 5–8** — P1 reliability & performance: **coverage path kritis naik ke 35.7% lines** (test ProcessManager backoff + secret masking, StorageManager, ipcSecurity, ipcValidation) **dan code splitting selesai**; tersisa: e2e non-smoke, virtualisasi log.
 4. **Minggu 9–12** — P1 product: auto-update, workspace search, agent cost tracking, diagnostics bundle.
 5. **Setelah itu** — P2: i18n, macOS/Linux, backup bundle, crash dump, dependabot.
 

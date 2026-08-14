@@ -1,6 +1,7 @@
 const { ipcMain } = require('electron');
 const os = require('os');
 const { assertTrustedIpcEvent } = require('../utils/ipcSecurity');
+const { assertPayload } = require('../utils/ipcValidation');
 
 let pty;
 try {
@@ -22,6 +23,7 @@ function setupTerminalHandlers(mainWindow) {
   ipcMain.handle('terminal-create', async (event, options = {}) => {
     try {
       assertTrustedIpcEvent(event);
+      assertPayload('terminal-create', [options]);
       if (!pty) {
         return { success: false, error: 'node-pty is not available' };
       }
@@ -62,6 +64,7 @@ function setupTerminalHandlers(mainWindow) {
   ipcMain.handle('terminal-input', async (event, id, data) => {
     try {
       assertTrustedIpcEvent(event);
+      assertPayload('terminal-input', [id, data]);
       const term = terminals.get(id);
       if (!term) return { success: false, error: 'Terminal not found' };
       term.write(String(data ?? ''));
@@ -74,6 +77,7 @@ function setupTerminalHandlers(mainWindow) {
   ipcMain.handle('terminal-resize', async (event, id, cols, rows) => {
     try {
       assertTrustedIpcEvent(event);
+      assertPayload('terminal-resize', [id, cols, rows]);
       const term = terminals.get(id);
       if (!term) return { success: false, error: 'Terminal not found' };
       if (Number.isInteger(cols) && Number.isInteger(rows) && cols > 0 && rows > 0) {
@@ -88,6 +92,7 @@ function setupTerminalHandlers(mainWindow) {
   ipcMain.handle('terminal-kill', async (event, id) => {
     try {
       assertTrustedIpcEvent(event);
+      assertPayload('terminal-kill', [id]);
       const term = terminals.get(id);
       if (term) {
         term.kill();

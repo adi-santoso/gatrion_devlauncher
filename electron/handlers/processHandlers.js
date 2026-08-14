@@ -1,6 +1,7 @@
 const { ipcMain } = require('electron')
 const { envVarsToObject } = require('../projectSchema')
 const { assertTrustedIpcEvent } = require('../utils/ipcSecurity')
+const { assertPayload } = require('../utils/ipcValidation')
 
 const portArguments = /(?:^|\s)(?:--port(?:=|\s+)|-p\s+)\d+\b/i
 const artisanServe = /(?:^|[\\/])artisan\s+serve\b/i
@@ -155,6 +156,7 @@ function setupProcessHandlers(processManager, storageManager, mainWindow) {
   // Stop a project
   secureHandle('stop-project', async (event, projectId, force = false) => {
     try {
+      assertPayload('stop-project', [projectId, force])
       const stopPromise = processManager.stopProcess(projectId, force)
       safeSend('process-status', projectId, processManager.getProcessStatus(projectId))
       const result = await stopPromise
@@ -230,6 +232,7 @@ function setupProcessHandlers(processManager, storageManager, mainWindow) {
   // options.delayMs (0-60000) staggers each start so dependencies (e.g. a DB)
   // get time to boot before the next project in the batch is launched.
   secureHandle('start-all-projects', async (event, projectIds, options) => {
+    assertPayload('start-all-projects', [projectIds, options])
     const rawDelay = Number(options?.delayMs)
     const delayMs = Number.isFinite(rawDelay) ? Math.max(0, Math.min(60000, Math.round(rawDelay))) : 0
     const projectList = await storageManager.loadProjects()
@@ -335,6 +338,7 @@ function setupProcessHandlers(processManager, storageManager, mainWindow) {
   // Stop a running custom command
   secureHandle('stop-custom-command', async (event, runId) => {
     try {
+      assertPayload('stop-custom-command', [runId])
       const result = await processManager.stopCustomCommand(runId, true)
       return { success: true, ...result }
     } catch (error) {

@@ -66,7 +66,10 @@ async function run() {
   assert.deepEqual(calls[2][2], expectedCommands)
 
   const injected = await handlers.get('start-all-projects')(event, [{ id: project.id, path: 'C:/bad' }])
-  assert.deepEqual(injected, [])
+  // Centralized payload validation rejects malformed projectIds outright
+  // instead of silently dropping them.
+  assert.equal(injected.success, false)
+  assert.match(injected.error, /non-empty strings/)
   assert.equal(calls.length, 3)
 
   const laravelProject = {

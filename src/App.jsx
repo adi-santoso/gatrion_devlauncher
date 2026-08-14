@@ -1,12 +1,15 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, lazy, Suspense } from 'react';
 import { MainLayout } from './components/Layout';
-import { DashboardView } from './components/Dashboard';
-import { ProjectsView } from './components/Projects';
-import { ProjectDetailView } from './components/ProjectDetail';
-import { SettingsView } from './components/Settings';
 import { LoadingSkeleton } from './components/States';
-import TerminalWorkspace from './components/TerminalWorkspace';
-import AgentView from './components/Agent/AgentView';
+
+// Views are code-split per route so the initial renderer bundle stays small.
+// Each chunk loads on first navigation and is cached by the browser afterwards.
+const DashboardView = lazy(() => import('./components/Dashboard').then((m) => ({ default: m.DashboardView })));
+const ProjectsView = lazy(() => import('./components/Projects').then((m) => ({ default: m.ProjectsView })));
+const ProjectDetailView = lazy(() => import('./components/ProjectDetail').then((m) => ({ default: m.ProjectDetailView })));
+const SettingsView = lazy(() => import('./components/Settings').then((m) => ({ default: m.SettingsView })));
+const TerminalWorkspace = lazy(() => import('./components/TerminalWorkspace'));
+const AgentView = lazy(() => import('./components/Agent/AgentView'));
 import {
   ProjectModal,
   ConfirmDialog,
@@ -892,6 +895,7 @@ function App() {
               }))}
             theme={config.theme}
           >
+        <Suspense fallback={<LoadingSkeleton />}>
         {/* Dashboard View */}
         {currentView === 'dashboard' && (
           <DashboardView
@@ -1022,6 +1026,7 @@ function App() {
         {currentView === 'settings' && (
           <SettingsView config={config} updateConfig={updateElectronConfig} onExportProjects={handleExportProjects} onImportProjects={handleImportProjects} />
         )}
+        </Suspense>
       </MainLayout>
 
       {/* Project Modal */}
