@@ -1,6 +1,6 @@
 # Roadmap TypeScript Rewrite — DevLauncher
 
-> Status: **belum dimulai** — dokumen perencanaan. Roadmap lama (P0/P1/P2) dinyatakan **selesai** per keputusan 14 Agu 2026; dokumen ini adalah arahan teknis untuk menulis ulang renderer ke TypeScript.
+> Status: **belum dimulai — keputusan final sudah dikunci (14 Agu 2026)**. Roadmap lama (P0/P1/P2) dinyatakan **selesai**; dokumen ini adalah arahan teknis untuk menulis ulang project ke TypeScript **penuh** — renderer dan main process.
 >
 > Prinsip utama: **strangler migration** — tidak ada big-bang rewrite. Kode baru ditulis TypeScript sejak hari pertama, kode lama dikonversi bertahap dari bawah ke atas (leaf → container), dan setiap fase berakhir dengan build + test + e2e hijau.
 
@@ -10,12 +10,12 @@
 |---|---|
 | File renderer (JS/JSX) | **120 file** (`utils` 12 · `hooks` 13 · `components` 90 · `i18n` 3 · `App.jsx` · `main.jsx`) |
 | File `.ts`/`.tsx` di src | **0** — mulai dari nol |
-| Main process | **32 file** sudah `// @ts-check` + `tsconfig.check.json` (`checkJs: true`) → `npm run typecheck` 0 error |
-| Toolchain | Vite 8 (esbuild: transpile TS native, **tanpa ubah config**) · Vitest (dukung TS) · `typescript@^7` · `@types/node` |
-| Yang belum ada | `@types/react`, `@types/react-dom`, tsconfig renderer, typescript-eslint |
+| Main process | **32 file** sudah `// @ts-check` + `tsconfig.check.json` (`checkJs: true`, `strict: false`) → `npm run typecheck` 0 error |
+| Toolchain | Vite 8 (esbuild) · Vitest (dukung TS) · `typescript@^7` · `@types/node` |
+| Yang belum ada | `@types/react`, `@types/react-dom`, tsconfig renderer, bundler main process, typescript-eslint |
 | File terbesar | `AgentChat.jsx` 1.446 baris · `ipcRenderer.js` 923 · `App.jsx` 949 · `SettingsView.jsx` 692 |
 | Safety net | **512 test Vitest** + **7 e2e Playwright** — jaring pengaman migrasi |
-| Runtime | Node (bukan Bun) — main process berjalan langsung `electron .` tanpa build step |
+| Runtime | Node (bukan Bun) — main process TS murni **butuh build step** (keputusan: Jalur B, dibangun) |
 
 ## Keputusan Arsitektur
 
@@ -23,36 +23,53 @@
 
 Vite/esbuild sudah men-transpile `.tsx`; biaya migrasi di renderer praktis nol. Ini sumber nilai utama: 120 file yang selama ini tanpa tipe, plus shape drift antar komponen (project, config, session) yang sudah mulai terasa.
 
-### 2. Main process → dua jalur, keputusan ditunda ke Fase 5
+### 2. Main process → TypeScript murni via bundler — KEPUTUSAN: **JALUR B (final)**
 
-| Jalur | Biaya | Efek |
-|---|---|---|
-| **A. Tetap `.js` + JSDoc `@ts-check`** (rekomendasi) | 0 | Sudah ter-cover tsc penuh hari ini; tanpa build step |
-| **B. TypeScript murni via bundler** (electron-vite / esbuild → `dist/`) | Menengah — ubah script dev, packaging, sourcemap | Sintaks TS asli di seluruh main process |
+Node/Electron tidak menjalankan `.ts` langsung, jadi main process TS murni menuntut pipeline build yang belum pernah ada. **Keputusan: diambil, penuh, tanpa kompromi** — bukan JSDoc.
 
-Node/Electron tidak menjalankan `.ts` langsung. Jalur B = menambahkan pipeline yang belum pernah ada (ini yang dilakukan Freebuff — tapi mereka memulai dengan Bun + build pipeline sejak awal). **Keputusan dibuat di Fase 5** berdasarkan kondisi riil saat itu; jalur A tidak menghalangi manfaat 90% dari tipe bersama di batas IPC.
+| Jalur | Status |
+|---|---|
+| A. Tetap `.js` + JSDoc `@ts-check` | ❌ Ditolak — "full serius" |
+| **B. TS murni via bundler → output CJS** | ✅ **DIPILIH** |
 
-### 3. Tipe bersama untuk batas IPC — KEPUTUSAN: YA, sejak Fase 1
+Konsekuensi yang harus diselesaikan di Fase 1:
 
-Renderer dan main process berkomunikasi lewat IPC; bentuk payloadnya (Project, Config, session, status) melintasi batas. **Satu sumber tipe** yang dipakai dua sisi — renderer lewat `import type`, main process lewat `@typedef {import(...)}`:
+- Pasang bundler untuk main + preload (**electron-vite** — rekomendasi; alternatif esbuild — lihat lampiran).
+- `package.json` `main` → output bundel (bukan `electron/main.js`).
+- Script `dev`/`build`/packaging berubah; `electron-builder` menyalin output bundel + `dist-react`.
+- Path `preload` (kini di `__dirname/preload.js`) dan cek `will-navigate` (loadFile `../dist-react/`) menyesuaikan lokasi output.
+- e2e + CI matrix 3 OS: jalankan dari output bundel (build main dulu sebelum launch).
+- 32 file electron dikonversi `.js` → `.ts` (sebagian besar sudah JSDoc penuh — konversi mekanis), `strict: true`.
+
+### 3. Tipe bersama untuk batas IPC — KEPUTUSAN: YA, TS-native dua sisi
+
+Renderer dan main process berkomunikasi lewat IPC; bentuk payloadnya (Project, Config, session, status) melintasi batas. **Satu sumber tipe** — dan karena main process kini juga TS, kedua sisi pakai `import type` langsung (tidak perlu lagi `@typedef`):
 
 ```
 src/types/shared.d.ts   ← Project, Config, PrayerConfig, Session, ProcessStatus, payload IPC
-     ↑ import type        ↑ @typedef import(...)
+     ↑ import type        ↑ import type
      │                    │
-  renderer (.tsx)      electron (.js + @ts-check)
+  renderer (.tsx)      electron (.ts — main process)
 ```
 
-Ini menutup gap terbesar tanpa menyentuh build main process.
+## Keputusan Final (menggantikan daftar pertanyaan terbuka)
+
+1. **Strictness — `strict: true` penuh sejak Fase 0, tidak bertahap.** Berlaku untuk `tsconfig.app.json` (renderer) dan tsconfig electron (main process). Bukan `strictNullChecks` dulu, bukan "naikkan per folder" — langsung penuh dari file pertama yang dikonversi. Konsekuensi: fase awal lebih lambat, tapi tidak ada pekerjaan ulang di akhir dan tidak ada dua gaya kode.
+2. **Main process — Jalur B, full TypeScript** (lihat Keputusan 2). Bundler dipasang di **Fase 1**, sebelum tipe bersama, agar tipe bersama langsung TS-native.
+3. **Kebijakan `any` — unknown-first, zero-`any` tanpa pembenaran:**
+   - **Utamakan `unknown` + narrowing** (type guard) — bukan `any`.
+   - `any` **dipersilahkan hanya** saat tipe benar-benar tidak diketahui: payload IPC dinamis, data JSON eksternal/plugin, nilai dari library tanpa tipe.
+   - Setiap `any` **wajib** diberi komentar pembenaran `// TODO(ts): <alasan>` — tidak ada `any` telanjang.
+   - Ditegakkan otomatis: `@typescript-eslint/no-explicit-any` (warn sejak Fase 0 → **error di Fase 6**).
 
 ## Prinsip Migrasi
 
 1. **Strangler** — file dikonversi satu per satu; tidak ada fase "konversi semua".
 2. **Bottom-up** — utils → hooks → komponen leaf → container → view. Komponen yang diimpor banyak dikonversi duluan.
 3. **New code TS sejak hari pertama** — aturan wajib dari Fase 0; file baru `.tsx`, bukan `.jsx`.
-4. **`any` di batas, bukan di dalam** — file JS yang belum dikonversi dianggap `any` saat diimpor dari TS (aman); `// TODO(ts): convert` sebagai penanda.
-5. **Hijau tiap fase** — lint, typecheck, 512+ test, build, 7 e2e; CI gate tetap.
-6. **Strict bertahap** — mulai `strict: false` (agar migrasi tidak macet), naikkan per folder setelah selesai.
+4. **`unknown` di batas, bukan `any`** — file JS yang belum dikonversi dianggap `any` saat diimpor dari TS (aman, sementara); di sisi keluar, tipe dipersempit dengan guard. Tidak ada `any` yang lolos tanpa `// TODO(ts)`.
+5. **Hijau tiap fase** — lint, typecheck (strict), 512+ test, build, 7 e2e; CI gate tetap.
+6. **Strict sejak awal** — `strict: true` di kedua tsconfig dari Fase 0; bukan lagi "bertahap".
 
 ## Aturan Arsitektur & Batas Ukuran File
 
@@ -63,7 +80,7 @@ Rewrite TypeScript adalah kesempatan merapikan struktur, bukan sekadar ganti sin
 ```
 src/types/        → domain types murni (tanpa logika) — shared.d.ts + per-domain
 src/utils/        → fungsi murni, tanpa React/side-effect (kecuali dibungkus), testable
-src/data/         → satu-satunya tempat panggilan IPC (ipcRenderer.ts) + parsing payload
+src/data/         → satu-satunya tempat panggilan IPC (per-domain: projects.ts, agent.ts, …) + parsing payload
 src/hooks/        → orkestrasi state & data (fetch, mutate, subscribe) — tanpa JSX
 src/components/
   Common/         → komponen presentasional murni (tanpa logika bisnis)
@@ -90,35 +107,43 @@ src/components/
 
 ## Fase Eksekusi
 
-### Fase 0 — Fondasi & aturan main (S · 1 hari)
+### Fase 0 — Fondasi: strict penuh & aturan main (S · 1–2 hari)
 
-- Tambah `@types/react`, `@types/react-dom` (dev-only, nol dampak runtime).
-- `tsconfig.app.json` untuk renderer: `module: ESNext`, `moduleResolution: bundler`, `jsx: react-jsx`, `allowJs: true`, `checkJs: false`, `lib: [ES2022, DOM]`, `noEmit`. `npm run typecheck` = `tsc -p tsconfig.check.json && tsc -p tsconfig.app.json`.
-- Aktifkan **eslint `max-lines`** (warn 400, skip blank/comment) + struktur folder `src/types`, `src/data`, dst. sesuai aturan arsitektur.
-- Verifikasi: file `.tsx` percontohan (mis. komponen kecil Common) terbaca tsc + build + test tetap hijau.
-- **Acceptance**: buat file TSX baru di src, `npm run typecheck` lulus, `npm run build` lulus, vitest lulus, `max-lines` warn 0 pada file baru.
+- Tambah `@types/react`, `@types/react-dom`, `typescript-eslint` (dev-only, nol dampak runtime).
+- `tsconfig.app.json` untuk renderer: **`strict: true`**, `module: ESNext`, `moduleResolution: bundler`, `jsx: react-jsx`, `allowJs: true`, `checkJs: false`, `lib: [ES2022, DOM]`, `noEmit`. `npm run typecheck` = `tsc -p tsconfig.check.json && tsc -p tsconfig.app.json`.
+- Aktifkan eslint: **`max-lines`** (warn 400, skip blank/comment) + **`@typescript-eslint/no-explicit-any`** (warn).
+- Struktur folder `src/types`, `src/data` sesuai aturan arsitektur.
+- Verifikasi: file `.tsx` percontohan (mis. komponen kecil Common) terbaca tsc **strict** + build + test tetap hijau.
+- **Acceptance**: file TSX baru di src lolos `npm run typecheck` (strict) + `npm run build` + vitest; `max-lines` warn 0 pada file baru.
 
-### Fase 1 — Tipe bersama batas IPC (M · 2–3 hari)
+### Fase 1 — Main process: bundler + TS murni (Jalur B) (L · 3–5 hari)
+
+- Pasang bundler (**electron-vite** — rekomendasi; alternatif esbuild, lihat lampiran di bawah).
+- `tsconfig.electron.json` **`strict: true`** (ganti `tsconfig.check.json`; `checkJs` tidak lagi diperlukan karena file jadi `.ts`).
+- Convert 32 file `electron/**.js` → `.ts` (mayoritas sudah JSDoc penuh — konversi mekanis; JSDoc diubah jadi sintaks tipe).
+- Rombak wiring: `package.json` `main` → output bundel; script `dev`/`build`/packaging; path `preload`; cek `will-navigate`; e2e + CI matrix 3 OS launch dari output bundel.
+- **Acceptance**: `npm run dev` dan hasil packaging berjalan dari output bundel; 512+ test + 7 e2e hijau di matrix 3 OS; typecheck electron strict 0 error.
+
+### Fase 2 — Tipe bersama batas IPC (M · 2–3 hari)
 
 - Buat `src/types/shared.d.ts`: `Project`, `ProjectCommand`, `Config` (+ sub: prayer, terminal, notifications, autoRestart, preview, agent), `Session` (agent), `ProcessStatus`, `LogEntry`, `Preset`, payload request/response tiap channel inti.
-- Sumber kebenaran: `electron/configSchema.js` (config), `projectHandlers.js` (project), `agentHandlers.js` (session), `processHandlers.js` (status).
-- Wire ke electron via `@typedef` di handler yang relevan; pastikan dua sisi dicek dengan definisi yang sama.
-- **Acceptance**: `channelRegistry.test.js` tetap lulus; error typecheck muncul saat payload renderer tidak cocok dengan kontrak main process.
+- Sumber kebenaran: `electron/configSchema.ts` (config), `projectHandlers.ts` (project), `agentHandlers.ts` (session), `processHandlers.ts` (status) — kini TS, jadi `import type` dua arah.
+- **Acceptance**: error typecheck muncul saat payload renderer tidak cocok dengan kontrak main process; seluruh handler test tetap hijau.
 
-### Fase 2 — Utils & lapisan data (M · 3–5 hari)
+### Fase 3 — Utils & lapisan data (M · 3–5 hari)
 
 Urutan: `ipcRenderer.js` (923 baris — fondasi, semua komponen bergantung padanya) → `costEstimate.js`, `prayerTimes.js` (sudah JSDoc, tinggal rename) → hook data: `useElectronConfig`, `useProjects`, `useProcesses`, `usePrayerTimes`, `useAppHooks`, `useToasts`, `useActivities`, `usePresets`.
 
-- `ipcRenderer.js` (923 baris) **dipecah saat konversi** ke `src/data/` per domain (`projects.ts`, `agent.ts`, `terminal.ts`, `config.ts`, …) sesuai aturan arsitektur — setiap wrapper `invoke` diberi tipe payload + return berdasarkan kontrak Fase 1; `index.ts` tipis sebagai facade. Efek terbesar ke seluruh app.
-- **Acceptance**: utils & hooks 100% TS, komponen masih JS tidak patah (impor `any` aman), tidak ada file data > 400 baris, typecheck 0 error.
+- `ipcRenderer.js` (923 baris) **dipecah saat konversi** ke `src/data/` per domain (`projects.ts`, `agent.ts`, `terminal.ts`, `config.ts`, …) sesuai aturan arsitektur — setiap wrapper `invoke` diberi tipe payload + return berdasarkan kontrak Fase 2; `index.ts` tipis sebagai facade. Efek terbesar ke seluruh app.
+- **Acceptance**: utils & hooks 100% TS, komponen masih JS tidak patah, tidak ada file data > 400 baris, typecheck strict 0 error.
 
-### Fase 3 — Komponen Common & Layout (M · 3–5 hari)
+### Fase 4 — Komponen Common & Layout (M · 3–5 hari)
 
 - `components/Common` (14): `Icon`, `Button`, `ToggleSwitch`, `AnimatedModal`, `VirtualList`, `ConfirmDialog`, dll — murni presentasional, tipe props mudah.
 - `components/Layout` (5): `Sidebar`, `TopBar`, `MainLayout`, `PrayerWidget`, `TerminalWorkspace`(stateful).
-- **Acceptance**: Common + Layout 100% TS; `MainLayout` dan `App.jsx` (masih JS) tidak patah.
+- **Acceptance**: Common + Layout 100% TS strict; `MainLayout` dan `App.jsx` (masih JS) tidak patah.
 
-### Fase 4 — View (L · 2–3 minggu, urutan berdasarkan ketergantungan)
+### Fase 5 — View (L · 2–3 minggu, urutan berdasarkan ketergantungan)
 
 | View | File | Catatan |
 |---|---|---|
@@ -130,30 +155,23 @@ Urutan: `ipcRenderer.js` (923 baris — fondasi, semua komponen bergantung padan
 | Terminal (1) | TerminalWorkspace | xterm typing |
 | **Agent (12)** | **AgentChat 1.446 baris** (terakhir) | Terbesar + 104 test — convert paling akhir; **wajib dipecah < 400 baris/file** saat konversi |
 
-**Acceptance per view**: file view `.tsx`, e2e view terkait tetap lulus (project lifecycle, settings, agent chat).
+**Acceptance per view**: file view `.tsx` (strict), e2e view terkait tetap lulus (project lifecycle, settings, agent chat).
 
-### Fase 5 — Main process: keputusan jalur (L · opsional)
+### Fase 6 — Pengetatan lanjutan & audit `any` (M · 1 minggu)
 
-- Evaluasi ulang: kalau Node/Electron men-stabilkan **type stripping** (TS erasable tanpa kompilasi — arah yang sedang berjalan di Node), jalur B bisa jadi gratis.
-- **Jalur A** (default): tutup dengan dokumentasi — main process tetap JSDoc, tipe bersama sudah menyambung dua sisi.
-- **Jalur B** (pilih): pasang bundler untuk main process (electron-vite atau esbuild bundle → `dist/main.cjs`), ubah `dev`/`dev:electron`/build/packaging, convert 32 file, CI matrix tetap 3 OS.
-- **Acceptance**: `electron .` di dev dan hasil packaging berjalan dari output bundel; seluruh handler test tetap hijau.
-
-### Fase 6 — Pengetatan & quality (M · 1 minggu)
-
-- `strict: true` bertahap per folder (mulai `strictNullChecks` — paling berdampak).
-- `noUnusedLocals`, `noUncheckedIndexedAccess` (opsional, bisa menyakitkan — putuskan per folder).
-- **typescript-eslint** — ganti/paralel aturan JS dengan aturan TS-aware (prefer `import type`, `consistent-type-imports`).
-- **Acceptance**: `strict` aktif minimal di `src/types`, `src/utils`, `src/hooks`; lint 0/0; typecheck 0 error.
+- **`@typescript-eslint/no-explicit-any` → error**; audit sisa `any` (target: hanya di batas data eksternal dengan `// TODO(ts)`).
+- `noUncheckedIndexedAccess` — evaluasi per folder (mulai `src/types`, `src/utils`; bisa menyakitkan, putuskan per folder).
+- `noUnusedLocals`, `noUnusedParameters` aktif.
+- **Acceptance**: lint 0/0 (dengan no-explicit-any error), typecheck strict 0 error, tidak ada `any` tanpa komentar pembenaran.
 
 ## Metrik Selesai (Definition of Done)
 
-- [ ] **0 file `.js`/`.jsx` tersisa di `src/components`, `src/hooks`, `src/utils`, `src/i18n`** (kecuali `main.jsx` entry yang bisa ikut di-convert di akhir).
-- [ ] `tsconfig.app.json` aktif dengan `strict: true` di folder yang ditargetkan.
-- [ ] `npm run typecheck` 0 error (check.json electron + app.json renderer).
-- [ ] 512+ test Vitest + 7 e2e tetap hijau setelah fase terakhir.
-- [ ] Build `npm run build` menghasilkan output yang sama (struktur bundle tidak memburuk).
-- [ ] Tidak ada `any` tanpa `// TODO(ts)` di file yang sudah dikonversi.
+- [ ] **0 file `.js`/`.jsx` tersisa di `src/`** (termasuk `main.jsx` entry) **dan di `electron/`**.
+- [ ] `strict: true` aktif di kedua tsconfig sejak Fase 0 — tidak ada folder non-strict.
+- [ ] `npm run typecheck` 0 error (electron + renderer, dua config).
+- [ ] 512+ test Vitest + 7 e2e tetap hijau; CI matrix 3 OS hijau dari output bundel.
+- [ ] Build menghasilkan output yang sama fungsionalnya (struktur bundle tidak memburuk).
+- [ ] **Tidak ada `any` tanpa `// TODO(ts)`**; `no-explicit-any` error di lint.
 - [ ] **Tidak ada file baru/dikonversi > 400 baris**; lapisan dipatuhi (komponen tidak memanggil IPC langsung, tipe domain hanya di `src/types`).
 
 ## Risiko & Mitigasi
@@ -161,22 +179,26 @@ Urutan: `ipcRenderer.js` (923 baris — fondasi, semua komponen bergantung padan
 | Risiko | Mitigasi |
 |---|---|
 | `AgentChat.jsx` 1.446 baris + pola streaming kompleks | Convert **paling akhir**, dengan 104 test + e2e agent sebagai jaring; **wajib dipecah < 400 baris/file** (rule `max-lines` menegakkan) |
-| Pattern JS dinamis (event maps, dynamic import, ref lazy) | `any` bertanda `// TODO(ts)` dulu; jangan paksa generics di awal |
-| React 19 typing (memo/forwardRef generics, ref callbacks) | Mulai non-strict; contoh pola dari file yang sudah convert |
-| Migrasi setengah-setengah bikin dua gaya kode | Aturan wajib: file baru TS; konversi tidak pernah bolak-balik |
+| `strict: true` sejak awal memperlambat fase awal | Diterima sadar — harga "tidak setengah-setengah"; fase 0–1 kecil dan mekanis, sehingga pola strict dipelajari sebelum menyentuh file besar |
+| Rombakan bundler (Fase 1) merusak dev/e2e/packaging | Fase 1 punya acceptance eksplisit (dev + packaging jalan dari output bundel, e2e matrix 3 OS); perubahan wiring diisolasi di fase ini saja |
+| Pattern JS dinamis (event maps, dynamic import, ref lazy) | `unknown` + guard dulu; `any` berkomentar `// TODO(ts)` hanya bila tipe benar-benar tidak diketahui |
+| React 19 typing (memo/forwardRef generics, ref callbacks) | Contoh pola dari file yang sudah convert; `any` berkomentar bila typing React belum mendukung |
+| Migrasi setengah-setengah bikin dua gaya kode | Aturan wajib: file baru TS; konversi tidak pernah bolak-balik; strict sejak file pertama |
 | Churn git besar per file | Konversi per file terpisah (rename + tipe), bukan gabung dengan perubahan fitur |
-| Strictness bikin fase molor | Strict ditunda ke Fase 6; fase 0–5 pakai `strict: false` + tipe eksplisit |
 
-## Pertanyaan yang Perlu Diputuskan Sebelum Eksekusi
+## Lampiran: Pilihan bundler main process
 
-1. **Tingkat strictness akhir** — `strict: true` penuh, atau `strictNullChecks` saja? (Rekomendasi: `strictNullChecks` wajib, sisanya bertahap.)
-2. **Jalur main process** — A (JSDoc, default) atau B (bundler + TS murni)? Keputusan bisa ditunda ke Fase 5, tapi kalau sudah tahu ingin B, bundler sebaiknya dipasang **sebelum** Fase 1 (agar tipe bersama langsung TS-native).
-3. **Batasan `any`** — boleh di mana saja dengan TODO, atau zero-`any` di file terkecil (Common) sejak awal? (Rekomendasi: zero-`any` di Common, toleransi di Agent.)
+| Opsi | Cara kerja | Dev workflow | Churn | Catatan |
+|---|---|---|---|---|
+| **electron-vite** (rekomendasi) | Satu config `electron.vite.config.ts`; build → `out/main` + `out/preload` + `out/renderer`; `electron-vite dev` = renderer dev server + hot-restart main/preload | Satu perintah, TS-first, HMR penuh | Menengah — ganti `vite.config.js` (renderer plugin react+tailwind tetap jalan), script dev/build, e2e launch | Standar industri untuk Electron+Vite+React; paling "full serius" |
+| **esbuild** | Tambah script bundel `electron/main.ts` → `dist/main.cjs`; renderer tetap Vite terpisah | Dua tool (vite + esbuild), main pakai watch terpisah | Rendah — `vite.config.js` & `dist-react` tidak tersentuh | Churn minimal, tapi toolchain terbelah dua |
+| tsc compile (tanpa bundler) | `tsc` electron → `dist/` CJS, require eksternal dibiarkan | Butuh watch manual; lebih lambat | Rendah | Hanya jika ingin nol dependensi baru — kurang "serius" |
+
+Keputusan kecil terakhir sebelum Fase 1: pilih **electron-vite** (rekomendasi) atau esbuild.
 
 ## Estimasi Total
 
-- **Render minimum (Fase 0–4, main process jalur A)**: ±4–6 minggu paruh waktu, tanpa menghentikan pengembangan fitur (strangler bisa berjalan paralel).
-- **Dengan main process jalur B (Fase 5)**: +1–2 minggu.
-- **Dengan strict penuh (Fase 6)**: +1 minggu.
+- **Jalur penuh (Fase 0–6, strict sejak awal, main process Jalur B)**: ±7–10 minggu paruh waktu, jalan paralel dengan pengembangan fitur (strangler).
+- Perincian: Fase 0 (1–2 hari) · Fase 1 bundler+main TS (3–5 hari) · Fase 2 tipe bersama (2–3 hari) · Fase 3 utils+data (3–5 hari) · Fase 4 Common+Layout (3–5 hari) · Fase 5 views (2–3 minggu) · Fase 6 pengetatan (1 minggu).
 
-Setiap fase punya acceptance criteria sederhana: **"terverifikasi lewat typecheck + test + build"**, bukan "terlihat berjalan".
+Setiap fase punya acceptance criteria sederhana: **"terverifikasi lewat typecheck (strict) + test + build"**, bukan "terlihat berjalan".
