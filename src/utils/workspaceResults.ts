@@ -1,4 +1,13 @@
-export function summarizeWorkspaceStart(result, projectsToStart) {
+import type { ProcessStartResult } from '../data/processes'
+
+export interface WorkspaceSummary {
+  type: 'error' | 'warning' | 'success' | 'info'
+  message: string
+  started: number
+  failed: number
+}
+
+export function summarizeWorkspaceStart(result: ProcessStartResult[] | { success: boolean; error?: string } | null | undefined, projectsToStart: Array<{ id: string }>): WorkspaceSummary {
   if (!Array.isArray(result)) {
     return result?.error
       ? { type: 'error', message: `Workspace failed to start: ${result.error}`, started: 0, failed: 0 }
@@ -22,7 +31,7 @@ export function summarizeWorkspaceStart(result, projectsToStart) {
   return { type: 'info', message: 'All workspace projects are already running', started, failed }
 }
 
-export function getWorkspaceControlMode(projects, workspaceAction = 'idle') {
+export function getWorkspaceControlMode(projects: Array<{ id: string; status?: string }>, workspaceAction = 'idle'): string {
   if (workspaceAction === 'starting' || workspaceAction === 'stopping') return workspaceAction
   if (projects.length === 0) return 'empty'
 

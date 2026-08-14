@@ -6,8 +6,14 @@
  * do not recognize — estimates are indicative, never billing-accurate.
  */
 
+interface PricingTier {
+  match: RegExp
+  input: number
+  output: number
+}
+
 // Order matters: the first entry whose regex matches the model ref wins.
-const PRICING_TIERS = [
+const PRICING_TIERS: PricingTier[] = [
   { match: /anthropic\/claude.*(?:sonnet)/i, input: 3, output: 15 },
   { match: /anthropic\/claude.*(?:opus)/i, input: 15, output: 75 },
   { match: /anthropic\/claude.*(?:haiku)/i, input: 0.8, output: 4 },
@@ -22,36 +28,49 @@ const PRICING_TIERS = [
   { match: /meta\/llama/i, input: 0.25, output: 1 },
   { match: /mistral/i, input: 0.15, output: 0.6 },
   { match: /qwen/i, input: 0.2, output: 1.2 },
-];
+]
 
-const FALLBACK_TIER = { input: 1, output: 3 };
+const FALLBACK_TIER: PricingTier = { match: /.*/, input: 1, output: 3 }
 
-const findTier = (modelRef) =>
-  PRICING_TIERS.find((tier) => tier.match.test(modelRef || '')) || FALLBACK_TIER;
+const findTier = (modelRef: string | null | undefined): PricingTier =>
+  PRICING_TIERS.find((tier) => tier.match.test(modelRef || '')) || FALLBACK_TIER
+
+export interface TokenUsage {
+  prompt?: number
+  completion?: number
+  total?: number
+}
+
+export interface CostBreakdown {
+  input: number
+  output: number
+  total: number
+  inputPrice: number
+  outputPrice: number
+}
 
 /**
  * Estimate the USD cost of a turn.
- * @param {string|null|undefined} modelRef - e.g. "anthropic/claude-sonnet-4"
- * @param {{ prompt?: number, completion?: number, total?: number }} tokens
- * @returns {{ input: number, output: number, total: number, inputPrice: number, outputPrice: number }}
+ * @param modelRef - e.g. "anthropic/claude-sonnet-4"
+ * @param tokens - prompt/completion/total token counts
  */
-export function estimateCost(modelRef, { prompt = 0, completion = 0, total = 0 } = {}) {
-  const tier = findTier(modelRef);
+export function estimateCost(modelRef: string | null | undefined, { prompt = 0, completion = 0, total = 0 }: TokenUsage = {}): CostBreakdown {
+  const tier = findTier(modelRef)
   if (prompt > 0 || completion > 0) {
-    const input = (prompt / 1e6) * tier.input;
-    const output = (completion / 1e6) * tier.output;
-    return { input, output, total: input + output, inputPrice: tier.input, outputPrice: tier.output };
+    const input = (prompt / 1e6) * tier.input
+    const output = (completion / 1e6) * tier.output
+    return { input, output, total: input + output, inputPrice: tier.input, outputPrice: tier.output }
   }
   // No input/output breakdown (e.g. a cached turn): blend both rates.
-  const blended = (tier.input + tier.output) / 2;
-  const estimate = (total / 1e6) * blended;
-  return { input: 0, output: estimate, total: estimate, inputPrice: tier.input, outputPrice: tier.output };
+  const blended = (tier.input + tier.output) / 2
+  const estimate = (total / 1e6) * blended
+  return { input: 0, output: estimate, total: estimate, inputPrice: tier.input, outputPrice: tier.output }
 }
 
 /** Compact USD rendering: "$0.00", "<$0.01" for tiny amounts. */
-export function formatCost(usd) {
-  const value = Number(usd) || 0;
-  if (value <= 0) return '$0.00';
-  if (value < 0.005) return '<$0.01';
-  return `$${value.toFixed(2)}`;
+export function formatCost(usd: number): string {
+  const value = Number(usd) || 0
+  if (value <= 0) return '$0.00'
+  if (value < 0.005) return '<$0.01'
+  return `$${value.toFixed(2)}`
 }
