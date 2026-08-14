@@ -8,7 +8,7 @@ export default defineConfig({
     environment: 'jsdom',
     setupFiles: ['./tests/setup.js'],
     include: [
-      'src/**/*.{test,spec}.{js,jsx}', 
+      'src/**/*.{test,spec}.{js,jsx}',
       'electron/managers/__tests__/*.test.js',
       'electron/managers/__tests__/*.test.mjs',
       'electron/utils/__tests__/*.test.js',
@@ -22,7 +22,14 @@ export default defineConfig({
         'node_modules/**',
         'src/**/*.d.ts',
         'tests/cli/**',
-        '**/__tests__/**'
+        'tests/mocks/**',
+        '**/__tests__/**',
+        // Build artifacts, e2e specs and tool configs are not unit-testable
+        // app code — counting them as uncovered only dilutes the real number.
+        'dist-react/**',
+        'e2e/**',
+        '*.config.js',
+        '*.config.cjs',
       ],
       // Regression floor: fail CI if coverage drops below the current baseline
       // (set slightly under today's measured numbers to allow normal churn).

@@ -75,8 +75,12 @@ class PreviewManager {
     // Forward the project app's console output to the renderer so it can be
     // surfaced (e.g. logged alongside the process log stream).
     view.webContents.on('console-message', (event, level, message, line, sourceId) => {
-      // Electron 43 passes level as a numeric code (0-3), not a string.
-      const levelName = ['verbose', 'info', 'warning', 'error'][level] || 'info'
+      // Electron 43 passes level as a numeric code (0-3), older versions as a
+      // string — normalize both to a stable name.
+      const LEVEL_NAMES = ['verbose', 'info', 'warning', 'error']
+      const levelName = typeof level === 'number'
+        ? LEVEL_NAMES[level] || 'info'
+        : LEVEL_NAMES.includes(level) ? level : 'info'
       this.onConsoleMessage?.({
         projectId,
         level: levelName,

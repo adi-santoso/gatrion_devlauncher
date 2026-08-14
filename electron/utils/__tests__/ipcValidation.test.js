@@ -101,4 +101,80 @@ describe('assertPayload', () => {
   test('channels without rules are a no-op', () => {
     expect(() => assertPayload('some-unlisted-channel', ['anything', 42])).not.toThrow()
   })
+
+  // --- rules added when central validation was extended to every channel --
+
+  test('desktop channels enforce string urls/paths', () => {
+    expect(() => assertPayload('open-external-url', ['https://example.com'])).not.toThrow()
+    expect(() => assertPayload('open-external-url', [42])).toThrow(/must be a string/)
+    expect(() => assertPayload('reveal-in-explorer', ['C:\\x'])).not.toThrow()
+    expect(() => assertPayload('reveal-in-explorer', [''])).toThrow(/required/)
+  })
+
+  test('preview channels: bounds object required, zoom is a float', () => {
+    expect(() => assertPayload('preview-set-bounds', ['p1', { x: 0, y: 0, width: 800, height: 600 }])).not.toThrow()
+    expect(() => assertPayload('preview-set-bounds', ['p1', null])).toThrow(/must be an object/)
+    expect(() => assertPayload('preview-zoom', ['p1', 1.25])).not.toThrow()
+    expect(() => assertPayload('preview-zoom', ['p1', '1.25'])).toThrow(/must be a number/)
+    expect(() => assertPayload('preview-show', [undefined])).not.toThrow()
+  })
+
+  test('check-port-conflict requires an integer in range', () => {
+    expect(() => assertPayload('check-port-conflict', [3000])).not.toThrow()
+    expect(() => assertPayload('check-port-conflict', ['3000'])).toThrow(/must be an integer/)
+    expect(() => assertPayload('check-port-conflict', [0])).toThrow(/>= 1/)
+    expect(() => assertPayload('check-port-conflict', [70000])).toThrow(/<= 65535/)
+  })
+
+  test('get-logs / git-log limit is an optional bounded integer', () => {
+    expect(() => assertPayload('get-logs', ['p1'])).not.toThrow()
+    expect(() => assertPayload('get-logs', ['p1', 500])).not.toThrow()
+    expect(() => assertPayload('get-logs', ['p1', '500'])).toThrow(/must be an integer/)
+    expect(() => assertPayload('git-log', ['/tmp', 150])).toThrow(/<= 100/)
+  })
+
+  test('git file lists are string arrays (empty = stage all)', () => {
+    expect(() => assertPayload('git-stage', ['/tmp', []])).not.toThrow()
+    expect(() => assertPayload('git-stage', ['/tmp', ['a.js', 'b.js']])).not.toThrow()
+    expect(() => assertPayload('git-stage', ['/tmp', 'a.js'])).toThrow(/must be an array/)
+    expect(() => assertPayload('git-stage', ['/tmp', ['a.js', 5]])).toThrow(/non-empty strings/)
+  })
+
+  test('npm-update allows a null package name (update all)', () => {
+    expect(() => assertPayload('npm-update', ['/tmp', null])).not.toThrow()
+    expect(() => assertPayload('npm-update', ['/tmp', 'lodash'])).not.toThrow()
+    expect(() => assertPayload('npm-update', ['/tmp', 42])).toThrow(/must be a string/)
+  })
+
+  test('workspace-search-files bounds the query and optional path list', () => {
+    expect(() => assertPayload('workspace-search-files', ['app', undefined])).not.toThrow()
+    expect(() => assertPayload('workspace-search-files', ['app', ['/p1', '/p2']])).not.toThrow()
+    expect(() => assertPayload('workspace-search-files', ['x'.repeat(101)])).toThrow(/too long/)
+  })
+
+  test('add-project requires an object payload', () => {
+    expect(() => assertPayload('add-project', [{ name: 'x', path: '/tmp' }])).not.toThrow()
+    expect(() => assertPayload('add-project', ['name'])).toThrow(/must be an object/)
+  })
+
+  test('omp-update-session-tokens: integer tokens, optional non-negative cost', () => {
+    expect(() => assertPayload('omp-update-session-tokens', ['p1', 's1', 3500, 0.015])).not.toThrow()
+    expect(() => assertPayload('omp-update-session-tokens', ['p1', 's1', 3500, null])).not.toThrow()
+    expect(() => assertPayload('omp-update-session-tokens', ['p1', 's1', '3500'])).toThrow(/must be an integer/)
+    expect(() => assertPayload('omp-update-session-tokens', ['p1', 's1', -1])).toThrow(/>= 0/)
+    expect(() => assertPayload('omp-update-session-tokens', ['p1', 's1', 10, -0.5])).toThrow(/>= 0/)
+  })
+
+  test('omp-chat enforces message length and optional options object', () => {
+    expect(() => assertPayload('omp-chat', ['p1', '/tmp', 'hello', { images: [] }])).not.toThrow()
+    expect(() => assertPayload('omp-chat', ['p1', '/tmp', 'hello'])).not.toThrow()
+    expect(() => assertPayload('omp-chat', ['p1', '/tmp', 'x'.repeat(20001)])).toThrow(/too long/)
+    expect(() => assertPayload('omp-chat', ['p1', '/tmp', 'hello', 'bad'])).toThrow(/must be an object/)
+  })
+
+  test('omp channels tolerate an omitted optional cwd', () => {
+    expect(() => assertPayload('omp-abort', ['p1'])).not.toThrow()
+    expect(() => assertPayload('omp-get-models', ['p1', undefined])).not.toThrow()
+    expect(() => assertPayload('omp-set-model', ['p1', undefined, 'anthropic', 'claude-sonnet-4'])).not.toThrow()
+  })
 })
