@@ -275,6 +275,12 @@ function setupProjectHandlers(storageManager, processManager, mainWindow) {
 
   // Browse folder
   handle('browse-folder', async () => {
+    // E2E test hook: bypass the native folder picker so the "add project" flow
+    // can be driven deterministically (the OS dialog cannot be automated).
+    if (process.env.NODE_ENV === 'test' && process.env.DEVLAUNCHER_TEST_FOLDER) {
+      return { success: true, path: process.env.DEVLAUNCHER_TEST_FOLDER }
+    }
+
     const result = await dialog.showOpenDialog({
       properties: ['openDirectory'],
       title: 'Select Project Folder',

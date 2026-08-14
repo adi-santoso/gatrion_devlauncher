@@ -34,6 +34,14 @@ process.on('unhandledRejection', (reason) => {
   Logger.error('main', 'Unhandled promise rejection', { reason: reason?.stack || String(reason) })
 })
 
+// E2E test hook: point the app at an isolated userData directory so tests never
+// touch real workspace data (projects, config, agent sessions). Must be set
+// before the single-instance lock (keyed on userData) and before any manager
+// reads app paths.
+if (process.env.DEVLAUNCHER_USER_DATA) {
+  app.setPath('userData', process.env.DEVLAUNCHER_USER_DATA)
+}
+
 // Single-instance enforcement — launching the app again focuses the existing
 // window instead of starting a second copy (duplicate tray icons, double
 // process monitoring, port conflicts, etc.).

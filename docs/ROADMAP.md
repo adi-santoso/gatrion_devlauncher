@@ -8,7 +8,7 @@ Dokumen ini berisi rencana perbaikan DevLauncher berdasarkan analisa kode saat i
 |---|---|
 | Ukuran kode | ±21.000 baris (src + electron). File terbesar: `AgentChat.jsx` 1.413 baris (dipecah dari 1.787: utils + ToolCard + ChatComposer + ChatHeader diekstrak), `App.jsx` 912 (orchestration pindah ke useToasts/useActivities/usePresets), `ProcessManager.js` 863 (processTree/portCheck/logStore diekstrak), `ipcRenderer.js` 840 |
 | Kualitas kode | Lint: **0 error, 0 warning** (sejak P0: `eslint-plugin-react` + config JSX benar, deps/import yang tidak terpakai dibersihkan) |
-| Test | 13 test CLI (Node) + **223 test Vitest** + 4 e2e Playwright. **Coverage ±38.4% lines** |
+| Test | 13 test CLI (Node) + **273 test Vitest** + **7 e2e Playwright** (smoke + flow agent/process/settings via mock omp & userData isolasi). **Coverage ±43% lines** |
 | Bundle | **Code splitting aktif**: main chunk 313 kB (96 kB gzip) + chunk per view (Dashboard/Projects/Settings/Agent/Detail/Terminal). Tidak ada lagi warning Vite >500 kB |
 | Security | Sudah kuat: contextIsolation, CSP, `assertTrustedIpcEvent`, allowlist field, secret env dimask. Belum ada schema validation terpusat per channel |
 | Main process | **Single instance lock** + **error capture** (main & renderer → main.log) sudah ada sejak P0. Belum ada **auto-update**, **crash report**, atau **global shortcut** |
@@ -38,8 +38,8 @@ Dokumen ini berisi rencana perbaikan DevLauncher berdasarkan analisa kode saat i
 | ~~**Single instance lock**~~ → **selesai**: `app.requestSingleInstanceLock()` + focus/restore window pada `second-instance` | P0 ✅ | S | Hilangkan race process/port/PTY yang susah direproduksi |
 | ~~Tangkap error renderer + `unhandledRejection`~~ → **selesai**: `window.onerror`/`unhandledrejection` → channel `renderer-error` → main.log; `uncaughtException`/`unhandledRejection` main juga di-log. Dialog "Laporkan masalah" belum ada | P0 ✅ | S | Masalah user bisa didiagnosis tanpa DevTools |
 | ~~Lengkapi auto-restart child process dengan backoff~~ → **selesai**: exponential backoff (`delay × 2^n`) + `maxRetries` + tunggu port bebas sudah ada di `maybeAutoRestart`; kini **terverifikasi via vitest** (test backoff: delay 100/200/400 ms, cap retries, disabled) | P1 ✅ | S | Project crash tidak menghentikan workflow |
-| Naikkan coverage ke 50–60% untuk path kritis: ProcessManager, StorageManager, OmpManager, preload/security | P1 | M | Regression test lebih percaya diri |
-| E2E di luar smoke: add project → start → log → stop; agent chat (mock omp); persistensi settings | P1 | M | Flow utama teruji otomatis |
+| ~~Naikkan coverage ke 50–60% untuk path kritis~~ → **sebagian ✅**: OmpManager 0 → **83%** (16 test via mock RPC fixture `tests/fixtures/mock-omp-rpc.js`), ProjectDetector 0 → **~90%** (10 test), StorageManager 84%, ProcessManager 49%; total **±43%** (dari 38.4%) | P1 | M | Regression test lebih percaya diri |
+| ~~E2E di luar smoke~~ → **selesai**: add project (modal + browse test-hook) → start → log stream → stop; agent chat end-to-end pakai mock omp (session baru, prompt, reply streaming, token badge + persist); persistensi settings lintas restart — **7 test Playwright** | P1 | M | Flow utama teruji otomatis |
 | Verifikasi rotasi log main process + viewer log di Settings | P2 | S | Support lebih mudah |
 
 ## 3. Performance & UX

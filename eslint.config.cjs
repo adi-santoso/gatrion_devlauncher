@@ -36,7 +36,7 @@ module.exports = [
     },
   },
   {
-    files: ['electron/**/*.js', 'tests/cli/**/*.js', '*.cjs', 'playwright.config.js', 'e2e/**/*.js'],
+    files: ['electron/**/*.js', 'tests/cli/**/*.js', 'tests/fixtures/**/*.js', '*.cjs', 'playwright.config.js', 'e2e/**/*.js'],
     languageOptions: {
       ecmaVersion: 2022,
       sourceType: 'commonjs',

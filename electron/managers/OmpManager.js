@@ -23,6 +23,10 @@ class OmpManager extends EventEmitter {
   constructor(userDataDir) {
     super()
     this.userDataDir = userDataDir
+    // Test/CI hook: when set, RPC processes are spawned as `node <script>`
+    // instead of the real omp binary, so the JSON-lines protocol can be
+    // driven deterministically (vitest + Playwright e2e with a mock agent).
+    this.rpcMockScript = process.env.OMP_RPC_MOCK_SCRIPT || null
     this.managedBinary = path.join(userDataDir, 'omp', 'omp.exe')
     this.binaryPath = null
     this.version = null
@@ -87,6 +91,11 @@ class OmpManager extends EventEmitter {
 
   /** @returns {Promise<{installed: boolean, version: string|null, binaryPath: string|null, configured: boolean}>} */
   async getStatus() {
+    // Mock mode (e2e/vitest): report a fully ready agent so the UI never
+    // blocks on the real omp install or provider config.
+    if (this.rpcMockScript) {
+      return { installed: true, version: 'mock', binaryPath: null, configured: true }
+    }
     const configured = await this.isConfigured()
     return {
       installed: Boolean(this.binaryPath),
@@ -178,7 +187,7 @@ class OmpManager extends EventEmitter {
       this._touch(projectId)
       return Promise.resolve(entry)
     }
-    if (!this.binaryPath) {
+    if (!this.binaryPath && !this.rpcMockScript) {
       return Promise.reject(new Error('omp is not installed'))
     }
     entry = {
@@ -196,7 +205,16 @@ class OmpManager extends EventEmitter {
     return new Promise((resolve, reject) => {
       let settled = false
       let startupError = null
-      const child = spawn(this.binaryPath, ['--mode', 'rpc'], {
+      // Mock mode: a Node process runs the fixture script and ignores the real
+      // binary. Under Electron, process.execPath is electron.exe (which cannot
+      // run plain Node scripts), so resolve a real Node binary: npm's
+      // npm_node_execpath when launched via npm, else 'node' from PATH. Under
+      // plain Node (vitest) process.execPath is already correct.
+      const isElectron = Boolean(process.versions && process.versions.electron)
+      const nodeBinary = isElectron ? (process.env.npm_node_execpath || 'node') : process.execPath
+      const binary = this.rpcMockScript ? nodeBinary : this.binaryPath
+      const args = this.rpcMockScript ? [this.rpcMockScript, '--mode', 'rpc'] : ['--mode', 'rpc']
+      const child = spawn(binary, args, {
         cwd: entry.cwd,
         env: process.env,
         windowsHide: true,

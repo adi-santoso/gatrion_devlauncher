@@ -14,7 +14,8 @@ DevLauncher uses **Vitest** for unit testing React components and hooks, plus No
 │   ├── test-schema.js
 │   └── ...
 ├── tests/setup.js               # Vitest setup file (globals + mock resets)
-├── e2e/                         # Playwright smoke tests
+├── e2e/                         # Playwright tests (smoke + flow: project lifecycle, settings, agent chat)
+├── tests/fixtures/               # Mock omp RPC (JSON-lines) dipakai unit test OmpManager + e2e agent
 ├── vitest.config.js             # Vitest configuration
 └── playwright.config.js         # Playwright configuration
 ```
