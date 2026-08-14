@@ -54,14 +54,49 @@ Ini menutup gap terbesar tanpa menyentuh build main process.
 5. **Hijau tiap fase** — lint, typecheck, 512+ test, build, 7 e2e; CI gate tetap.
 6. **Strict bertahap** — mulai `strict: false` (agar migrasi tidak macet), naikkan per folder setelah selesai.
 
+## Aturan Arsitektur & Batas Ukuran File
+
+Rewrite TypeScript adalah kesempatan merapikan struktur, bukan sekadar ganti sintaks. Aturan ini **berlaku untuk semua file baru sejak Fase 0**, dan **wajib dipatuhi saat konversi file lama** — konversi = kesempatan memecah, bukan refactor terpisah.
+
+### Lapisan (Clean Architecture ala React)
+
+```
+src/types/        → domain types murni (tanpa logika) — shared.d.ts + per-domain
+src/utils/        → fungsi murni, tanpa React/side-effect (kecuali dibungkus), testable
+src/data/         → satu-satunya tempat panggilan IPC (ipcRenderer.ts) + parsing payload
+src/hooks/        → orkestrasi state & data (fetch, mutate, subscribe) — tanpa JSX
+src/components/
+  Common/         → komponen presentasional murni (tanpa logika bisnis)
+  <View>/         → komposisi view; tiap komponen fokus satu tanggung jawab
+```
+
+**Aliran dependensi hanya ke bawah** (bukan sirkular):
+
+1. **Komponen tidak boleh memanggil IPC langsung** — selalu lewat hooks/data layer.
+2. **Hooks tidak merender UI** — hanya mengembalikan state/handler.
+3. **Logika bisnis diekstrak ke utils** — murni & testable (pola yang sudah dipakai: `agentChatUtils`, `costEstimate`, `prayerTimes`).
+4. **Tipe domain hanya di `src/types`** — komponen/hooks/utils tidak mendefinisikan tipe domain sendiri (impor dari sana).
+5. **View adalah komposisi** — satu view = 1 file container tipis + komponen anak fokus; tidak ada file view raksasa.
+
+### Batas ukuran file (hard rule)
+
+- **Maksimal 400 baris per file** (target nyaman 300; hitungan tanpa blank line & komentar).
+- Lebih dari itu → **wajib dipecah saat konversi** — bukan dibiarkan, bukan refactor terpisah.
+- **Penegakan otomatis**: aturan eslint `max-lines` (warn 400, skip blank/comment) aktif sejak Fase 0; menjadi error di Fase 6.
+- File eksisting jadi contoh wajib pecah saat konversi:
+  - `AgentChat.jsx` 1.446 baris → dipecah saat konversi menjadi beberapa komponen + helper (< 400 per file).
+  - `ipcRenderer.js` 923 baris → dipecah per domain channel (`data/projects.ts`, `data/agent.ts`, `data/terminal.ts`, …) di bawah satu folder `src/data/`.
+  - `App.jsx` 949 baris → container tipis; orchestration tetap di hooks.
+
 ## Fase Eksekusi
 
 ### Fase 0 — Fondasi & aturan main (S · 1 hari)
 
 - Tambah `@types/react`, `@types/react-dom` (dev-only, nol dampak runtime).
 - `tsconfig.app.json` untuk renderer: `module: ESNext`, `moduleResolution: bundler`, `jsx: react-jsx`, `allowJs: true`, `checkJs: false`, `lib: [ES2022, DOM]`, `noEmit`. `npm run typecheck` = `tsc -p tsconfig.check.json && tsc -p tsconfig.app.json`.
+- Aktifkan **eslint `max-lines`** (warn 400, skip blank/comment) + struktur folder `src/types`, `src/data`, dst. sesuai aturan arsitektur.
 - Verifikasi: file `.tsx` percontohan (mis. komponen kecil Common) terbaca tsc + build + test tetap hijau.
-- **Acceptance**: buat file TSX baru di src, `npm run typecheck` lulus, `npm run build` lulus, vitest lulus.
+- **Acceptance**: buat file TSX baru di src, `npm run typecheck` lulus, `npm run build` lulus, vitest lulus, `max-lines` warn 0 pada file baru.
 
 ### Fase 1 — Tipe bersama batas IPC (M · 2–3 hari)
 
@@ -74,8 +109,8 @@ Ini menutup gap terbesar tanpa menyentuh build main process.
 
 Urutan: `ipcRenderer.js` (923 baris — fondasi, semua komponen bergantung padanya) → `costEstimate.js`, `prayerTimes.js` (sudah JSDoc, tinggal rename) → hook data: `useElectronConfig`, `useProjects`, `useProcesses`, `usePrayerTimes`, `useAppHooks`, `useToasts`, `useActivities`, `usePresets`.
 
-- `ipcRenderer.js` → `ipcRenderer.ts`: setiap wrapper `invoke` diberi tipe payload + return berdasarkan kontrak Fase 1 — efek terbesar ke seluruh app.
-- **Acceptance**: utils & hooks 100% TS, komponen masih JS tidak patah (impor `any` aman), typecheck 0 error.
+- `ipcRenderer.js` (923 baris) **dipecah saat konversi** ke `src/data/` per domain (`projects.ts`, `agent.ts`, `terminal.ts`, `config.ts`, …) sesuai aturan arsitektur — setiap wrapper `invoke` diberi tipe payload + return berdasarkan kontrak Fase 1; `index.ts` tipis sebagai facade. Efek terbesar ke seluruh app.
+- **Acceptance**: utils & hooks 100% TS, komponen masih JS tidak patah (impor `any` aman), tidak ada file data > 400 baris, typecheck 0 error.
 
 ### Fase 3 — Komponen Common & Layout (M · 3–5 hari)
 
@@ -93,7 +128,7 @@ Urutan: `ipcRenderer.js` (923 baris — fondasi, semua komponen bergantung padan
 | Modals (9) | ProjectModal, PresetModal, CommandPalette | Form state kompleks |
 | ProjectDetail (18) | GitTab 593, EnvironmentTab, LogsTab, AppPreviewTab | Tab per file |
 | Terminal (1) | TerminalWorkspace | xterm typing |
-| **Agent (12)** | **AgentChat 1.446 baris** (terakhir) | Terbesar + 104 test — convert paling akhir dengan jaring test penuh |
+| **Agent (12)** | **AgentChat 1.446 baris** (terakhir) | Terbesar + 104 test — convert paling akhir; **wajib dipecah < 400 baris/file** saat konversi |
 
 **Acceptance per view**: file view `.tsx`, e2e view terkait tetap lulus (project lifecycle, settings, agent chat).
 
@@ -119,12 +154,13 @@ Urutan: `ipcRenderer.js` (923 baris — fondasi, semua komponen bergantung padan
 - [ ] 512+ test Vitest + 7 e2e tetap hijau setelah fase terakhir.
 - [ ] Build `npm run build` menghasilkan output yang sama (struktur bundle tidak memburuk).
 - [ ] Tidak ada `any` tanpa `// TODO(ts)` di file yang sudah dikonversi.
+- [ ] **Tidak ada file baru/dikonversi > 400 baris**; lapisan dipatuhi (komponen tidak memanggil IPC langsung, tipe domain hanya di `src/types`).
 
 ## Risiko & Mitigasi
 
 | Risiko | Mitigasi |
 |---|---|
-| `AgentChat.jsx` 1.446 baris + pola streaming kompleks | Convert **paling akhir**, dengan 104 test + e2e agent sebagai jaring; pecah kecil-kecil per komponen anak |
+| `AgentChat.jsx` 1.446 baris + pola streaming kompleks | Convert **paling akhir**, dengan 104 test + e2e agent sebagai jaring; **wajib dipecah < 400 baris/file** (rule `max-lines` menegakkan) |
 | Pattern JS dinamis (event maps, dynamic import, ref lazy) | `any` bertanda `// TODO(ts)` dulu; jangan paksa generics di awal |
 | React 19 typing (memo/forwardRef generics, ref callbacks) | Mulai non-strict; contoh pola dari file yang sudah convert |
 | Migrasi setengah-setengah bikin dua gaya kode | Aturan wajib: file baru TS; konversi tidak pernah bolak-balik |
