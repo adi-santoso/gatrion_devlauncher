@@ -5,6 +5,7 @@ const { ipcMain } = require('electron')
 const { envVarsToObject } = require('../projectSchema')
 const { assertTrustedIpcEvent } = require('../utils/ipcSecurity')
 const { safeHandle } = require('../utils/ipcValidation')
+const { execNpm, assertSafePackageName } = require('../utils/npmRunner')
 
 // Run git with no shell, GIT_TERMINAL_PROMPT disabled so a missing credential
 // helper fails fast instead of hanging the app waiting for input.
@@ -365,35 +366,9 @@ function setupRepoHandlers(storageManager, processManager, mainWindow) {
   })
 
   // --- Dependency manager: outdated + update ---------------------------------
-
-  // npm on Windows is npm.cmd — execFile needs the real command name.
-  const npmCmd = process.platform === 'win32' ? 'npm.cmd' : 'npm'
-
-  function execNpm(cwd, args, { timeoutMs = 180000 } = {}) {
-    return new Promise((resolve, reject) => {
-      let settled = false
-      const timer = setTimeout(() => {
-        settled = true
-        reject(new Error(`npm ${args[0] || ''} timed out`))
-      }, timeoutMs)
-      execFile(
-        npmCmd,
-        args,
-        { cwd, windowsHide: true, timeout: timeoutMs, maxBuffer: 8 * 1024 * 1024 },
-        (error, stdout, stderr) => {
-          if (settled) return
-          settled = true
-          clearTimeout(timer)
-          if (error && error.code !== 1) {
-            // npm outdated exits 1 when packages ARE outdated — that is success.
-            reject(new Error((stderr || error.message || '').trim().slice(0, 400) || `npm ${args[0] || ''} failed`))
-            return
-          }
-          resolve(stdout)
-        }
-      )
-    })
-  }
+  // npm is executed via `execNpm` (electron/utils/npmRunner.js) — runs through
+  // a shell because spawning .cmd shims directly throws `spawn EINVAL` on
+  // recent Node versions for Windows.
 
   secureHandle('npm-outdated', async (event, projectPath) => {
     const pkg = readPackageJson(projectPath)
@@ -419,9 +394,7 @@ function setupRepoHandlers(storageManager, processManager, mainWindow) {
   // Update a single package (or all) to its wanted version. package.json and
   // the lockfile are backed up first so the change can be reverted manually.
   secureHandle('npm-update', async (event, projectPath, packageName = null) => {
-    if (packageName !== null && (typeof packageName !== 'string' || !packageName.trim())) {
-      throw new Error('Invalid package name')
-    }
+    assertSafePackageName(packageName)
     const backupFiles = ['package.json']
     for (const lock of LOCKFILES.map((item) => item.file)) {
       if (fs.existsSync(path.join(projectPath, lock))) backupFiles.push(lock)
