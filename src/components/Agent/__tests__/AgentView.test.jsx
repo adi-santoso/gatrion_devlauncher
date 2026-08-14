@@ -178,4 +178,21 @@ describe('AgentView', () => {
       expect(mocks.ompUpdateSessionTokens).toHaveBeenCalledWith('p1', 's1', 2345);
     });
   });
+
+  it('does not clobber a persisted token count when a turn reports no usage', async () => {
+    let eventCb = null;
+    mocks.onOmpEvent.mockImplementation((callback) => { eventCb = callback; return () => {}; });
+    // The session already has a persisted count
+    mocks.ompListSessions.mockResolvedValue({ success: true, sessions: [{ ...session, tokens: 5000 }] });
+    render(<AgentView projects={[project]} />);
+    fireEvent.click(screen.getByText('Demo'));
+    fireEvent.click(await screen.findByText('Session 1'));
+    await vi.waitFor(() => expect(eventCb).toBeTruthy());
+
+    // agent_end without a usage payload reports 0 — must NOT be persisted
+    eventCb({ projectId: 'p1', event: { type: 'agent_end', messages: [{ role: 'user', content: 'x' }, { role: 'assistant', content: 'y' }] } });
+
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(mocks.ompUpdateSessionTokens).not.toHaveBeenCalled();
+  });
 });

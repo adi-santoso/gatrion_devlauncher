@@ -380,9 +380,15 @@ export default function AgentView({ projects, initialProjectId = null, onOpenPro
                   ),
                 }));
                 // Persist the usage so the badge survives restarts and shows on
-                // every session, not just the one active during the turn.
-                if (selectedProjectId && activeSession.id && Number.isFinite(tokens)) {
-                  ipc.ompUpdateSessionTokens(selectedProjectId, activeSession.id, tokens).catch(() => {});
+                // every session, not just the one active during the turn. Only
+                // persist positive, changed counts: an agent_end without a
+                // usage payload reports 0, which must not clobber a count that
+                // is already on disk.
+                if (selectedProjectId && activeSession.id && Number.isFinite(tokens) && tokens > 0) {
+                  const previous = (sessionsByProject[selectedProjectId] || []).find((item) => item.id === activeSession.id)?.tokens;
+                  if (previous !== tokens) {
+                    ipc.ompUpdateSessionTokens(selectedProjectId, activeSession.id, tokens).catch(() => {});
+                  }
                 }
               }}
             />
