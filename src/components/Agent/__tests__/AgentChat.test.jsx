@@ -412,15 +412,20 @@ describe('AgentChat', () => {
     expect(liveTool.compareDocumentPosition(liveText2) & DOC_POSITION_FOLLOWING).toBeTruthy()
 
     // Turn ends — the transcript is merged, the tool card must SURVIVE inside
-    // the committed assistant message (it used to vanish on agent_end).
-    eventCb({ projectId: 'p1', event: { type: 'agent_end', messages: [
-      { role: 'user', content: 'fix the bug' },
-      { role: 'assistant', content: 'First I will read the file. Found it — editing now.' },
-    ] } })
+    // the committed assistant message (it used to vanish on agent_end). The
+    // merge applies in an async re-render, so flush it with act and re-query
+    // fresh nodes: capturing them mid-transition grabs the (now detached)
+    // live timeline instead of the transcript.
+    await act(async () => {
+      eventCb({ projectId: 'p1', event: { type: 'agent_end', messages: [
+        { role: 'user', content: 'fix the bug' },
+        { role: 'assistant', content: 'First I will read the file. Found it — editing now.' },
+      ] } })
+    })
 
-    const text1 = await screen.findByText(/First I will read the file/)
+    const text1 = screen.getByText(/First I will read the file/)
     const toolCard = screen.getByText('read')
-    const text2 = await screen.findByText(/Found it — editing now/)
+    const text2 = screen.getByText(/Found it — editing now/)
     expect(text1.compareDocumentPosition(toolCard) & DOC_POSITION_FOLLOWING).toBeTruthy()
     expect(toolCard.compareDocumentPosition(text2) & DOC_POSITION_FOLLOWING).toBeTruthy()
     // Tool card is now part of the transcript (still there after agent_end)

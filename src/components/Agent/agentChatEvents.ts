@@ -183,10 +183,24 @@ export function createOmpEventHandler(context: OmpEventContext): (event: OmpEven
       // second turn's event only carries that turn's user+assistant messages,
       // not the whole session). Merge the finished turn into the existing
       // conversation instead of replacing it, or earlier turns vanish.
+      //
+      // Fold any deltas still sitting in the 30ms flush window into the
+      // blocks first — agent_end can arrive right after the last delta, and
+      // discarding the buffers here would drop the final text/thinking chunk
+      // (and any unflushed tool output) from the merged transcript.
+      const pendingText = streamingBufRef.current;
+      const pendingThinking = thinkingBufRef.current;
+      const pendingTool = toolUpdateRef.current;
+      streamingBufRef.current = '';
+      thinkingBufRef.current = '';
+      toolUpdateRef.current = null;
+      let blocks = getBlocksFallback();
+      if (pendingText) blocks = appendTextBlock(blocks, pendingText);
+      if (pendingThinking) blocks = appendThinkingBlock(blocks, pendingThinking);
+      if (pendingTool) blocks = updateToolBlock(blocks, pendingTool.toolCallId, '', { body: pendingTool.text.slice(0, 2000) });
       const turnMessages = (Array.isArray(event.messages) ? event.messages : [])
         .map((item) => normalizeTranscriptMessage(item as { id?: string; role?: string; content?: unknown }))
         .filter((item) => item.content.trim() || item.thinking);
-      const blocks = getBlocksFallback();
       const blockText = blocksToText(blocks);
       const canonicalText = turnMessages
         .filter((item) => item.role === 'assistant')
