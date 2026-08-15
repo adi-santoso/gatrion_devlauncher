@@ -3,12 +3,14 @@ import { createRequire } from 'node:module'
 
 const { ipcRenderer, contextBridge, __reset } = createRequire(import.meta.url)('electron')
 
-// preload.ts runs its exposeInMainWorld at require time and Node caches the
-// module, so load it exactly once per worker. Node's type stripping loads the
-// .ts via the same native require path the mock loader hooks.
+// preload.ts runs its exposeInMainWorld at load time and Node caches the
+// module, so load it exactly once per worker. Load it through vitest's own
+// transform (import, not native require): native `require('../../preload.ts')`
+// only works on Node ≥ 23.6 (type stripping), which broke CI on Node 20. The
+// `require('electron')` inside preload.ts still hits the Node loader mock.
 let api
-beforeAll(() => {
-  createRequire(import.meta.url)('../../preload.ts')
+beforeAll(async () => {
+  await import('../../preload.ts')
   api = contextBridge._exposed.api
 })
 

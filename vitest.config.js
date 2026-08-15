@@ -23,6 +23,8 @@ export default defineConfig({
         'node_modules/**',
         'src/**/*.d.ts',
         'tests/mocks/**',
+        // Mock RPC fixtures are throwaway test doubles, not app code.
+        'tests/fixtures/**',
         '**/__tests__/**',
         // Build artifacts, e2e specs and tool configs are not unit-testable
         // app code — counting them as uncovered only dilutes the real number.

@@ -1,9 +1,16 @@
 const { test, expect, _electron: electron } = require('@playwright/test');
 const path = require('path');
 
+// CI Linux runners need the Chromium sandbox disabled or Electron aborts at
+// launch (no SUID sandbox helper / user namespaces).
+const ELECTRON_ARGS = [path.join(__dirname, '..')];
+if (process.platform === 'linux' || process.env.CI) {
+  ELECTRON_ARGS.unshift('--no-sandbox', '--disable-dev-shm-usage');
+}
+
 async function launchApp() {
   const app = await electron.launch({
-    args: [path.join(__dirname, '..')],
+    args: ELECTRON_ARGS,
     env: { ...process.env, NODE_ENV: 'test' },
   });
   // The app opens DevTools in dev mode; pick the window hosting the Vite renderer.

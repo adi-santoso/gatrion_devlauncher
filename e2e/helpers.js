@@ -6,6 +6,13 @@ const os = require('os');
 const APP_ROOT = path.join(__dirname, '..');
 const VITE_PORT = process.env.VITE_DEV_PORT || 5173;
 
+// GitHub Actions Linux runners lack the SUID sandbox helper / user namespaces
+// — Electron aborts at launch unless the Chromium sandbox is disabled.
+const ELECTRON_ARGS = [APP_ROOT];
+if (process.platform === 'linux' || process.env.CI) {
+  ELECTRON_ARGS.unshift('--no-sandbox', '--disable-dev-shm-usage');
+}
+
 /**
  * Launch the Electron app for e2e with an isolated userData directory so the
  * test never touches real workspace data. `extraEnv` is merged into the app
@@ -13,7 +20,7 @@ const VITE_PORT = process.env.VITE_DEV_PORT || 5173;
  */
 async function launchApp(extraEnv = {}) {
   const app = await electron.launch({
-    args: [APP_ROOT],
+    args: ELECTRON_ARGS,
     env: { ...process.env, NODE_ENV: 'test', ...extraEnv },
   });
   let appWindow = null;
