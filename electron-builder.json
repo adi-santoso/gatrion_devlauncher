@@ -29,7 +29,8 @@
     {
       "provider": "github",
       "owner": "adi-santoso",
-      "repo": "gatrion_devlauncher"
+      "repo": "gatrion_devlauncher",
+      "releaseType": "release"
     }
   ],
   "files": [
