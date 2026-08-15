@@ -21,7 +21,8 @@ class ProjectDetector {
         detector: async (projectPath: string): Promise<boolean> => {
           if (!await this.fileExists(path.join(projectPath, 'artisan'))) return false
           const composerJson = await this.readJsonIfExists(path.join(projectPath, 'composer.json'))
-          return Boolean(composerJson?.require?.['laravel/framework'])
+          const requireDeps = (composerJson?.require as Record<string, unknown> | undefined) || {}
+          return Boolean(requireDeps['laravel/framework'])
         },
         defaultCommand: 'php artisan serve',
         defaultPort: 8000,
@@ -131,7 +132,7 @@ class ProjectDetector {
 
       const usesJavaScriptCommand = ['NEXTJS', 'VUE', 'REACT_VITE', 'REACT', 'NODEJS'].includes(matchedType)
       const startCommand = usesJavaScriptCommand
-        ? this.detectStartCommand(packageJson?.scripts, packageManager)
+        ? this.detectStartCommand(packageJson?.scripts as Record<string, unknown> | undefined, packageManager)
         : matchedConfig.defaultCommand
       const detectedPort = matchedType === 'LARAVEL'
         ? matchedConfig.defaultPort
@@ -164,10 +165,12 @@ class ProjectDetector {
 
   async hasPackage(projectPath: string, packageName: string): Promise<boolean> {
     const packageJson = await this.readJsonIfExists(path.join(projectPath, 'package.json'))
-    return Boolean(packageJson?.dependencies?.[packageName] || packageJson?.devDependencies?.[packageName])
+    const dependencies = (packageJson?.dependencies as Record<string, unknown> | undefined) || {}
+    const devDependencies = (packageJson?.devDependencies as Record<string, unknown> | undefined) || {}
+    return Boolean(dependencies[packageName] || devDependencies[packageName])
   }
 
-  detectProjectName(projectPath: string, packageJson: Record<string, any> | null, composerJson: Record<string, any> | null, goModule: string): string {
+  detectProjectName(projectPath: string, packageJson: Record<string, unknown> | null, composerJson: Record<string, unknown> | null, goModule: string): string {
     const packageName = typeof packageJson?.name === 'string' ? packageJson.name.trim() : ''
     if (packageName) return packageName.split('/').pop() || ''
 
@@ -178,7 +181,7 @@ class ProjectDetector {
     return path.basename(path.resolve(projectPath))
   }
 
-  async detectPackageManager(projectPath: string, packageJson: Record<string, any>): Promise<string> {
+  async detectPackageManager(projectPath: string, packageJson: Record<string, unknown>): Promise<string> {
     const declared = typeof packageJson.packageManager === 'string'
       ? packageJson.packageManager.split('@')[0].trim().toLowerCase()
       : ''
@@ -198,7 +201,7 @@ class ProjectDetector {
     return 'npm'
   }
 
-  detectStartCommand(scripts: Record<string, any> | null | undefined, packageManager: string | null): string {
+  detectStartCommand(scripts: Record<string, unknown> | null | undefined, packageManager: string | null): string {
     if (!scripts || typeof scripts !== 'object') return ''
     const scriptName = ['dev', 'start', 'serve', 'develop'].find((name) => typeof scripts[name] === 'string')
     if (!scriptName) return ''
@@ -206,9 +209,12 @@ class ProjectDetector {
     return `${packageManager} ${scriptName}`
   }
 
-  detectStackName(type: string, fallback: string, packageJson: Record<string, any> | null | undefined): string {
+  detectStackName(type: string, fallback: string, packageJson: Record<string, unknown> | null | undefined): string {
     if (type !== 'LARAVEL') return fallback
-    const packages: Record<string, any> = { ...packageJson?.dependencies, ...packageJson?.devDependencies }
+    const packages: Record<string, unknown> = {
+      ...(packageJson?.dependencies as Record<string, unknown> | undefined),
+      ...(packageJson?.devDependencies as Record<string, unknown> | undefined),
+    }
     if (packages['@inertiajs/vue3']) return 'Laravel + Inertia + Vue'
     if (packages['@inertiajs/react']) return 'Laravel + Inertia + React'
     if (packages.vue) return 'Laravel + Vue'
@@ -220,7 +226,7 @@ class ProjectDetector {
   async detectCommands(
     type: string,
     config: { name: string; defaultCommand: string; defaultPort: number | null; icon: string; color: string },
-    packageJson: Record<string, any> | null | undefined,
+    packageJson: Record<string, unknown> | null | undefined,
     packageManager: string | null,
     projectPath: string,
     primaryPort: number | null,
@@ -232,23 +238,25 @@ class ProjectDetector {
         id: 'main',
         name: config.name,
         command: isJavaScriptProject
-          ? this.detectStartCommand(packageJson?.scripts, packageManager)
+          ? this.detectStartCommand(packageJson?.scripts as Record<string, unknown> | undefined, packageManager)
           : config.defaultCommand,
         port: primaryPort,
         primary: true,
       }
     if (type !== 'LARAVEL') return primaryCommand.command ? [primaryCommand] : []
 
-    const frontend = this.detectStartCommand(packageJson?.scripts, packageManager)
-    const frontendName = packageJson?.dependencies?.['@inertiajs/vue3'] || packageJson?.devDependencies?.['@inertiajs/vue3']
+    const frontend = this.detectStartCommand(packageJson?.scripts as Record<string, unknown> | undefined, packageManager)
+    const dependencies = (packageJson?.dependencies as Record<string, unknown> | undefined) || {}
+    const devDependencies = (packageJson?.devDependencies as Record<string, unknown> | undefined) || {}
+    const frontendName = dependencies['@inertiajs/vue3'] || devDependencies['@inertiajs/vue3']
       ? 'Inertia Vue assets'
-      : packageJson?.dependencies?.['@inertiajs/react'] || packageJson?.devDependencies?.['@inertiajs/react']
+      : dependencies['@inertiajs/react'] || devDependencies['@inertiajs/react']
         ? 'Inertia React assets'
         : 'Frontend assets'
     const hasFrontendSignal = Boolean(
-      packageJson?.dependencies?.vite || packageJson?.devDependencies?.vite ||
-      packageJson?.dependencies?.['@inertiajs/vue3'] || packageJson?.devDependencies?.['@inertiajs/vue3'] ||
-      packageJson?.dependencies?.vue || packageJson?.devDependencies?.vue
+      dependencies.vite || devDependencies.vite ||
+      dependencies['@inertiajs/vue3'] || devDependencies['@inertiajs/vue3'] ||
+      dependencies.vue || devDependencies.vue
     )
     if (!frontend || !hasFrontendSignal) return [primaryCommand]
 
@@ -264,8 +272,8 @@ class ProjectDetector {
     ]
   }
 
-  async detectFrontendPort(packageJson: Record<string, any> | null | undefined, projectPath: string): Promise<number> {
-    const script = Object.values(packageJson?.scripts || {}).find((value) => typeof value === 'string' && /(?:vite|--port|-p\s)/.test(value as string))
+  async detectFrontendPort(packageJson: Record<string, unknown> | null | undefined, projectPath: string): Promise<number> {
+    const script = Object.values((packageJson?.scripts || {}) as Record<string, unknown>).find((value) => typeof value === 'string' && /(?:vite|--port|-p\s)/.test(value as string))
     const scriptPort = this.validPort((script as string | undefined)?.match(/(?:-p|--port)\s*=?\s*(\d+)/)?.[1])
     if (scriptPort) return scriptPort
     for (const viteFile of ['vite.config.js', 'vite.config.ts', 'vite.config.mjs']) {
@@ -313,7 +321,7 @@ class ProjectDetector {
     }
 
     const packageJson = await this.readJsonIfExists(path.join(projectPath, 'package.json'))
-    for (const scriptCommand of Object.values(packageJson?.scripts || {})) {
+    for (const scriptCommand of Object.values((packageJson?.scripts || {}) as Record<string, unknown>)) {
       if (typeof scriptCommand !== 'string') continue
       const port = this.validPort(scriptCommand.match(/(?:-p|--port)\s*=?\s*(\d+)/)?.[1])
       if (port) return port
@@ -336,9 +344,9 @@ class ProjectDetector {
     }
   }
 
-  // TODO(ts): parsed JSON documents are unvalidated — typed as Record<string, any>
+  // TODO(ts): parsed JSON documents are unvalidated — typed as Record<string, unknown>
   // until a schema check is introduced; every read site guards with typeof checks.
-  async readJsonIfExists(filePath: string): Promise<Record<string, any> | null> {
+  async readJsonIfExists(filePath: string): Promise<Record<string, unknown> | null> {
     try {
       return await this.readJson(filePath)
     } catch {
@@ -346,8 +354,8 @@ class ProjectDetector {
     }
   }
 
-  async readJson(filePath: string): Promise<Record<string, any>> {
-    return JSON.parse(await fs.readFile(filePath, 'utf8'))
+  async readJson(filePath: string): Promise<Record<string, unknown>> {
+    return JSON.parse(await fs.readFile(filePath, 'utf8')) as Record<string, unknown>
   }
 
   async fileExists(filePath: string): Promise<boolean> {

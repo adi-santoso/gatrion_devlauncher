@@ -56,8 +56,8 @@ async function killPosixTree(pid: number, force: boolean): Promise<void> {
   const signal: NodeJS.Signals = force ? 'SIGKILL' : 'SIGTERM'
   try {
     process.kill(-pid, signal)
-  } catch (error: any) {
-    if (error.code === 'ESRCH') return // already gone — success
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ESRCH') return // already gone — success
     try {
       process.kill(pid, signal)
     } catch {
@@ -165,8 +165,8 @@ async function getProcessResources(pid: number | string): Promise<ProcessResourc
       memory: memoryMB, // in MB
       cpu: cpuPercent,
     }
-  } catch (err: any) {
-    console.warn('[ProcessManager] Failed to get resources for PID', pid, ':', err.message)
+  } catch (err) {
+    console.warn('[ProcessManager] Failed to get resources for PID', pid, ':', (err as Error).message)
     return null
   }
 }
@@ -208,8 +208,8 @@ async function getProcessTreeResources(
     const resources = JSON.parse(stdout.trim())
     if (!Number.isFinite(resources.memory) || !Number.isFinite(resources.cpu)) return null
     return resources
-  } catch (error: any) {
-    console.warn('[ProcessManager] Failed to sample process tree:', error.message)
+  } catch (error) {
+    console.warn('[ProcessManager] Failed to sample process tree:', (error as Error).message)
     return null
   }
 }

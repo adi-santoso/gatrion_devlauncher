@@ -29,14 +29,14 @@ function migrateProjects(projects: unknown, fromVersion?: number): Project[] {
 
   const migrated = projects.map((project) => {
     // TODO(ts): raw/legacy project payload — shape normalized field-by-field below
-    const raw = (project ?? {}) as Record<string, any>
-    const migratedProject: Record<string, any> = { ...raw }
+    const raw = (project ?? {}) as Record<string, unknown>
+    const migratedProject: Record<string, unknown> = { ...raw }
 
     if (fromVersion === undefined || fromVersion === 0) {
       if (raw.env && !raw.envVars) {
         migratedProject.envVars = Array.isArray(raw.env)
           ? raw.env
-          : Object.entries(raw.env).map(([key, value]) => ({ key, value }))
+          : Object.entries(raw.env as Record<string, unknown>).map(([key, value]) => ({ key, value }))
       }
 
       if (!raw.createdAt) {
@@ -55,7 +55,7 @@ function migrateProjects(projects: unknown, fromVersion?: number): Project[] {
     return migratedProject
   })
 
-  return migrated as Project[]
+  return migrated as unknown as Project[]
 }
 
 function normalizeType(value: unknown): ProjectType {
@@ -93,7 +93,7 @@ function envVarsToObject(envVars: unknown): Record<string, string> {
 
 function normalizeProject(project: unknown, createId?: () => string): Project {
   // TODO(ts): raw/legacy project payload from disk or IPC — validated field-by-field below
-  const raw = (project ?? {}) as Record<string, any>
+  const raw = (project ?? {}) as Record<string, unknown>
   const type = normalizeType(raw.type)
   const metadata = PROJECT_TYPES[type]
   const parsedPort = raw.port == null || raw.port === '' ? null : Number(raw.port)
@@ -140,7 +140,7 @@ function normalizeProject(project: unknown, createId?: () => string): Project {
 }
 
 // TODO(ts): input is dynamic IPC payload — sanitized field-by-field at runtime.
-function sanitizeProjectChanges(input: unknown): Record<string, any> {
+function sanitizeProjectChanges(input: unknown): Record<string, unknown> {
   if (!input || typeof input !== 'object' || Array.isArray(input)) {
     throw new Error('Project data must be an object')
   }

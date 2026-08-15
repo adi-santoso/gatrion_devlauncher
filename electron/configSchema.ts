@@ -1,8 +1,18 @@
-import type { AppConfig, DeepPartial } from '../src/types/shared'
+import type { AppConfig, DeepPartial, Theme, Language, PrayerShowIn, PrayerMethod } from '../src/types/shared'
 
 // TODO(ts): raw config read from disk / IPC is unvalidated — narrowed field-by-field
 // by migrateConfig/normalizeConfig below (booleanOr/integerOr/typeof checks).
-type RawConfig = Record<string, any>
+interface RawConfig {
+  [key: string]: unknown
+  schemaVersion?: number
+  notifications?: Record<string, unknown>
+  terminal?: Record<string, unknown>
+  autoRestart?: Record<string, unknown>
+  preview?: Record<string, unknown>
+  prayer?: Record<string, unknown>
+  agent?: Record<string, unknown>
+  windowBounds?: { x?: unknown; y?: unknown; width?: unknown; height?: unknown; maximized?: unknown } | null
+}
 
 const DEFAULT_CONFIG = {
   theme: 'dark',
@@ -125,20 +135,22 @@ function normalizeConfig(config: unknown = {}): AppConfig {
     console.warn(`[configSchema] Config version mismatch: ${migrated.schemaVersion} vs ${CONFIG_SCHEMA_VERSION}`)
   }
 
-  const notifications = migrated.notifications && typeof migrated.notifications === 'object'
+  const notifications: Record<string, unknown> = migrated.notifications && typeof migrated.notifications === 'object'
     ? migrated.notifications
     : {}
-  const terminal = migrated.terminal && typeof migrated.terminal === 'object' ? migrated.terminal : {}
-  const autoRestart = migrated.autoRestart && typeof migrated.autoRestart === 'object' ? migrated.autoRestart : {}
-  const preview = migrated.preview && typeof migrated.preview === 'object' ? migrated.preview : {}
-  const prayer = migrated.prayer && typeof migrated.prayer === 'object' ? migrated.prayer : {}
-  const adjustments = prayer.adjustments && typeof prayer.adjustments === 'object' ? prayer.adjustments : {}
-  const agent = migrated.agent && typeof migrated.agent === 'object' ? migrated.agent : {}
+  const terminal: Record<string, unknown> = migrated.terminal && typeof migrated.terminal === 'object' ? migrated.terminal : {}
+  const autoRestart: Record<string, unknown> = migrated.autoRestart && typeof migrated.autoRestart === 'object' ? migrated.autoRestart : {}
+  const preview: Record<string, unknown> = migrated.preview && typeof migrated.preview === 'object' ? migrated.preview : {}
+  const prayer: Record<string, unknown> = migrated.prayer && typeof migrated.prayer === 'object' ? migrated.prayer : {}
+  const adjustments: Record<string, unknown> = prayer.adjustments && typeof prayer.adjustments === 'object'
+    ? prayer.adjustments as Record<string, unknown>
+    : {}
+  const agent: Record<string, unknown> = migrated.agent && typeof migrated.agent === 'object' ? migrated.agent : {}
   const windowBounds = migrated.windowBounds && typeof migrated.windowBounds === 'object' && !Array.isArray(migrated.windowBounds) ? migrated.windowBounds : null
 
   return {
-    theme: ['dark', 'light', 'system'].includes(migrated.theme) ? migrated.theme : 'dark',
-    language: ['en', 'id'].includes(migrated.language) ? migrated.language : DEFAULT_CONFIG.language,
+    theme: typeof migrated.theme === 'string' && ['dark', 'light', 'system'].includes(migrated.theme) ? migrated.theme as Theme : 'dark',
+    language: typeof migrated.language === 'string' && ['en', 'id'].includes(migrated.language) ? migrated.language as Language : DEFAULT_CONFIG.language,
     sidebarExpanded: booleanOr(migrated.sidebarExpanded, DEFAULT_CONFIG.sidebarExpanded),
     startOnBoot: booleanOr(migrated.startOnBoot, DEFAULT_CONFIG.startOnBoot),
     minimizeToTray: booleanOr(migrated.minimizeToTray, DEFAULT_CONFIG.minimizeToTray),
@@ -162,12 +174,12 @@ function normalizeConfig(config: unknown = {}): AppConfig {
       keepAlive: booleanOr(preview.keepAlive, DEFAULT_CONFIG.preview.keepAlive),
     },
     prayer: {
-      showIn: typeof prayer.showIn === 'string' && ['sidebar', 'topbar', 'both', 'off'].includes(prayer.showIn) ? prayer.showIn : DEFAULT_CONFIG.prayer.showIn,
-      method: typeof prayer.method === 'string' && ['KEMENAG', 'MWL', 'ISNA', 'Egypt', 'Makkah', 'Karachi'].includes(prayer.method) ? prayer.method : DEFAULT_CONFIG.prayer.method,
+      showIn: typeof prayer.showIn === 'string' && ['sidebar', 'topbar', 'both', 'off'].includes(prayer.showIn) ? prayer.showIn as PrayerShowIn : DEFAULT_CONFIG.prayer.showIn,
+      method: typeof prayer.method === 'string' && ['KEMENAG', 'MWL', 'ISNA', 'Egypt', 'Makkah', 'Karachi'].includes(prayer.method) ? prayer.method as PrayerMethod : DEFAULT_CONFIG.prayer.method,
       city: typeof prayer.city === 'string' && prayer.city.trim() ? prayer.city.trim().slice(0, 100) : DEFAULT_CONFIG.prayer.city,
-      latitude: Number.isFinite(prayer.latitude) && prayer.latitude >= -90 && prayer.latitude <= 90 ? prayer.latitude : DEFAULT_CONFIG.prayer.latitude,
-      longitude: Number.isFinite(prayer.longitude) && prayer.longitude >= -180 && prayer.longitude <= 180 ? prayer.longitude : DEFAULT_CONFIG.prayer.longitude,
-      utcOffset: Number.isInteger(prayer.utcOffset) && prayer.utcOffset >= -12 && prayer.utcOffset <= 14 ? prayer.utcOffset : DEFAULT_CONFIG.prayer.utcOffset,
+      latitude: typeof prayer.latitude === 'number' && Number.isFinite(prayer.latitude) && prayer.latitude >= -90 && prayer.latitude <= 90 ? prayer.latitude : DEFAULT_CONFIG.prayer.latitude,
+      longitude: typeof prayer.longitude === 'number' && Number.isFinite(prayer.longitude) && prayer.longitude >= -180 && prayer.longitude <= 180 ? prayer.longitude : DEFAULT_CONFIG.prayer.longitude,
+      utcOffset: typeof prayer.utcOffset === 'number' && Number.isInteger(prayer.utcOffset) && prayer.utcOffset >= -12 && prayer.utcOffset <= 14 ? prayer.utcOffset : DEFAULT_CONFIG.prayer.utcOffset,
       adjustments: {
         fajr: integerOr(adjustments.fajr, DEFAULT_CONFIG.prayer.adjustments.fajr, -60, 60),
         dhuhr: integerOr(adjustments.dhuhr, DEFAULT_CONFIG.prayer.adjustments.dhuhr, -60, 60),
@@ -184,10 +196,10 @@ function normalizeConfig(config: unknown = {}): AppConfig {
     },
     windowBounds: windowBounds && Number.isFinite(windowBounds.width) && Number.isFinite(windowBounds.height)
       ? {
-          x: Number.isFinite(windowBounds.x) ? windowBounds.x : undefined,
-          y: Number.isFinite(windowBounds.y) ? windowBounds.y : undefined,
-          width: Math.max(400, windowBounds.width),
-          height: Math.max(300, windowBounds.height),
+          x: Number.isFinite(windowBounds.x) ? Number(windowBounds.x) : undefined,
+          y: Number.isFinite(windowBounds.y) ? Number(windowBounds.y) : undefined,
+          width: Math.max(400, Number(windowBounds.width)),
+          height: Math.max(300, Number(windowBounds.height)),
           maximized: !!windowBounds.maximized,
         }
       : null,

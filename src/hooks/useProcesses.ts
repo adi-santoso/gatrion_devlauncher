@@ -1,55 +1,12 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import * as ipc from '../utils/ipcRenderer'
-import type { Project } from '../types/shared'
-import type { ProcessStatusResult, ProcessLogLine, MetricsResult, StartAllResult } from '../data/processes'
+import type { ProcessLogLine, StartAllResult } from '../data/processes'
+import { runtimeUpdate, type ProcessProject, type ProjectRuntimeUpdate } from './processStatusUtils'
 
-export interface ProjectRuntimeUpdate {
-  status?: string
-  pid?: number | null
-  startedAt?: number | null
-  uptime?: string | null
-  errorMessage?: string | null
-  cpu?: number | null
-  memory?: number | null
-  metrics?: MetricsResult
-  processCommands?: unknown[]
-}
+export type { ProcessProject, ProjectRuntimeUpdate }
 
 export interface UseProcessesOptions {
   maxLines?: number
-}
-
-/** Project list as consumed here — persisted fields plus runtime status/metrics. */
-export interface ProcessProject extends Project {
-  status?: string
-  uptime?: string | null
-  cpu?: number | null
-  memory?: number | null
-  metrics?: MetricsResult
-}
-
-const formatUptime = (startedAt: number | string | null | undefined): string | null => {
-  if (!startedAt) return null
-  const totalSeconds = Math.max(0, Math.floor((Date.now() - Number(startedAt)) / 1000))
-  const hours = Math.floor(totalSeconds / 3600)
-  const minutes = Math.floor((totalSeconds % 3600) / 60)
-  if (hours) return `${hours}h ${minutes}m`
-  if (minutes) return `${minutes}m`
-  return `${totalSeconds}s`
-}
-
-const runtimeUpdate = (status: ProcessStatusResult | string): ProjectRuntimeUpdate & { status: string } => {
-  const details: ProcessStatusResult = typeof status === 'string' ? { status } : status || {}
-  const normalizedStatus = (details.status || 'stopped').toLowerCase()
-  const active = normalizedStatus === 'running' || normalizedStatus === 'starting'
-  return {
-    status: normalizedStatus,
-    pid: details.pid ?? null,
-    startedAt: details.startedAt ?? null,
-    uptime: active ? formatUptime(details.startedAt) : null,
-    errorMessage: details.error || null,
-    processCommands: details.commands || [],
-  }
 }
 
 /**

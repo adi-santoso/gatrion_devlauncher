@@ -4,7 +4,7 @@ import { assertTrustedIpcEvent } from '../utils/ipcSecurity'
 import { safeHandle } from '../utils/ipcValidation'
 import { toRendererProject } from '../projectSchema'
 import type { BrowserWindow } from 'electron'
-import type { Project, AppConfig } from '../../src/types/shared'
+import type { AppConfig } from '../../src/types/shared'
 import type { StorageManager, PresetRecord } from '../managers/StorageManager'
 import type { HealthManager } from '../managers/HealthManager'
 
@@ -34,19 +34,23 @@ async function collectWorkspaceData(storageManager: StorageManager, healthManage
  * overwriting anything the user already has (current values win).
  * @param {object} current
  * @param {object} backupConfig
- * @param {Array<Record<string, any>>} currentPresets
- * @param {Array<Record<string, any>>} backupPresets
+ * @param {Array<{id: string}>} currentPresets
+ * @param {Array<unknown>} backupPresets
  */
 function mergeConfigAndPresets(
   current: AppConfig,
   backupConfig: Record<string, unknown> | null | undefined,
   currentPresets: Array<{ id: string }>,
-  backupPresets: Array<Record<string, any>>
+  backupPresets: unknown[] | undefined
 ) {
   const nextConfig = { ...(backupConfig || {}), ...current }
   const existingIds = new Set((currentPresets || []).map((preset) => preset?.id).filter(Boolean))
   const presetsToAdd = (Array.isArray(backupPresets) ? backupPresets : [])
-    .filter((preset: Record<string, any>): preset is PresetRecord => preset && preset.id && !existingIds.has(preset.id))
+    .filter((preset: unknown): preset is PresetRecord => {
+      if (!preset || typeof preset !== 'object') return false
+      const id = (preset as { id?: unknown }).id
+      return typeof id === 'string' && Boolean(id) && !existingIds.has(id)
+    })
   return {
     config: nextConfig,
     configChanged: JSON.stringify(nextConfig) !== JSON.stringify(current),

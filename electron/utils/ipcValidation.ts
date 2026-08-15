@@ -11,12 +11,13 @@ import type { IpcMainInvokeEvent } from 'electron'
 
 /**
  * A registered IPC handler: receives the trusted event plus validated args.
- * Args are `any` (not `unknown`) by design: `assertPayload` (CHANNEL_RULES)
- * runs before the handler, so each positional arg already matches its channel
- * rule (string/integer/object/...) — narrowing again inside every handler
- * would be redundant ceremony.
- * // TODO(ts): refine per-channel arg shapes once Fase 2 payload types land.
+ * Args are `unknown` at the boundary and narrowed per channel: `assertPayload`
+ * (CHANNEL_RULES) runs before the handler, so each positional arg already
+ * matches its channel rule (string/integer/object/...) at runtime. Handlers
+ * still annotate their own param types; the cast below is the only place that
+ * bridges the runtime-validated payloads to their concrete shapes.
  */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- IPC boundary: args are runtime-validated dynamic payloads, per-channel static shapes live in CHANNEL_RULES.
 export type IpcHandler = (event: IpcMainInvokeEvent, ...args: any[]) => unknown
 
 // Terminal input is forwarded straight into a PTY; cap the write size so a
@@ -423,6 +424,7 @@ function assertPayload(channel: string, args: unknown[], overrides?: ArgRule[]):
  * stays Electron-free and unit-testable.
  */
 function safeHandle(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- matches electron's own `ipcMain.handle` listener typing.
   ipcMain: { handle(channel: string, listener: (event: IpcMainInvokeEvent, ...args: any[]) => unknown): void },
   assertTrusted: (event: IpcMainInvokeEvent) => void,
   channel: string,

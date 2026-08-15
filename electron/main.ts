@@ -1,6 +1,6 @@
 import type { AppConfig, WindowBounds } from '../src/types/shared'
 import type { ProcessManager as ProcessManagerType } from './managers/ProcessManager'
-import type { StorageManager as StorageManagerType, PresetRecord, ActivityEntry } from './managers/StorageManager'
+import type { StorageManager as StorageManagerType } from './managers/StorageManager'
 import type { HealthManager as HealthManagerType } from './managers/HealthManager'
 import type { OmpManager as OmpManagerType } from './managers/OmpManager'
 import type { OmpInstaller as OmpInstallerType } from './managers/OmpInstaller'
@@ -9,10 +9,9 @@ import type { ProjectDetector as ProjectDetectorType } from './managers/ProjectD
 import type { TrayManager as TrayManagerType } from './managers/TrayManager'
 import type { PreviewManager as PreviewManagerType } from './managers/PreviewManager'
 
-const { app, BrowserWindow, ipcMain, Notification, session, globalShortcut, crashReporter } = require('electron') as typeof import('electron')
+const { app, BrowserWindow, session, globalShortcut, crashReporter } = require('electron') as typeof import('electron')
 const path = require('path')
 const fs = require('fs').promises
-const https = require('https')
 import ProcessManager from './managers/ProcessManager'
 import StorageManager from './managers/StorageManager'
 import HealthManager from './managers/HealthManager'
@@ -31,9 +30,9 @@ import { setupRepoHandlers } from './handlers/repoHandlers'
 import { setupSystemHandlers } from './handlers/systemHandlers'
 import { setupBackupHandlers } from './handlers/backupHandlers'
 import { setupAgentHandlers } from './handlers/agentHandlers'
-import { assertTrustedIpcEvent } from './utils/ipcSecurity'
-import { isVersionNewer } from './utils/versionCompare'
-import { createUpdater } from './utils/updater'
+import { registerCoreIpcHandlers } from './ipcHandlers'
+import { setupProjectNotifications } from './notifications'
+import { setupAutoUpdater } from './utils/updater'
 import Logger from './utils/logger'
 
 // Global error capture — log anything that escapes normal error handling so
@@ -88,32 +87,6 @@ function focusAppWindow() {
   if (mainWindow.isMinimized()) mainWindow.restore()
   mainWindow.show()
   mainWindow.focus()
-}
-
-// Restart a project from a notification action: reload the persisted project
-// and delegate to ProcessManager (state/status events keep flowing to the
-// renderer as usual).
-async function restartProjectFromNotification(projectId: string) {
-  try {
-    const projects = await storageManager.loadProjects()
-    const project = projects.find((item) => item.id === projectId)
-    if (!project) return
-    const { resolveLaunchConfig } = require('./handlers/processHandlers')
-    const launch = resolveLaunchConfig(project)
-    await processManager.restartProcess(
-      project.id,
-      project.path,
-      launch.command,
-      Object.fromEntries((project.envVars || []).map((item) => [item.key, item.value])),
-      launch.port,
-      () => {},
-      () => {},
-      () => {},
-      () => {}
-    )
-  } catch (error) {
-    Logger.error('Notify', 'Failed to restart project from notification', { projectId, error: (error as Error).message })
-  }
 }
 
 // Identity: notifications, taskbar grouping, and the default window title all
@@ -318,112 +291,18 @@ async function initialize() {
   // Auto-update (electron-updater) — packaged builds only. The state machine
   // forwards every transition to the renderer on the `update-state` channel so
   // the Settings banner can show download progress and a restart prompt.
-  let autoUpdaterHandle: ReturnType<typeof createUpdater> | null = null
+  let autoUpdaterHandle: ReturnType<typeof setupAutoUpdater> | null = null
   try {
     const { autoUpdater } = require('electron-updater')
-    autoUpdaterHandle = createUpdater({
+    autoUpdaterHandle = setupAutoUpdater({
       autoUpdater,
       getWindow: () => mainWindow,
-      isEnabled: () => app.isPackaged,
-    })
-    autoUpdaterHandle.wireEvents()
-    autoUpdaterHandle.onChange((payload: { state: string; error?: string | null }) => {
-      Logger.info('Updater', 'State changed', { state: payload.state, error: payload.error || undefined })
-      // Update ready → Windows toast with a "Restart & install" action button.
-      if (payload.state === 'downloaded' && app.isPackaged) {
-        const notification = new Notification({
-          title: 'Gatrion - Update ready',
-          body: `Version ${app.getVersion()} is downloaded. Restart to apply it.`,
-          actions: [{ type: 'button', text: 'Restart & install' }],
-          timeoutType: 'never',
-        })
-        notification.on('action', (event) => {
-          if (event.actionIndex === 0) autoUpdaterHandle!.quitAndInstall()
-        })
-        notification.on('click', () => focusAppWindow())
-        notification.show()
-      }
+      focusAppWindow,
+      isPackaged: () => app.isPackaged,
+      getVersion: () => app.getVersion(),
     })
   } catch (error) {
     console.warn('[App] Auto-update unavailable:', (error as Error).message)
-  }
-
-  ipcMain.handle('update-download', async (event) => {
-    try {
-      assertTrustedIpcEvent(event)
-      if (!autoUpdaterHandle) return { success: false, error: 'Auto-update is unavailable' }
-      return await autoUpdaterHandle.startDownload()
-    } catch (error) {
-      return { success: false, error: (error as Error).message }
-    }
-  })
-
-  ipcMain.handle('update-install', async (event) => {
-    try {
-      assertTrustedIpcEvent(event)
-      if (!autoUpdaterHandle) return { success: false, error: 'Auto-update is unavailable' }
-      return autoUpdaterHandle.quitAndInstall()
-    } catch (error) {
-      return { success: false, error: (error as Error).message }
-    }
-  })
-
-  // Silent check shortly after launch (packaged only) so a ready update can be
-  // surfaced in the Settings banner / notification without user action.
-  if (app.isPackaged && autoUpdaterHandle) {
-    setTimeout(() => {
-      autoUpdaterHandle.check().catch(() => {})
-    }, 8000)
-  }
-
-    // Prayer reminder: native notifications + city geocoding (renderer CSP blocks external fetch)
-  function setupPrayerHandlers() {
-    ipcMain.handle('app-notify', (event, payload: Record<string, any> = {}) => {
-      try {
-        assertTrustedIpcEvent(event)
-        if (!Notification.isSupported()) return { success: false, error: 'Notifications are not supported on this system' }
-        new Notification({
-          title: String(payload.title || 'Gatrion'),
-          body: String(payload.body || ''),
-          silent: !!payload.silent,
-        }).show()
-        return { success: true }
-      } catch (error) {
-        return { success: false, error: (error as Error).message }
-      }
-    })
-
-    ipcMain.handle('prayer-geocode', async (event, query: string) => {
-      try {
-        assertTrustedIpcEvent(event)
-        const q = String(query || '').trim()
-        if (!q) return { success: false, error: 'Query is empty' }
-        const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=5`
-        const body = await new Promise<string>((resolve, reject) => {
-          const req = https.get(url, {
-            headers: { 'User-Agent': 'Gatrion/1.0 (desktop project manager)', 'Accept': 'application/json' },
-          }, (res: import('http').IncomingMessage) => {
-            let data = ''
-            res.on('data', (chunk: Buffer) => { data += chunk })
-            res.on('end', () => resolve(data))
-          })
-          req.setTimeout(10000, () => req.destroy(new Error('Geocoding request timed out')))
-          req.on('error', reject)
-        })
-        const parsed = JSON.parse(body)
-        if (!Array.isArray(parsed)) return { success: false, error: 'Unexpected geocoding response' }
-        const results = parsed
-          .map((item) => ({
-            name: item.display_name || item.name || 'Unknown',
-            latitude: parseFloat(item.lat),
-            longitude: parseFloat(item.lon),
-          }))
-          .filter((item) => Number.isFinite(item.latitude) && Number.isFinite(item.longitude))
-        return { success: true, results }
-      } catch (error) {
-        return { success: false, error: (error as Error).message }
-      }
-    })
   }
 
   // Create native tray
@@ -458,25 +337,8 @@ async function initialize() {
     mainWindow?.webContents.send('preview-console-message', { projectId, level, message, source, line })
   })
 
-  // Renderer errors (window.onerror / unhandledrejection) land in main.log
-  ipcMain.handle('renderer-error', async (event, payload = {}) => {
-    try {
-      assertTrustedIpcEvent(event)
-      const meta = typeof payload === 'object' && payload !== null ? payload : {}
-      Logger.error('renderer', String(meta.message || 'Unknown renderer error'), {
-        type: String(meta.type || ''),
-        source: String(meta.source || ''),
-        line: Number.isFinite(meta.line) ? meta.line : undefined,
-        column: Number.isFinite(meta.column) ? meta.column : undefined,
-        stack: String(meta.stack || '').slice(0, 2000),
-      })
-      return { success: true }
-    } catch (error) {
-      return { success: false, error: (error as Error).message }
-    }
-  })
-
-  // Setup IPC handlers
+  // Setup IPC handlers (process, project, desktop, terminal, preview, repo,
+  // system, backup, agent) plus the core config/presets/health/update ones.
   setupProcessHandlers(processManager, storageManager, mainWindow)
   setupProjectHandlers(storageManager, processManager, mainWindow)
   setupDesktopHandlers()
@@ -486,66 +348,23 @@ async function initialize() {
   setupSystemHandlers()
   setupBackupHandlers(storageManager, healthManager, mainWindow)
   setupAgentHandlers(ompManager, ompInstaller, ompConfig, () => mainWindow)
-  setupPrayerHandlers()
-
-  // Health analytics IPC
-  ipcMain.handle('get-health', async (event, projectId) => {
-    try {
-      assertTrustedIpcEvent(event)
-      if (typeof projectId !== 'string' || !projectId.trim()) throw new Error('Project ID is required')
-      return { success: true, stats: healthManager.getStats(projectId) }
-    } catch (error) {
-      return { success: false, error: (error as Error).message }
-    }
+  registerCoreIpcHandlers({
+    processManager,
+    storageManager,
+    healthManager,
+    projectDetector,
+    getWindow: () => mainWindow,
+    getUpdater: () => autoUpdaterHandle,
+    applyOSSettings,
   })
 
-  ipcMain.handle('clear-health', async (event, projectId) => {
-    try {
-      assertTrustedIpcEvent(event)
-      if (typeof projectId !== 'string' || !projectId.trim()) throw new Error('Project ID is required')
-      healthManager.clear(projectId)
-      return { success: true }
-    } catch (error) {
-      return { success: false, error: (error as Error).message }
-    }
-  })
-
-  // Listen to process events for native notifications & tray updates
-  processManager.on('status-change', async (data: { projectId: string; status: string }) => {
-    trayManager.updateContextMenu()
-    const currentConfig = await storageManager.loadConfig().catch(() => null)
-    const notifications: AppConfig['notifications'] = currentConfig?.notifications || { onStart: false, onError: false, sound: true }
-    if (!Notification.isSupported()) return
-
-    const projects = await storageManager.loadProjects().catch(() => [])
-    const projectName = projects.find((p) => p.id === data.projectId)?.name || data.projectId
-
-    if (data.status === 'error' && notifications.onError) {
-      // Windows toast action button: restart the project without opening the
-      // app. Clicking the toast body focuses the app and opens the project.
-      const notification = new Notification({
-        title: 'Gatrion - Project Crash',
-        body: `Project "${projectName}" encountered an error.`,
-        silent: !notifications.sound,
-        actions: [{ type: 'button', text: 'Restart' }],
-        timeoutType: 'never',
-      })
-      notification.on('action', (event) => {
-        if (event.actionIndex === 0) restartProjectFromNotification(data.projectId)
-      })
-      notification.on('click', () => {
-        focusAppWindow()
-        mainWindow?.webContents.send('navigate-to-project', data.projectId)
-      })
-      notification.show()
-    } else if (data.status === 'running' && notifications.onStart) {
-      new Notification({
-        title: 'Gatrion - Project Started',
-        body: `Project "${projectName}" is now running.`,
-        silent: !notifications.sound
-      }).show()
-    }
-  })
+  // Native toasts for project lifecycle events (crash → restart action, start).
+  setupProjectNotifications({
+    processManager,
+    storageManager,
+    getWindow: () => mainWindow,
+    focusAppWindow,
+  }, trayManager)
 
   // Apply OS startup settings and auto-start projects
   await applyOSSettings(initialConfig)
@@ -574,124 +393,6 @@ async function initialize() {
       ).catch((error) => console.error(`[App] Failed to auto-start ${project.name}:`, error))
     }
   }
-
-  // Workspace presets
-  ipcMain.handle('get-presets', async (event) => {
-    try {
-      assertTrustedIpcEvent(event)
-      return { success: true, presets: await storageManager.loadPresets() }
-    } catch (error) {
-      return { success: false, error: (error as Error).message }
-    }
-  })
-
-  ipcMain.handle('save-presets', async (event, presets: Array<Record<string, unknown>>) => {
-    try {
-      assertTrustedIpcEvent(event)
-      const saved = await storageManager.savePresets(presets as unknown as PresetRecord[])
-      return { success: true, presets: saved }
-    } catch (error) {
-      return { success: false, error: (error as Error).message }
-    }
-  })
-
-  // Setup config handler
-  ipcMain.handle('get-config', async (event) => {
-    try {
-      assertTrustedIpcEvent(event)
-      const currentConfig = await storageManager.loadConfig()
-      return { success: true, config: currentConfig }
-    } catch (error) {
-      return { success: false, error: (error as Error).message }
-    }
-  })
-
-  ipcMain.handle('update-config', async (event, updates: Record<string, unknown>) => {
-    try {
-      assertTrustedIpcEvent(event)
-      const updatedConfig = await storageManager.updateConfig(updates)
-      await applyOSSettings(updatedConfig)
-      if (Number.isInteger(updatedConfig?.terminal?.maxLines) && updatedConfig.terminal.maxLines > 0) {
-        processManager.maxLogLines = updatedConfig.terminal.maxLines
-      }
-      if (updatedConfig?.autoRestart) {
-        processManager.autoRestartConfig = updatedConfig.autoRestart
-      }
-      // Broadcast so every renderer context (e.g. MainLayout's own config hook)
-      // stays in sync with the caller that just changed the config.
-      mainWindow?.webContents.send('config-updated', updatedConfig)
-      return { success: true, config: updatedConfig }
-    } catch (error) {
-      return { success: false, error: (error as Error).message }
-    }
-  })
-
-  // Activity feed persistence
-  ipcMain.handle('get-activities', async (event) => {
-    try {
-      assertTrustedIpcEvent(event)
-      const activities = await storageManager.loadActivities()
-      return { success: true, activities }
-    } catch (error) {
-      return { success: false, error: (error as Error).message }
-    }
-  })
-
-  ipcMain.handle('append-activities', async (event, entries: Array<Record<string, unknown>>) => {
-    try {
-      assertTrustedIpcEvent(event)
-      const activities = await storageManager.appendActivities(entries as unknown as ActivityEntry[])
-      return { success: true, activities }
-    } catch (error) {
-      return { success: false, error: (error as Error).message }
-    }
-  })
-
-  // Update checker — compare the running version against the latest GitHub release
-  ipcMain.handle('check-update', async (event) => {
-    try {
-      assertTrustedIpcEvent(event)
-      const url = 'https://api.github.com/repos/adi-santoso/gatrion_devlauncher/releases/latest'
-      const body = await new Promise<string>((resolve, reject) => {
-        const req = https.get(url, {
-          headers: { 'User-Agent': 'Gatrion/1.0 (desktop project manager)', 'Accept': 'application/vnd.github+json' },
-          timeout: 10000,
-        }, (res: import('http').IncomingMessage) => {
-          let data = ''
-          res.on('data', (chunk: Buffer) => { data += chunk })
-          res.on('end', () => resolve(data))
-        })
-        req.on('error', reject)
-        req.on('timeout', () => req.destroy(new Error('Update check timed out')))
-      })
-      const parsed = JSON.parse(body)
-      const latest = String(parsed.tag_name || '').replace(/^v/, '')
-      const current = app.getVersion()
-      // Numeric compare (not string !==) so 1.0.10 > 1.0.9 and an older
-      // release is never advertised as an available update.
-      const updateAvailable = Boolean(latest) && isVersionNewer(latest, current)
-      return {
-        success: true,
-        current,
-        latest: latest || null,
-        updateAvailable,
-        url: String(parsed.html_url || 'https://github.com/adi-santoso/gatrion_devlauncher/releases'),
-      }
-    } catch (error) {
-      return { success: false, error: (error as Error).message }
-    }
-  })
-
-  // Setup project detection handler
-  ipcMain.handle('detect-project-type', async (event, projectPath: string) => {
-    try {
-      assertTrustedIpcEvent(event)
-      const result = await projectDetector.detectProjectType(projectPath)
-      return result
-    } catch (error) {
-      return { success: false, error: (error as Error).message }
-    }
-  })
 }
 
 app.whenReady().then(async () => {
@@ -773,4 +474,3 @@ app.on('before-quit', async (event) => {
     }
   }
 })
-

@@ -86,9 +86,9 @@ function setupProjectHandlers(storageManager: StorageManager, processManager: Pr
   })
 
   // Add a project
-  handle('add-project', async (event, projectData: Record<string, any>) => {
+  handle('add-project', async (event, projectData: Record<string, unknown>) => {
     const changes = sanitizeProjectChanges(projectData)
-    if (changes.envVars?.some((item: { unchanged?: boolean }) => item.unchanged)) {
+    if (Array.isArray(changes.envVars) && changes.envVars.some((item: { unchanged?: boolean }) => item.unchanged)) {
       throw new Error('New environment variables cannot retain a stored value')
     }
     const project = validateProject(normalizeProject({
@@ -118,13 +118,13 @@ function setupProjectHandlers(storageManager: StorageManager, processManager: Pr
   })
 
   // Update a project
-  handle('update-project', async (event, projectId: string, updates: Record<string, any>) => {
+  handle('update-project', async (event, projectId: string, updates: Record<string, unknown>) => {
     const changes = sanitizeProjectChanges(updates)
     const { projects, value: project } = await storageManager.updateProjects((currentProjects) => {
       const index = currentProjects.findIndex((item) => item.id === projectId)
       if (index === -1) throw new Error(`Project ${projectId} not found`)
 
-      if (changes.envVars) {
+      if (Array.isArray(changes.envVars)) {
         changes.envVars = changes.envVars.map((item: { key: string; value: string; unchanged?: boolean }) => {
           if (!item.unchanged) return { key: item.key, value: item.value }
           const existing = currentProjects[index].envVars.find((env) => env.key === item.key)
@@ -229,7 +229,7 @@ function setupProjectHandlers(storageManager: StorageManager, processManager: Pr
       : rawProjects[0]?.schemaVersion
     const migrated = migrateProjects(rawProjects, fromVersion)
     const candidates = migrated
-      .map((project: Record<string, any>) => {
+      .map((project) => {
         try {
           return { project: validateProject(normalizeProject(project, uuidv4)), error: null }
         } catch (error) {

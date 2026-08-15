@@ -17,6 +17,8 @@ const STATES = {
 }
 
 import type { BrowserWindow } from 'electron'
+import { Notification } from 'electron'
+import Logger from './logger'
 
 interface UpdateProgress {
   percent: number
@@ -120,6 +122,55 @@ function createUpdater({ autoUpdater, getWindow, isEnabled }: UpdaterDeps) {
   }
 
   return { states: STATES, wireEvents, check, startDownload, quitAndInstall, getState, onChange }
+}
+
+interface UpdaterSetupDeps {
+  autoUpdater: UpdaterDeps['autoUpdater']
+  getWindow: () => BrowserWindow | null | undefined
+  focusAppWindow: () => void
+  isPackaged: () => boolean
+  getVersion: () => string
+}
+
+/**
+ * Wires the updater state machine into the app lifecycle: event forwarding,
+ * a Windows toast with a "Restart & install" action when a download finishes,
+ * and a silent check shortly after launch (packaged builds only).
+ */
+export function setupAutoUpdater({
+  autoUpdater,
+  getWindow,
+  focusAppWindow,
+  isPackaged,
+  getVersion,
+}: UpdaterSetupDeps) {
+  const updater = createUpdater({ autoUpdater, getWindow, isEnabled: isPackaged })
+  updater.wireEvents()
+  updater.onChange((payload: UpdatePayload) => {
+    Logger.info('Updater', 'State changed', { state: payload.state, error: payload.error || undefined })
+    // Update ready → Windows toast with a "Restart & install" action button.
+    if (payload.state === 'downloaded' && isPackaged()) {
+      const notification = new Notification({
+        title: 'Gatrion - Update ready',
+        body: `Version ${getVersion()} is downloaded. Restart to apply it.`,
+        actions: [{ type: 'button', text: 'Restart & install' }],
+        timeoutType: 'never',
+      })
+      notification.on('action', (event) => {
+        if (event.actionIndex === 0) updater.quitAndInstall()
+      })
+      notification.on('click', () => focusAppWindow())
+      notification.show()
+    }
+  })
+  // Silent check shortly after launch (packaged only) so a ready update can be
+  // surfaced in the Settings banner / notification without user action.
+  if (isPackaged()) {
+    setTimeout(() => {
+      updater.check().catch(() => {})
+    }, 8000)
+  }
+  return updater
 }
 
 export { createUpdater, STATES }

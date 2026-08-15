@@ -74,7 +74,7 @@ class TrayManager {
 
     try {
       const projects = await this.storageManager.loadProjects();
-      const runningProjects = projects.filter((p: any) => {
+      const runningProjects = projects.filter((p) => {
         const status = this.processManager.getStatus(p.id);
         return status && (status.status === 'RUNNING' || status.status === 'STARTING');
       });
@@ -102,7 +102,7 @@ class TrayManager {
       };
 
       if (runningProjects.length > 0) {
-        runningProjects.forEach((p: any) => {
+        runningProjects.forEach((p) => {
           menuTemplate.push({
             label: `  ⚡ ${p.name}`,
             click: () => {
@@ -130,7 +130,7 @@ class TrayManager {
               if (p.path && p.startCommand) {
                 const envObj: Record<string, string> = {};
                 if (Array.isArray(p.envVars)) {
-                  p.envVars.forEach((e: any) => { if (e.key) envObj[e.key] = e.value || ''; });
+                  p.envVars.forEach((e) => { if (e.key) envObj[e.key] = e.value || ''; });
                 }
                 try {
                   const launch = resolveLaunchConfig(p);
@@ -170,7 +170,8 @@ class TrayManager {
         {
           label: 'Quit DevLauncher',
           click: () => {
-            (app as any).isQuitting = true;
+            // main.ts owns the `isQuitting` flag (checked in before-quit);
+            // quitting from the tray must actually quit rather than minimize.
             app.quit();
           }
         }

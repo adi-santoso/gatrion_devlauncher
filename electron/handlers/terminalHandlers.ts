@@ -5,16 +5,28 @@ const os = require('os');
 import { assertTrustedIpcEvent } from '../utils/ipcSecurity'
 import { safeHandle } from '../utils/ipcValidation'
 
-// TODO(ts): node-pty is an optional native module with no bundled types —
-// its API surface is pinned by usage below.
-let pty: any = null;
+// node-pty is an optional native module with no bundled types — its API
+// surface is pinned by the usage below.
+interface PtyProcess {
+  onData(callback: (data: string) => void): void
+  onExit(callback: (event: { exitCode: number }) => void): void
+  write(data: string): void
+  resize(cols: number, rows: number): void
+  kill(): void
+}
+
+interface PtyApi {
+  spawn(shell: string, args: string[], options: Record<string, unknown>): PtyProcess
+}
+
+let pty: PtyApi | null = null;
 try {
-  pty = require('node-pty');
+  pty = require('node-pty') as PtyApi;
 } catch (error) {
   pty = null;
 }
 
-const terminals = new Map();
+const terminals = new Map<string, PtyProcess>();
 
 function getDefaultShell() {
   if (process.platform === 'win32') {
@@ -31,8 +43,8 @@ function setupTerminalHandlers(mainWindow: BrowserWindow | null) {
       return { success: false, error: 'node-pty is not available' };
     }
     const id = `term-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-    const shell = options.shell || getDefaultShell();
-    const cwd = options.cwd || os.homedir();
+    const shell = typeof options.shell === 'string' && options.shell ? options.shell : getDefaultShell();
+    const cwd = typeof options.cwd === 'string' && options.cwd ? options.cwd : os.homedir();
     const cols = Number.isInteger(options.cols) && (options.cols as number) > 0 ? (options.cols as number) : 80;
     const rows = Number.isInteger(options.rows) && (options.rows as number) > 0 ? (options.rows as number) : 24;
 

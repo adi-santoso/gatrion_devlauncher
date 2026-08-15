@@ -1,4 +1,5 @@
-import type { Project } from '../../src/types/shared'
+import type { Project, AppConfig } from '../../src/types/shared'
+import type { PresetRecord } from '../managers/StorageManager'
 
 const crypto = require('crypto')
 import { migrateProjects, normalizeProject, validateProject } from '../projectSchema'
@@ -14,10 +15,27 @@ interface BackupBundle {
   exportedAt: string
   appVersion: string | null
   hasSecrets: boolean
-  projects: Array<Record<string, any>>
-  config: Record<string, any>
-  presets: Array<Record<string, any>>
-  health: Record<string, any>
+  projects: Project[]
+  config: AppConfig
+  presets: PresetRecord[]
+  health: Record<string, unknown>
+}
+
+/**
+ * Parsed (unvalidated) backup bundle shape — JSON from disk, narrowed by
+ * validateBundle before it is trusted.
+ */
+interface ParsedBundle {
+  app?: string
+  type?: string
+  version?: number
+  exportedAt?: string
+  appVersion?: string | null
+  hasSecrets?: boolean
+  projects?: unknown[]
+  config?: Record<string, unknown>
+  presets?: unknown[]
+  health?: Record<string, unknown>
 }
 
 interface EncryptedPayload {
@@ -40,10 +58,10 @@ interface MergeResult {
  * this is a recovery bundle), config, presets and health analytics.
  */
 function buildBundle(input: {
-  projects: Array<Record<string, any>>
-  config: Record<string, any>
-  presets: Array<Record<string, any>>
-  health: Record<string, any>
+  projects: Project[]
+  config: AppConfig
+  presets: PresetRecord[]
+  health: Record<string, unknown>
   appVersion?: string
 }): BackupBundle {
   const { projects, config, presets, health, appVersion } = input
@@ -53,8 +71,7 @@ function buildBundle(input: {
     version: BACKUP_VERSION,
     exportedAt: new Date().toISOString(),
     appVersion: appVersion || null,
-    hasSecrets: Array.isArray(projects)
-      && projects.some((project) => (project.envVars || []).some((env: Record<string, any>) => env.value)),
+    hasSecrets: projects.some((project) => project.envVars.some((env) => env.value)),
     projects: Array.isArray(projects) ? projects : [],
     config: config || {},
     presets: Array.isArray(presets) ? presets : [],
@@ -102,38 +119,38 @@ function decryptBundle(payload: { salt: string; iv: string; tag: string; data: s
  * Parse a backup file into its inner bundle JSON, handling both plaintext
  * (JSON) and encrypted (wrapper object) formats.
  */
-function parseBackupFile(text: string, password?: string): { parsed: Record<string, any>; wasEncrypted: boolean } {
+function parseBackupFile(text: string, password?: string): { parsed: ParsedBundle; wasEncrypted: boolean } {
   const trimmed = (text || '').trim()
   if (!trimmed) throw new Error('Backup file is empty')
-  let first
+  let first: unknown
   try {
     first = JSON.parse(trimmed)
   } catch {
     throw new Error('Backup file is not valid JSON')
   }
-  if (first && first.encrypted === true) {
+  if (first && (first as { encrypted?: unknown }).encrypted === true) {
     if (!password) throw new Error('This backup is encrypted — enter the password to import it')
-    const json = decryptBundle(first, password)
+    const json = decryptBundle(first as { salt: string; iv: string; tag: string; data: string }, password)
     try {
-      return { parsed: JSON.parse(json), wasEncrypted: true }
+      return { parsed: JSON.parse(json) as ParsedBundle, wasEncrypted: true }
     } catch {
       throw new Error('Backup contents are corrupted after decryption')
     }
   }
-  return { parsed: first, wasEncrypted: false }
+  return { parsed: first as ParsedBundle, wasEncrypted: false }
 }
 
 /**
  * Validate a parsed bundle: right type + version, usable arrays/objects.
  */
-function validateBundle(parsed: Record<string, any>): Record<string, any> {
+function validateBundle(parsed: ParsedBundle): ParsedBundle {
   if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
     throw new Error('Backup file does not contain a bundle object')
   }
   if (parsed.type !== BACKUP_TYPE) {
     throw new Error('File is not a DevLauncher workspace backup')
   }
-  if (!Number.isInteger(parsed.version) || parsed.version > BACKUP_VERSION) {
+  if (typeof parsed.version !== 'number' || !Number.isInteger(parsed.version) || parsed.version > BACKUP_VERSION) {
     throw new Error(`Unsupported backup version: ${parsed.version}`)
   }
   return parsed
@@ -145,19 +162,19 @@ function validateBundle(parsed: Record<string, any>): Record<string, any> {
  * already exists. Returns { projects, added, skipped }.
  */
 function mergeProjects(
-  currentProjects: Array<Record<string, any>>,
-  incoming: Array<Record<string, any>>
+  currentProjects: Project[],
+  incoming: unknown[]
 ): MergeResult {
-  const migrated = migrateProjects(Array.isArray(incoming) ? incoming : [], incoming?.[0]?.schemaVersion)
-  const candidates = migrated.map((project: Record<string, any>) => {
+  const migrated = migrateProjects(Array.isArray(incoming) ? incoming : [], (incoming[0] as { schemaVersion?: number } | undefined)?.schemaVersion)
+  const candidates = migrated.map((project) => {
     try {
       return { project: validateProject(normalizeProject(project, crypto.randomUUID)), error: null }
-    } catch (error: any) {
-      return { project: null, error: `${project?.name || '(unnamed)'}: ${error.message}` }
+    } catch (error) {
+      return { project: null, error: `${project?.name || '(unnamed)'}: ${(error as Error).message}` }
     }
   })
 
-  const next: Project[] = [...(currentProjects as Project[])]
+  const next: Project[] = [...currentProjects]
   const existingPaths = new Set(next.map((project) => normalizePathKey(project.path)))
   const existingNames = new Set(next.map((project) => project.name.toLowerCase()))
   const added: Project[] = []

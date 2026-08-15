@@ -140,11 +140,21 @@ const LOCKFILES = [
   { file: 'bun.lock', pm: 'bun' },
 ]
 
-function readPackageJson(projectPath: string): Record<string, any> | null {
+interface PackageJson {
+  name?: string
+  version?: string
+  scripts?: Record<string, string>
+  dependencies?: Record<string, string>
+  devDependencies?: Record<string, string>
+  packageManager?: string
+  [key: string]: unknown
+}
+
+function readPackageJson(projectPath: string): PackageJson | null {
   const file = path.join(projectPath, 'package.json')
   if (!fs.existsSync(file)) return null
   try {
-    return JSON.parse(fs.readFileSync(file, 'utf8'))
+    return JSON.parse(fs.readFileSync(file, 'utf8')) as PackageJson
   } catch {
     return null
   }
@@ -387,7 +397,7 @@ function setupRepoHandlers(storageManager: StorageManager, processManager: Proce
     const pkg = readPackageJson(projectPath)
     if (!pkg) return { success: true, hasPackageJson: false, outdated: [] }
     const raw = await execNpm(projectPath, ['outdated', '--json'], { timeoutMs: 120000 })
-    let parsed: Record<string, any> = {}
+    let parsed: Record<string, { current?: string; wanted?: string; latest?: string }> = {}
     try {
       parsed = raw.trim() ? JSON.parse(raw) : {}
     } catch {

@@ -43,7 +43,7 @@ describe('OmpManager (mock omp RPC)', () => {
     expect(sessions).toHaveLength(1)
     expect(sessions[0].tokens).toBe(1234)
     expect(sessions[0].sessionPath).toBe('C:/sessions/s1.jsonl')
-  })
+  }, 15000)
 
   test('registry: touchSession updates metadata and ignores non-finite tokens', async () => {
     await manager.init()

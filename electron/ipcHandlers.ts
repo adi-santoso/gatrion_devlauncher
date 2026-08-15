@@ -1,0 +1,263 @@
+import type { AppConfig } from '../src/types/shared'
+import type { ProcessManager as ProcessManagerType } from './managers/ProcessManager'
+import type { StorageManager as StorageManagerType, PresetRecord, ActivityEntry } from './managers/StorageManager'
+import type { HealthManager as HealthManagerType } from './managers/HealthManager'
+import type { ProjectDetector as ProjectDetectorType } from './managers/ProjectDetector'
+import { assertTrustedIpcEvent } from './utils/ipcSecurity'
+import { isVersionNewer } from './utils/versionCompare'
+import Logger from './utils/logger'
+
+const { app, ipcMain, Notification } = require('electron') as typeof import('electron')
+const https = require('https')
+
+export interface IpcHandlersDeps {
+  processManager: ProcessManagerType
+  storageManager: StorageManagerType
+  healthManager: HealthManagerType
+  projectDetector: ProjectDetectorType
+  getWindow: () => InstanceType<typeof import('electron').BrowserWindow> | null
+  getUpdater: () => { startDownload: () => Promise<{ success: boolean; error?: string }>; quitAndInstall: () => { success: boolean; error?: string } } | null
+  applyOSSettings: (config: AppConfig) => Promise<void>
+}
+
+/**
+ * Registers every ipcMain.handle the app exposes. Kept out of main.ts so the
+ * entry point stays a thin orchestrator (managers, events, lifecycle).
+ */
+export function registerCoreIpcHandlers({
+  processManager,
+  storageManager,
+  healthManager,
+  projectDetector,
+  getWindow,
+  getUpdater,
+  applyOSSettings,
+}: IpcHandlersDeps) {
+  ipcMain.handle('update-download', async (event) => {
+    try {
+      assertTrustedIpcEvent(event)
+      const updater = getUpdater()
+      if (!updater) return { success: false, error: 'Auto-update is unavailable' }
+      return await updater.startDownload()
+    } catch (error) {
+      return { success: false, error: (error as Error).message }
+    }
+  })
+
+  ipcMain.handle('update-install', async (event) => {
+    try {
+      assertTrustedIpcEvent(event)
+      const updater = getUpdater()
+      if (!updater) return { success: false, error: 'Auto-update is unavailable' }
+      return await updater.quitAndInstall()
+    } catch (error) {
+      return { success: false, error: (error as Error).message }
+    }
+  })
+
+  // Prayer reminder: native notifications + city geocoding (renderer CSP blocks external fetch)
+  ipcMain.handle('app-notify', (event, payload: Record<string, unknown> = {}) => {
+    try {
+      assertTrustedIpcEvent(event)
+      if (!Notification.isSupported()) return { success: false, error: 'Notifications are not supported on this system' }
+      new Notification({
+        title: String(payload.title || 'Gatrion'),
+        body: String(payload.body || ''),
+        silent: !!payload.silent,
+      }).show()
+      return { success: true }
+    } catch (error) {
+      return { success: false, error: (error as Error).message }
+    }
+  })
+
+  ipcMain.handle('prayer-geocode', async (event, query: string) => {
+    try {
+      assertTrustedIpcEvent(event)
+      const q = String(query || '').trim()
+      if (!q) return { success: false, error: 'Query is empty' }
+      const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=5`
+      const body = await new Promise<string>((resolve, reject) => {
+        const req = https.get(url, {
+          headers: { 'User-Agent': 'Gatrion/1.0 (desktop project manager)', 'Accept': 'application/json' },
+        }, (res: import('http').IncomingMessage) => {
+          let data = ''
+          res.on('data', (chunk: Buffer) => { data += chunk })
+          res.on('end', () => resolve(data))
+        })
+        req.setTimeout(10000, () => req.destroy(new Error('Geocoding request timed out')))
+        req.on('error', reject)
+      })
+      const parsed = JSON.parse(body)
+      if (!Array.isArray(parsed)) return { success: false, error: 'Unexpected geocoding response' }
+      const results = parsed
+        .map((item) => ({
+          name: item.display_name || item.name || 'Unknown',
+          latitude: parseFloat(item.lat),
+          longitude: parseFloat(item.lon),
+        }))
+        .filter((item) => Number.isFinite(item.latitude) && Number.isFinite(item.longitude))
+      return { success: true, results }
+    } catch (error) {
+      return { success: false, error: (error as Error).message }
+    }
+  })
+
+  // Renderer errors (window.onerror / unhandledrejection) land in main.log
+  ipcMain.handle('renderer-error', async (event, payload = {}) => {
+    try {
+      assertTrustedIpcEvent(event)
+      const meta = typeof payload === 'object' && payload !== null ? payload : {}
+      Logger.error('renderer', String(meta.message || 'Unknown renderer error'), {
+        type: String(meta.type || ''),
+        source: String(meta.source || ''),
+        line: Number.isFinite(meta.line) ? meta.line : undefined,
+        column: Number.isFinite(meta.column) ? meta.column : undefined,
+        stack: String(meta.stack || '').slice(0, 2000),
+      })
+      return { success: true }
+    } catch (error) {
+      return { success: false, error: (error as Error).message }
+    }
+  })
+
+  // Health analytics IPC
+  ipcMain.handle('get-health', async (event, projectId) => {
+    try {
+      assertTrustedIpcEvent(event)
+      if (typeof projectId !== 'string' || !projectId.trim()) throw new Error('Project ID is required')
+      return { success: true, stats: healthManager.getStats(projectId) }
+    } catch (error) {
+      return { success: false, error: (error as Error).message }
+    }
+  })
+
+  ipcMain.handle('clear-health', async (event, projectId) => {
+    try {
+      assertTrustedIpcEvent(event)
+      if (typeof projectId !== 'string' || !projectId.trim()) throw new Error('Project ID is required')
+      healthManager.clear(projectId)
+      return { success: true }
+    } catch (error) {
+      return { success: false, error: (error as Error).message }
+    }
+  })
+
+  // Workspace presets
+  ipcMain.handle('get-presets', async (event) => {
+    try {
+      assertTrustedIpcEvent(event)
+      return { success: true, presets: await storageManager.loadPresets() }
+    } catch (error) {
+      return { success: false, error: (error as Error).message }
+    }
+  })
+
+  ipcMain.handle('save-presets', async (event, presets: Array<Record<string, unknown>>) => {
+    try {
+      assertTrustedIpcEvent(event)
+      const saved = await storageManager.savePresets(presets as unknown as PresetRecord[])
+      return { success: true, presets: saved }
+    } catch (error) {
+      return { success: false, error: (error as Error).message }
+    }
+  })
+
+  // Config
+  ipcMain.handle('get-config', async (event) => {
+    try {
+      assertTrustedIpcEvent(event)
+      const currentConfig = await storageManager.loadConfig()
+      return { success: true, config: currentConfig }
+    } catch (error) {
+      return { success: false, error: (error as Error).message }
+    }
+  })
+
+  ipcMain.handle('update-config', async (event, updates: Record<string, unknown>) => {
+    try {
+      assertTrustedIpcEvent(event)
+      const updatedConfig = await storageManager.updateConfig(updates)
+      await applyOSSettings(updatedConfig)
+      if (Number.isInteger(updatedConfig?.terminal?.maxLines) && updatedConfig.terminal.maxLines > 0) {
+        processManager.maxLogLines = updatedConfig.terminal.maxLines
+      }
+      if (updatedConfig?.autoRestart) {
+        processManager.autoRestartConfig = updatedConfig.autoRestart
+      }
+      // Broadcast so every renderer context (e.g. MainLayout's own config hook)
+      // stays in sync with the caller that just changed the config.
+      getWindow()?.webContents.send('config-updated', updatedConfig)
+      return { success: true, config: updatedConfig }
+    } catch (error) {
+      return { success: false, error: (error as Error).message }
+    }
+  })
+
+  // Activity feed persistence
+  ipcMain.handle('get-activities', async (event) => {
+    try {
+      assertTrustedIpcEvent(event)
+      const activities = await storageManager.loadActivities()
+      return { success: true, activities }
+    } catch (error) {
+      return { success: false, error: (error as Error).message }
+    }
+  })
+
+  ipcMain.handle('append-activities', async (event, entries: Array<Record<string, unknown>>) => {
+    try {
+      assertTrustedIpcEvent(event)
+      const activities = await storageManager.appendActivities(entries as unknown as ActivityEntry[])
+      return { success: true, activities }
+    } catch (error) {
+      return { success: false, error: (error as Error).message }
+    }
+  })
+
+  // Update checker — compare the running version against the latest GitHub release
+  ipcMain.handle('check-update', async (event) => {
+    try {
+      assertTrustedIpcEvent(event)
+      const url = 'https://api.github.com/repos/adi-santoso/gatrion_devlauncher/releases/latest'
+      const body = await new Promise<string>((resolve, reject) => {
+        const req = https.get(url, {
+          headers: { 'User-Agent': 'Gatrion/1.0 (desktop project manager)', 'Accept': 'application/vnd.github+json' },
+          timeout: 10000,
+        }, (res: import('http').IncomingMessage) => {
+          let data = ''
+          res.on('data', (chunk: Buffer) => { data += chunk })
+          res.on('end', () => resolve(data))
+        })
+        req.on('error', reject)
+        req.on('timeout', () => req.destroy(new Error('Update check timed out')))
+      })
+      const parsed = JSON.parse(body)
+      const latest = String(parsed.tag_name || '').replace(/^v/, '')
+      const current = app.getVersion()
+      // Numeric compare (not string !==) so 1.0.10 > 1.0.9 and an older
+      // release is never advertised as an available update.
+      const updateAvailable = Boolean(latest) && isVersionNewer(latest, current)
+      return {
+        success: true,
+        current,
+        latest: latest || null,
+        updateAvailable,
+        url: String(parsed.html_url || 'https://github.com/adi-santoso/gatrion_devlauncher/releases'),
+      }
+    } catch (error) {
+      return { success: false, error: (error as Error).message }
+    }
+  })
+
+  // Project detection
+  ipcMain.handle('detect-project-type', async (event, projectPath: string) => {
+    try {
+      assertTrustedIpcEvent(event)
+      const result = await projectDetector.detectProjectType(projectPath)
+      return result
+    } catch (error) {
+      return { success: false, error: (error as Error).message }
+    }
+  })
+}

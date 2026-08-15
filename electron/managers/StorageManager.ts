@@ -9,21 +9,11 @@ import { normalizeProject, validateProject, migrateProjects, PROJECT_SCHEMA_VERS
 import Logger from '../utils/logger'
 const log = Logger || { info() {}, warn() {}, error() {}, debug() {}, fatal() {} }
 
-const PRESET_DEFAULT_COLOR = '#6D5EF5'
-const MAX_STAGGER_DELAY_MS = 60000
-const PRESET_COLOR_PATTERN = /^#[0-9a-fA-F]{3,8}$/
+import { normalizePreset, PRESET_DEFAULT_COLOR } from './presetSchema'
+import type { PresetRecord } from './presetSchema'
 
-interface PresetRecord {
-  id: string
-  name: string
-  description: string
-  color: string
-  projectIds: string[]
-  startDelayMs: number
-  autoStart: boolean
-  createdAt: string
-  updatedAt: string
-}
+export { normalizePreset, PRESET_DEFAULT_COLOR } from './presetSchema'
+export type { PresetRecord } from './presetSchema'
 
 interface ActivityEntry {
   type: string
@@ -34,56 +24,16 @@ interface ActivityEntry {
 }
 
 interface ReadProjectsResult {
-  parsed: Record<string, any>[]
+  parsed: unknown[]
   projects: Project[]
 }
 
 interface ReadConfigResult {
-  parsed: Record<string, any>
+  parsed: Record<string, unknown>
   config: AppConfig
 }
 
 type MutatorResult = { projects?: Project[]; value?: unknown }
-
-/**
- * Normalize a workspace preset, migrating legacy shapes (v1: id/name/projectIds/createdAt)
- * into the v2 shape and sanitizing every field. Returns null for entries without a valid name.
- * @param preset - Raw preset value
- * @param index - Position in the list (used for generated ids)
- */
-function normalizePreset(preset: Record<string, any> | null | undefined, index = 0): PresetRecord | null {
-  if (!preset || typeof preset !== 'object' || typeof preset.name !== 'string' || !preset.name.trim()) return null
-
-  const seen = new Set()
-  const projectIds = Array.isArray(preset.projectIds)
-    ? preset.projectIds
-      .filter((id: unknown) => typeof id === 'string' && id.trim())
-      .map((id: string) => id.trim())
-      .filter((id: string) => {
-        if (seen.has(id)) return false
-        seen.add(id)
-        return true
-      })
-    : []
-
-  const rawDelay = Number(preset.startDelayMs)
-  const startDelayMs = Number.isFinite(rawDelay)
-    ? Math.max(0, Math.min(MAX_STAGGER_DELAY_MS, Math.round(rawDelay)))
-    : 0
-
-  const now = new Date().toISOString()
-  return {
-    id: typeof preset.id === 'string' && preset.id.trim() ? preset.id.trim() : `preset-${Date.now()}-${index}`,
-    name: preset.name.trim(),
-    description: typeof preset.description === 'string' ? preset.description.trim() : '',
-    color: typeof preset.color === 'string' && PRESET_COLOR_PATTERN.test(preset.color.trim()) ? preset.color.trim() : PRESET_DEFAULT_COLOR,
-    projectIds,
-    startDelayMs,
-    autoStart: preset.autoStart === true,
-    createdAt: typeof preset.createdAt === 'string' ? preset.createdAt : now,
-    updatedAt: typeof preset.updatedAt === 'string' ? preset.updatedAt : now,
-  }
-}
 
 class StorageManager {
   static normalizePreset: typeof normalizePreset
@@ -187,7 +137,7 @@ class StorageManager {
     if (!Array.isArray(parsed)) throw new Error('Projects data must be an array')
     const fromVersion = parsed[0]?.schemaVersion
     const migrated = migrateProjects(parsed, fromVersion)
-    const projects = migrated.map((project: Record<string, any>) => validateProject(normalizeProject(project, uuidv4)))
+    const projects = migrated.map((project) => validateProject(normalizeProject(project, uuidv4)))
     return { parsed, projects }
   }
 
@@ -528,7 +478,6 @@ class StorageManager {
 
 StorageManager.normalizePreset = normalizePreset
 StorageManager.PRESET_DEFAULT_COLOR = PRESET_DEFAULT_COLOR
-export { normalizePreset, PRESET_DEFAULT_COLOR }
 export default StorageManager
 
-export type { StorageManager, PresetRecord, ActivityEntry }
+export type { StorageManager, ActivityEntry }
