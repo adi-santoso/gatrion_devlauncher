@@ -113,7 +113,7 @@ function setupProcessHandlers(processManager: ProcessManager, storageManager: St
   }
 
   // Start a project
-  secureHandle('start-project', async (event, projectId) => {
+  secureHandle('start-project', async (_event, projectId) => {
     try {
       const project = await loadPersistedProject(projectId)
       const launch = resolveLaunchConfig(project)
@@ -152,7 +152,7 @@ function setupProcessHandlers(processManager: ProcessManager, storageManager: St
   })
 
   // Stop a project
-  secureHandle('stop-project', async (event, projectId, force = false) => {
+  secureHandle('stop-project', async (_event, projectId, force = false) => {
     try {
       const stopPromise = processManager.stopProcess(projectId, force)
       safeSend('process-status', projectId, processManager.getProcessStatus(projectId))
@@ -165,7 +165,7 @@ function setupProcessHandlers(processManager: ProcessManager, storageManager: St
   })
 
   // Restart a project
-  secureHandle('restart-project', async (event, projectId) => {
+  secureHandle('restart-project', async (_event, projectId) => {
     try {
       const project = await loadPersistedProject(projectId)
       const launch = resolveLaunchConfig(project)
@@ -200,27 +200,27 @@ function setupProcessHandlers(processManager: ProcessManager, storageManager: St
   })
 
   // Get process status
-  secureHandle('get-process-status', async (event, projectId) => {
+  secureHandle('get-process-status', async (_event, projectId) => {
     return processManager.getProcessStatus(projectId)
   })
 
   // Check port conflict
-  secureHandle('check-port-conflict', async (event, port) => {
+  secureHandle('check-port-conflict', async (_event, port) => {
     return processManager.findPortOwner(port)
   })
 
   // Get process metrics (uptime, memory MB)
-  secureHandle('get-process-metrics', async (event, projectId) => {
+  secureHandle('get-process-metrics', async (_event, projectId) => {
     return processManager.getProcessMetrics(projectId)
   })
 
   // Get logs
-  secureHandle('get-logs', async (event, projectId, limit = 1000) => {
+  secureHandle('get-logs', async (_event, projectId, limit = 1000) => {
     return processManager.getLogs(projectId, limit)
   })
 
   // Clear logs
-  secureHandle('clear-logs', async (event, projectId) => {
+  secureHandle('clear-logs', async (_event, projectId) => {
     processManager.clearLogs(projectId)
     return { success: true }
   })
@@ -228,7 +228,7 @@ function setupProcessHandlers(processManager: ProcessManager, storageManager: St
   // Start all projects (topologically sorted by dependsOn).
   // options.delayMs (0-60000) staggers each start so dependencies (e.g. a DB)
   // get time to boot before the next project in the batch is launched.
-  secureHandle('start-all-projects', async (event, projectIds, options) => {
+  secureHandle('start-all-projects', async (_event, projectIds, options) => {
     const rawDelay = Number(options?.delayMs)
     const delayMs = Number.isFinite(rawDelay) ? Math.max(0, Math.min(60000, Math.round(rawDelay))) : 0
     const projectList = await storageManager.loadProjects()
@@ -305,7 +305,7 @@ function setupProcessHandlers(processManager: ProcessManager, storageManager: St
   })
 
   // Run a custom command for a project
-  secureHandle('run-custom-command', async (event, projectId, commandId) => {
+  secureHandle('run-custom-command', async (_event, projectId, commandId) => {
     try {
       const project = await loadPersistedProject(projectId)
       const customCommand = (Array.isArray(project.customCommands) ? project.customCommands : [])
@@ -332,7 +332,7 @@ function setupProcessHandlers(processManager: ProcessManager, storageManager: St
   })
 
   // Stop a running custom command
-  secureHandle('stop-custom-command', async (event, runId) => {
+  secureHandle('stop-custom-command', async (_event, runId) => {
     try {
       const result = await processManager.stopCustomCommand(runId, true)
       return { ...result, success: true }

@@ -26,6 +26,16 @@ export interface BrowseResult {
   error?: string
 }
 
+/** Result of `exportProjects` — the native save dialog plus the exported count. */
+export interface ExportProjectsResult extends BrowseResult {
+  count?: number
+}
+
+/** Result of `exportDiagnostics` — the native save dialog plus the file path. */
+export interface DiagnosticsExportResult extends BrowseResult {
+  filePath?: string
+}
+
 export interface DetectTypeResult {
   success: boolean
   type?: string
@@ -46,6 +56,10 @@ export interface ImportProjectsResult {
   canceled?: boolean
   projects?: Project[]
   error?: string
+  /** Newly imported projects, as returned by the backend import handler. */
+  added?: Project[]
+  /** Projects skipped during import, with the reason for each. */
+  skipped?: Array<{ name: string; reason: string }>
 }
 
 export interface EnvFilesResult {
@@ -142,7 +156,7 @@ export const browseFolder = async (): Promise<BrowseResult> => {
   return invoke<BrowseResult>('browseFolder')
 }
 
-export const exportProjects = async (): Promise<BrowseResult> => {
+export const exportProjects = async (): Promise<ExportProjectsResult> => {
   if (!isElectron()) {
     console.warn('[IPC] Running in browser mode - exportProjects not available')
     return { success: false, canceled: true }
@@ -158,7 +172,7 @@ export const importProjects = async (): Promise<ImportProjectsResult> => {
   return invoke<ImportProjectsResult>('importProjects')
 }
 
-export const exportDiagnostics = async (): Promise<BrowseResult> => {
+export const exportDiagnostics = async (): Promise<DiagnosticsExportResult> => {
   if (!isElectron()) {
     console.warn('[IPC] Running in browser mode - exportDiagnostics not available')
     return { success: false, canceled: true }

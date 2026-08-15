@@ -38,7 +38,7 @@ function getDefaultShell() {
 function setupTerminalHandlers(mainWindow: BrowserWindow | null) {
   const handle = (channel: string, handler: import('../utils/ipcValidation').IpcHandler) => safeHandle(ipcMain, assertTrustedIpcEvent, channel, handler)
 
-  handle('terminal-create', async (event, options: Record<string, unknown> = {}) => {
+  handle('terminal-create', async (_event, options: Record<string, unknown> = {}) => {
     if (!pty) {
       return { success: false, error: 'node-pty is not available' };
     }
@@ -73,14 +73,14 @@ function setupTerminalHandlers(mainWindow: BrowserWindow | null) {
     return { success: true, id };
   });
 
-  handle('terminal-input', async (event, id: string, data: string) => {
+  handle('terminal-input', async (_event, id: string, data: string) => {
     const term = terminals.get(id);
     if (!term) return { success: false, error: 'Terminal not found' };
     term.write(String(data ?? ''));
     return { success: true };
   });
 
-  handle('terminal-resize', async (event, id: string, cols: number, rows: number) => {
+  handle('terminal-resize', async (_event, id: string, cols: number, rows: number) => {
     const term = terminals.get(id);
     if (!term) return { success: false, error: 'Terminal not found' };
     if (Number.isInteger(cols) && Number.isInteger(rows) && cols > 0 && rows > 0) {
@@ -89,7 +89,7 @@ function setupTerminalHandlers(mainWindow: BrowserWindow | null) {
     return { success: true };
   });
 
-  handle('terminal-kill', async (event, id: string) => {
+  handle('terminal-kill', async (_event, id: string) => {
     const term = terminals.get(id);
     if (term) {
       term.kill();

@@ -9,7 +9,7 @@ function setupDesktopHandlers() {
   const handle = (channel: string, handler: IpcHandler): void => safeHandle(ipcMain, assertTrustedIpcEvent, channel, handler)
 
   // Open external URL in default OS browser
-  handle('open-external-url', async (event, url) => {
+  handle('open-external-url', async (_event, url) => {
     if (!url || typeof url !== 'string') {
       return { success: false, error: 'Invalid URL parameter' };
     }
@@ -30,7 +30,7 @@ function setupDesktopHandlers() {
   });
 
   // Reveal item/folder in Windows File Explorer
-  handle('reveal-in-explorer', async (event, targetPath) => {
+  handle('reveal-in-explorer', async (_event, targetPath) => {
     if (!targetPath || typeof targetPath !== 'string') {
       return { success: false, error: 'Invalid path parameter' };
     }
@@ -42,7 +42,7 @@ function setupDesktopHandlers() {
   });
 
   // Open directory path in default OS application or Code editor
-  handle('open-in-editor', async (event, targetPath) => {
+  handle('open-in-editor', async (_event, targetPath) => {
     if (!targetPath || typeof targetPath !== 'string') {
       return { success: false, error: 'Invalid path parameter' };
     }

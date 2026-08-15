@@ -12,20 +12,20 @@ import { safeHandle } from '../utils/ipcValidation'
 function setupPreviewHandlers(previewManager: PreviewManager) {
   const handle = (channel: string, handler: import('../utils/ipcValidation').IpcHandler) => safeHandle(ipcMain, assertTrustedIpcEvent, channel, handler)
 
-  handle('preview-show', (event, payload: Record<string, unknown>) => previewManager.show((payload || {}) as Parameters<PreviewManager['show']>[0]))
-  handle('preview-hide', (event, projectId: string) => previewManager.hide(projectId))
+  handle('preview-show', (_event, payload: Record<string, unknown>) => previewManager.show((payload || {}) as Parameters<PreviewManager['show']>[0]))
+  handle('preview-hide', (_event, projectId: string) => previewManager.hide(projectId))
 
-  handle('preview-set-bounds', (event, projectId: string, bounds: { x: number; y: number; width: number; height: number }) => {
+  handle('preview-set-bounds', (_event, projectId: string, bounds: { x: number; y: number; width: number; height: number }) => {
     previewManager.setBounds(projectId, bounds)
     return { success: true }
   })
 
-  handle('preview-navigate', (event, projectId: string, url: string) => previewManager.navigate(projectId, url))
-  handle('preview-reload', (event, projectId: string) => previewManager.reload(projectId))
-  handle('preview-zoom', (event, projectId: string, zoomLevel: number) => previewManager.setZoom(projectId, zoomLevel))
-  handle('preview-toggle-devtools', (event, projectId: string) => previewManager.toggleDevTools(projectId))
-  handle('preview-clear-data', (event, projectId: string) => previewManager.clearSiteData(projectId))
-  handle('preview-destroy', (event, projectId: string) => previewManager.destroy(projectId))
+  handle('preview-navigate', (_event, projectId: string, url: string) => previewManager.navigate(projectId, url))
+  handle('preview-reload', (_event, projectId: string) => previewManager.reload(projectId))
+  handle('preview-zoom', (_event, projectId: string, zoomLevel: number) => previewManager.setZoom(projectId, zoomLevel))
+  handle('preview-toggle-devtools', (_event, projectId: string) => previewManager.toggleDevTools(projectId))
+  handle('preview-clear-data', (_event, projectId: string) => previewManager.clearSiteData(projectId))
+  handle('preview-destroy', (_event, projectId: string) => previewManager.destroy(projectId))
 }
 
 export { setupPreviewHandlers }

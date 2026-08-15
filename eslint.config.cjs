@@ -37,7 +37,7 @@ module.exports = [
       'no-undef': 'off', // TS parser handles type references
       'no-unused-vars': 'off', // use the TS-aware rule below
       '@typescript-eslint/no-unused-vars': ['warn', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
-      '@typescript-eslint/no-explicit-any': 'warn', // unknown-first: any needs // TODO(ts)
+      '@typescript-eslint/no-explicit-any': 'error', // unknown-first: no explicit any allowed
       'max-lines': ['warn', { max: 400, skipBlankLines: true, skipComments: true }],
     },
   },
@@ -88,7 +88,7 @@ module.exports = [
       'no-undef': 'off',
       'no-unused-vars': 'off',
       '@typescript-eslint/no-unused-vars': ['warn', { argsIgnorePattern: '^_', varsIgnorePattern: '^_', caughtErrors: 'none' }],
-      '@typescript-eslint/no-explicit-any': 'warn',
+      '@typescript-eslint/no-explicit-any': 'error',
       'max-lines': ['warn', { max: 400, skipBlankLines: true, skipComments: true }],
       'no-console': 'off',
       'no-control-regex': 'off',

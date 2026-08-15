@@ -80,7 +80,7 @@ function setupBackupHandlers(storageManager: StorageManager, healthManager?: Hea
   const handle = (channel: string, handler: import('../utils/ipcValidation').IpcHandler) => safeHandle(ipcMain, assertTrustedIpcEvent, channel, handler)
 
   // Export: assemble the bundle, optionally encrypt, save via the native dialog.
-  handle('backup-export', async (event, password: string | null) => {
+  handle('backup-export', async (_event, password: string | null) => {
     const data = await collectWorkspaceData(storageManager, healthManager)
     const bundle = buildBundle({ ...data, appVersion: app.getVersion() })
     const json = JSON.stringify(bundle, null, 2)
@@ -107,7 +107,7 @@ function setupBackupHandlers(storageManager: StorageManager, healthManager?: Hea
 
   // Import: read a backup file (plaintext or encrypted), validate it, then
   // merge projects/config/presets — existing data is never overwritten.
-  handle('backup-import', async (event, password: string | null) => {
+  handle('backup-import', async (_event, password: string | null) => {
     const result = await dialog.showOpenDialog({
       title: 'Import workspace backup',
       properties: ['openFile'],

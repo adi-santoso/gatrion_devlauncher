@@ -105,7 +105,7 @@ class OmpManager extends EventEmitter {
 
   getVersion(binary: string): Promise<string | null> {
     return new Promise((resolve) => {
-      execFile(binary, ['--version'], { windowsHide: true, timeout: 8000 }, (error: Error | null, stdout: string, stderr: string) => {
+      execFile(binary, ['--version'], { windowsHide: true, timeout: 8000 }, (_error: Error | null, stdout: string, stderr: string) => {
         const text = (stdout || stderr || '').trim().split(/\r?\n/)[0]
         resolve(text || null)
       })

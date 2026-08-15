@@ -184,7 +184,7 @@ function setupRepoHandlers(storageManager: StorageManager, processManager: Proce
 
   // --- Git: read ---------------------------------------------------------
 
-  secureHandle('git-status', async (event, projectPath) => {
+  secureHandle('git-status', async (_event, projectPath) => {
     try {
       await runGit(projectPath, ['rev-parse', '--is-inside-work-tree'])
       const output = await runGit(projectPath, ['status', '--porcelain=v1', '-b', '--untracked-files=all'])
@@ -198,13 +198,13 @@ function setupRepoHandlers(storageManager: StorageManager, processManager: Proce
     }
   })
 
-  secureHandle('git-log', async (event, projectPath, limit = 15) => {
+  secureHandle('git-log', async (_event, projectPath, limit = 15) => {
     const safeLimit = Number.isInteger(limit) ? Math.min(Math.max(limit, 1), 100) : 15
     const output = await runGit(projectPath, ['log', `-${safeLimit}`, '--format=%h%x1f%an%x1f%ad%x1f%s%x1e', '--date=short'])
     return { success: true, commits: parseLog(output) }
   })
 
-  secureHandle('git-diff', async (event, projectPath, filePath, staged = false) => {
+  secureHandle('git-diff', async (_event, projectPath, filePath, staged = false) => {
     if (typeof filePath !== 'string' || !filePath.trim()) throw new Error('A file path is required')
     const args = ['diff', '--color=never']
     if (staged) args.push('--cached')
@@ -215,44 +215,44 @@ function setupRepoHandlers(storageManager: StorageManager, processManager: Proce
 
   // --- Git: write ----------------------------------------------------------
 
-  secureHandle('git-stage', async (event, projectPath, files) => {
+  secureHandle('git-stage', async (_event, projectPath, files) => {
     const list = assertPathArray(files)
     const args = list.length === 0 ? ['add', '-A'] : ['add', '--', ...list]
     await runGit(projectPath, args)
     return { success: true }
   })
 
-  secureHandle('git-unstage', async (event, projectPath, files) => {
+  secureHandle('git-unstage', async (_event, projectPath, files) => {
     const list = assertPathArray(files)
     const args = list.length === 0 ? ['reset'] : ['reset', '--', ...list]
     await runGit(projectPath, args)
     return { success: true }
   })
 
-  secureHandle('git-commit', async (event, projectPath, message) => {
+  secureHandle('git-commit', async (_event, projectPath, message) => {
     if (typeof message !== 'string' || !message.trim()) throw new Error('Commit message is required')
     if (message.length > 2000) throw new Error('Commit message is too long')
     const output = await runGit(projectPath, ['commit', '-m', message])
     return { success: true, output: output.trim() }
   })
 
-  secureHandle('git-pull', async (event, projectPath) => {
+  secureHandle('git-pull', async (_event, projectPath) => {
     const output = await runGit(projectPath, ['pull'], { timeoutMs: 90000 })
     return { success: true, output: output.trim() }
   })
 
-  secureHandle('git-push', async (event, projectPath) => {
+  secureHandle('git-push', async (_event, projectPath) => {
     const output = await runGit(projectPath, ['push'], { timeoutMs: 90000 })
     return { success: true, output: output.trim() }
   })
 
-  secureHandle('git-checkout', async (event, projectPath, branch, createNew = false) => {
+  secureHandle('git-checkout', async (_event, projectPath, branch, createNew = false) => {
     const name = assertBranchName(branch)
     await runGit(projectPath, createNew ? ['checkout', '-b', name] : ['checkout', name])
     return { success: true }
   })
 
-  secureHandle('git-init', async (event, projectPath) => {
+  secureHandle('git-init', async (_event, projectPath) => {
     await runGit(projectPath, ['init'])
     return { success: true }
   })
@@ -271,12 +271,12 @@ function setupRepoHandlers(storageManager: StorageManager, processManager: Proce
     })
   }
 
-  secureHandle('git-stash-list', async (event, projectPath) => {
+  secureHandle('git-stash-list', async (_event, projectPath) => {
     const output = await runGit(projectPath, ['stash', 'list'])
     return { success: true, stashes: parseStashList(output) }
   })
 
-  secureHandle('git-stash-push', async (event, projectPath, message) => {
+  secureHandle('git-stash-push', async (_event, projectPath, message) => {
     const cleanMessage = typeof message === 'string' ? message.trim() : ''
     if (cleanMessage.length > 200) throw new Error('Stash message is too long')
     const args = ['stash', 'push']
@@ -285,20 +285,20 @@ function setupRepoHandlers(storageManager: StorageManager, processManager: Proce
     return { success: true, output: output.trim() }
   })
 
-  secureHandle('git-stash-pop', async (event, projectPath, index = 0) => {
+  secureHandle('git-stash-pop', async (_event, projectPath, index = 0) => {
     const safeIndex = Number.isInteger(index) && index >= 0 ? index : 0
     const args = ['stash', 'pop', `stash@{${safeIndex}}`]
     const output = await runGit(projectPath, args)
     return { success: true, output: output.trim() }
   })
 
-  secureHandle('git-stash-apply', async (event, projectPath, index = 0) => {
+  secureHandle('git-stash-apply', async (_event, projectPath, index = 0) => {
     const safeIndex = Number.isInteger(index) && index >= 0 ? index : 0
     const output = await runGit(projectPath, ['stash', 'apply', `stash@{${safeIndex}}`])
     return { success: true, output: output.trim() }
   })
 
-  secureHandle('git-stash-drop', async (event, projectPath, index = 0) => {
+  secureHandle('git-stash-drop', async (_event, projectPath, index = 0) => {
     const safeIndex = Number.isInteger(index) && index >= 0 ? index : 0
     await runGit(projectPath, ['stash', 'drop', `stash@{${safeIndex}}`])
     return { success: true }
@@ -306,14 +306,14 @@ function setupRepoHandlers(storageManager: StorageManager, processManager: Proce
 
   // Discard working-tree changes of a file (git restore). Never touches staged
   // content; renderer must confirm before calling.
-  secureHandle('git-discard', async (event, projectPath, filePath) => {
+  secureHandle('git-discard', async (_event, projectPath, filePath) => {
     if (typeof filePath !== 'string' || !filePath.trim()) throw new Error('A file path is required')
     await runGit(projectPath, ['restore', '--', filePath])
     return { success: true }
   })
 
   // Blame a file: <hash> <author> <date> <line>
-  secureHandle('git-blame', async (event, projectPath, filePath) => {
+  secureHandle('git-blame', async (_event, projectPath, filePath) => {
     if (typeof filePath !== 'string' || !filePath.trim()) throw new Error('A file path is required')
     const output = await runGit(projectPath, ['blame', '--line-porcelain', '--', filePath])
     const lines = []
@@ -334,7 +334,7 @@ function setupRepoHandlers(storageManager: StorageManager, processManager: Proce
 
   // --- Package scripts + dependency health ---------------------------------
 
-  secureHandle('read-package-scripts', async (event, projectPath) => {
+  secureHandle('read-package-scripts', async (_event, projectPath) => {
     const pkg = readPackageJson(projectPath)
     if (!pkg) return { success: true, hasPackageJson: false, scripts: [], packageManager: null }
     const scripts = Object.entries(pkg.scripts || {})
@@ -343,7 +343,7 @@ function setupRepoHandlers(storageManager: StorageManager, processManager: Proce
     return { success: true, hasPackageJson: true, scripts, packageManager: null }
   })
 
-  secureHandle('check-dependencies', async (event, projectPath) => {
+  secureHandle('check-dependencies', async (_event, projectPath) => {
     const pkg = readPackageJson(projectPath)
     if (!pkg) {
       return { success: true, hasPackageJson: false, hasNodeModules: false, lockfile: null, packageManager: null, scriptCount: 0, depCount: 0 }
@@ -363,7 +363,7 @@ function setupRepoHandlers(storageManager: StorageManager, processManager: Proce
 
   // Run a package.json script as a managed custom command so its output lands
   // in the project's Terminal tab.
-  secureHandle('run-project-script', async (event, projectId, scriptName) => {
+  secureHandle('run-project-script', async (_event, projectId, scriptName) => {
     try {
       const project = await loadProject(projectId)
       if (typeof scriptName !== 'string' || !scriptName.trim()) throw new Error('Script name is required')
@@ -393,7 +393,7 @@ function setupRepoHandlers(storageManager: StorageManager, processManager: Proce
   // a shell because spawning .cmd shims directly throws `spawn EINVAL` on
   // recent Node versions for Windows.
 
-  secureHandle('npm-outdated', async (event, projectPath) => {
+  secureHandle('npm-outdated', async (_event, projectPath) => {
     const pkg = readPackageJson(projectPath)
     if (!pkg) return { success: true, hasPackageJson: false, outdated: [] }
     const raw = await execNpm(projectPath, ['outdated', '--json'], { timeoutMs: 120000 })
@@ -416,7 +416,7 @@ function setupRepoHandlers(storageManager: StorageManager, processManager: Proce
 
   // Update a single package (or all) to its wanted version. package.json and
   // the lockfile are backed up first so the change can be reverted manually.
-  secureHandle('npm-update', async (event, projectPath, packageName = null) => {
+  secureHandle('npm-update', async (_event, projectPath, packageName = null) => {
     assertSafePackageName(packageName)
     const backupFiles = ['package.json']
     for (const lock of LOCKFILES.map((item) => item.file)) {
@@ -434,7 +434,7 @@ function setupRepoHandlers(storageManager: StorageManager, processManager: Proce
 
   // Install dependencies through the process manager so progress is visible in
   // the Terminal tab. The renderer must confirm this before calling.
-  secureHandle('install-dependencies', async (event, projectId) => {
+  secureHandle('install-dependencies', async (_event, projectId) => {
     try {
       const project = await loadProject(projectId)
       const lockfile = LOCKFILES.find((entry) => fs.existsSync(path.join(project.path, entry.file)))

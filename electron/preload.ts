@@ -284,44 +284,44 @@ const api: ElectronApi = {
 
   // Event Listeners
   onProcessStatus: (callback) => {
-    const listener = (event: IpcRendererEvent, projectId: string, status: unknown) => callback(projectId, status)
+    const listener = (_event: IpcRendererEvent, projectId: string, status: unknown) => callback(projectId, status)
     ipcRenderer.on('process-status', listener)
     return () => ipcRenderer.removeListener('process-status', listener)
   },
   onProcessLog: (callback) => {
-    const listener = (event: IpcRendererEvent, projectId: string, logLine: unknown) => callback(projectId, logLine)
+    const listener = (_event: IpcRendererEvent, projectId: string, logLine: unknown) => callback(projectId, logLine)
     ipcRenderer.on('process-log', listener)
     return () => ipcRenderer.removeListener('process-log', listener)
   },
   onProcessError: (callback) => {
-    const listener = (event: IpcRendererEvent, projectId: string, error: unknown) => callback(projectId, error)
+    const listener = (_event: IpcRendererEvent, projectId: string, error: unknown) => callback(projectId, error)
     ipcRenderer.on('process-error', listener)
     return () => ipcRenderer.removeListener('process-error', listener)
   },
   onProcessExit: (callback) => {
-    const listener = (event: IpcRendererEvent, projectId: string, code: unknown, signal: unknown) => callback(projectId, code, signal)
+    const listener = (_event: IpcRendererEvent, projectId: string, code: unknown, signal: unknown) => callback(projectId, code, signal)
     ipcRenderer.on('process-exit', listener)
     return () => ipcRenderer.removeListener('process-exit', listener)
   },
   onProjectsUpdated: (callback) => {
-    const listener = (event: IpcRendererEvent, projects: unknown) => callback(projects)
+    const listener = (_event: IpcRendererEvent, projects: unknown) => callback(projects)
     ipcRenderer.on('projects-updated', listener)
     return () => ipcRenderer.removeListener('projects-updated', listener)
   },
   onConfigUpdated: (callback) => {
-    const listener = (event: IpcRendererEvent, config: unknown) => callback(config)
+    const listener = (_event: IpcRendererEvent, config: unknown) => callback(config)
     ipcRenderer.on('config-updated', listener)
     return () => ipcRenderer.removeListener('config-updated', listener)
   },
   onNavigateToProject: (callback) => {
-    const listener = (event: IpcRendererEvent, projectId: string) => callback(projectId)
+    const listener = (_event: IpcRendererEvent, projectId: string) => callback(projectId)
     ipcRenderer.on('navigate-to-project', listener)
     return () => ipcRenderer.removeListener('navigate-to-project', listener)
   },
 
   // Resource Monitoring (CPU/Memory)
   onResourceUpdate: (callback) => {
-    const listener = (event: IpcRendererEvent, data: unknown) => callback(data)
+    const listener = (_event: IpcRendererEvent, data: unknown) => callback(data)
     ipcRenderer.on('project-resource-update', listener)
     return () => ipcRenderer.removeListener('project-resource-update', listener)
   },
@@ -337,7 +337,7 @@ const api: ElectronApi = {
   previewToggleDevTools: (projectId) => ipcRenderer.invoke('preview-toggle-devtools', projectId),
   previewDestroy: (projectId) => ipcRenderer.invoke('preview-destroy', projectId),
   onPreviewConsole: (callback) => {
-    const listener = (event: IpcRendererEvent, data: unknown) => callback(data)
+    const listener = (_event: IpcRendererEvent, data: unknown) => callback(data)
     ipcRenderer.on('preview-console-message', listener)
     return () => ipcRenderer.removeListener('preview-console-message', listener)
   },
@@ -348,12 +348,12 @@ const api: ElectronApi = {
   terminalResize: (id, cols, rows) => ipcRenderer.invoke('terminal-resize', id, cols, rows),
   terminalKill: (id) => ipcRenderer.invoke('terminal-kill', id),
   onTerminalData: (callback) => {
-    const listener = (event: IpcRendererEvent, id: string, data: string) => callback(id, data)
+    const listener = (_event: IpcRendererEvent, id: string, data: string) => callback(id, data)
     ipcRenderer.on('terminal-data', listener)
     return () => ipcRenderer.removeListener('terminal-data', listener)
   },
   onTerminalExit: (callback) => {
-    const listener = (event: IpcRendererEvent, id: string, exitCode: number) => callback(id, exitCode)
+    const listener = (_event: IpcRendererEvent, id: string, exitCode: number) => callback(id, exitCode)
     ipcRenderer.on('terminal-exit', listener)
     return () => ipcRenderer.removeListener('terminal-exit', listener)
   },
@@ -385,7 +385,7 @@ const api: ElectronApi = {
   downloadUpdate: () => ipcRenderer.invoke('update-download'),
   installUpdate: () => ipcRenderer.invoke('update-install'),
   onUpdateState: (callback) => {
-    const listener = (event: IpcRendererEvent, state: unknown) => callback(state)
+    const listener = (_event: IpcRendererEvent, state: unknown) => callback(state)
     ipcRenderer.on('update-state', listener)
     return () => ipcRenderer.removeListener('update-state', listener)
   },
@@ -432,12 +432,12 @@ const api: ElectronApi = {
   ompConfigSetDefault: (modelRef) => ipcRenderer.invoke('omp-config-set-default', modelRef),
   ompRunSetup: () => ipcRenderer.invoke('omp-run-setup'),
   onOmpEvent: (callback) => {
-    const listener = (event: IpcRendererEvent, data: unknown) => callback(data)
+    const listener = (_event: IpcRendererEvent, data: unknown) => callback(data)
     ipcRenderer.on('omp-event', listener)
     return () => ipcRenderer.removeListener('omp-event', listener)
   },
   onOmpInstallProgress: (callback) => {
-    const listener = (event: IpcRendererEvent, state: unknown) => callback(state)
+    const listener = (_event: IpcRendererEvent, state: unknown) => callback(state)
     ipcRenderer.on('omp-install-progress', listener)
     return () => ipcRenderer.removeListener('omp-install-progress', listener)
   },

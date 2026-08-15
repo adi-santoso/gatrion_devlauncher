@@ -3,7 +3,9 @@
  * Keys must stay in sync between languages (enforced by a test).
  * `{var}` placeholders are substituted by `t(key, { var })`.
  */
-export const translations = {
+export type TranslationTable = Record<string, string>
+
+export const translations: { en: TranslationTable; id: TranslationTable } = {
   en: {
     // Navigation
     'nav.dashboard': 'Workspace',
@@ -317,4 +319,4 @@ export const translations = {
 };
 
 /** All supported language codes. */
-export const LANGUAGES = ['en', 'id'];
+export const LANGUAGES: string[] = ['en', 'id'];

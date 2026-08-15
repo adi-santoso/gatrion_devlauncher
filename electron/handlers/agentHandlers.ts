@@ -50,7 +50,7 @@ function setupAgentHandlers(
 
   secureHandle('omp-status', async () => ({ success: true, ...(await ompManager.getStatus()) }))
 
-  secureHandle('omp-list-sessions', async (event, projectId) => {
+  secureHandle('omp-list-sessions', async (_event, projectId) => {
     assertSessionId(projectId)
     return { success: true, sessions: ompManager.getSessions(projectId) }
   })
@@ -60,20 +60,20 @@ function setupAgentHandlers(
     return { success: true, sessions: ompManager.getAllSessions() }
   })
 
-  secureHandle('omp-create-session', async (event, projectId, title) => {
+  secureHandle('omp-create-session', async (_event, projectId, title) => {
     assertSessionId(projectId)
     const session = await ompManager.createSession(projectId, typeof title === 'string' ? title.slice(0, 80) : '')
     return { success: true, session }
   })
 
-  secureHandle('omp-delete-session', async (event, projectId, sessionId) => {
+  secureHandle('omp-delete-session', async (_event, projectId, sessionId) => {
     assertSessionId(projectId)
     assertSessionId(sessionId)
     await ompManager.deleteSession(projectId, sessionId)
     return { success: true }
   })
 
-  secureHandle('omp-update-session-tokens', async (event, projectId, sessionId, tokens, cost) => {
+  secureHandle('omp-update-session-tokens', async (_event, projectId, sessionId, tokens, cost) => {
     assertSessionId(projectId)
     if (typeof sessionId !== 'string' || !sessionId.trim()) throw new Error('Session ID is required')
     const count = Number(tokens)
@@ -89,7 +89,7 @@ function setupAgentHandlers(
     return { success: true, session }
   })
 
-  secureHandle('omp-rename-session', async (event, projectId, sessionId, title) => {
+  secureHandle('omp-rename-session', async (_event, projectId, sessionId, title) => {
     assertSessionId(projectId)
     assertSessionId(sessionId)
     const cleanTitle = String(title || '').trim().slice(0, 80)
@@ -114,7 +114,7 @@ function setupAgentHandlers(
     return (images as Array<{ type: string; data: string; mimeType: string }>).map(({ type, data, mimeType }) => ({ type, data, mimeType }))
   }
 
-  secureHandle('omp-chat', async (event, projectId, cwd, message, options = {}) => {
+  secureHandle('omp-chat', async (_event, projectId, cwd, message, options = {}) => {
     assertSessionId(projectId)
     assertProjectPath(cwd)
     const text = typeof message === 'string' ? message.trim() : ''
@@ -129,7 +129,7 @@ function setupAgentHandlers(
     return { success: true, sessionId: result.sessionId, session: result.session }
   })
 
-  secureHandle('omp-steer', async (event, projectId, cwd, message) => {
+  secureHandle('omp-steer', async (_event, projectId, cwd, message) => {
     assertSessionId(projectId)
     assertProjectPath(cwd)
     if (typeof message !== 'string' || !message.trim() || message.length > MAX_MESSAGE) throw new Error('Invalid message')
@@ -137,14 +137,14 @@ function setupAgentHandlers(
     return { success: true }
   })
 
-  secureHandle('omp-abort', async (event, projectId, cwd) => {
+  secureHandle('omp-abort', async (_event, projectId, cwd) => {
     assertSessionId(projectId)
     if (cwd) assertProjectPath(cwd)
     await ompManager.abort(projectId, cwd || process.env.USERPROFILE || '')
     return { success: true }
   })
 
-  secureHandle('omp-get-messages', async (event, projectId, cwd, options = {}) => {
+  secureHandle('omp-get-messages', async (_event, projectId, cwd, options = {}) => {
     assertSessionId(projectId)
     assertProjectPath(cwd)
     await ompManager.ensureRpc(projectId, cwd)
@@ -155,7 +155,7 @@ function setupAgentHandlers(
     return { success: true, messages }
   })
 
-  secureHandle('omp-get-models', async (event, projectId, cwd) => {
+  secureHandle('omp-get-models', async (_event, projectId, cwd) => {
     assertSessionId(projectId)
     if (cwd) assertProjectPath(cwd)
     const data = await ompManager.getAvailableModels(projectId, cwd || process.env.USERPROFILE || '')
@@ -165,7 +165,7 @@ function setupAgentHandlers(
     return { success: true, models: list }
   })
 
-  secureHandle('omp-set-model', async (event, projectId, cwd, provider, modelId) => {
+  secureHandle('omp-set-model', async (_event, projectId, cwd, provider, modelId) => {
     assertSessionId(projectId)
     if (cwd) assertProjectPath(cwd)
     if (typeof provider !== 'string' || typeof modelId !== 'string' || !provider || !modelId) throw new Error('Provider and model are required')
@@ -175,7 +175,7 @@ function setupAgentHandlers(
 
   const THINKING_LEVELS = ['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max']
 
-  secureHandle('omp-set-thinking-level', async (event, projectId, cwd, level) => {
+  secureHandle('omp-set-thinking-level', async (_event, projectId, cwd, level) => {
     assertSessionId(projectId)
     if (cwd) assertProjectPath(cwd)
     if (!THINKING_LEVELS.includes(level)) throw new Error('Invalid thinking level')
@@ -183,14 +183,14 @@ function setupAgentHandlers(
     return { success: true }
   })
 
-  secureHandle('omp-get-state', async (event, projectId, cwd) => {
+  secureHandle('omp-get-state', async (_event, projectId, cwd) => {
     assertSessionId(projectId)
     if (cwd) assertProjectPath(cwd)
     const state = await ompManager.getState(projectId, cwd || process.env.USERPROFILE || '')
     return { success: true, state }
   })
 
-  secureHandle('omp-compact', async (event, projectId, cwd, customInstructions) => {
+  secureHandle('omp-compact', async (_event, projectId, cwd, customInstructions) => {
     assertSessionId(projectId)
     if (cwd) assertProjectPath(cwd)
     const instructions = typeof customInstructions === 'string' ? customInstructions.slice(0, 2000) : undefined
@@ -198,35 +198,35 @@ function setupAgentHandlers(
     return { success: true }
   })
 
-  secureHandle('omp-set-auto-compaction', async (event, projectId, cwd, enabled) => {
+  secureHandle('omp-set-auto-compaction', async (_event, projectId, cwd, enabled) => {
     assertSessionId(projectId)
     if (cwd) assertProjectPath(cwd)
     await ompManager.setAutoCompaction(projectId, cwd || process.env.USERPROFILE || '', Boolean(enabled))
     return { success: true }
   })
 
-  secureHandle('omp-set-auto-retry', async (event, projectId, cwd, enabled) => {
+  secureHandle('omp-set-auto-retry', async (_event, projectId, cwd, enabled) => {
     assertSessionId(projectId)
     if (cwd) assertProjectPath(cwd)
     await ompManager.setAutoRetry(projectId, cwd || process.env.USERPROFILE || '', Boolean(enabled))
     return { success: true }
   })
 
-  secureHandle('omp-abort-retry', async (event, projectId, cwd) => {
+  secureHandle('omp-abort-retry', async (_event, projectId, cwd) => {
     assertSessionId(projectId)
     if (cwd) assertProjectPath(cwd)
     await ompManager.abortRetry(projectId, cwd || process.env.USERPROFILE || '')
     return { success: true }
   })
 
-  secureHandle('omp-set-fast-mode', async (event, projectId, cwd, enabled) => {
+  secureHandle('omp-set-fast-mode', async (_event, projectId, cwd, enabled) => {
     assertSessionId(projectId)
     if (cwd) assertProjectPath(cwd)
     await ompManager.setFastMode(projectId, cwd || process.env.USERPROFILE || '', Boolean(enabled))
     return { success: true }
   })
 
-  secureHandle('omp-get-commands', async (event, projectId, cwd) => {
+  secureHandle('omp-get-commands', async (_event, projectId, cwd) => {
     assertSessionId(projectId)
     if (cwd) assertProjectPath(cwd)
     const commands = await ompManager.getAvailableCommands(projectId, cwd || process.env.USERPROFILE || '')
@@ -237,7 +237,7 @@ function setupAgentHandlers(
 
   // Export the canonical omp transcript (paged, so long conversations are
   // never silently truncated) as Markdown via the native save dialog.
-  secureHandle('omp-export-conversation', async (event, projectId, cwd, sessionPath, title) => {
+  secureHandle('omp-export-conversation', async (_event, projectId, cwd, sessionPath, title) => {
     assertSessionId(projectId)
     assertProjectPath(cwd)
     await ompManager.ensureRpc(projectId, cwd)
@@ -258,7 +258,7 @@ function setupAgentHandlers(
   })
 
   // Pin/unpin a session so it stays on top of the sidebar list.
-  secureHandle('omp-toggle-pin', async (event, projectId, sessionId) => {
+  secureHandle('omp-toggle-pin', async (_event, projectId, sessionId) => {
     assertSessionId(projectId)
     assertSessionId(sessionId)
     const list = ompManager.getSessions(projectId)
@@ -268,7 +268,7 @@ function setupAgentHandlers(
     return { success: true, session: updated }
   })
 
-  secureHandle('omp-branch', async (event, projectId, cwd, entryId) => {
+  secureHandle('omp-branch', async (_event, projectId, cwd, entryId) => {
     assertSessionId(projectId)
     if (cwd) assertProjectPath(cwd)
     if (typeof entryId !== 'string' || !entryId.trim()) throw new Error('Entry ID is required')
@@ -276,7 +276,7 @@ function setupAgentHandlers(
     return { success: true, data }
   })
 
-  secureHandle('omp-get-branch-messages', async (event, projectId, cwd) => {
+  secureHandle('omp-get-branch-messages', async (_event, projectId, cwd) => {
     assertSessionId(projectId)
     if (cwd) assertProjectPath(cwd)
     const messages = await ompManager.getBranchMessages(projectId, cwd || process.env.USERPROFILE || '')
@@ -285,7 +285,7 @@ function setupAgentHandlers(
 
   const SUBAGENT_LEVELS = ['off', 'progress', 'events']
 
-  secureHandle('omp-set-subagent-subscription', async (event, projectId, cwd, level) => {
+  secureHandle('omp-set-subagent-subscription', async (_event, projectId, cwd, level) => {
     assertSessionId(projectId)
     if (cwd) assertProjectPath(cwd)
     if (!SUBAGENT_LEVELS.includes(level)) throw new Error('Invalid subscription level')
@@ -293,14 +293,14 @@ function setupAgentHandlers(
     return { success: true }
   })
 
-  secureHandle('omp-get-subagents', async (event, projectId, cwd) => {
+  secureHandle('omp-get-subagents', async (_event, projectId, cwd) => {
     assertSessionId(projectId)
     if (cwd) assertProjectPath(cwd)
     const subagents = await ompManager.getSubagents(projectId, cwd || process.env.USERPROFILE || '')
     return { success: true, subagents }
   })
 
-  secureHandle('omp-handoff', async (event, projectId, cwd, customInstructions) => {
+  secureHandle('omp-handoff', async (_event, projectId, cwd, customInstructions) => {
     assertSessionId(projectId)
     if (cwd) assertProjectPath(cwd)
     if (typeof customInstructions !== 'string' || !customInstructions.trim()) throw new Error('Instructions are required')
@@ -314,7 +314,7 @@ function setupAgentHandlers(
   // Run a bash command in the project directory through omp's RPC bash
   // command. The response arrives when the command finishes (BashResult);
   // abort_bash cancels a long-running command.
-  secureHandle('omp-bash', async (event, projectId, cwd, command) => {
+  secureHandle('omp-bash', async (_event, projectId, cwd, command) => {
     assertSessionId(projectId)
     assertProjectPath(cwd)
     if (typeof command !== 'string' || !command.trim()) throw new Error('Command is required')
@@ -323,7 +323,7 @@ function setupAgentHandlers(
     return { success: true, data }
   })
 
-  secureHandle('omp-abort-bash', async (event, projectId, cwd) => {
+  secureHandle('omp-abort-bash', async (_event, projectId, cwd) => {
     assertSessionId(projectId)
     if (cwd) assertProjectPath(cwd)
     await ompManager.abortBash(projectId, cwd || process.env.USERPROFILE || '')
@@ -354,7 +354,7 @@ function setupAgentHandlers(
     return { success: true, ...data }
   })
 
-  secureHandle('omp-config-save-provider', async (event, input: Record<string, unknown> = {}) => {
+  secureHandle('omp-config-save-provider', async (_event, input: Record<string, unknown> = {}) => {
     if (typeof input !== 'object' || input === null) throw new Error('Provider data is required')
     const name = String((input as Record<string, unknown>).name || '').trim()
     if (name.length > 60) throw new Error('Provider name is too long')
@@ -363,13 +363,13 @@ function setupAgentHandlers(
     return { success: true }
   })
 
-  secureHandle('omp-config-delete-provider', async (event, name) => {
+  secureHandle('omp-config-delete-provider', async (_event, name) => {
     const result = await ompConfig.deleteProvider(String(name || '').trim())
     if (!result.success) throw new Error(result.error)
     return { success: true }
   })
 
-  secureHandle('omp-config-set-default', async (event, modelRef) => {
+  secureHandle('omp-config-set-default', async (_event, modelRef) => {
     const result = await ompConfig.setDefaultModel(String(modelRef || '').trim())
     if (!result.success) throw new Error(result.error)
     return { success: true }

@@ -99,7 +99,7 @@ class PreviewManager {
 
     // Forward the project app's console output to the renderer so it can be
     // surfaced (e.g. logged alongside the process log stream).
-    view.webContents.on('console-message', (event: Electron.Event, level: number | string, message: string, line: number, sourceId: string) => {
+    view.webContents.on('console-message', (_event: Electron.Event, level: number | string, message: string, line: number, sourceId: string) => {
       // Electron 43 passes level as a numeric code (0-3), older versions as a
       // string — normalize both to a stable name.
       const LEVEL_NAMES = ['verbose', 'info', 'warning', 'error']

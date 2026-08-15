@@ -86,7 +86,7 @@ function setupProjectHandlers(storageManager: StorageManager, processManager: Pr
   })
 
   // Add a project
-  handle('add-project', async (event, projectData: Record<string, unknown>) => {
+  handle('add-project', async (_event, projectData: Record<string, unknown>) => {
     const changes = sanitizeProjectChanges(projectData)
     if (Array.isArray(changes.envVars) && changes.envVars.some((item: { unchanged?: boolean }) => item.unchanged)) {
       throw new Error('New environment variables cannot retain a stored value')
@@ -118,7 +118,7 @@ function setupProjectHandlers(storageManager: StorageManager, processManager: Pr
   })
 
   // Update a project
-  handle('update-project', async (event, projectId: string, updates: Record<string, unknown>) => {
+  handle('update-project', async (_event, projectId: string, updates: Record<string, unknown>) => {
     const changes = sanitizeProjectChanges(updates)
     const { projects, value: project } = await storageManager.updateProjects((currentProjects) => {
       const index = currentProjects.findIndex((item) => item.id === projectId)
@@ -157,7 +157,7 @@ function setupProjectHandlers(storageManager: StorageManager, processManager: Pr
   })
 
   // Delete a project
-  handle('delete-project', async (event, projectId: string) => {
+  handle('delete-project', async (_event, projectId: string) => {
     const processStatus = processManager.getProcessStatus(projectId)
     if (
       processStatus.status === processManager.STATUS.RUNNING ||
@@ -280,7 +280,7 @@ function setupProjectHandlers(storageManager: StorageManager, processManager: Pr
   // Workspace search: filenames across project roots (bounded depth, build
   // dirs excluded) for the command palette. The renderer passes the project
   // paths it already has; a short query returns nothing to avoid noise.
-  handle('workspace-search-files', async (event, query, projectPaths) => {
+  handle('workspace-search-files', async (_event, query, projectPaths) => {
     const roots = Array.isArray(projectPaths)
       ? projectPaths.filter((item) => typeof item === 'string' && item.trim())
       : []
@@ -312,7 +312,7 @@ function setupProjectHandlers(storageManager: StorageManager, processManager: Pr
   })
 
   // List .env* files in a project root
-  handle('list-env-files', async (event, projectPath) => {
+  handle('list-env-files', async (_event, projectPath) => {
     assertProjectDirectory(projectPath)
     const root = path.resolve(projectPath)
     const entries = await fs.promises.readdir(root, { withFileTypes: true })
@@ -324,7 +324,7 @@ function setupProjectHandlers(storageManager: StorageManager, processManager: Pr
   })
 
   // Read a single env file
-  handle('read-env-file', async (event, projectPath, fileName) => {
+  handle('read-env-file', async (_event, projectPath, fileName) => {
     const target = assertEnvFilePath(projectPath, fileName)
     let content
     let stats
@@ -339,7 +339,7 @@ function setupProjectHandlers(storageManager: StorageManager, processManager: Pr
   })
 
   // Write a single env file (creates a timestamped backup of the previous file)
-  handle('write-env-file', async (event, projectPath, fileName, content) => {
+  handle('write-env-file', async (_event, projectPath, fileName, content) => {
     if (typeof content !== 'string') throw new Error('Env file content must be a string')
     const target = assertEnvFilePath(projectPath, fileName)
     if (fs.existsSync(target)) {
