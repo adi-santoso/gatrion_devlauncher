@@ -3,9 +3,10 @@ import fs from 'fs/promises'
 import os from 'os'
 import path from 'path'
 
-import OmpManager from '../OmpManager'
+import OmpManager, { hasConfiguredProvider } from '../OmpManager'
 
 const MOCK_SCRIPT = path.resolve(__dirname, '../../../tests/fixtures/mock-omp-rpc.js')
+const EXIT_SCRIPT = path.resolve(__dirname, '../../../tests/fixtures/mock-omp-exit.js')
 const PROJECT_ID = 'proj-test'
 const PROJECT_CWD = process.cwd()
 
@@ -76,6 +77,42 @@ describe('OmpManager (mock omp RPC)', () => {
     expect(sessions).toHaveLength(1)
     expect(sessions[0].id).toBe(b.id)
   })
+
+  test('clearProject kills the RPC process and removes all sessions (persisted)', async () => {
+    await manager.init()
+    await manager.createSession(PROJECT_ID, 'A')
+    await manager.createSession(PROJECT_ID, 'B')
+    await manager.ensureRpc(PROJECT_ID, PROJECT_CWD)
+    expect(manager.rpcs.has(PROJECT_ID)).toBe(true)
+
+    await manager.clearProject(PROJECT_ID)
+    expect(manager.rpcs.has(PROJECT_ID)).toBe(false)
+    expect(manager.getSessions(PROJECT_ID)).toEqual([])
+
+    // The cleanup is persisted — a reloaded manager sees no orphan sessions.
+    const reloaded = new OmpManager(tempDir)
+    await reloaded.init()
+    expect(reloaded.getSessions(PROJECT_ID)).toEqual([])
+    // Other projects are untouched.
+    await reloaded.createSession('other-project', 'Keep me')
+    expect(reloaded.getSessions('other-project')).toHaveLength(1)
+  })
+
+  test('clearProject on an unknown project is a safe no-op', async () => {
+    await manager.init()
+    await expect(manager.clearProject('ghost-project')).resolves.toBeUndefined()
+  })
+
+  test('rejects in-flight RPC requests when the process exits without responding', async () => {
+    // rpcMockScript is read at construction — point this instance at the
+    // exit fixture (ready frame, then die on the first command).
+    manager.rpcMockScript = EXIT_SCRIPT
+    await manager.init()
+    // The exit fixture announces readiness, then dies on the first command.
+    await manager.ensureRpc(PROJECT_ID, PROJECT_CWD)
+    const request = manager._send(PROJECT_ID, { type: 'get_state' }, 10000)
+    await expect(request).rejects.toThrow(/exited/)
+  }, 15000)
 
   test('ensureRpc spawns the mock agent and reports ready', async () => {
     await manager.init()
@@ -176,6 +213,21 @@ describe('OmpManager (mock omp RPC)', () => {
     expect(manager.rpcs.has(PROJECT_ID)).toBe(false)
     manager.killRpc(PROJECT_ID) // no-op
     manager.killAll() // no-op
+  })
+
+  describe('hasConfiguredProvider', () => {
+    test('detects a provider entry written by the Settings form', () => {
+      expect(hasConfiguredProvider({ providers: { myproxy: { baseUrl: 'http://localhost:8080/v1', api: 'openai-completions' } } })).toBe(true)
+    })
+
+    test('rejects missing/empty/unknown shapes', () => {
+      expect(hasConfiguredProvider(null)).toBe(false)
+      expect(hasConfiguredProvider(42)).toBe(false)
+      expect(hasConfiguredProvider({})).toBe(false)
+      expect(hasConfiguredProvider({ providers: {} })).toBe(false)
+      expect(hasConfiguredProvider({ providers: [] })).toBe(false)
+      expect(hasConfiguredProvider({ providers: { entry: { api: 'openai-completions' } } })).toBe(false)
+    })
   })
 
   describe('normalizeMessages', () => {

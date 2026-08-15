@@ -128,14 +128,23 @@ class OmpManager extends EventEmitter {
   }
 
   // A provider is considered configured when a well-known API key env var is
-  // set or omp's config declares a default model role. We never read the keys.
+  // set, omp's config declares a default model role, or models.yml defines at
+  // least one provider (the in-app custom-provider form writes there, so a
+  // user who set one up must not still see "provider not configured"). We
+  // never read the keys.
   async isConfigured(): Promise<boolean> {
     const keys = ['ANTHROPIC_API_KEY', 'OPENAI_API_KEY', 'GEMINI_API_KEY', 'GOOGLE_API_KEY', 'XAI_API_KEY', 'DEEPSEEK_API_KEY', 'OPENROUTER_API_KEY', 'GROQ_API_KEY']
     if (keys.some((key) => process.env[key])) return true
     try {
       const configPath = path.join(os.homedir(), '.omp', 'agent', 'config.yml')
       const content = await fs.readFile(configPath, 'utf8')
-      return /modelRoles:|default:|loginState:/i.test(content)
+      if (/modelRoles:|default:|loginState:/i.test(content)) return true
+    } catch { /* no config.yml yet — keep looking */ }
+    try {
+      const yaml = require('js-yaml')
+      const modelsPath = path.join(os.homedir(), '.omp', 'agent', 'models.yml')
+      const parsed = yaml.load(await fs.readFile(modelsPath, 'utf8'))
+      return hasConfiguredProvider(parsed)
     } catch {
       return false
     }
@@ -203,6 +212,20 @@ class OmpManager extends EventEmitter {
     const list = (this.registry.projects[projectId] || []).filter((item) => item.id !== sessionId)
     this.registry.projects[projectId] = list
     await this.saveRegistry()
+  }
+
+  /**
+   * Remove all agent data for a deleted project: kill its RPC process (if one
+   * is alive) and drop its session metadata from the registry so nothing
+   * lingers on disk or in memory. Non-fatal — callers fire it after the
+   * project itself is gone.
+   */
+  async clearProject(projectId: string): Promise<void> {
+    this.rpc.killRpc(projectId)
+    if (this.registry.projects[projectId]) {
+      delete this.registry.projects[projectId]
+      await this.saveRegistry()
+    }
   }
 
   // =========================================================================
@@ -448,6 +471,19 @@ class OmpManager extends EventEmitter {
   get rpcs() {
     return this.rpc.rpcs
   }
+}
+
+/**
+ * Whether a parsed models.yml document declares at least one provider (with a
+ * baseUrl). Extracted from isConfigured so the logic is unit-testable without
+ * touching the real ~/.omp on disk.
+ */
+export function hasConfiguredProvider(modelsDoc: unknown): boolean {
+  const providers = modelsDoc && typeof modelsDoc === 'object' ? (modelsDoc as { providers?: unknown }).providers : undefined
+  if (!providers || typeof providers !== 'object' || Array.isArray(providers)) return false
+  return Object.values(providers as Record<string, unknown>).some(
+    (entry) => Boolean(entry) && typeof entry === 'object' && 'baseUrl' in (entry as Record<string, unknown>)
+  )
 }
 
 export default OmpManager

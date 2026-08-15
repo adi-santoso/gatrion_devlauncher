@@ -129,6 +129,19 @@ describe('projectHandlers', () => {
     expect(missing.error).toMatch(/not found/)
   })
 
+  test('delete-project cleans up agent data (RPC process + session registry)', async () => {
+    const storage = makeStorageManager()
+    const pm = makeProcessManager()
+    const omp = { clearProject: vi.fn(async () => {}) }
+    setupProjectHandlers(storage, pm, makeWindow(), omp)
+    const added = await ipcMain._handlers.get('add-project')(fakeEvent, projectTemplate(tempRoot))
+    const id = added.project.id
+
+    const result = await ipcMain._handlers.get('delete-project')(fakeEvent, id)
+    expect(result.success).toBe(true)
+    expect(omp.clearProject).toHaveBeenCalledWith(id)
+  })
+
   test('workspace-search-files returns hits and honors a short query', async () => {
     fs.mkdirSync(path.join(tempRoot, 'src'))
     fs.writeFileSync(path.join(tempRoot, 'src', 'App.jsx'), 'export default () => null')

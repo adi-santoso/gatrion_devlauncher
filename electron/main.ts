@@ -340,7 +340,7 @@ async function initialize() {
   // Setup IPC handlers (process, project, desktop, terminal, preview, repo,
   // system, backup, agent) plus the core config/presets/health/update ones.
   setupProcessHandlers(processManager, storageManager, mainWindow)
-  setupProjectHandlers(storageManager, processManager, mainWindow)
+  setupProjectHandlers(storageManager, processManager, mainWindow, ompManager)
   setupDesktopHandlers()
   setupTerminalHandlers(mainWindow)
   setupPreviewHandlers(previewManager)

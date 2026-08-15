@@ -92,8 +92,15 @@ export class OmpRpcTransport {
         entry!.proc = null
         reject(error)
       }
+      // A request that was already in flight must never hang until its own
+      // timeout — the process is gone, so settle it immediately.
+      const rejectPending = (message: string) => {
+        for (const pending of [...entry!.pending.values()]) pending.reject(new Error(message))
+        entry!.pending.clear()
+      }
       child.on('error', (error: Error) => {
         this.onEvent(projectId, { type: 'rpc_error', error: error.message })
+        rejectPending('omp process failed to start')
         fail(error)
       })
       child.stdout.on('data', (chunk: Buffer) => {
@@ -116,6 +123,7 @@ export class OmpRpcTransport {
         entry!.ready = false
         entry!.proc = null
         if (!settled) fail(new Error(startupError || `omp exited with code ${code} before starting`))
+        rejectPending(`omp process exited${code === null ? '' : ` (code ${code})`} before responding`)
         this.onEvent(projectId, { type: 'rpc_exit', code })
       })
       // Wait for the ready frame before resolving.

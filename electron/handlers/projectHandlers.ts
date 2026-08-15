@@ -4,6 +4,7 @@ const { ipcMain, dialog } = require('electron') as typeof import('electron')
 const { v4: uuidv4 } = require('uuid')
 import type { BrowserWindow } from 'electron'
 import type { Project } from '../../src/types/shared'
+import type { OmpManager } from '../managers/OmpManager'
 import type { StorageManager } from '../managers/StorageManager'
 import type { ProcessManager } from '../managers/ProcessManager'
 
@@ -42,8 +43,14 @@ const assertEnvFilePath = (projectPath: unknown, fileName: unknown): string => {
  * @param {StorageManager} storageManager - StorageManager instance
  * @param {ProcessManager} processManager - ProcessManager instance
  * @param {BrowserWindow} mainWindow - Main window instance
+ * @param {OmpManager|null} ompManager - Agent manager (cleanup on project delete)
  */
-function setupProjectHandlers(storageManager: StorageManager, processManager: ProcessManager, mainWindow: BrowserWindow | null) {
+function setupProjectHandlers(
+  storageManager: StorageManager,
+  processManager: ProcessManager,
+  mainWindow: BrowserWindow | null,
+  ompManager: OmpManager | null = null,
+) {
   // Helper to safely send to renderer (skip if window is destroyed or app is quitting)
   const safeSend = (channel: string, ...args: unknown[]) => {
     try {
@@ -173,6 +180,10 @@ function setupProjectHandlers(storageManager: StorageManager, processManager: Pr
       if (filtered.length === currentProjects.length) throw new Error(`Project ${projectId} not found`)
       return { projects: filtered }
     })
+
+    // Clean up agent data (RPC process + session registry). Best-effort and
+    // fire-and-forget: a failure here must never fail the project deletion.
+    ompManager?.clearProject(projectId).catch(() => {})
 
     // Notify renderer of update
     safeSend('projects-updated', projects.map(toRendererProject))
