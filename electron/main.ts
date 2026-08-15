@@ -138,7 +138,7 @@ function createWindow(windowBounds?: WindowBounds | null) {
       nodeIntegration: false,
       contextIsolation: true,
     },
-    icon: path.join(__dirname, '../build/icon.png'),
+    icon: path.join(__dirname, '../../build/icon.png'),
   })
 
   if (windowBounds?.maximized) {
@@ -161,7 +161,7 @@ function createWindow(windowBounds?: WindowBounds | null) {
 
   mainWindow.webContents.on('will-navigate', (event, url) => {
     const trusted = app.isPackaged
-      ? url === `file://${path.join(__dirname, '../dist-react/index.html').replace(/\\/g, '/')}`
+      ? url === `file://${path.join(__dirname, '../../dist-react/index.html').replace(/\\/g, '/')}`
       : url.startsWith('http://localhost:5173/')
     if (!trusted) event.preventDefault()
   })
@@ -178,7 +178,7 @@ function createWindow(windowBounds?: WindowBounds | null) {
       mainWindow.webContents.openDevTools()
     }
   } else {
-    mainWindow.loadFile(path.join(__dirname, '../dist-react/index.html'))
+    mainWindow.loadFile(path.join(__dirname, '../../dist-react/index.html'))
   }
 
   // Handle minimize to tray when user closes window
