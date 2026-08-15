@@ -6,12 +6,23 @@ Format mengikuti [Keep a Changelog](https://keepachangelog.com/id-ID/1.1.0/), da
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-08-15
+
+### Added
+
+- **Frameless title bar (Windows/Linux)** — jendela tidak lagi memakai chrome OS bawaan: `frame: false` di main process dan renderer menggambar title bar sendiri. **Drag region** dipasang di seluruh TopBar + header sidebar (men-drag window, double-click untuk maximize, Aero snap tetap jalan), dan **tombol window control custom** (minimize / maximize-restore / close) tampil di ujung kanan TopBar dengan styling mengikuti tema — hover biasa; tombol close hover merah ala VS Code. State maximize disinkronkan dua arah: main mengirim `window-maximized-changed` (termasuk Aero-snap & double-click-on-title) dan renderer **menarik state awal saat mount** (`window-get-state`) sehingga tombol tidak pernah salah ikon (event awal bisa tiba sebelum React subscribe). IPC baru `window-minimize` / `window-maximize-toggle` / `window-close` — close tetap lewat alur normal sehingga pengaturan minimize-to-tray dihormati. macOS mempertahankan frame native + traffic lights (tombol custom otomatis tersembunyi via `platform` di payload state). Komponen baru `WindowControls.tsx` + helper `windowChrome.ts` (drag/no-drag region tertipe); +6 test (5 komponen, 1 preload). Terverifikasi di app packaged: drag region terpasang, maximize/restore/minimize/close berfungsi via UI. Versi **0.2.0**.
+
+## [0.1.9] - 2026-08-15
+
 ### Fixed
 
 - **CI matrix 3 OS hijau kembali setelah migrasi TS (0.1.9)** — tiga akar masalah: (1) **vitest gagal di semua OS** — `preload.test.js` memakai `createRequire(...)('../../preload.ts')` (require native file `.ts`) yang hanya jalan di Node ≥ 23.6 (type stripping) — CI pakai Node 20; kini di-load lewat `import` yang ditransform vitest (semua test handler lain sudah begini), terverifikasi di Node 20.19 (versi CI) & Node 22/23. (2) **e2e Linux (xvfb) gagal** — Electron di-launch tanpa `--no-sandbox`, padahal runner GitHub Linux tidak punya SUID sandbox / user namespaces; kini `--no-sandbox` + `--disable-dev-shm-usage` ditambahkan saat `process.platform === 'linux' || CI` di `e2e/helpers.js` & `e2e/app.spec.js`. (3) **coverage gate** — fixture mock RPC (`tests/fixtures/**`) ikut dihitung 0% sehingga mencemari angka; kini di-exclude dari coverage.
 - **Agent: cleanup saat project dihapus** — `delete-project` kini memanggil `OmpManager.clearProject(projectId)` (kill proses RPC project + hapus sesi di `agent-sessions.json`, di-persist) sehingga tidak ada sesi orphan / proses RPC menggantung setelah project dihapus; best-effort (tidak pernah menggagalkan penghapusan). +2 test.
 - **Agent: status "provider not configured" salah** — `isConfigured()` hanya mengecek env var / `config.yml`, padahal form custom provider menulis ke `models.yml` — user yang sudah mengatur provider lewat Settings tetap melihat badge merah. Kini `models.yml` juga diperiksa (logika diekstrak ke `hasConfiguredProvider`). +2 test.
 - **Agent: request RPC menggantung saat proses omp mati** — `OmpRpcTransport` kini menolak (reject) semua request yang masih pending saat proses exit/error (`omp process exited (code N) before responding`), bukan menunggu timeout 30–300 detik. Diuji lewat fixture `mock-omp-exit.js` yang sengaja exit tanpa merespons. +1 test.
+- **App packaged blank putih setelah migrasi TS** — path renderer di `main.ts` tidak ikut berubah saat electron-vite memindahkan main bundle ke `out/main/`: `../dist-react` kini mengarah ke `out/dist-react` (tidak ada) sehingga `loadFile` gagal `ERR_FILE_NOT_FOUND` dan jendela kosong. Diperbaiki ke `../../dist-react` (konsisten dengan `ipcSecurity` & TrayManager) dan `build/**` ditambahkan ke daftar file yang di-pack (icon tray/window). Terverifikasi dengan `_electron.launch` ke binary packaged: URL asar benar, UI render lengkap, 0 console error.
+- **Menu bar default (File/Edit/… dst) dihilangkan** — UI sepenuhnya custom-rendered, jadi `Menu.setApplicationMenu(null)` dipanggil di build packaged Windows/Linux; di dev menu tetap ada agar shortcut DevTools tetap jalan.
+- **Build tanpa Visual Studio Build Tools** — `npmRebuild: false` di `electron-builder.json`: `node-pty` 1.1.0 adalah N-API murni (`napi_register_module_v1`), prebuild-nya stabil lintas ABI (Node & Electron 43) sehingga tidak perlu kompilasi ulang dari source.
 
 ### Added
 
