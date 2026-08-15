@@ -47,6 +47,21 @@ jobs:
       - name: Build main + preload + renderer (electron-vite)
         run: npx electron-vite build
 
+      - name: Ensure exactly one published release exists
+        shell: bash
+        # Pre-create the release so electron-builder always uploads assets into a
+        # single, published release. Without this, each artifact creates its own
+        # publisher and they can race to create multiple releases for the same tag
+        # (which splits the assets across them and breaks auto-update).
+        run: |
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            echo "Release $GITHUB_REF_NAME already exists"
+          else
+            gh release create "$GITHUB_REF_NAME" --title "DevLauncher $GITHUB_REF_NAME" --generate-notes
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Build & publish
         run: npx electron-builder --win --x64 --publish always
         env:
