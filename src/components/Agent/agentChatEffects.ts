@@ -4,12 +4,12 @@ import { normalizeTranscriptMessage, cleanIpcError } from './agentChatUtils';
 import { mergeModelOptions } from './agentChatMessages';
 import type {
   ChatMessage,
-  ChatTool,
   ContextUsage,
   ModelOption,
   SlashCommand,
   SubagentInfo,
   TodoPhase,
+  TurnBlock,
 } from './agentChatTypes';
 import type { AgentSession, Project } from '../../types/shared';
 
@@ -38,9 +38,7 @@ export interface SessionHistoryOptions {
   inputRef: React.RefObject<HTMLTextAreaElement | null>;
   streamingBufRef: React.RefObject<string>;
   setMessages: React.Dispatch<React.SetStateAction<ChatMessage[]>>;
-  setStreaming: React.Dispatch<React.SetStateAction<string>>;
-  setThinking: React.Dispatch<React.SetStateAction<string>>;
-  setTools: React.Dispatch<React.SetStateAction<ChatTool[]>>;
+  setBlocks: React.Dispatch<React.SetStateAction<TurnBlock[]>>;
   setSubagents: React.Dispatch<React.SetStateAction<SubagentInfo[]>>;
   setError: React.Dispatch<React.SetStateAction<string | null>>;
   setHistoryLoading: React.Dispatch<React.SetStateAction<boolean>>;
@@ -66,9 +64,7 @@ export function useAgentSessionHistory({
   inputRef,
   streamingBufRef,
   setMessages,
-  setStreaming,
-  setThinking,
-  setTools,
+  setBlocks,
   setSubagents,
   setError,
   setHistoryLoading,
@@ -107,10 +103,8 @@ export function useAgentSessionHistory({
       return;
     }
     setMessages([]);
-    setStreaming('');
+    setBlocks([]);
     streamingBufRef.current = '';
-    setThinking('');
-    setTools([]);
     setSubagents([]);
     setError(null);
     setHistoryError(null);

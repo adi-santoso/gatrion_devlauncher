@@ -1,5 +1,6 @@
 import { useCallback, useEffect } from 'react';
-import type { ChatTool } from './agentChatTypes';
+import { appendTextBlock, appendThinkingBlock, updateToolBlock } from './agentChatUtils';
+import type { TurnBlock } from './agentChatTypes';
 
 export interface AgentStreamOptions {
   visible: boolean;
@@ -10,21 +11,19 @@ export interface AgentStreamOptions {
   scrollRef: React.RefObject<HTMLDivElement | null>;
   bottomRef: React.RefObject<HTMLDivElement | null>;
   messages: unknown[];
-  streaming: string;
-  tools: ChatTool[];
+  blocks: TurnBlock[];
   nearBottom: boolean;
-  setStreaming: React.Dispatch<React.SetStateAction<string>>;
-  setThinking: React.Dispatch<React.SetStateAction<string>>;
-  setTools: React.Dispatch<React.SetStateAction<ChatTool[]>>;
+  setBlocks: React.Dispatch<React.SetStateAction<TurnBlock[]>>;
   setScrollTop: React.Dispatch<React.SetStateAction<number>>;
   setNearBottom: React.Dispatch<React.SetStateAction<boolean>>;
 }
 
 /**
  * Streaming-buffer flush (render rate cap) plus scroll tracking. Buffered
- * deltas are pushed into state on a 30ms timer so a burst of RPC events never
- * causes a render per delta; while the view is hidden the buffers accumulate
- * without re-rendering, and returning flushes everything at once.
+ * deltas are pushed into the ordered turn timeline on a 30ms timer so a burst
+ * of RPC events never causes a render per delta; while the view is hidden the
+ * buffers accumulate without re-rendering, and returning flushes everything at
+ * once.
  */
 export function useAgentStream({
   visible,
@@ -35,12 +34,9 @@ export function useAgentStream({
   scrollRef,
   bottomRef,
   messages,
-  streaming,
-  tools,
+  blocks,
   nearBottom,
-  setStreaming,
-  setThinking,
-  setTools,
+  setBlocks,
   setScrollTop,
   setNearBottom,
 }: AgentStreamOptions) {
@@ -59,34 +55,29 @@ export function useAgentStream({
     setNearBottom(isNearBottom());
   };
 
-  // Push whatever accumulated in the streaming buffers into React state. The
-  // pending text is captured before clearing the ref so the updater closes
+  // Push whatever accumulated in the streaming buffers into the turn timeline.
+  // The pending text is captured before clearing the ref so the updater closes
   // over a stable string instead of reading the (already cleared) ref when
   // React invokes it. No-op while the view is hidden. Memoized (all deps are
   // stable refs/setters) so the flush-rate interval is created exactly once.
   const flushBuffers = useCallback(() => {
     if (!visibleRef.current) return;
-    const pending = streamingBufRef.current;
-    if (pending) {
+    const pendingText = streamingBufRef.current;
+    if (pendingText) {
       streamingBufRef.current = '';
-      setStreaming((prev) => prev + pending);
+      setBlocks((prev) => appendTextBlock(prev, pendingText));
     }
-    const thinkPending = thinkingBufRef.current;
-    if (thinkPending) {
+    const pendingThinking = thinkingBufRef.current;
+    if (pendingThinking) {
       thinkingBufRef.current = '';
-      setThinking((prev) => prev + thinkPending);
+      setBlocks((prev) => appendThinkingBlock(prev, pendingThinking));
     }
     if (toolUpdateRef.current) {
       const { toolCallId, text } = toolUpdateRef.current;
       toolUpdateRef.current = null;
-      setTools((prev) => {
-        const next = [...prev];
-        const target = next.filter((item) => item.id === toolCallId).pop();
-        if (target) target.body = text.slice(0, 2000);
-        return next;
-      });
+      setBlocks((prev) => updateToolBlock(prev, toolCallId, '', { body: text.slice(0, 2000) }));
     }
-  }, [visibleRef, streamingBufRef, thinkingBufRef, toolUpdateRef, setStreaming, setThinking, setTools]);
+  }, [visibleRef, streamingBufRef, thinkingBufRef, toolUpdateRef, setBlocks]);
 
   // Flush buffered streaming deltas at a bounded rate (render rate cap).
   useEffect(() => {
@@ -102,7 +93,7 @@ export function useAgentStream({
 
   useEffect(() => {
     if (nearBottom) scrollToBottom('auto');
-  }, [messages, streaming, tools, nearBottom, scrollToBottom]);
+  }, [messages, blocks, nearBottom, scrollToBottom]);
 
   return { isNearBottom, scrollToBottom, handleScroll };
 }

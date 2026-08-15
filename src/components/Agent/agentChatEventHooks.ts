@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef } from 'react';
 import * as ipc from '../../utils/ipcRenderer';
 import { createOmpEventHandler, type OmpEvent } from './agentChatEvents';
-import type { ChatMessage, ChatTool, LastTurnInfo, SlashCommand, SubagentInfo, TodoPhase } from './agentChatTypes';
+import type { ChatMessage, LastTurnInfo, SlashCommand, SubagentInfo, TodoPhase, TurnBlock } from './agentChatTypes';
 import type { Project } from '../../types/shared';
 
 export interface AgentEventsOptions {
@@ -15,14 +15,11 @@ export interface AgentEventsOptions {
   notifySound: boolean;
   refreshStateRef: React.RefObject<() => void>;
   currentModelRef: string | null;
-  streaming: string;
-  thinking: string;
+  blocksRef: React.RefObject<TurnBlock[]>;
+  setBlocks: React.Dispatch<React.SetStateAction<TurnBlock[]>>;
   onTokensUsed?: (tokens: number, cost: number) => void;
   setNotice: React.Dispatch<React.SetStateAction<string | null>>;
   setMessages: React.Dispatch<React.SetStateAction<ChatMessage[]>>;
-  setStreaming: React.Dispatch<React.SetStateAction<string>>;
-  setThinking: React.Dispatch<React.SetStateAction<string>>;
-  setTools: React.Dispatch<React.SetStateAction<ChatTool[]>>;
   setSubagents: React.Dispatch<React.SetStateAction<SubagentInfo[]>>;
   setError: React.Dispatch<React.SetStateAction<string | null>>;
   setTodos: React.Dispatch<React.SetStateAction<TodoPhase[]>>;
@@ -51,14 +48,11 @@ export function useAgentEvents({
   notifySound,
   refreshStateRef,
   currentModelRef,
-  streaming,
-  thinking,
+  blocksRef,
+  setBlocks,
   onTokensUsed,
   setNotice,
   setMessages,
-  setStreaming,
-  setThinking,
-  setTools,
   setSubagents,
   setError,
   setTodos,
@@ -89,9 +83,7 @@ export function useAgentEvents({
     streamingBufRef,
     thinkingBufRef,
     toolUpdateRef,
-    setStreaming,
-    setThinking,
-    setTools,
+    setBlocks,
     setSubagents,
     setError,
     setTodos,
@@ -107,8 +99,7 @@ export function useAgentEvents({
     notifyRef,
     projectRef,
     getCurrentModelRef: () => currentModelRef,
-    getStreamingFallback: () => streaming.trim() || streamingBufRef.current.trim(),
-    getThinkingFallback: () => thinking.trim() || thinkingBufRef.current.trim(),
+    getBlocksFallback: () => blocksRef.current,
   });
   handleEventRef.current = handleEvent;
 

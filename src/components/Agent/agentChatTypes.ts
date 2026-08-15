@@ -12,6 +12,8 @@ export interface ChatMessage {
   role: 'user' | 'assistant';
   content: string;
   thinking?: string;
+  /** Chronological text/thinking/tool segments (present when tools exist). */
+  segments?: MessageSegment[];
   images?: ChatImage[];
   promptTokens?: number;
   completionTokens?: number;
@@ -29,6 +31,33 @@ export interface ChatTool {
   state: string;
   body?: string;
   [key: string]: unknown;
+}
+
+/**
+ * A committed segment of an assistant message — the transcript keeps text,
+ * thinking and tool calls in their chronological order instead of collapsing
+ * them into one blob.
+ */
+export interface MessageSegment {
+  kind: 'text' | 'thinking' | 'tool';
+  text?: string;
+  tool?: ChatTool;
+}
+
+/**
+ * A chronological block of the in-progress turn. Text/thinking deltas and
+ * tool executions all land in one ordered list so the chat renders them
+ * interleaved by time instead of grouping each type together.
+ */
+export interface TurnBlock {
+  id: string;
+  kind: 'text' | 'thinking' | 'tool';
+  /** Accumulated text (for text/thinking blocks). */
+  text: string;
+  /** Present for tool blocks. */
+  tool?: ChatTool | null;
+  /** omp tool call id — used to match update/end events. */
+  toolId?: string;
 }
 
 /** Model picker option (merged from models.yml + live omp RPC). */

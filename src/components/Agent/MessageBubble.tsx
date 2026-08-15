@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import Icon from '../Common/Icon';
 import Markdown from './Markdown';
 import ThinkingBlock from './ThinkingBlock';
+import ToolCard from './ToolCard';
 import type { ChatMessage } from './agentChatTypes';
 
 const formatTime = (iso?: string): string => {
@@ -94,10 +95,37 @@ export const AssistantMessage = React.memo(function AssistantMessage({ message, 
             </span>
           )}
         </div>
-        {message.thinking && <ThinkingBlock content={message.thinking} />}
-        <div className="text-sm text-ink leading-[1.7]">
-          <Markdown content={message.content} />
-        </div>
+        {message.segments && message.segments.length > 0 ? (
+          <>
+            {message.segments.map((segment, index) => {
+              if (segment.kind === 'thinking') {
+                return <ThinkingBlock key={index} content={segment.text || ''} />;
+              }
+              if (segment.kind === 'tool') {
+                return <ToolCard key={index} tool={segment.tool || { name: 'tool' }} />;
+              }
+              return (
+                <div key={index} className="text-sm text-ink leading-[1.7]">
+                  <Markdown content={segment.text || ''} />
+                </div>
+              );
+            })}
+            {/* A turn that streamed no text (e.g. thinking-only) still carries
+                canonical transcript text — render it below the blocks. */}
+            {!message.segments.some((segment) => segment.kind === 'text') && message.content.trim() && (
+              <div className="text-sm text-ink leading-[1.7]">
+                <Markdown content={message.content} />
+              </div>
+            )}
+          </>
+        ) : (
+          <>
+            {message.thinking && <ThinkingBlock content={message.thinking} />}
+            <div className="text-sm text-ink leading-[1.7]">
+              <Markdown content={message.content} />
+            </div>
+          </>
+        )}
         {message.stopped && (
           <p className="mt-1.5 text-[11px] text-ink-faint italic flex items-center gap-1.5">
             <Icon name="stop" size={10} />

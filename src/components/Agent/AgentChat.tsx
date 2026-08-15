@@ -12,13 +12,13 @@ import type {
   AgentChatProps,
   BashRun,
   ChatMessage,
-  ChatTool,
   ContextUsage,
   LastTurnInfo,
   ModelOption,
   SlashCommand,
   SubagentInfo,
   TodoPhase,
+  TurnBlock,
 } from './agentChatTypes';
 import type { AgentSession, Project } from '../../types/shared';
 
@@ -39,9 +39,10 @@ export default function AgentChat({
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [busy, setBusy] = useState(false);
-  const [streaming, setStreaming] = useState('');
-  const [thinking, setThinking] = useState('');
-  const [tools, setTools] = useState<ChatTool[]>([]);
+  // Ordered timeline of the in-progress turn — text, thinking and tool calls
+  // interleaved chronologically (replaces the old separate streaming/thinking/
+  // tools states that rendered each type grouped together).
+  const [blocks, setBlocks] = useState<TurnBlock[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [historyLoading, setHistoryLoading] = useState(false);
   // Set when loading an existing session's transcript fails (timeout, dead
@@ -109,6 +110,11 @@ export default function AgentChat({
   const projectRef = useRef<Project | null>(project);
   const sessionRef = useRef<AgentSession | null>(session);
   const messagesRef = useRef(messages);
+  // Latest timeline (kept fresh on every render so agent_end / stop always
+  // see the complete chronological blocks, even if the handler closed over an
+  // older render).
+  const blocksRef = useRef<TurnBlock[]>([]);
+  blocksRef.current = blocks;
   const handleEventRef = useRef<((event: OmpEvent) => void) | null>(null);
   // Unsent input is remembered per session so switching away and back does
   // not lose what was being typed (draft per session).
@@ -145,12 +151,9 @@ export default function AgentChat({
     scrollRef,
     bottomRef,
     messages,
-    streaming,
-    tools,
+    blocks,
     nearBottom,
-    setStreaming,
-    setThinking,
-    setTools,
+    setBlocks,
     setScrollTop,
     setNearBottom,
   });
@@ -167,9 +170,7 @@ export default function AgentChat({
     inputRef,
     streamingBufRef,
     setMessages,
-    setStreaming,
-    setThinking,
-    setTools,
+    setBlocks,
     setSubagents,
     setError,
     setHistoryLoading,
@@ -213,14 +214,11 @@ export default function AgentChat({
     notifySound,
     refreshStateRef,
     currentModelRef,
-    streaming,
-    thinking,
+    blocksRef,
+    setBlocks,
     onTokensUsed,
     setNotice,
     setMessages,
-    setStreaming,
-    setThinking,
-    setTools,
     setSubagents,
     setError,
     setTodos,
@@ -264,8 +262,6 @@ export default function AgentChat({
     project,
     session,
     input,
-    streaming,
-    thinking,
     attachments,
     busyRef,
     projectRef,
@@ -281,9 +277,8 @@ export default function AgentChat({
     setInput,
     setAttachments,
     setMessages,
-    setStreaming,
-    setThinking,
-    setTools,
+    setBlocks,
+    blocksRef,
     setError,
     setNearBottom,
     setBusyState,
@@ -323,7 +318,7 @@ export default function AgentChat({
   });
 
   const notConfigured = Boolean(status?.installed && !status?.configured);
-  const isFresh = messages.length === 0 && !streaming && !historyLoading;
+  const isFresh = messages.length === 0 && blocks.length === 0 && !historyLoading;
   // Index of the most recent user message — the only one that can be edited.
   let lastUserIndex = -1;
   for (let i = messages.length - 1; i >= 0; i -= 1) {
@@ -400,9 +395,7 @@ export default function AgentChat({
       handleEditSave={handleEditSave}
       handleRetry={handleRetry}
       handleBranch={controls.handleBranch}
-      tools={tools}
-      streaming={streaming}
-      thinking={thinking}
+      blocks={blocks}
       scrollRef={scrollRef}
       handleScroll={handleScroll}
       scrollTop={scrollTop}

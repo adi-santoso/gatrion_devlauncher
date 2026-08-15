@@ -1,17 +1,15 @@
 import { useCallback, useRef } from 'react';
 import * as ipc from '../../utils/ipcRenderer';
 import { fileToAttachment, MAX_ATTACHMENTS, MAX_IMAGE_BYTES } from './imageAttachment';
-import { uid } from './agentChatUtils';
+import { blocksToSegments, blocksToText, blocksToThinking, uid } from './agentChatUtils';
 import type { ComposerAttachment } from './ChatComposer';
-import type { ChatImage, ChatMessage, ChatTool, SlashCommand } from './agentChatTypes';
+import type { ChatImage, ChatMessage, SlashCommand, TurnBlock } from './agentChatTypes';
 import type { AgentSession, Project } from '../../types/shared';
 
 export interface AgentTurnOptions {
   project: Project;
   session: AgentSession | null;
   input: string;
-  streaming: string;
-  thinking: string;
   attachments: ComposerAttachment[];
   busyRef: React.RefObject<boolean>;
   projectRef: React.RefObject<Project | null>;
@@ -27,9 +25,8 @@ export interface AgentTurnOptions {
   setInput: React.Dispatch<React.SetStateAction<string>>;
   setAttachments: React.Dispatch<React.SetStateAction<ComposerAttachment[]>>;
   setMessages: React.Dispatch<React.SetStateAction<ChatMessage[]>>;
-  setStreaming: React.Dispatch<React.SetStateAction<string>>;
-  setThinking: React.Dispatch<React.SetStateAction<string>>;
-  setTools: React.Dispatch<React.SetStateAction<ChatTool[]>>;
+  setBlocks: React.Dispatch<React.SetStateAction<TurnBlock[]>>;
+  blocksRef: React.RefObject<TurnBlock[]>;
   setError: React.Dispatch<React.SetStateAction<string | null>>;
   setNearBottom: React.Dispatch<React.SetStateAction<boolean>>;
   setBusyState: (value: boolean) => void;
@@ -51,8 +48,6 @@ export function useAgentTurn({
   project,
   session,
   input,
-  streaming,
-  thinking,
   attachments,
   busyRef,
   projectRef,
@@ -68,9 +63,8 @@ export function useAgentTurn({
   setInput,
   setAttachments,
   setMessages,
-  setStreaming,
-  setThinking,
-  setTools,
+  setBlocks,
+  blocksRef,
   setError,
   setNearBottom,
   setBusyState,
@@ -91,11 +85,9 @@ export function useAgentTurn({
         createdAt: new Date().toISOString(),
       }]);
     }
-    setStreaming('');
+    setBlocks([]);
     streamingBufRef.current = '';
-    setThinking('');
     thinkingBufRef.current = '';
-    setTools([]);
     setNearBottom(true);
     setBusyState(true);
     const ompImages = images.map((image) => ({ type: 'image', data: image.base64, mimeType: image.mimeType }));
@@ -211,23 +203,26 @@ export function useAgentTurn({
 
   const handleStop = async () => {
     if (project) ipc.ompAbort(project.id, project.path).catch(() => {});
-    // Keep whatever streamed so far as a marked partial reply instead of
-    // discarding it — a follow-up agent_end replaces it with canonical text.
-    const partial = (streaming || streamingBufRef.current).trim();
-    const partialThinking = (thinking || thinkingBufRef.current).trim();
-    if (partial) {
+    // Keep whatever streamed so far as a marked partial reply (timeline
+    // blocks preserved, so tool calls survive a stop) instead of discarding
+    // it — a follow-up agent_end replaces it with canonical text.
+    const blocks = blocksRef.current;
+    const partial = blocksToText(blocks) || streamingBufRef.current.trim();
+    const partialThinking = blocksToThinking(blocks) || thinkingBufRef.current.trim();
+    const segments = blocksToSegments(blocks);
+    if (partial || segments.length > 0) {
       setMessages((prev) => [...prev, {
         id: uid(),
         role: 'assistant',
         content: partial,
         thinking: partialThinking || undefined,
+        segments: segments.length ? segments : undefined,
         stopped: true,
       }]);
     }
     setBusyState(false);
-    setStreaming('');
+    setBlocks([]);
     streamingBufRef.current = '';
-    setThinking('');
     thinkingBufRef.current = '';
   };
 

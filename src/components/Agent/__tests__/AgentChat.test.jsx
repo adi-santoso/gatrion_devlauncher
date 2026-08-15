@@ -373,6 +373,60 @@ describe('AgentChat', () => {
     expect(await screen.findByText(/step 19/)).toBeInTheDocument()
   })
 
+  it('interleaves streamed text and tool calls chronologically — and keeps tools after agent_end', async () => {
+    mocks.onOmpEvent.mockImplementation((callback) => { eventCb = callback; return () => {} })
+    mocks.ompGetMessages.mockResolvedValue({ success: true, messages: [] })
+    mocks.ompChat.mockResolvedValue({
+      success: true,
+      sessionId: 'sInterleave',
+      session: { id: 'sInterleave', title: 'Interleave', sessionPath: 'C:/sessions/sInterleave.jsonl' },
+    })
+
+    render(<Harness />)
+    const input = screen.getByPlaceholderText('Describe a task, ask a question…')
+    fireEvent.change(input, { target: { value: 'fix the bug' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Send message' }))
+    await screen.findByText('fix the bug')
+    await waitFor(() => expect(mocks.ompChat).toHaveBeenCalled())
+
+    // text1 → tool(read) → text2 in real time; each kind must appear at its
+    // chronological position, not grouped (tools above all text).
+    await act(async () => {
+      eventCb({ projectId: 'p1', event: { type: 'agent_start' } })
+      eventCb({ projectId: 'p1', event: { type: 'message_update', assistantMessageEvent: { type: 'text_delta', delta: 'First I will read the file. ' } } })
+      await new Promise((resolve) => setTimeout(resolve, 120))
+      eventCb({ projectId: 'p1', event: { type: 'tool_execution_start', toolCallId: 't1', toolName: 'read', args: { path: 'src/app.ts' } } })
+      eventCb({ projectId: 'p1', event: { type: 'tool_execution_end', toolCallId: 't1', toolName: 'read', result: { content: [{ type: 'text', text: 'state is null on init' }] } } })
+      eventCb({ projectId: 'p1', event: { type: 'message_update', assistantMessageEvent: { type: 'text_delta', delta: 'Found it — editing now. ' } } })
+      await new Promise((resolve) => setTimeout(resolve, 120))
+    })
+
+    // Node.DOCUMENT_POSITION_FOLLOWING (4) — the DOM Node global is not in
+    // the eslint browser env for test files, so use the literal bitmask.
+    const DOC_POSITION_FOLLOWING = 4
+    // LIVE timeline: the tool card sits between the two text segments
+    const liveText1 = await screen.findByText(/First I will read the file/)
+    const liveTool = screen.getByText('read')
+    const liveText2 = await screen.findByText(/Found it — editing now/)
+    expect(liveText1.compareDocumentPosition(liveTool) & DOC_POSITION_FOLLOWING).toBeTruthy()
+    expect(liveTool.compareDocumentPosition(liveText2) & DOC_POSITION_FOLLOWING).toBeTruthy()
+
+    // Turn ends — the transcript is merged, the tool card must SURVIVE inside
+    // the committed assistant message (it used to vanish on agent_end).
+    eventCb({ projectId: 'p1', event: { type: 'agent_end', messages: [
+      { role: 'user', content: 'fix the bug' },
+      { role: 'assistant', content: 'First I will read the file. Found it — editing now.' },
+    ] } })
+
+    const text1 = await screen.findByText(/First I will read the file/)
+    const toolCard = screen.getByText('read')
+    const text2 = await screen.findByText(/Found it — editing now/)
+    expect(text1.compareDocumentPosition(toolCard) & DOC_POSITION_FOLLOWING).toBeTruthy()
+    expect(toolCard.compareDocumentPosition(text2) & DOC_POSITION_FOLLOWING).toBeTruthy()
+    // Tool card is now part of the transcript (still there after agent_end)
+    expect(toolCard).toBeInTheDocument()
+  })
+
   it('shows in/out token usage on the assistant message from agent_end', async () => {
     mocks.onOmpEvent.mockImplementation((callback) => { eventCb = callback; return () => {} })
     mocks.ompGetMessages.mockResolvedValue({ success: true, messages: [] })

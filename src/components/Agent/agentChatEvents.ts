@@ -5,9 +5,17 @@
 import type { Dispatch, MutableRefObject, SetStateAction } from 'react';
 import * as ipc from '../../utils/ipcRenderer';
 import { estimateCost } from '../../utils/costEstimate';
-import { argsToString, normalizeTranscriptMessage } from './agentChatUtils';
+import {
+  appendTextBlock,
+  appendThinkingBlock,
+  argsToString,
+  blocksToText,
+  normalizeTranscriptMessage,
+  uid,
+  updateToolBlock,
+} from './agentChatUtils';
 import { extractTurnUsage, mergeFinishedTurn } from './agentChatMessages';
-import type { ChatMessage, ChatTool, LastTurnInfo, SlashCommand, SubagentInfo, TodoPhase } from './agentChatTypes';
+import type { ChatMessage, ChatTool, LastTurnInfo, SlashCommand, SubagentInfo, TodoPhase, TurnBlock } from './agentChatTypes';
 
 /** omp RPC event payload (fields are optional — shapes vary by event type). */
 export interface OmpEvent {
@@ -34,9 +42,8 @@ export interface OmpEventContext {
   streamingBufRef: MutableRefObject<string>;
   thinkingBufRef: MutableRefObject<string>;
   toolUpdateRef: MutableRefObject<{ toolCallId: string; text: string } | null>;
-  setStreaming: Dispatch<SetStateAction<string>>;
-  setThinking: Dispatch<SetStateAction<string>>;
-  setTools: Dispatch<SetStateAction<ChatTool[]>>;
+  /** The ordered text/thinking/tool timeline of the in-progress turn. */
+  setBlocks: Dispatch<SetStateAction<TurnBlock[]>>;
   setSubagents: Dispatch<SetStateAction<SubagentInfo[]>>;
   setError: Dispatch<SetStateAction<string | null>>;
   setTodos: Dispatch<SetStateAction<TodoPhase[]>>;
@@ -53,16 +60,34 @@ export interface OmpEventContext {
   projectRef: MutableRefObject<{ id: string; name: string } | null>;
   /** Latest current-model ref (for the token cost estimate at agent_end). */
   getCurrentModelRef: () => string | null;
-  /** Flushed streaming text fallback: `streaming.trim() || streamingBufRef.current.trim()`. */
-  getStreamingFallback: () => string;
-  /** Flushed thinking fallback: `thinking.trim() || thinkingBufRef.current.trim()`. */
-  getThinkingFallback: () => string;
+  /** The live turn timeline (blocksRef, kept fresh across renders). */
+  getBlocksFallback: () => TurnBlock[];
 }
 
 // Real omp RPC event shapes (verified against omp 17.x on 2026-08):
 //   message_update.assistantMessageEvent = { type: 'text_delta', delta }
 //   tool_execution_start/update/end = { toolCallId, toolName, args, result }
 //   agent_end = { messages: [...full transcript...] }
+
+// Commit any buffered text/thinking into the timeline before a tool block is
+// inserted, so the tool card lands after the text that preceded it (the flush
+// interval may not have run yet — e.g. the view is hidden).
+const commitPendingBuffers = (
+  setBlocks: Dispatch<SetStateAction<TurnBlock[]>>,
+  streamingBufRef: MutableRefObject<string>,
+  thinkingBufRef: MutableRefObject<string>,
+) => {
+  const pendingText = streamingBufRef.current;
+  if (pendingText) {
+    streamingBufRef.current = '';
+    setBlocks((prev) => appendTextBlock(prev, pendingText));
+  }
+  const pendingThinking = thinkingBufRef.current;
+  if (pendingThinking) {
+    thinkingBufRef.current = '';
+    setBlocks((prev) => appendThinkingBlock(prev, pendingThinking));
+  }
+};
 
 export function createOmpEventHandler(context: OmpEventContext): (event: OmpEvent) => void {
   const {
@@ -71,9 +96,7 @@ export function createOmpEventHandler(context: OmpEventContext): (event: OmpEven
     streamingBufRef,
     thinkingBufRef,
     toolUpdateRef,
-    setStreaming,
-    setThinking,
-    setTools,
+    setBlocks,
     setSubagents,
     setError,
     setTodos,
@@ -89,8 +112,7 @@ export function createOmpEventHandler(context: OmpEventContext): (event: OmpEven
     notifyRef,
     projectRef,
     getCurrentModelRef,
-    getStreamingFallback,
-    getThinkingFallback,
+    getBlocksFallback,
   } = context;
 
   return (event: OmpEvent): void => {
@@ -107,11 +129,9 @@ export function createOmpEventHandler(context: OmpEventContext): (event: OmpEven
       return;
     }
     if (type === 'agent_start') {
-      setStreaming('');
       streamingBufRef.current = '';
-      setThinking('');
       thinkingBufRef.current = '';
-      setTools([]);
+      setBlocks([]);
       setSubagents([]);
       setError(null);
       return;
@@ -132,13 +152,18 @@ export function createOmpEventHandler(context: OmpEventContext): (event: OmpEven
       return;
     }
     if (type === 'tool_execution_start') {
-      setTools((prev) => [...prev, {
-        id: event.toolCallId || '',
+      // Commit buffered text/thinking first so this tool card lands AFTER the
+      // text that preceded it in real time, not above the whole reply.
+      commitPendingBuffers(setBlocks, streamingBufRef, thinkingBufRef);
+      const toolId = event.toolCallId || '';
+      const tool: ChatTool = {
+        id: toolId,
         name: event.toolName || '',
         arg: argsToString(event.args),
         state: 'running',
         body: '',
-      }]);
+      };
+      setBlocks((prev) => [...prev, { id: uid(), kind: 'tool', text: '', toolId, tool }]);
       return;
     }
     if (type === 'tool_execution_update') {
@@ -148,16 +173,9 @@ export function createOmpEventHandler(context: OmpEventContext): (event: OmpEven
     }
     if (type === 'tool_execution_end') {
       const text = event.result?.content?.map((part) => part?.text).filter(Boolean).join('') || '';
-      setTools((prev) => {
-        const next = [...prev];
-        const target = next.filter((item) => item.id === event.toolCallId).pop()
-          || (event.toolName ? next.filter((item) => item.name === event.toolName).pop() : undefined);
-        if (target) {
-          target.state = 'done';
-          target.body = text.slice(0, 4000);
-        }
-        return next;
-      });
+      const toolId = event.toolCallId || '';
+      const toolName = event.toolName || '';
+      setBlocks((prev) => updateToolBlock(prev, toolId, toolName, { state: 'done', body: text.slice(0, 4000) }));
       return;
     }
     if (type === 'agent_end') {
@@ -168,13 +186,13 @@ export function createOmpEventHandler(context: OmpEventContext): (event: OmpEven
       const turnMessages = (Array.isArray(event.messages) ? event.messages : [])
         .map((item) => normalizeTranscriptMessage(item as { id?: string; role?: string; content?: unknown }))
         .filter((item) => item.content.trim() || item.thinking);
-      const streamingFallback = getStreamingFallback();
-      const thinkingFallback = getThinkingFallback();
-      const assistantContent = turnMessages
+      const blocks = getBlocksFallback();
+      const blockText = blocksToText(blocks);
+      const canonicalText = turnMessages
         .filter((item) => item.role === 'assistant')
         .map((item) => item.content)
-        .join('\n\n') || streamingFallback;
-      const finishedText = assistantContent;
+        .join('\n\n');
+      const finishedText = blockText || canonicalText;
       const usage = extractTurnUsage(event.messages);
       const cost = estimateCost(getCurrentModelRef(), {
         prompt: usage.promptTokens,
@@ -184,16 +202,14 @@ export function createOmpEventHandler(context: OmpEventContext): (event: OmpEven
       setLastTurn({ tokens: usage.totalTokens || 0, cost: cost.total });
       onTokensUsed?.(usage.totalTokens || 0, cost.total);
       setMessages((prev) => mergeFinishedTurn(prev, turnMessages, {
-        streaming: streamingFallback,
-        thinking: thinkingFallback,
+        blocks,
         promptTokens: usage.promptTokens,
         completionTokens: usage.completionTokens,
         totalTokens: usage.totalTokens,
       }).next);
-      setStreaming('');
       streamingBufRef.current = '';
-      setThinking('');
       thinkingBufRef.current = '';
+      setBlocks([]);
       setSubagents([]);
       setBusyState(false);
       refreshStateRef.current?.();

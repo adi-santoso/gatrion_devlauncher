@@ -1,5 +1,21 @@
 import { describe, test, expect } from 'vitest'
-import { extractContentParts, normalizeTranscriptMessage, argsToString, uid, cleanIpcError, MARKDOWN_STREAM_LIMIT } from '../agentChatUtils'
+import {
+  appendTextBlock,
+  appendThinkingBlock,
+  blocksToSegments,
+  blocksToText,
+  blocksToThinking,
+  extractContentParts,
+  normalizeTranscriptMessage,
+  argsToString,
+  uid,
+  cleanIpcError,
+  MARKDOWN_STREAM_LIMIT,
+  updateToolBlock,
+} from '../agentChatUtils'
+
+const textBlock = (text, kind = 'text') => ({ id: 'b1', kind, text })
+const toolBlock = (toolId, name) => ({ id: 'b2', kind: 'tool', text: '', toolId, tool: { id: toolId, name, state: 'running' } })
 
 describe('extractContentParts', () => {
   test('keeps plain strings as text', () => {
@@ -66,6 +82,84 @@ describe('constants', () => {
 
   test('MARKDOWN_STREAM_LIMIT is a positive number', () => {
     expect(MARKDOWN_STREAM_LIMIT).toBeGreaterThan(0)
+  })
+})
+
+describe('turn block helpers', () => {
+  test('appendTextBlock merges into the last text block and starts a new one after other kinds', () => {
+    const first = appendTextBlock([], 'hello ')
+    expect(first).toHaveLength(1)
+    expect(first[0]).toMatchObject({ kind: 'text', text: 'hello ' })
+
+    const merged = appendTextBlock(first, 'world')
+    expect(merged).toHaveLength(1)
+    expect(merged[0].text).toBe('hello world')
+
+    // A tool block in between forces a new text segment AFTER it
+    const withTool = appendTextBlock(appendTextBlock([], 'before '), 'x')
+    const interleaved = appendTextBlock([...withTool, toolBlock('t1', 'read')], 'after')
+    expect(interleaved.map((block) => block.kind)).toEqual(['text', 'tool', 'text'])
+    expect(interleaved[2].text).toBe('after')
+  })
+
+  test('appendThinkingBlock behaves like appendTextBlock for reasoning', () => {
+    const merged = appendThinkingBlock(appendThinkingBlock([], 'step1 '), 'step2')
+    expect(merged).toHaveLength(1)
+    expect(merged[0]).toMatchObject({ kind: 'thinking', text: 'step1 step2' })
+  })
+
+  test('updateToolBlock matches by tool id and falls back to name', () => {
+    const blocks = [textBlock('intro'), toolBlock('t1', 'read'), toolBlock('t2', 'edit')]
+    const byId = updateToolBlock(blocks, 't1', '', { state: 'done', body: 'ok' })
+    expect(byId[1].tool).toMatchObject({ state: 'done', body: 'ok' })
+    expect(byId[2].tool.state).toBe('running')
+
+    const byName = updateToolBlock(blocks, '', 'edit', { state: 'done' })
+    expect(byName[2].tool.state).toBe('done')
+    expect(byName[1].tool.state).toBe('running')
+  })
+
+  test('blocksToSegments preserves chronological order and drops empty text', () => {
+    const blocks = [
+      textBlock('First I read the file. '),
+      toolBlock('t1', 'read'),
+      textBlock('Found it — editing now.'),
+      textBlock('   '),
+    ]
+    const segments = blocksToSegments(blocks)
+    expect(segments.map((segment) => segment.kind)).toEqual(['text', 'tool', 'text'])
+    expect(segments[1].tool).toMatchObject({ name: 'read' })
+    // Empty text blocks are dropped; the timeline keeps its order
+    expect(segments[2]).toMatchObject({ kind: 'text', text: 'Found it — editing now.' })
+  })
+
+  test('blocksToText / blocksToThinking join segments in order', () => {
+    const blocks = [textBlock('a'), textBlock('b'), appendThinkingBlock([], 'why')[0], textBlock('c')]
+    expect(blocksToText(blocks)).toBe('a\n\nb\n\nc')
+    expect(blocksToThinking(blocks)).toBe('why')
+  })
+})
+
+describe('normalizeTranscriptMessage tool parts', () => {
+  test('extracts interleaved tool parts into chronological segments', () => {
+    const message = normalizeTranscriptMessage({
+      role: 'assistant',
+      content: [
+        { type: 'text', text: 'Reading now.' },
+        { type: 'tool_call', id: 'tc1', name: 'read', args: { path: 'src/app.ts' } },
+        { type: 'text', text: 'Found the bug.' },
+      ],
+    })
+    expect(message.segments.map((segment) => segment.kind)).toEqual(['text', 'tool', 'text'])
+    expect(message.segments[1].tool).toMatchObject({ name: 'read', state: 'done' })
+  })
+
+  test('plain text/thinking transcripts keep segments undefined', () => {
+    const message = normalizeTranscriptMessage({
+      role: 'assistant',
+      content: [{ type: 'text', text: 'ok' }, { type: 'thinking', text: 'reason' }],
+    })
+    expect(message.segments).toBeUndefined()
   })
 })
 

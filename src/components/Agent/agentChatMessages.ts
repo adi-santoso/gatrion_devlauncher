@@ -2,8 +2,8 @@
 // the local conversation, normalizing omp context/model data, and filtering
 // slash commands. Kept outside the component so they can be unit-tested and
 // reused without pulling in React state.
-import { uid, type NormalizedMessage } from './agentChatUtils';
-import type { ChatMessage, ContextUsage, ModelOption, SlashCommand } from './agentChatTypes';
+import { blocksToSegments, blocksToText, blocksToThinking, uid, type NormalizedMessage } from './agentChatUtils';
+import type { ChatMessage, ContextUsage, ModelOption, SlashCommand, TurnBlock } from './agentChatTypes';
 
 /** Token usage reported on the last transcript entry of an agent_end event. */
 export interface TurnUsage {
@@ -24,10 +24,8 @@ export function extractTurnUsage(messages: unknown[] | undefined): TurnUsage {
 }
 
 export interface MergeFinishedTurnOptions {
-  /** Flushed streaming text fallback (may include the unflushed buffer). */
-  streaming: string;
-  /** Flushed thinking fallback (may include the unflushed buffer). */
-  thinking: string;
+  /** The live turn timeline (text/thinking/tool blocks in chronological order). */
+  blocks: TurnBlock[];
   promptTokens?: number;
   completionTokens?: number;
   totalTokens?: number;
@@ -53,8 +51,17 @@ export function mergeFinishedTurn(
 ): MergeFinishedTurnResult {
   const turnUser = turnMessages.filter((item) => item.role === 'user').pop();
   const assistantMessages = turnMessages.filter((item) => item.role === 'assistant');
-  const assistantContent = assistantMessages.map((item) => item.content).join('\n\n') || options.streaming.trim();
-  const assistantThinking = assistantMessages.map((item) => item.thinking).filter(Boolean).join('\n\n') || options.thinking.trim();
+  const canonicalContent = assistantMessages.map((item) => item.content).join('\n\n');
+  const canonicalThinking = assistantMessages.map((item) => item.thinking).filter(Boolean).join('\n\n');
+  // The live blocks carry the true chronological order (text and tool calls
+  // interleaved). Text content falls back to the canonical transcript when the
+  // turn streamed no text (e.g. thinking-only replies, or when the RPC process
+  // was respawned mid-turn).
+  const blockText = blocksToText(options.blocks);
+  const blockThinking = blocksToThinking(options.blocks);
+  const assistantContent = blockText || canonicalContent;
+  const assistantThinking = blockThinking || canonicalThinking;
+  const segments = blocksToSegments(options.blocks);
   const finishedText = assistantContent;
 
   const next = [...prev];
@@ -69,7 +76,8 @@ export function mergeFinishedTurn(
     }
   }
   const lastAssistant = assistantMessages.pop();
-  if (assistantContent) {
+  // A tool-only turn (no text streamed) must still commit its tool cards.
+  if (assistantContent || segments.length > 0) {
     // A stopped partial reply is replaced by the canonical transcript;
     // otherwise append a fresh assistant message.
     let replaced = false;
@@ -80,6 +88,7 @@ export function mergeFinishedTurn(
             ...next[i],
             content: assistantContent,
             thinking: assistantThinking || next[i].thinking,
+            segments: segments.length ? segments : next[i].segments,
             stopped: false,
             promptTokens: options.promptTokens,
             completionTokens: options.completionTokens,
@@ -97,6 +106,7 @@ export function mergeFinishedTurn(
         role: 'assistant',
         content: assistantContent,
         thinking: assistantThinking || undefined,
+        segments: segments.length ? segments : undefined,
         promptTokens: options.promptTokens,
         completionTokens: options.completionTokens,
         totalTokens: options.totalTokens,

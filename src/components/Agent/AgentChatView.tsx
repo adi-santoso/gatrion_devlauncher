@@ -4,24 +4,21 @@
 import type { Dispatch, MutableRefObject, RefObject, SetStateAction } from 'react';
 import Icon from '../Common/Icon';
 import VirtualList from '../Common/VirtualList';
-import Markdown from './Markdown';
-import ThinkingBlock from './ThinkingBlock';
 import { AssistantMessage, UserMessage } from './MessageBubble';
 import ChatComposer, { type ComposerAttachment } from './ChatComposer';
-import ToolCard from './ToolCard';
 import ChatHeader from './ChatHeader';
-import { MARKDOWN_STREAM_LIMIT } from './agentChatUtils';
+import LiveTurnBlocks from './LiveTurnBlocks';
 import { BashRunnerList, HandoffPopover, HistoryStates, SubagentChips, TodosPanel } from './agentChatWidgets';
 import type {
   BashRun,
   ChatMessage,
-  ChatTool,
   ContextUsage,
   LastTurnInfo,
   ModelOption,
   SlashCommand,
   SubagentInfo,
   TodoPhase,
+  TurnBlock,
 } from './agentChatTypes';
 import type { AgentSession, Project } from '../../types/shared';
 import type { OmpStatusResult } from '../../data/agent';
@@ -89,9 +86,8 @@ export interface AgentChatViewProps {
   handleEditSave: (messageId: string, newText: string) => void;
   handleRetry: (message: ChatMessage) => void;
   handleBranch: (entryId: string) => void;
-  tools: ChatTool[];
-  streaming: string;
-  thinking: string;
+  /** Ordered text/thinking/tool timeline of the in-progress turn. */
+  blocks: TurnBlock[];
   scrollRef: RefObject<HTMLDivElement | null>;
   handleScroll: () => void;
   scrollTop: number;
@@ -186,9 +182,7 @@ export default function AgentChatView(props: AgentChatViewProps) {
     handleEditSave,
     handleRetry,
     handleBranch,
-    tools,
-    streaming,
-    thinking,
+    blocks,
     scrollRef,
     handleScroll,
     scrollTop,
@@ -326,39 +320,10 @@ export default function AgentChatView(props: AgentChatViewProps) {
               getKey={(message, index) => message.id || String(index)}
             />
             <div className="mt-[26px] space-y-[26px]">
-              {tools.length > 0 && (
-                <div className="max-w-[760px] mx-auto">
-                  {tools.map((tool, index) => <ToolCard key={`tool-${index}`} tool={tool} />)}
-                </div>
-              )}
-              {busy && !streaming && !thinking && tools.length === 0 && (
-                <div className="flex items-center gap-1.5 self-start pl-1 pt-1">
-                  <span className="w-2 h-2 rounded-full bg-ink-faint animate-dot-pulse" />
-                  <span className="w-2 h-2 rounded-full bg-ink-faint animate-dot-pulse-delay-1" />
-                  <span className="w-2 h-2 rounded-full bg-ink-faint animate-dot-pulse-delay-2" />
-                </div>
-              )}
-              {thinking && <ThinkingBlock content={thinking} isStreaming />}
-              {streaming && (
-                <div className="flex gap-[13px]">
-                  <div className="w-7 h-7 rounded-[7px] bg-accent text-white shadow-[0_0_10px_rgba(109,94,245,.35)] flex items-center justify-center shrink-0 mt-0.5">
-                    <Icon name="messageSquare" size={12} />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="text-[10.5px] font-semibold font-mono uppercase tracking-[0.07em] text-ink-faint">Assistant</span>
-                    </div>
-                    <div className="text-sm text-ink leading-[1.7]">
-                      {streaming.length < MARKDOWN_STREAM_LIMIT ? (
-                        <Markdown content={streaming} />
-                      ) : (
-                        <div className="whitespace-pre-wrap break-words">{streaming}</div>
-                      )}
-                      <span className="inline-block w-1.5 h-4 bg-accent animate-cursor-blink ml-0.5 align-middle rounded-sm" />
-                    </div>
-                  </div>
-                </div>
-              )}
+              {/* The live turn timeline: text, thinking and tool calls render in
+                  their chronological order (a tool card appears right where it
+                  happened, between the text segments around it). */}
+              <LiveTurnBlocks blocks={blocks} busy={busy} />
               <div ref={bottomRef} />
             </div>
           </div>
