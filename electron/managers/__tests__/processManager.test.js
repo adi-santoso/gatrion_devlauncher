@@ -39,7 +39,17 @@ describe('ProcessManager', () => {
       for (const entry of onLogs) {
         expect(entry.message.includes('supersecret_123')).toBe(false)
       }
-      const persisted = await fs.readFile(path.join(tempDir, 'p1.jsonl'), 'utf8')
+      // persistLog is fire-and-forget (async append), so the file can lag
+      // behind the stop — poll briefly instead of racing it (flaky on fast
+      // CI runners, notably Linux).
+      let persisted = ''
+      for (let i = 0; i < 40 && !persisted; i += 1) {
+        try {
+          persisted = await fs.readFile(path.join(tempDir, 'p1.jsonl'), 'utf8')
+        } catch { /* not written yet */ }
+        if (!persisted) await new Promise((resolve) => setTimeout(resolve, 50))
+      }
+      expect(persisted.length).toBeGreaterThan(0)
       expect(persisted.includes('supersecret_123')).toBe(false)
 
       await fs.rm(tempDir, { recursive: true, force: true })
