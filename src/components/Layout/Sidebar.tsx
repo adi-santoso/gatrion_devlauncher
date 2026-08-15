@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { dragRegion } from './windowChrome'
 import { PrayerCard, PrayerIcon } from './PrayerWidget'
 import type { PrayerConfig } from './PrayerWidget'
 import type { PrayerTimesResult } from '../../hooks/usePrayerTimes'
@@ -137,7 +138,7 @@ const Sidebar = ({
       role="navigation"
       aria-label={t('nav.main')}
     >
-      <div className="h-[66px] flex items-center gap-2.5 px-4 border-b border-border overflow-hidden">
+      <div className="h-[66px] flex items-center gap-2.5 px-4 border-b border-border overflow-hidden" style={dragRegion}>
         <div className="w-[34px] h-[34px] rounded-[10px] bg-accent flex items-center justify-center shadow-glow shrink-0" role="img" aria-label="Gatrion logo">
           <svg width="15" height="15" viewBox="0 0 24 24"><path d="M5 3l14 9-14 9z" fill="white" /></svg>
         </div>

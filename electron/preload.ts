@@ -102,6 +102,13 @@ interface ElectronApi {
   onConfigUpdated: (callback: (config: unknown) => void) => Unsub
   onNavigateToProject: (callback: (projectId: string) => void) => Unsub
 
+  // Frameless window controls (renderer-drawn title bar)
+  getWindowState: () => Promise<unknown>
+  minimizeWindow: () => Promise<unknown>
+  maximizeWindow: () => Promise<unknown>
+  closeWindow: () => Promise<unknown>
+  onWindowMaximizedChange: (callback: (state: unknown) => void) => Unsub
+
   // Resource Monitoring (CPU/Memory)
   onResourceUpdate: (callback: (data: unknown) => void) => Unsub
 
@@ -317,6 +324,17 @@ const api: ElectronApi = {
     const listener = (_event: IpcRendererEvent, projectId: string) => callback(projectId)
     ipcRenderer.on('navigate-to-project', listener)
     return () => ipcRenderer.removeListener('navigate-to-project', listener)
+  },
+
+  // Frameless window controls
+  getWindowState: () => ipcRenderer.invoke('window-get-state'),
+  minimizeWindow: () => ipcRenderer.invoke('window-minimize'),
+  maximizeWindow: () => ipcRenderer.invoke('window-maximize-toggle'),
+  closeWindow: () => ipcRenderer.invoke('window-close'),
+  onWindowMaximizedChange: (callback) => {
+    const listener = (_event: IpcRendererEvent, state: unknown) => callback(state)
+    ipcRenderer.on('window-maximized-changed', listener)
+    return () => ipcRenderer.removeListener('window-maximized-changed', listener)
   },
 
   // Resource Monitoring (CPU/Memory)

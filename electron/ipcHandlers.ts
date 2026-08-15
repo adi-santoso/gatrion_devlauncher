@@ -121,6 +121,55 @@ export function registerCoreIpcHandlers({
     }
   })
 
+  // Frameless window controls — the renderer-drawn title bar (TopBar) drives
+  // the native window. window-close routes through the normal close flow so
+  // minimize-to-tray (if enabled) still applies. window-get-state lets the
+  // renderer pull the initial state on mount (the maximize/unmaximize push
+  // can arrive before React has subscribed).
+  ipcMain.handle('window-get-state', (event) => {
+    try {
+      assertTrustedIpcEvent(event)
+      const win = getWindow()
+      if (!win) return { success: false, error: 'Window not available' }
+      return { success: true, maximized: win.isMaximized(), platform: process.platform }
+    } catch (error) {
+      return { success: false, error: (error as Error).message }
+    }
+  })
+
+  ipcMain.handle('window-minimize', (event) => {
+    try {
+      assertTrustedIpcEvent(event)
+      getWindow()?.minimize()
+      return { success: true }
+    } catch (error) {
+      return { success: false, error: (error as Error).message }
+    }
+  })
+
+  ipcMain.handle('window-maximize-toggle', (event) => {
+    try {
+      assertTrustedIpcEvent(event)
+      const win = getWindow()
+      if (!win) return { success: false, error: 'Window not available' }
+      if (win.isMaximized()) win.unmaximize()
+      else win.maximize()
+      return { success: true }
+    } catch (error) {
+      return { success: false, error: (error as Error).message }
+    }
+  })
+
+  ipcMain.handle('window-close', (event) => {
+    try {
+      assertTrustedIpcEvent(event)
+      getWindow()?.close()
+      return { success: true }
+    } catch (error) {
+      return { success: false, error: (error as Error).message }
+    }
+  })
+
   // Health analytics IPC
   ipcMain.handle('get-health', async (event, projectId) => {
     try {

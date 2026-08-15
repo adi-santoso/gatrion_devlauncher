@@ -75,6 +75,29 @@ describe('preload API surface', () => {
     expect(cb).toHaveBeenCalledWith('p1', 'line')
   })
 
+  test('frameless window controls forward to the right channels', async () => {
+    ipcRenderer.invoke = vi.fn(async () => ({ success: true }))
+
+    await api.getWindowState()
+    expect(ipcRenderer.invoke).toHaveBeenLastCalledWith('window-get-state')
+
+    await api.minimizeWindow()
+    expect(ipcRenderer.invoke).toHaveBeenLastCalledWith('window-minimize')
+
+    await api.maximizeWindow()
+    expect(ipcRenderer.invoke).toHaveBeenLastCalledWith('window-maximize-toggle')
+
+    await api.closeWindow()
+    expect(ipcRenderer.invoke).toHaveBeenLastCalledWith('window-close')
+
+    const cb = vi.fn()
+    api.onWindowMaximizedChange(cb)
+    for (const listener of ipcRenderer._listeners.get('window-maximized-changed')) {
+      listener({}, { maximized: true, platform: 'win32' })
+    }
+    expect(cb).toHaveBeenCalledWith({ maximized: true, platform: 'win32' })
+  })
+
   test('onOmpEvent / onUpdateState / onConfigUpdated pass the payload through', () => {
     const cb = vi.fn()
     api.onOmpEvent(cb)

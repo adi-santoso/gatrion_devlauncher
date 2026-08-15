@@ -1,6 +1,8 @@
 import { PrayerPill } from './PrayerWidget'
 import type { PrayerConfig } from './PrayerWidget'
 import type { PrayerTimesResult } from '../../hooks/usePrayerTimes'
+import { dragRegion, noDragRegion } from './windowChrome'
+import WindowControls from './WindowControls'
 
 interface TopBarProps {
   title?: string
@@ -12,7 +14,7 @@ interface TopBarProps {
 }
 
 const TopBar = ({ title = 'Workspace', subtitle = 'Gatrion', onCommandPalette, prayer = null, prayerData = null, onPrayerExpand }: TopBarProps) => (
-  <header className="h-[50px] shrink-0 border-b border-border flex items-center gap-2.5 px-5 bg-base/80 backdrop-blur">
+  <header className="h-[50px] shrink-0 border-b border-border flex items-center gap-2.5 px-5 bg-base/80 backdrop-blur select-none" style={dragRegion}>
     <div className="text-[11px] text-ink-faint">
       <span>{subtitle}</span>
       <span className="px-2">/</span>
@@ -20,11 +22,14 @@ const TopBar = ({ title = 'Workspace', subtitle = 'Gatrion', onCommandPalette, p
     </div>
     <div className="flex-1" />
     {prayer && prayerData && onPrayerExpand && (
-      <PrayerPill data={prayerData} onExpand={onPrayerExpand} />
+      <div style={noDragRegion}>
+        <PrayerPill data={prayerData} onExpand={onPrayerExpand} />
+      </div>
     )}
     <button
       type="button"
       onClick={onCommandPalette}
+      style={noDragRegion}
       className="hidden sm:flex h-7 items-center gap-2 rounded-lg border border-border bg-surface px-2.5 text-[10px] text-ink-faint hover:text-ink hover:border-border-hover transition-colors"
     >
       <svg
@@ -44,6 +49,7 @@ const TopBar = ({ title = 'Workspace', subtitle = 'Gatrion', onCommandPalette, p
       Search or run command
       <kbd className="ml-3 rounded border border-border bg-surface-2 px-1.5 py-0.5 font-mono text-[8px]">Ctrl K</kbd>
     </button>
+    <WindowControls />
   </header>
 )
 

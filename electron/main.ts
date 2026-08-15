@@ -133,6 +133,10 @@ function createWindow(windowBounds?: WindowBounds | null) {
     title: APP_NAME,
     minWidth: defaults.minWidth,
     minHeight: defaults.minHeight,
+    // Frameless on Windows/Linux: the renderer draws its own title bar (drag
+    // region + minimize/maximize/close in the TopBar). macOS keeps the native
+    // frame — traffic lights and menu bar are part of the OS chrome there.
+    ...(process.platform !== 'darwin' ? { frame: false } : {}),
     webPreferences: {
       preload: path.join(__dirname, '../preload/index.js'),
       nodeIntegration: false,
@@ -166,6 +170,21 @@ function createWindow(windowBounds?: WindowBounds | null) {
     if (!trusted) event.preventDefault()
   })
   mainWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
+
+  // Frameless window: keep the renderer's maximize/restore button in sync.
+  // `maximize`/`unmaximize` also fire for Aero-snap and double-click-on-title
+  // on Windows; `did-finish-load` covers the restore-from-bounds case where
+  // the maximize event fires before the renderer has subscribed.
+  const sendWindowState = () => {
+    if (!mainWindow || mainWindow.isDestroyed()) return
+    mainWindow.webContents.send('window-maximized-changed', {
+      maximized: mainWindow.isMaximized(),
+      platform: process.platform,
+    })
+  }
+  mainWindow.on('maximize', sendWindowState)
+  mainWindow.on('unmaximize', sendWindowState)
+  mainWindow.webContents.on('did-finish-load', sendWindowState)
 
   if (trayManager) trayManager.setWindow(mainWindow)
 
