@@ -9,7 +9,7 @@ import type { ProjectDetector as ProjectDetectorType } from './managers/ProjectD
 import type { TrayManager as TrayManagerType } from './managers/TrayManager'
 import type { PreviewManager as PreviewManagerType } from './managers/PreviewManager'
 
-const { app, BrowserWindow, session, globalShortcut, crashReporter } = require('electron') as typeof import('electron')
+const { app, BrowserWindow, session, globalShortcut, crashReporter, Menu } = require('electron') as typeof import('electron')
 const path = require('path')
 const fs = require('fs').promises
 import ProcessManager from './managers/ProcessManager'
@@ -218,6 +218,14 @@ async function applyOSSettings(config: AppConfig) {
 
 async function initialize() {
   applyContentSecurityPolicy()
+
+  // The UI is fully custom-rendered — drop the default application menu
+  // (File/Edit/View/…) from packaged builds on Windows/Linux. Kept on macOS
+  // (menu bar is part of the OS chrome there) and in dev (standard
+  // DevTools/reload shortcuts stay available while developing).
+  if (app.isPackaged && process.platform !== 'darwin') {
+    Menu.setApplicationMenu(null)
+  }
 
   // Local crash dump collection: minidumps are written to
   // userData/crashDumps (never uploaded — uploadToServer: false). The
