@@ -29,8 +29,15 @@ export interface BrowseResult {
 export interface DetectTypeResult {
   success: boolean
   type?: string
+  name?: string
   projectName?: string
+  packageManager?: string | null
+  defaultCommand?: string
   defaultPort?: number | null
+  commands?: Array<{ id: string; name: string; command: string; port: number | null; primary?: boolean }>
+  icon?: string
+  color?: string
+  warnings?: string[]
   error?: string
 }
 
@@ -159,7 +166,7 @@ export const exportDiagnostics = async (): Promise<BrowseResult> => {
   return invoke<BrowseResult>('exportDiagnostics')
 }
 
-export const backupExport = async (password: string): Promise<SimpleResult> => {
+export const backupExport = async (password?: string): Promise<SimpleResult> => {
   if (!isElectron()) {
     console.warn('[IPC] Running in browser mode - backupExport not available')
     return { success: false, error: 'Backup requires desktop app' }
@@ -167,7 +174,7 @@ export const backupExport = async (password: string): Promise<SimpleResult> => {
   return invoke<SimpleResult>('backupExport', password)
 }
 
-export const backupImport = async (password: string): Promise<SimpleResult> => {
+export const backupImport = async (password?: string): Promise<SimpleResult> => {
   if (!isElectron()) {
     console.warn('[IPC] Running in browser mode - backupImport not available')
     return { success: false, error: 'Backup requires desktop app' }

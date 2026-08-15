@@ -120,7 +120,7 @@ export const ompRenameSession = async (projectId: string, sessionId: string, tit
   return invoke<SimpleResult>('ompRenameSession', projectId, sessionId, title)
 }
 
-export const ompUpdateSessionTokens = async (projectId: string, sessionId: string, tokens: number, cost: number): Promise<SimpleResult> => {
+export const ompUpdateSessionTokens = async (projectId: string, sessionId: string, tokens: number, cost?: number): Promise<SimpleResult> => {
   if (!isElectron()) return { success: true }
   return invoke<SimpleResult>('ompUpdateSessionTokens', projectId, sessionId, tokens, cost)
 }
@@ -165,7 +165,7 @@ export const ompGetState = async (projectId: string, cwd: string): Promise<OmpSt
   return invoke<OmpStateResult>('ompGetState', projectId, cwd)
 }
 
-export const ompCompact = async (projectId: string, cwd: string, customInstructions: string): Promise<SimpleResult> => {
+export const ompCompact = async (projectId: string, cwd: string, customInstructions?: string): Promise<SimpleResult> => {
   if (!isElectron()) return { success: true }
   return invoke<SimpleResult>('ompCompact', projectId, cwd, customInstructions)
 }

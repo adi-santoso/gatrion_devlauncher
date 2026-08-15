@@ -33,6 +33,7 @@ module.exports = [
       'react/no-unescaped-entities': 'off',
       'react-hooks/rules-of-hooks': 'error',
       'react-hooks/exhaustive-deps': 'warn',
+      'no-control-regex': 'off', // ANSI-strip regexes are intentional
       'no-undef': 'off', // TS parser handles type references
       'no-unused-vars': 'off', // use the TS-aware rule below
       '@typescript-eslint/no-unused-vars': ['warn', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],

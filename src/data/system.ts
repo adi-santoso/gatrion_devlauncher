@@ -34,6 +34,7 @@ export interface SystemEnvTool {
   label: string
   found: boolean
   version?: string
+  error?: string
 }
 
 export interface SystemEnvResult {
