@@ -55,9 +55,10 @@ Status: **in development — not production-ready yet**. See [Feature Status](do
 
 ## Tech Stack
 
-- Electron 43
+- Electron 43 — main process bundled with [electron-vite](https://electron-vite.org) 5
 - React 19
-- Vite 8
+- Vite 7 (renderer)
+- TypeScript 5.9 — **strict, 100% of app code** (renderer `.tsx` + main process `.ts`)
 - Tailwind CSS 4
 - electron-builder 26
 
@@ -90,7 +91,7 @@ npm run dev:vite
 | `npm run test:coverage` | Vitest with coverage report |
 | `npm run test:e2e` | Playwright end-to-end tests (Electron) |
 | `npm run lint` / `npm run lint:fix` | ESLint |
-| `npm run typecheck` | JSDoc typecheck for `// @ts-check` files |
+| `npm run typecheck` | TypeScript strict typecheck (renderer + main process, 0 errors) |
 | `npm run changelog` / `npm run changelog:apply` | Generate CHANGELOG.md from conventional commits (dry-run / apply) |
 | `npm run icons` | Generate app icons into `build/` |
 | `npm run preview` | Preview the renderer build |
@@ -104,7 +105,7 @@ npm run dev:vite
 - [IPC contract](docs/IPC_API.md)
 - [Feature status](docs/FEATURE_STATUS.md)
 - [Roadmap to release](docs/ROADMAP.md)
-- [TypeScript rewrite roadmap](docs/ROADMAP_TS.md)
+- [TypeScript migration roadmap (completed)](docs/ROADMAP_TS.md)
 - [Keyboard shortcuts](docs/KEYBOARD_SHORTCUTS.md)
 - [Testing guide](docs/TESTING_GUIDE.md)
 - [Changelog](CHANGELOG.md)

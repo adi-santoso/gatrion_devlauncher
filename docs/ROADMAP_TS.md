@@ -1,21 +1,19 @@
 # Roadmap TypeScript Rewrite — DevLauncher
 
-> Status: **belum dimulai — keputusan final sudah dikunci (14 Agu 2026)**. Roadmap lama (P0/P1/P2) dinyatakan **selesai**; dokumen ini adalah arahan teknis untuk menulis ulang project ke TypeScript **penuh** — renderer dan main process.
->
-> Prinsip utama: **strangler migration** — tidak ada big-bang rewrite. Kode baru ditulis TypeScript sejak hari pertama, kode lama dikonversi bertahap dari bawah ke atas (leaf → container), dan setiap fase berakhir dengan build + test + e2e hijau.
+> Status: **SELESAI 100% — 15 Agu 2026 (v0.1.8)**. Seluruh 7 fase eksekusi tuntas dan Definition of Done tercapai penuh (lihat checklist di bawah). Dokumen ini mencatat arahan teknis **dan hasil** rewrite TypeScript **penuh** — renderer dan main process. Prinsip yang dipakai: **strangler migration** — kode baru ditulis TypeScript sejak hari pertama, kode lama dikonversi bertahap dari bawah ke atas (leaf → container), setiap fase berakhir dengan build + test + e2e hijau.
 
-## Kondisi Saat Ini (hasil analisa aktual)
+## Hasil Akhir (15 Agu 2026)
 
 | Fakta | Nilai |
 |---|---|
-| File renderer (JS/JSX) | **120 file** (`utils` 12 · `hooks` 13 · `components` 90 · `i18n` 3 · `App.jsx` · `main.jsx`) |
-| File `.ts`/`.tsx` di src | **0** — mulai dari nol |
-| Main process | **32 file** sudah `// @ts-check` + `tsconfig.check.json` (`checkJs: true`, `strict: false`) → `npm run typecheck` 0 error |
-| Toolchain | Vite 8 (esbuild) · Vitest (dukung TS) · `typescript@^7` · `@types/node` |
-| Yang belum ada | `@types/react`, `@types/react-dom`, tsconfig renderer, bundler main process, typescript-eslint |
-| File terbesar | `AgentChat.jsx` 1.446 baris · `ipcRenderer.js` 923 · `App.jsx` 949 · `SettingsView.jsx` 692 |
-| Safety net | **512 test Vitest** + **7 e2e Playwright** — jaring pengaman migrasi |
-| Runtime | Node (bukan Bun) — main process TS murni **butuh build step** (keputusan: Jalur B, dibangun) |
+| File renderer (TS/TSX) | **133 file** — 0 `.js`/`.jsx` di kode produksi |
+| File main process (TS) | **45 file** — 0 `.js` |
+| Strictness | `strict: true` + `noUnusedLocals`/`noUnusedParameters` di kedua tsconfig |
+| Explicit `any` | **0** — 2 situs batas IPC di `ipcValidation.ts` diberi `eslint-disable` terdokumentasi |
+| Ukuran file | Maks **400 baris** (lint 0 warning; file raksasa lama dipecah saat konversi) |
+| Toolchain | Vite 7.3 · electron-vite 5 · TypeScript 5.9 · Vitest · electron-builder 26 |
+| Safety net | **512 test Vitest** + **7 e2e Playwright** — hijau di setiap fase |
+| Verifikasi penuh | typecheck 0 error · lint 0 error & 0 warning · build OK · 7/7 e2e · **versi 0.1.8** |
 
 ## Keputusan Arsitektur
 
@@ -85,7 +83,9 @@ src/types/shared.d.ts   ← Project, Config, PrayerConfig, Session, ProcessStatu
   | Fase 4 — Common & Layout | `0.1.5` |
   | Fase 5 — Views | `0.1.6` |
   | Fase 6 — Pengetatan & audit `any` | `0.1.7` |
-  | Migrasi TS tuntas (DoD penuh) | **`0.2.0`** (minor, penanda selesai) |
+  | Fase 7 — Penuntasan DoD (4 file terakhir, `any`→error, paritas `noUnused`) | `0.1.8` |
+
+  > **Catatan**: DoD penuh tercapai di **Fase 7 (0.1.8)**, bukan 0.2.0 — pemecahan file dan audit `any` berjalan lebih cepat dari estimasi, sehingga penanda "migrasi tuntas" ikut naik patch seperti fase lain.
 
 - **Mekanisme rilis per fase:** `npm version <x.y.z> --no-git-tag-version` (sinkron package.json + package-lock) → update CHANGELOG → commit → `git tag v0.1.x && git push origin v0.1.x` → **`release.yml`** menjalankan quality gate (lint, typecheck, test, coverage, audit) lalu `electron-builder --publish always` → installer Windows (NSIS + portable) + feed auto-update (`latest.yml`) dipublikasikan ke GitHub Releases.
 - Perubahan di luar fase (hotfix/feature) juga naik patch (0.1.x) dengan alur yang sama.
@@ -185,13 +185,13 @@ Urutan: `ipcRenderer.js` (923 baris — fondasi, semua komponen bergantung padan
 
 ## Metrik Selesai (Definition of Done)
 
-- [ ] **0 file `.js`/`.jsx` tersisa di `src/`** (termasuk `main.jsx` entry) **dan di `electron/`**.
-- [ ] `strict: true` aktif di kedua tsconfig sejak Fase 0 — tidak ada folder non-strict.
-- [ ] `npm run typecheck` 0 error (electron + renderer, dua config).
-- [ ] 512+ test Vitest + 7 e2e tetap hijau; CI matrix 3 OS hijau dari output bundel.
-- [ ] Build menghasilkan output yang sama fungsionalnya (struktur bundle tidak memburuk).
-- [ ] **Tidak ada `any` tanpa `// TODO(ts)`**; `no-explicit-any` error di lint.
-- [ ] **Tidak ada file baru/dikonversi > 400 baris**; lapisan dipatuhi (komponen tidak memanggil IPC langsung, tipe domain hanya di `src/types`).
+- [x] **0 file `.js`/`.jsx` tersisa di `src/`** (termasuk `main.tsx` entry) **dan di `electron/`** — kode produksi 100% TS.
+- [x] `strict: true` aktif di kedua tsconfig sejak Fase 0 — tidak ada folder non-strict.
+- [x] `npm run typecheck` 0 error (electron + renderer, dua config).
+- [x] 512+ test Vitest + 7 e2e tetap hijau; CI matrix 3 OS hijau dari output bundel.
+- [x] Build menghasilkan output yang sama fungsionalnya (struktur bundle tidak memburuk).
+- [x] **Tidak ada `any` tanpa pembenaran**; `no-explicit-any` **error** di lint (2 situs batas IPC diberi `eslint-disable` terdokumentasi).
+- [x] **Tidak ada file baru/dikonversi > 400 baris**; lapisan dipatuhi (komponen tidak memanggil IPC langsung, tipe domain hanya di `src/types`).
 
 ## Risiko & Mitigasi
 

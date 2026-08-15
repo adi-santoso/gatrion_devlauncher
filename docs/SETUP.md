@@ -39,7 +39,7 @@ Flow:
 npm run dev:vite
 ```
 
-Browser mode menggunakan mock project/config dari `src/utils/ipcRenderer.js`. Folder picker dan operasi native tidak tersedia.
+Browser mode menggunakan mock project/config dari `src/data/` (facade `src/utils/ipcRenderer.ts`). Folder picker dan operasi native tidak tersedia.
 
 ### Electron saja
 
@@ -87,7 +87,7 @@ Output diarahkan ke `dist/`. Config membuat target NSIS dan portable x64. Nama a
 build/icon.ico
 ```
 
-`electron/main.js` juga mengharapkan:
+`electron/main.ts` (di-bundle ke `out/main/index.js`) juga mengharapkan:
 
 ```text
 build/icon.png

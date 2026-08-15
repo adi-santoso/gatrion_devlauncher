@@ -55,9 +55,10 @@ Status: **masih development — belum siap production**. Lihat [Feature Status](
 
 ## Tech Stack
 
-- Electron 43
+- Electron 43 — main process di-bundle dengan [electron-vite](https://electron-vite.org) 5
 - React 19
-- Vite 8
+- Vite 7 (renderer)
+- TypeScript 5.9 — **strict, 100% kode aplikasi** (renderer `.tsx` + main process `.ts`)
 - Tailwind CSS 4
 - electron-builder 26
 
@@ -90,7 +91,7 @@ npm run dev:vite
 | `npm run test:coverage` | Vitest dengan coverage report |
 | `npm run test:e2e` | Playwright end-to-end test (Electron) |
 | `npm run lint` / `npm run lint:fix` | ESLint |
-| `npm run typecheck` | JSDoc typecheck untuk file bertanda `// @ts-check` |
+| `npm run typecheck` | Typecheck TypeScript strict (renderer + main process, 0 error) |
 | `npm run changelog` / `npm run changelog:apply` | Generate CHANGELOG.md dari conventional commits (dry-run / apply) |
 | `npm run icons` | Generate icon aplikasi ke `build/` |
 | `npm run preview` | Preview hasil build renderer |

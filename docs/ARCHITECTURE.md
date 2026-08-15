@@ -18,48 +18,54 @@ Renderer tidak mendapat akses Node.js langsung. `nodeIntegration` nonaktif dan `
 ## Struktur Source
 
 ```text
-electron/
-  main.js                       lifecycle window dan app
-  preload.js                    API aman ke renderer (contextBridge)
+electron/                      TypeScript, di-bundle electron-vite 5 → out/main + out/preload
+  main.ts                       lifecycle window dan app (orchestrator tipis)
+  preload.ts                    API aman ke renderer (contextBridge)
+  ipcHandlers.ts                registrasi semua ipcMain.handle (implementasi per-domain di handlers/)
+  notifications.ts              notifikasi native + aksi restart dari notifikasi
+  configSchema.ts / projectSchema.ts   schema validasi + normalisasi
   handlers/
-    projectHandlers.js          CRUD project, browse folder
-    processHandlers.js          lifecycle process dan events
-    agentHandlers.js            AI Agent (omp): chat, sessions, RPC forwarding
-    systemHandlers.js           environment check, update checker
-    repoHandlers.js             Git: status/log/diff/stage/commit/stash/blame
-    previewHandlers.js          embedded preview (WebContentsView)
-    terminalHandlers.js         interactive PTY shell
-    desktopHandlers.js          tray, open external, reveal, notifications
+    projectHandlers.ts          CRUD project, browse folder
+    processHandlers.ts          lifecycle process dan events
+    agentHandlers.ts            AI Agent (omp): chat, sessions, RPC forwarding
+    systemHandlers.ts           environment check, update checker
+    repoHandlers.ts             Git: status/log/diff/stage/commit/stash/blame
+    previewHandlers.ts          embedded preview (WebContentsView)
+    terminalHandlers.ts         interactive PTY shell
+    desktopHandlers.ts          tray, open external, reveal, notifications
+    backupHandlers.ts           workspace backup (export/import terenkripsi)
   managers/
-    ProcessManager.js           spawn, stop tree, status, log buffer
-    ProjectDetector.js          deteksi framework
-    StorageManager.js           JSON, backup, recovery, config
-    OmpManager.js               RPC client oh-my-pi (NDJSON, per project)
-    OmpInstaller.js             install binary omp terkelola
-    OmpConfig.js                models.yml / config.yml omp
-    HealthManager.js            health & analytics (userData/health.json)
-    PreviewManager.js           sesi preview persisten per project
-    TrayManager.js              native tray
+    ProcessManager.ts           spawn, stop tree, status, log buffer (dipecah: processTypes / processLogBase / processPortBase / processChildBase / processMetricsBase)
+    ProjectDetector.ts          deteksi framework
+    StorageManager.ts           JSON, backup, recovery, config
+    OmpManager.ts + ompRpc.ts   RPC client oh-my-pi (NDJSON, per project)
+    OmpInstaller.ts             install binary omp terkelola
+    OmpConfig.ts                models.yml / config.yml omp
+    HealthManager.ts            health & analytics (userData/health.json)
+    PreviewManager.ts           sesi preview persisten per project
+    TrayManager.ts              native tray
   utils/
-    ipcSecurity.js              validasi trusted IPC event
-    logger.js                   structured logging (userData/logs/main.log)
-    messagesToMarkdown.js       export percakapan agent ke Markdown
+    ipcSecurity.ts / ipcValidation.ts   validasi trusted IPC event + CHANNEL_RULES per channel
+    logger.ts                   structured logging (userData/logs/main.log)
+    logRotation.ts / logStore.ts / portCheck.ts / processTree.ts / pathKey.ts / versionCompare.ts
+    messagesToMarkdown.ts       export percakapan agent ke Markdown
+    workspaceBackup.ts / workspaceSearch.ts / updater.ts
 
-src/
-  App.jsx                       navigation dan orchestration UI aktif
-  hooks/
-    useProjects.js              state project + CRUD IPC
-    useProcesses.js             lifecycle process + event subscriptions
-    useElectronConfig.js        config IPC
-  utils/ipcRenderer.js          wrapper IPC + browser mocks
+src/                           TypeScript strict
+  App.tsx                       controller tipis — orchestration dipindah ke hooks/modul
+  hooks/                        orkestrasi state & data (useProjects, useProcesses, useElectronConfig, …)
+  data/                         satu-satunya lapisan panggilan IPC (per-domain: projects, processes, agent, …)
+  types/                        tipe domain murni (shared.d.ts, electron.d.ts)
+  utils/ipcRenderer.ts          facade re-export src/data (browser mock per fungsi)
   components/
+    Common/, Layout/            komponen presentasional murni + shell
     Dashboard/                  workspace dashboard aktif
     Projects/                   registry/grid/list aktif
     ProjectDetail/              detail/log/env/git/scripts/dependencies/analytics/preview UI
     Settings/                   app settings UI (termasuk kartu AI Agent)
     Agent/                      chat coding agent (streaming, tool cards, sessions)
     Terminal/                   terminal workspace & PTY
-    Layout/, Modals/, Common/, States/   shell dan reusable UI
+    Modals/, States/            modal global + loading states
 ```
 
 ## Main Process Lifecycle
@@ -148,7 +154,7 @@ Project schema diversioning (`schemaVersion`) dengan normalisasi/validasi field 
 
 ## Model Config
 
-Backend default (schema versioned di `configSchema.js`):
+Backend default (schema versioned di `configSchema.ts`):
 
 ```js
 {
@@ -188,9 +194,9 @@ Config lama dengan key flat seperti `notifyOnStart`, `terminalFontSize`, dan `te
 
 ## Technical Debt Utama
 
-- `App.jsx` masih memegang banyak orchestration UI (dikurangi bertahap).
-- IPC response shapes belum sepenuhnya seragam (beberapa method mengembalikan bentuk langsung, bukan wrapper `{ success }`).
-- `npm run typecheck` (JSDoc) baru mencakup file bertanda `// @ts-check`; perluasan bertahap.
-- Kode belum full TypeScript; testing e2e masih smoke-level.
+- IPC response shapes sebagian masih mengembalikan bentuk langsung alih-alih wrapper `{ success }` (konsolidasi bertahap lewat `safeHandle`).
+- File test (`__tests__`) masih `.js`/`.jsx` — sengaja dikecualikan dari tsconfig; dapat dikonversi ke TS bila diperlukan.
+- `noUncheckedIndexedAccess` belum diaktifkan (opsional — evaluasi per folder).
+- e2e Playwright masih smoke-level untuk sebagian alur (alur inti project/settings/agent sudah ter-cover).
 
 Prioritas dan acceptance criteria tersedia di [Roadmap](ROADMAP.md).

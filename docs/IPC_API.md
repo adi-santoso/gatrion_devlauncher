@@ -1,6 +1,6 @@
 # IPC API
 
-Dokumen ini mencatat kontrak yang benar-benar diekspos oleh `electron/preload.js`. Semua method tersedia sebagai `window.electron` hanya di Electron mode.
+Dokumen ini mencatat kontrak yang benar-benar diekspos oleh `electron/preload.ts` (di-bundle ke `out/preload/index.js`). Semua method tersedia sebagai `window.electron` hanya di Electron mode.
 
 ## Convention
 
@@ -445,7 +445,7 @@ Sama seperti `ompListSessions` tapi lintas **semua** project (untuk workspace se
 
 Channel: `workspace-search-files`
 
-Scan nama file di root project (maks. 6 level, hasil dibatasi 25, `node_modules`/`dist`/lockfile di-skip). `query` minimal 2 karakter. Backend = `electron/utils/workspaceSearch.js`.
+Scan nama file di root project (maks. 6 level, hasil dibatasi 25, `node_modules`/`dist`/lockfile di-skip). `query` minimal 2 karakter. Backend = `electron/utils/workspaceSearch.ts`.
 
 ```js
 { success: true, files: [{ path, name, dir, project }] }
@@ -520,7 +520,7 @@ Menormalisasi respons RPC `get_available_commands` menjadi array datar (setiap c
 
 Channel: `omp-export-conversation`
 
-Mengambil transkrip kanonik sesi (paged `get_messages_page`), me-render ke Markdown (`electron/utils/messagesToMarkdown.js`), lalu menampilkan **save dialog native**. Bila user membatalkan, mengembalikan `{ success: true, canceled: true }`; bila tersimpan, `{ success: true, canceled: false, path }`.
+Mengambil transkrip kanonik sesi (paged `get_messages_page`), me-render ke Markdown (`electron/utils/messagesToMarkdown.ts`), lalu menampilkan **save dialog native**. Bila user membatalkan, mengembalikan `{ success: true, canceled: true }`; bila tersimpan, `{ success: true, canceled: false, path }`.
 
 ### `ompTogglePin(projectId, sessionId)`
 
@@ -586,7 +586,7 @@ Channel: `omp-bash` / `omp-abort-bash`
 
 ## Browser Fallback
 
-`src/utils/ipcRenderer.js` menyediakan mock untuk browser mode. Batasannya:
+`src/data/` (facade `src/utils/ipcRenderer.ts`) menyediakan mock per-fungsi untuk browser mode. Batasannya:
 
 - add/update/delete tidak persisten setelah reload;
 - process lifecycle hanya mengembalikan status mock;

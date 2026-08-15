@@ -64,7 +64,7 @@ Legend:
 | Health & analytics | Done | Tab Analytics: crash history, run history + uptime, total runs/uptime, trend CPU/memory harian, clear history (persist ke userData/health.json) |
 | System environment check | Done | Kartu di Settings: deteksi 17 tools (node, npm, git, php, composer, python, go, java, docker, mysql, redis, omp, dll) + versi + re-check |
 | Update checker | Done | Cek rilis terbaru GitHub saat Settings dibuka + banner "versi baru tersedia" |
-| JSDoc typecheck | Partial | `npm run typecheck` (tsc) untuk file baru bertanda `// @ts-check` (systemHandlers, HealthManager, prayerTimes, OmpManager, OmpInstaller, OmpConfig); perluasan bertahap |
+| TypeScript strict typecheck | Done | `npm run typecheck` = tsc strict dua config (electron + renderer) — 0 error; kode produksi 100% TS (0 `.js`/`.jsx`) |
 | AI Agent (oh-my-pi) | Done | Menu Agent di sidebar (icon message-square): session dikelompokkan per project, chat streaming real-time (event RPC omp asli: `assistantMessageEvent.delta`, `tool_execution_*`, `agent_end.messages`), tool cards, stop, new/rename/delete session, token usage, transisi dua arah dengan Project Detail |
 | OmpManager (RPC client) | Done | Spawn `omp --mode rpc` per project (lazy, cwd = folder project), NDJSON framing + korelasi by id, fast-fail tanpa provider, idle kill 15 menit, session registry di userData/agent-sessions.json |
 | OmpInstaller | Done | Download binary omp (±150 MB) ke userData/omp tanpa admin rights, progress stream + verifikasi SHA256; deteksi omp sistem (PATH, LOCALAPPDATA, ~/.bun) |
@@ -109,7 +109,7 @@ Legend:
 | Unit test storage/detector/hooks | Done | Vitest setup, ProjectDetector.test.js, StorageManager.test.js created |
 | Electron integration/smoke automation | Done | Playwright E2E (`npm run test:e2e`) launches the app, checks navigation |
 | Lint command | Done | ESLint configured with @eslint/js + react-hooks plugin |
-| Type checking | Partial | `npm run typecheck` (tsc) untuk file bertanda `// @ts-check` — perluasan bertahap |
+| Type checking | Done | TypeScript strict penuh (renderer + main process), `no-explicit-any` error, 0 warning lint |
 | Accessibility audit | Partial | ARIA labels on buttons/focusable elements added, keyboard shortcuts documented, contrast compliance |
 | Windows installer | Partial | Ikon aplikasi (motif G, purple gradient) digenerate via `npm run icons` → `build/icon.ico/png/tray`; build NSIS/portable belum dijalankan penuh |
 | Clean machine validation | Pending | Belum dibuktikan |
