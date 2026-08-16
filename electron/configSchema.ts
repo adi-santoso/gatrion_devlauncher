@@ -53,6 +53,8 @@ const DEFAULT_CONFIG = {
   agent: {
     notifyOnFinish: true, // system notification when an agent turn completes while the app is unfocused
     sound: false,
+    controlEnabled: false, // MCP server exposing DevLauncher tools to the agent (opt-in)
+    permissions: { read: true, write: true, destructive: true }, // MCP tool category toggles
   },
   windowBounds: null,
 } satisfies Omit<AppConfig, 'schemaVersion'>
@@ -146,6 +148,7 @@ function normalizeConfig(config: unknown = {}): AppConfig {
     ? prayer.adjustments as Record<string, unknown>
     : {}
   const agent: Record<string, unknown> = migrated.agent && typeof migrated.agent === 'object' ? migrated.agent : {}
+  const agentPermissions: Record<string, unknown> = agent.permissions && typeof agent.permissions === 'object' && !Array.isArray(agent.permissions) ? agent.permissions as Record<string, unknown> : {}
   const windowBounds = migrated.windowBounds && typeof migrated.windowBounds === 'object' && !Array.isArray(migrated.windowBounds) ? migrated.windowBounds : null
 
   return {
@@ -193,6 +196,12 @@ function normalizeConfig(config: unknown = {}): AppConfig {
     agent: {
       notifyOnFinish: booleanOr(agent.notifyOnFinish, DEFAULT_CONFIG.agent.notifyOnFinish),
       sound: booleanOr(agent.sound, DEFAULT_CONFIG.agent.sound),
+      controlEnabled: booleanOr(agent.controlEnabled, DEFAULT_CONFIG.agent.controlEnabled),
+      permissions: {
+        read: booleanOr(agentPermissions.read, DEFAULT_CONFIG.agent.permissions.read),
+        write: booleanOr(agentPermissions.write, DEFAULT_CONFIG.agent.permissions.write),
+        destructive: booleanOr(agentPermissions.destructive, DEFAULT_CONFIG.agent.permissions.destructive),
+      },
     },
     windowBounds: windowBounds && Number.isFinite(windowBounds.width) && Number.isFinite(windowBounds.height)
       ? {
@@ -261,6 +270,15 @@ function applyConfigUpdates(current: AppConfig, updates: DeepPartial<AppConfig>)
   if (updates.prayer?.sound !== undefined && typeof updates.prayer.sound !== 'boolean') throw new Error('prayer.sound must be a boolean')
   if (updates.agent?.notifyOnFinish !== undefined && typeof updates.agent.notifyOnFinish !== 'boolean') throw new Error('agent.notifyOnFinish must be a boolean')
   if (updates.agent?.sound !== undefined && typeof updates.agent.sound !== 'boolean') throw new Error('agent.sound must be a boolean')
+  if (updates.agent?.controlEnabled !== undefined && typeof updates.agent.controlEnabled !== 'boolean') throw new Error('agent.controlEnabled must be a boolean')
+  if (updates.agent?.permissions !== undefined && (typeof updates.agent.permissions !== 'object' || Array.isArray(updates.agent.permissions))) {
+    throw new Error('agent.permissions must be an object')
+  }
+  for (const key of ['read', 'write', 'destructive'] as const) {
+    if (updates.agent?.permissions?.[key] !== undefined && typeof updates.agent.permissions[key] !== 'boolean') {
+      throw new Error(`agent.permissions.${key} must be a boolean`)
+    }
+  }
 
   const notificationKey = Object.keys(updates.notifications || {}).find((key) => !['onStart', 'onError', 'sound'].includes(key))
   if (notificationKey) throw new Error(`Unsupported notifications field: ${notificationKey}`)
@@ -272,7 +290,7 @@ function applyConfigUpdates(current: AppConfig, updates: DeepPartial<AppConfig>)
   if (previewKey) throw new Error(`Unsupported preview field: ${previewKey}`)
   const prayerKey = Object.keys(updates.prayer || {}).find((key) => !['showIn', 'method', 'city', 'latitude', 'longitude', 'utcOffset', 'adjustments', 'notify', 'sound'].includes(key))
   if (prayerKey) throw new Error(`Unsupported prayer field: ${prayerKey}`)
-  const agentKey = Object.keys(updates.agent || {}).find((key) => !['notifyOnFinish', 'sound'].includes(key))
+  const agentKey = Object.keys(updates.agent || {}).find((key) => !['notifyOnFinish', 'sound', 'controlEnabled', 'permissions'].includes(key))
   if (agentKey) throw new Error(`Unsupported agent field: ${agentKey}`)
   const adjustmentKey = Object.keys(updates.prayer?.adjustments || {}).find((key) => !['fajr', 'dhuhr', 'asr', 'maghrib', 'isha'].includes(key))
   if (adjustmentKey) throw new Error(`Unsupported prayer.adjustments field: ${adjustmentKey}`)

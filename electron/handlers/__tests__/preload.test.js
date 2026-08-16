@@ -118,4 +118,19 @@ describe('preload API surface', () => {
     for (const listener of ipcRenderer._listeners.get('config-updated')) listener({}, { theme: 'light' })
     expect(configCb).toHaveBeenCalledWith({ theme: 'light' })
   })
+
+  test('MCP approval channels forward correctly', async () => {
+    // Push: approval requests arrive from the main process.
+    const cb = vi.fn()
+    api.onMcpApprovalRequest(cb)
+    for (const listener of ipcRenderer._listeners.get('mcp-approval-request')) {
+      listener({}, { id: 'req-1', tool: 'devlauncher_delete_project', summary: 'delete' })
+    }
+    expect(cb).toHaveBeenCalledWith({ id: 'req-1', tool: 'devlauncher_delete_project', summary: 'delete' })
+
+    // Invoke: answering the modal goes to mcp-approval-respond.
+    ipcRenderer.invoke = vi.fn(async () => ({ success: true }))
+    await api.respondMcpApproval('req-1', 'approve')
+    expect(ipcRenderer.invoke).toHaveBeenLastCalledWith('mcp-approval-respond', 'req-1', 'approve')
+  })
 })

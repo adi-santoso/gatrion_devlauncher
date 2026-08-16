@@ -40,6 +40,8 @@ class PreviewManager {
   win: BrowserWindow | null
   views: Map<string, PreviewEntry>
   onConsoleMessage: ((info: ConsoleInfo) => void) | null
+  /** Recent console messages per project (MCP preview_read_console). */
+  private consoleBuffer = new Map<string, ConsoleInfo[]>()
 
   constructor() {
     this.win = null
@@ -54,6 +56,16 @@ class PreviewManager {
   /** Renderer callback for console messages coming from project apps. */
   setConsoleListener(callback: (info: ConsoleInfo) => void) {
     this.onConsoleMessage = callback
+  }
+
+  /**
+   * Ring buffer of recent console messages per project (feeds the MCP
+   * `devlauncher_preview_read_console` tool). Filled regardless of listeners.
+   */
+  getConsoleBuffer(projectId: string, limit = 50): ConsoleInfo[] {
+    const safe = Number.isInteger(limit) && limit > 0 ? Math.min(limit, 500) : 50
+    const buffer = this.consoleBuffer.get(projectId) || []
+    return buffer.slice(-safe)
   }
 
   partitionFor(projectId: string) {
@@ -106,13 +118,19 @@ class PreviewManager {
       const levelName = typeof level === 'number'
         ? LEVEL_NAMES[level] || 'info'
         : LEVEL_NAMES.includes(level) ? level : 'info'
-      this.onConsoleMessage?.({
+      const info: ConsoleInfo = {
         projectId,
         level: levelName,
         message: String(message || '').slice(0, 2000),
         source: sourceId || '',
         line,
-      })
+      }
+      // Ring buffer for the MCP read tool (last 200 per project).
+      const buffer = this.consoleBuffer.get(projectId) || []
+      buffer.push(info)
+      if (buffer.length > 200) buffer.splice(0, buffer.length - 200)
+      this.consoleBuffer.set(projectId, buffer)
+      this.onConsoleMessage?.(info)
     })
 
     this.win.contentView.addChildView(view)

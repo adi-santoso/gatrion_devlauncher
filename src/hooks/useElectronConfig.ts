@@ -30,7 +30,7 @@ const DEFAULT_CONFIG: AppConfig = {
     notify: true,
     sound: true,
   },
-  agent: { notifyOnFinish: true, sound: false },
+  agent: { notifyOnFinish: true, sound: false, controlEnabled: false, permissions: { read: true, write: true, destructive: true } },
   windowBounds: null,
   schemaVersion: 0,
 }

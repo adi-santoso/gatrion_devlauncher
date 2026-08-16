@@ -1,6 +1,8 @@
 # Roadmap DevLauncher — Rencana Peningkatan
 
 > **STATUS: SELESAI** (keputusan 14 Agu 2026) — seluruh item P0/P1 tuntas; P2 tersisa hanya item yang di-skip dengan sengaja (code signing, berbayar) dan sisanya yang menunggu platform nyata (verifikasi runtime macOS/Linux). **Rewrite TypeScript juga telah tuntas (15 Agu 2026, v0.1.8)** — kode produksi 100% TS strict; lihat [ROADMAP_TS.md](ROADMAP_TS.md).
+>
+> **Fitur baru:** [ROADMAP_AGENT_MCP.md](ROADMAP_AGENT_MCP.md) — agent (omp) mengontrol DevLauncher via MCP (belum dimulai, Fase 0).
 
 Dokumen ini berisi rencana perbaikan DevLauncher berdasarkan analisa kode saat ini (commit `8fb48f6`). Ini bukan daftar fitur marketing — tiap item diturunkan dari kondisi nyata repo, diberi prioritas, perkiraan effort, dan dampak. Status per fitur eksisting tetap di [FEATURE_STATUS.md](FEATURE_STATUS.md); riwayat perubahan di [CHANGELOG.md](../CHANGELOG.md).
 

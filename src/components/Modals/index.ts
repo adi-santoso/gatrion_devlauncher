@@ -5,3 +5,4 @@ export { default as ShortcutsModal } from './ShortcutsModal';
 export { default as PortConflictModal } from './PortConflictModal';
 export { default as ToastContainer } from './ToastContainer';
 export { default as PresetModal } from './PresetModal';
+export { default as McpApprovalModal } from './McpApprovalModal';

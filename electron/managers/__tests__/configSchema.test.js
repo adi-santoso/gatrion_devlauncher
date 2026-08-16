@@ -76,6 +76,20 @@ describe('configSchema', () => {
     expect(() => applyConfigUpdates(base, { agent: { bogus: 1 } })).toThrow(/Unsupported agent field/)
   })
 
+  test('agent permission matrix defaults on and validates', () => {
+    const base = normalizeConfig()
+    expect(base.agent.permissions).toEqual({ read: true, write: true, destructive: true })
+
+    const updated = applyConfigUpdates(base, { agent: { permissions: { read: false, write: true, destructive: false } } })
+    expect(updated.agent.permissions).toEqual({ read: false, write: true, destructive: false })
+
+    expect(() => applyConfigUpdates(base, { agent: { permissions: { read: 'yes' } } })).toThrow(/agent.permissions.read must be a boolean/)
+    expect(() => applyConfigUpdates(base, { agent: { permissions: 'all' } })).toThrow(/agent.permissions must be an object/)
+
+    const partial = normalizeConfig({ agent: { permissions: { read: false } } })
+    expect(partial.agent.permissions).toEqual({ read: false, write: true, destructive: true })
+  })
+
   test('normalizeConfig clamps invalid values back to defaults', () => {
     const clamped = normalizeConfig({ prayer: { showIn: 'wat', latitude: 999, utcOffset: 99, adjustments: { isha: 999 } } })
     expect(clamped.prayer.showIn).toBe('both')

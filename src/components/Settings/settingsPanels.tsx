@@ -1,8 +1,9 @@
 import ThemeSelector from './ThemeSelector';
 import ToggleSwitch from './ToggleSwitch';
 import TerminalSettings from './TerminalSettings';
+import { useEffect, useState } from 'react';
 import Icon from '../Common/Icon';
-import { openExternalUrl } from '../../utils/ipcRenderer';
+import { openExternalUrl, mcpGetStatus } from '../../utils/ipcRenderer';
 import { useI18n } from '../../i18n/I18nContext';
 import type {
   UpdateBannerProps,
@@ -62,6 +63,38 @@ export function UpdateBanner({ updateInfo, updateState, downloading, onDownload,
         </>
       )}
     </div>
+  );
+}
+
+/**
+ * McpStatusLine - small status readout under the agent-control toggle.
+ */
+function McpStatusLine({ enabled }: { enabled: boolean }) {
+  const { t } = useI18n();
+  const [running, setRunning] = useState<boolean | null>(null);
+  const [port, setPort] = useState<number | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    const poll = () => mcpGetStatus().then((result) => {
+      if (cancelled || !result?.success) return;
+      setRunning(!!result.running);
+      setPort(result.port ?? null);
+    }).catch(() => {});
+    poll();
+    const timer = setInterval(poll, 5000);
+    return () => { cancelled = true; clearInterval(timer); };
+  }, [enabled]);
+  if (!enabled) {
+    return <p className="text-[11px] text-ink-faint">{t('settings.agentControl.desc')}</p>;
+  }
+  const text = running && port
+    ? t('settings.agentControl.active', { port: String(port) })
+    : t('settings.agentControl.inactive');
+  return (
+    <p className="text-[11px] text-ink-faint">
+      <span className={`inline-block w-2 h-2 rounded-full mr-1.5 align-middle ${running ? 'bg-success' : 'bg-ink-faint'}`} />
+      {text}
+    </p>
   );
 }
 
@@ -138,6 +171,41 @@ export function GeneralPanel({ config, onConfigChange, updateConfig }: GeneralPa
             onChange={() => onConfigChange('autoStartProjects', !config.autoStartProjects)}
             label={t('settings.autoStartProjects')}
           />
+          <ToggleSwitch
+            enabled={!!config.agent?.controlEnabled}
+            onChange={() => updateConfig({ agent: { controlEnabled: !config.agent?.controlEnabled } })}
+            label={t('settings.agentControl.title')}
+          />
+          <McpStatusLine enabled={!!config.agent?.controlEnabled} />
+          {config.agent?.controlEnabled && (
+            <div className="rounded-lg bg-surface-3 border border-border p-3 space-y-2.5">
+              <p className="text-[11px] font-semibold text-ink-soft">{t('settings.agentControl.permissionsTitle')}</p>
+              <ToggleSwitch
+                enabled={config.agent?.permissions?.read !== false}
+                onChange={() => updateConfig({
+                  agent: { permissions: { ...config.agent?.permissions, read: config.agent?.permissions?.read === false } },
+                })}
+                label={t('settings.agentControl.perm.read')}
+                description={t('settings.agentControl.perm.readHint')}
+              />
+              <ToggleSwitch
+                enabled={config.agent?.permissions?.write !== false}
+                onChange={() => updateConfig({
+                  agent: { permissions: { ...config.agent?.permissions, write: config.agent?.permissions?.write === false } },
+                })}
+                label={t('settings.agentControl.perm.write')}
+                description={t('settings.agentControl.perm.writeHint')}
+              />
+              <ToggleSwitch
+                enabled={config.agent?.permissions?.destructive !== false}
+                onChange={() => updateConfig({
+                  agent: { permissions: { ...config.agent?.permissions, destructive: config.agent?.permissions?.destructive === false } },
+                })}
+                label={t('settings.agentControl.perm.destructive')}
+                description={t('settings.agentControl.perm.destructiveHint')}
+              />
+            </div>
+          )}
         </section>
 
         <section className="space-y-4 border-t border-border pt-5">

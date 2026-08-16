@@ -38,6 +38,7 @@ Status: **in development — not production-ready yet**. See [Feature Status](do
 - **Sessions** grouped per project: create, rename, delete, pin, search, export to Markdown, branch from any message, run bash commands, and per-session drafts.
 - **Cost tracking** — token usage per turn and per session, with cost estimation per model.
 - **Built-in installer** — downloads the omp binary (SHA256-verified, no admin rights) and lets you configure providers from Settings, or picks up an existing install from PATH.
+- **Agent can control DevLauncher (MCP, opt-in)** — flip "Agent can control DevLauncher" in Settings and the agent gains 37 tools over a local HTTP MCP server (start/stop projects, git, npm, terminal, preview, .env, backup, update…), shown as tool cards in the chat. Read/write/destructive permissions are per-category toggles; destructive actions always ask for your approval in a modal. Off by default, localhost-only with a per-launch token. See [docs/ROADMAP_AGENT_MCP.md](docs/ROADMAP_AGENT_MCP.md).
 
 ### Workspace-wide
 - **Command palette** (`Ctrl+K`) — jump to projects, agent sessions, files (workspace file search with highlighting), and built-in commands.

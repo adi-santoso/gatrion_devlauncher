@@ -161,6 +161,12 @@ interface ElectronApi {
   getUpdateState: () => Promise<unknown>
   onUpdateState: (callback: (state: unknown) => void) => Unsub
 
+  // MCP server status (agent-control feature)
+  mcpGetStatus: () => Promise<unknown>
+  // MCP destructive-tool approval modal
+  respondMcpApproval: (id: string, decision: string) => Promise<unknown>
+  onMcpApprovalRequest: (callback: (request: unknown) => void) => Unsub
+
   // AI Agent (oh-my-pi)
   ompStatus: () => Promise<unknown>
   ompListSessions: (projectId: string) => Promise<unknown>
@@ -404,6 +410,13 @@ const api: ElectronApi = {
   downloadUpdate: () => ipcRenderer.invoke('update-download'),
   installUpdate: () => ipcRenderer.invoke('update-install'),
   getUpdateState: () => ipcRenderer.invoke('update-get-state'),
+  mcpGetStatus: () => ipcRenderer.invoke('mcp-status'),
+  respondMcpApproval: (id, decision) => ipcRenderer.invoke('mcp-approval-respond', id, decision),
+  onMcpApprovalRequest: (callback) => {
+    const listener = (_event: IpcRendererEvent, request: unknown) => callback(request)
+    ipcRenderer.on('mcp-approval-request', listener)
+    return () => ipcRenderer.removeListener('mcp-approval-request', listener)
+  },
   onUpdateState: (callback) => {
     const listener = (_event: IpcRendererEvent, state: unknown) => callback(state)
     ipcRenderer.on('update-state', listener)

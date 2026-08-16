@@ -191,6 +191,7 @@ Config lama dengan key flat seperti `notifyOnStart`, `terminalFontSize`, dan `te
 - CSP diterapkan di main process (dev mengizinkan inline script Vite).
 - Nilai rahasia (KEY/TOKEN/SECRET/PASSWORD) di-mask di UI dan tidak di-log.
 - Command user tetap dijalankan melalui shell lokal (`shell: true` untuk command yang memang butuh shell) — hanya project dan command tepercaya yang boleh ditambahkan.
+- **MCP server agent-control (opt-in)** — HTTP server hand-rolled di `electron/mcp/` (`server.ts` bind `127.0.0.1` saja + token Bearer acak per-launch, rate limit 120 req/10 s, max payload 512 KB, 16 in-flight; `tools*.ts` registri 37 tool dengan kategori `read`/`write`/`destructive`; `approval.ts` + `McpApprovalModal` — tool destruktif menunggu persetujuan user; config `agent.controlEnabled` + matriks izin `agent.permissions`; entry omp di `~/.omp/agent/mcp.json`). Detail: `docs/ROADMAP_AGENT_MCP.md`.
 
 ## Technical Debt Utama
 

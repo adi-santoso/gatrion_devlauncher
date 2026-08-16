@@ -33,6 +33,7 @@ import { setupAgentHandlers } from './handlers/agentHandlers'
 import { registerCoreIpcHandlers } from './ipcHandlers'
 import { setupProjectNotifications } from './notifications'
 import { setupAutoUpdater } from './utils/updater'
+import { setupMcpManager, type McpManager as McpManagerType } from './mcp'
 import Logger from './utils/logger'
 
 // Global error capture — log anything that escapes normal error handling so
@@ -78,6 +79,7 @@ let previewManager!: PreviewManagerType
 let healthManager!: HealthManagerType
 let ompManager!: OmpManagerType
 let ompInstaller!: OmpInstallerType
+let mcpManager: McpManagerType | null = null
 let ompConfig!: OmpConfigType
 let isQuitting = false
 
@@ -103,9 +105,8 @@ app.setAppUserModelId(APP_ID)
 // Production restricts scripts to self; dev keeps 'unsafe-inline' so the Vite
 // react-refresh preamble and injected styles keep working.
 function applyContentSecurityPolicy() {
-  const CSP = app.isPackaged
-    ? "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' ws://localhost:* http://localhost:*; frame-src http://localhost:* https://localhost:*; object-src 'none'; base-uri 'self'; form-action 'self'"
-    : "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' ws://localhost:* http://localhost:*; frame-src http://localhost:* https://localhost:*; object-src 'none'; base-uri 'self'; form-action 'self'"
+  const scriptSrc = app.isPackaged ? "'self'" : "'self' 'unsafe-inline'"
+  const CSP = `default-src 'self'; script-src ${scriptSrc}; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' ws://localhost:* http://localhost:*; frame-src http://localhost:* https://localhost:*; object-src 'none'; base-uri 'self'; form-action 'self'`
 
   session.defaultSession.webRequest.onHeadersReceived((details: Electron.OnHeadersReceivedListenerDetails, callback: (response: Electron.HeadersReceivedResponse) => void) => {
     callback({
@@ -177,10 +178,7 @@ function createWindow(windowBounds?: WindowBounds | null) {
   // the maximize event fires before the renderer has subscribed.
   const sendWindowState = () => {
     if (!mainWindow || mainWindow.isDestroyed()) return
-    mainWindow.webContents.send('window-maximized-changed', {
-      maximized: mainWindow.isMaximized(),
-      platform: process.platform,
-    })
+    mainWindow.webContents.send('window-maximized-changed', { maximized: mainWindow.isMaximized(), platform: process.platform })
   }
   mainWindow.on('maximize', sendWindowState)
   mainWindow.on('unmaximize', sendWindowState)
@@ -368,6 +366,19 @@ async function initialize() {
     mainWindow?.webContents.send('preview-console-message', { projectId, level, message, source, line })
   })
 
+  // MCP server — lets the agent (omp) call DevLauncher tools. Started when the
+  // user enables "Agent can control DevLauncher" in Settings (see update-config).
+  mcpManager = setupMcpManager({
+    storageManager,
+    processManager,
+    healthManager,
+    previewManager,
+    getWindow: () => mainWindow,
+    // Destructive MCP tools (update/install, sensitive config) drive these.
+    getUpdater: () => autoUpdaterHandle,
+    applyOSSettings,
+  })
+
   // Setup IPC handlers (process, project, desktop, terminal, preview, repo,
   // system, backup, agent) plus the core config/presets/health/update ones.
   setupProcessHandlers(processManager, storageManager, mainWindow)
@@ -386,8 +397,15 @@ async function initialize() {
     projectDetector,
     getWindow: () => mainWindow,
     getUpdater: () => autoUpdaterHandle,
+    getMcp: () => mcpManager,
     applyOSSettings,
   })
+
+  // Agent-control over the app is opt-in (Settings toggle, default off).
+  if (initialConfig?.agent?.controlEnabled) {
+    const result = await mcpManager.start()
+    if (!result.ok) console.warn('[MCP] Failed to start:', result.error)
+  }
 
   // Native toasts for project lifecycle events (crash → restart action, start).
   setupProjectNotifications({
@@ -461,6 +479,11 @@ app.on('before-quit', async (event) => {
 
   killAllTerminals()
 
+  // Stop the MCP server and remove its omp config entry.
+  if (mcpManager) {
+    await mcpManager.stop()
+  }
+
   // Tear down embedded preview views
   if (previewManager) {
     previewManager.destroyAll()
@@ -486,9 +509,7 @@ app.on('before-quit', async (event) => {
   }
 
   // Release the global shortcut so it does not linger after quit.
-  try {
-    globalShortcut.unregisterAll()
-  } catch { /* already gone */ }
+  try { globalShortcut.unregisterAll() } catch { /* already gone */ }
 
   if (processManager) {
     event.preventDefault()

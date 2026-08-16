@@ -6,6 +6,13 @@ Format mengikuti [Keep a Changelog](https://keepachangelog.com/id-ID/1.1.0/), da
 
 ## [Unreleased]
 
+### Added
+
+- **Agent dapat mengontrol DevLauncher (MCP, F0–F4)** — server MCP HTTP hand-rolled di `127.0.0.1:<port-acak>` (Streamable HTTP, JSON-RPC 2.0: `initialize`, `tools/list`, `tools/call`, `ping`) yang diekspos ke agent omp lewat entry `~/.omp/agent/mcp.json` (user-level, merge tanpa menyentuh server MCP lain; dihapus saat toggle off). Semua keputusan desain diverifikasi di **F0 spike** dengan omp asli (v17.2.15): discovery jalan di `--mode rpc`, protokol `2025-11-25`, agent benar-benar melihat & memanggil tool (`mcp__devlauncher_*` → tool card di chat).
+  - **37 tool** dalam 3 kategori izin: `read` (list/get project, logs, git status, app config, presets, health, preview console, update check), `write` (start/stop/restart project, start/stop all, preset, git stage/unstage/commit/checkout/pull/push/stash/discard, npm install/update/run, terminal PTY, preview open/reload/navigate, env write, config update whitelist, append activity), `destructive` (delete project, force stop, backup export/import, update download+install, clear health, clear crash dumps, config sensitif). Semua aksi non-read **wajib persetujuan user lewat modal** (`McpApprovalModal`, queue + approve/deny/deny-all, timeout 120 s, auto-deny saat window tak tersedia); deny mengembalikan error jelas ke agent.
+  - **Keamanan (F4)**: bind localhost-only + token Bearer acak per-launch (tidak pernah di-log), **rate limit** sliding-window (120 req/10 s) + **max payload** 512 KB + concurrency guard 16 in-flight, **matriks izin** read/write/destructive di Settings (default semua aktif, toggle off → kategori ditolak di boundary MCP), audit penuh (read pun) ke activity feed + main.log dengan **args ter-redaksi** (password/token/entries → `***`), secret `.env` tidak pernah bocor ke agent (backup export mengembalikan path file, bukan isi bundle).
+  - **e2e Playwright `e2e/mcp.spec.js`** (3 test): MCP client asli (Node fetch) handshake → tools/list → read/write tool; tool destruktif memicu modal di app → deny membatalkan, approve mengeksekusi; kategori nonaktif ditolak. Coverage `electron/mcp` **90% lines**. Dokumentasi: `docs/ROADMAP_AGENT_MCP.md` (F0–F4 ✅ + checklist security review), `docs/FEATURE_STATUS.md`.
+
 ## [0.2.1] - 2026-08-16
 
 ### Fixed

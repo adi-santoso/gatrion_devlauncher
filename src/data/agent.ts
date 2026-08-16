@@ -296,3 +296,38 @@ export const onOmpInstallProgress = (callback: (state: unknown) => void): (() =>
   if (!isElectron()) return () => {}
   return subscribe('onOmpInstallProgress', (state) => callback(state))
 }
+
+/** MCP server status — whether the agent can control DevLauncher (opt-in). */
+export interface McpStatusResult extends SimpleResult {
+  running?: boolean
+  port?: number | null
+}
+
+export const mcpGetStatus = async (): Promise<McpStatusResult> => {
+  if (!isElectron()) return { success: false, error: 'Electron not available' }
+  return invoke<McpStatusResult>('mcpGetStatus')
+}
+
+/** A pending destructive-tool approval pushed from the main process. */
+export interface McpApprovalRequest {
+  id: string
+  tool: string
+  label?: string
+  projectId?: string
+  projectName?: string
+  summary?: string
+  args?: Record<string, unknown>
+  timestamp?: string
+}
+
+/** Answer a pending approval: 'approve' runs the destructive tool, 'deny' cancels it. */
+export const respondMcpApproval = async (id: string, decision: 'approve' | 'deny'): Promise<SimpleResult> => {
+  if (!isElectron()) return { success: false, error: 'Electron not available' }
+  return invoke<SimpleResult>('respondMcpApproval', id, decision)
+}
+
+/** Push channel — the main process asks the user to approve a destructive tool call. */
+export const onMcpApprovalRequest = (callback: (request: McpApprovalRequest) => void): (() => void) => {
+  if (!isElectron()) return () => {}
+  return subscribe('onMcpApprovalRequest', (request) => callback(request as McpApprovalRequest))
+}

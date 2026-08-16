@@ -5,6 +5,7 @@ import type { HealthManager as HealthManagerType } from './managers/HealthManage
 import type { ProjectDetector as ProjectDetectorType } from './managers/ProjectDetector'
 import { assertTrustedIpcEvent } from './utils/ipcSecurity'
 import { isVersionNewer } from './utils/versionCompare'
+import { respondApproval } from './mcp/approval'
 import Logger from './utils/logger'
 
 const { app, ipcMain, Notification } = require('electron') as typeof import('electron')
@@ -21,6 +22,11 @@ export interface IpcHandlersDeps {
     quitAndInstall: () => { success: boolean; error?: string }
     getState: () => { state: string; progress: unknown; error: string | null; version?: string | null }
   } | null
+  getMcp: () => {
+    start: () => Promise<{ ok: boolean; port?: number; error?: string }>
+    stop: () => Promise<void>
+    getState: () => { running: boolean; port: number | null; token: string | null }
+  } | null
   applyOSSettings: (config: AppConfig) => Promise<void>
 }
 
@@ -32,6 +38,7 @@ export function registerCoreIpcHandlers({
   processManager,
   storageManager,
   healthManager,
+  getMcp,
   projectDetector,
   getWindow,
   getUpdater,
@@ -68,6 +75,32 @@ export function registerCoreIpcHandlers({
       const updater = getUpdater()
       if (!updater) return { success: false, error: 'Auto-update is unavailable' }
       return { success: true, state: updater.getState() }
+    } catch (error) {
+      return { success: false, error: (error as Error).message }
+    }
+  })
+
+  // MCP server status (agent-control feature) — the Settings toggle polls this.
+  ipcMain.handle('mcp-status', async (event) => {
+    try {
+      assertTrustedIpcEvent(event)
+      const mcp = getMcp()
+      if (!mcp) return { success: false, error: 'MCP is unavailable' }
+      const state = mcp.getState()
+      return { success: true, running: state.running, port: state.port }
+    } catch (error) {
+      return { success: false, error: (error as Error).message }
+    }
+  })
+
+  // Renderer answers the destructive-tool approval modal; the pending tool
+  // call resolves (approve) or errors with a clear denial message (deny).
+  ipcMain.handle('mcp-approval-respond', (event, id: string, decision: string) => {
+    try {
+      assertTrustedIpcEvent(event)
+      if (typeof id !== 'string' || !id.trim()) return { success: false, error: 'Approval id is required' }
+      const resolved = respondApproval(id.trim(), decision === 'approve' ? 'approved' : 'denied')
+      return resolved ? { success: true } : { success: false, error: 'Unknown or expired approval request' }
     } catch (error) {
       return { success: false, error: (error as Error).message }
     }
@@ -251,6 +284,17 @@ export function registerCoreIpcHandlers({
       }
       if (updatedConfig?.autoRestart) {
         processManager.autoRestartConfig = updatedConfig.autoRestart
+      }
+      // Agent-control toggle: start/stop the MCP server (and keep the omp
+      // config entry in sync) when agent.controlEnabled changes.
+      if (updatedConfig?.agent && typeof updatedConfig.agent.controlEnabled === 'boolean') {
+        const mcp = getMcp()
+        if (updatedConfig.agent.controlEnabled) {
+          const result = mcp ? await mcp.start() : null
+          if (result && !result.ok) console.warn('[MCP] Failed to start:', result.error)
+        } else if (mcp) {
+          await mcp.stop()
+        }
       }
       // Broadcast so every renderer context (e.g. MainLayout's own config hook)
       // stays in sync with the caller that just changed the config.

@@ -66,6 +66,14 @@ export interface AppConfig {
   agent: {
     notifyOnFinish: boolean
     sound: boolean
+    /** MCP server for agent-control (omp can call DevLauncher tools). */
+    controlEnabled: boolean
+    /** Per-category permission matrix for MCP tools (all default true). */
+    permissions: {
+      read: boolean
+      write: boolean
+      destructive: boolean
+    }
   }
   windowBounds: WindowBounds | null
   schemaVersion: number

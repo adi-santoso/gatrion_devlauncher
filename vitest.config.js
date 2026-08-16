@@ -13,6 +13,7 @@ export default defineConfig({
       'electron/managers/__tests__/*.test.mjs',
       'electron/utils/__tests__/*.test.js',
       'electron/handlers/__tests__/*.test.js',
+      'electron/mcp/__tests__/*.test.js',
       'scripts/__tests__/*.test.js'
     ],
     exclude: ['node_modules/**', 'dist/**', 'build/**'],

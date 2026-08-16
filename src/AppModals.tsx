@@ -7,6 +7,7 @@ import {
   PresetModal,
 } from './components/Modals'
 import PortConflictModal from './components/Modals/PortConflictModal'
+import McpApprovalModal from './components/Modals/McpApprovalModal'
 import type { PresetFormData } from './components/Modals/PresetModal'
 import type { Project, Preset } from './types/shared'
 import type { ProjectRuntime } from './hooks/useProjects'
@@ -140,6 +141,9 @@ export default function AppModals({
       />
 
       <ToastContainer toasts={toasts} onDismiss={onDismissToast} />
+
+      {/* Agent (MCP) destructive-tool approval — self-subscribes to the push channel */}
+      <McpApprovalModal />
     </>
   )
 }
