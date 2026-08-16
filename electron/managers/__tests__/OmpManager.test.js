@@ -31,7 +31,9 @@ describe('OmpManager (mock omp RPC)', () => {
   test('init loads an empty registry and resolves without crashing', async () => {
     await manager.init()
     expect(manager.getSessions(PROJECT_ID)).toEqual([])
-  })
+    // Windows CI runners are slow under parallel-worker load (the MCP suite
+    // spawns real git + HTTP servers); resolveBinary may exceed the 5s default.
+  }, 15000)
 
   test('init reloads a persisted registry', async () => {
     await manager.init()
