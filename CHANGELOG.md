@@ -6,6 +6,8 @@ Format mengikuti [Keep a Changelog](https://keepachangelog.com/id-ID/1.1.0/), da
 
 ## [Unreleased]
 
+## [0.2.2] - 2026-08-16
+
 ### Added
 
 - **Agent dapat mengontrol DevLauncher (MCP, F0–F4)** — server MCP HTTP hand-rolled di `127.0.0.1:<port-acak>` (Streamable HTTP, JSON-RPC 2.0: `initialize`, `tools/list`, `tools/call`, `ping`) yang diekspos ke agent omp lewat entry `~/.omp/agent/mcp.json` (user-level, merge tanpa menyentuh server MCP lain; dihapus saat toggle off). Semua keputusan desain diverifikasi di **F0 spike** dengan omp asli (v17.2.15): discovery jalan di `--mode rpc`, protokol `2025-11-25`, agent benar-benar melihat & memanggil tool (`mcp__devlauncher_*` → tool card di chat).
