@@ -21,8 +21,12 @@ const git = (cwd, args) => new Promise((resolve, reject) => {
 async function makeGitRepo() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'mcp-git-'))
   await git(dir, ['init', '-q'])
-  // Keep LF on checkout regardless of the host's core.autocrlf setting.
+  // Deterministic across CI images: keep LF on checkout and set a repo-local
+  // identity so later `git commit` calls (e.g. the tool under test) never
+  // depend on the host's global git user.name/user.email.
   await git(dir, ['config', 'core.autocrlf', 'false'])
+  await git(dir, ['config', 'user.email', 't@t'])
+  await git(dir, ['config', 'user.name', 't'])
   fs.writeFileSync(path.join(dir, 'a.txt'), 'hello\n')
   await git(dir, ['add', 'a.txt'])
   await git(dir, ['-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '-q', '-m', 'initial'])
