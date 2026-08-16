@@ -98,7 +98,7 @@ describe('preload API surface', () => {
     expect(cb).toHaveBeenCalledWith({ maximized: true, platform: 'win32' })
   })
 
-  test('onOmpEvent / onUpdateState / onConfigUpdated pass the payload through', () => {
+  test('onOmpEvent / onUpdateState / onConfigUpdated pass the payload through', async () => {
     const cb = vi.fn()
     api.onOmpEvent(cb)
     for (const listener of ipcRenderer._listeners.get('omp-event')) listener({}, { type: 'agent_start' })
@@ -108,6 +108,10 @@ describe('preload API surface', () => {
     api.onUpdateState(updater)
     for (const listener of ipcRenderer._listeners.get('update-state')) listener({}, { status: 'downloaded' })
     expect(updater).toHaveBeenCalledWith({ status: 'downloaded' })
+
+    ipcRenderer.invoke = vi.fn(async () => ({ success: true, state: { state: 'downloaded' } }))
+    await api.getUpdateState()
+    expect(ipcRenderer.invoke).toHaveBeenLastCalledWith('update-get-state')
 
     const configCb = vi.fn()
     api.onConfigUpdated(configCb)

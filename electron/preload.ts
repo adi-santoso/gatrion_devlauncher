@@ -158,6 +158,7 @@ interface ElectronApi {
   checkUpdate: () => Promise<unknown>
   downloadUpdate: () => Promise<unknown>
   installUpdate: () => Promise<unknown>
+  getUpdateState: () => Promise<unknown>
   onUpdateState: (callback: (state: unknown) => void) => Unsub
 
   // AI Agent (oh-my-pi)
@@ -402,6 +403,7 @@ const api: ElectronApi = {
   checkUpdate: () => ipcRenderer.invoke('check-update'),
   downloadUpdate: () => ipcRenderer.invoke('update-download'),
   installUpdate: () => ipcRenderer.invoke('update-install'),
+  getUpdateState: () => ipcRenderer.invoke('update-get-state'),
   onUpdateState: (callback) => {
     const listener = (_event: IpcRendererEvent, state: unknown) => callback(state)
     ipcRenderer.on('update-state', listener)

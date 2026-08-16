@@ -321,12 +321,16 @@ async function initialize() {
   let autoUpdaterHandle: ReturnType<typeof setupAutoUpdater> | null = null
   try {
     const { autoUpdater } = require('electron-updater')
+    // electron-updater defaults to autoDownload: true, which would start a
+    // silent background download right after launch — invisible to the user
+    // and leaving the Settings banner with no progress to show. Download only
+    // when the user explicitly clicks "Download & install".
+    autoUpdater.autoDownload = false
     autoUpdaterHandle = setupAutoUpdater({
       autoUpdater,
       getWindow: () => mainWindow,
       focusAppWindow,
       isPackaged: () => app.isPackaged,
-      getVersion: () => app.getVersion(),
     })
   } catch (error) {
     console.warn('[App] Auto-update unavailable:', (error as Error).message)

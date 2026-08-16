@@ -31,6 +31,8 @@ interface UpdatePayload {
   state: string
   progress: UpdateProgress | null
   error: string | null
+  /** Version offered by the last `update-available` event (new version). */
+  version?: string | null
 }
 
 interface UpdaterDeps {
@@ -48,13 +50,15 @@ function createUpdater({ autoUpdater, getWindow, isEnabled }: UpdaterDeps) {
   let state: string = STATES.IDLE
   let progress: UpdateProgress | null = null
   let error: string | null = null
+  let version: string | null = null
   const listeners = new Set<(payload: UpdatePayload) => void>()
 
-  const emit = (nextState: string, extra: { progress?: UpdateProgress; error?: string } = {}): void => {
+  const emit = (nextState: string, extra: { progress?: UpdateProgress; error?: string; version?: string | null } = {}): void => {
     state = nextState
     if (extra.progress !== undefined) progress = extra.progress
     if (extra.error !== undefined) error = extra.error
-    const payload: UpdatePayload = { state, progress, error }
+    if (extra.version !== undefined) version = extra.version
+    const payload: UpdatePayload = { state, progress, error, version }
     for (const listener of [...listeners]) listener(payload)
     const win = getWindow?.()
     if (win && !win.isDestroyed() && win.webContents) {
@@ -65,7 +69,9 @@ function createUpdater({ autoUpdater, getWindow, isEnabled }: UpdaterDeps) {
   const wireEvents = (): void => {
     if (!autoUpdater || typeof autoUpdater.on !== 'function') return
     autoUpdater.on('checking-for-update', () => emit(STATES.CHECKING))
-    autoUpdater.on('update-available', () => emit(STATES.AVAILABLE))
+    autoUpdater.on('update-available', (info: { version?: string } = {}) => {
+      emit(STATES.AVAILABLE, { version: info.version || null })
+    })
     autoUpdater.on('update-not-available', () => emit(STATES.IDLE))
     autoUpdater.on('download-progress', (info: { percent?: number; transferred?: number | null; total?: number | null; bytesPerSecond?: number | null } = {}) => {
       emit(STATES.DOWNLOADING, {
@@ -129,7 +135,6 @@ interface UpdaterSetupDeps {
   getWindow: () => BrowserWindow | null | undefined
   focusAppWindow: () => void
   isPackaged: () => boolean
-  getVersion: () => string
 }
 
 /**
@@ -142,7 +147,6 @@ export function setupAutoUpdater({
   getWindow,
   focusAppWindow,
   isPackaged,
-  getVersion,
 }: UpdaterSetupDeps) {
   const updater = createUpdater({ autoUpdater, getWindow, isEnabled: isPackaged })
   updater.wireEvents()
@@ -152,7 +156,9 @@ export function setupAutoUpdater({
     if (payload.state === 'downloaded' && isPackaged()) {
       const notification = new Notification({
         title: 'Gatrion - Update ready',
-        body: `Version ${getVersion()} is downloaded. Restart to apply it.`,
+        body: payload.version
+          ? `Version ${payload.version} is downloaded. Restart to apply it.`
+          : 'Update is downloaded. Restart to apply it.',
         actions: [{ type: 'button', text: 'Restart & install' }],
         timeoutType: 'never',
       })

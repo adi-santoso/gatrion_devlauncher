@@ -16,7 +16,11 @@ export interface IpcHandlersDeps {
   healthManager: HealthManagerType
   projectDetector: ProjectDetectorType
   getWindow: () => InstanceType<typeof import('electron').BrowserWindow> | null
-  getUpdater: () => { startDownload: () => Promise<{ success: boolean; error?: string }>; quitAndInstall: () => { success: boolean; error?: string } } | null
+  getUpdater: () => {
+    startDownload: () => Promise<{ success: boolean; error?: string }>
+    quitAndInstall: () => { success: boolean; error?: string }
+    getState: () => { state: string; progress: unknown; error: string | null; version?: string | null }
+  } | null
   applyOSSettings: (config: AppConfig) => Promise<void>
 }
 
@@ -50,6 +54,20 @@ export function registerCoreIpcHandlers({
       const updater = getUpdater()
       if (!updater) return { success: false, error: 'Auto-update is unavailable' }
       return await updater.quitAndInstall()
+    } catch (error) {
+      return { success: false, error: (error as Error).message }
+    }
+  })
+
+  // Current updater state snapshot — the Settings banner pulls this on mount so
+  // it reflects reality even when push events fired before the view subscribed
+  // (e.g. an update that was already downloaded by the silent launch check).
+  ipcMain.handle('update-get-state', async (event) => {
+    try {
+      assertTrustedIpcEvent(event)
+      const updater = getUpdater()
+      if (!updater) return { success: false, error: 'Auto-update is unavailable' }
+      return { success: true, state: updater.getState() }
     } catch (error) {
       return { success: false, error: (error as Error).message }
     }

@@ -25,14 +25,15 @@ describe('createUpdater', () => {
     const updater = createUpdater({ autoUpdater, getWindow: () => win, isEnabled: () => true })
     updater.wireEvents()
 
-    fire('update-available')
-    expect(win.webContents.send).toHaveBeenCalledWith('update-state', { state: 'available', progress: null, error: null })
+    fire('update-available', { version: '0.2.0' })
+    expect(win.webContents.send).toHaveBeenCalledWith('update-state', { state: 'available', progress: null, error: null, version: '0.2.0' })
 
     fire('download-progress', { percent: 42.5, transferred: 100, total: 200, bytesPerSecond: 5 })
     expect(win.webContents.send).toHaveBeenLastCalledWith('update-state', {
       state: 'downloading',
       progress: expect.objectContaining({ percent: 42.5, total: 200 }),
       error: null,
+      version: '0.2.0',
     })
 
     fire('update-downloaded')

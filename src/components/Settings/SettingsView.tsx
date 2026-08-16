@@ -9,6 +9,7 @@ import {
   checkUpdate,
   downloadUpdate,
   installUpdate,
+  getUpdateState,
   onUpdateState,
   getMainLog,
   getCrashDumps,
@@ -102,12 +103,23 @@ const SettingsView = ({ config, updateConfig, onExportProjects, onImportProjects
   const [updateState, setUpdateState] = useState<UpdateStatePayload | null>(null);
   const [downloading, setDownloading] = useState(false);
   useEffect(() => {
-    return onUpdateState((payload) => {
+    let cancelled = false;
+    // Pull the main-process updater state so the banner reflects reality even
+    // when push events fired before this view mounted (e.g. an update that was
+    // already downloaded by the silent launch check). Without this, the banner
+    // keeps offering "Download & install" for an update that is already ready.
+    getUpdateState().then((result) => {
+      if (cancelled || !result?.success || !result.state?.state) return;
+      setUpdateState(result.state as unknown as UpdateStatePayload);
+      setDownloading(result.state.state === 'downloading');
+    }).catch(() => {});
+    const unsubscribe = onUpdateState((payload) => {
       const state = payload as UpdateStatePayload | null;
       setUpdateState(state);
       if (state?.state === 'downloading') setDownloading(true);
       if (state?.state && state.state !== 'downloading') setDownloading(false);
     });
+    return () => { cancelled = true; unsubscribe(); };
   }, []);
 
   const handleDownloadUpdate = async () => {

@@ -89,6 +89,23 @@ export const installUpdate = async (): Promise<SimpleResult> => {
   return invoke<SimpleResult>('installUpdate')
 }
 
+/** Snapshot of the main-process auto-updater state (state, progress, error). */
+export interface UpdateStateSnapshot {
+  state: string | null
+  progress: { percent: number; transferred: number | null; total: number | null; bytesPerSecond: number | null } | null
+  error: string | null
+  version?: string | null
+}
+
+export interface UpdateStateResult extends SimpleResult {
+  state?: UpdateStateSnapshot | null
+}
+
+export const getUpdateState = async (): Promise<UpdateStateResult> => {
+  if (!isElectron()) return { success: false }
+  return invoke<UpdateStateResult>('getUpdateState')
+}
+
 export const onUpdateState = (callback: (state: unknown) => void): (() => void) => {
   if (!isElectron()) return () => {}
   return subscribe('onUpdateState', (state) => callback(state))

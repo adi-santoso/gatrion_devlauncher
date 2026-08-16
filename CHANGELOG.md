@@ -6,6 +6,14 @@ Format mengikuti [Keep a Changelog](https://keepachangelog.com/id-ID/1.1.0/), da
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-08-16
+
+### Fixed
+
+- **Auto-update: tombol "Download & install" tidak memicu download apa pun** — akar masalahnya default `electron-updater` `autoDownload: true`: saat app launch, silent check (8 detik) sudah **mengunduh versi baru di background secara diam-diam**, jadi saat user menekan tombol download di Settings, file sudah/sedang diunduh → klik itu tidak menghasilkan apa-apa yang terlihat (tanpa error, tanpa progress). Kini `autoUpdater.autoDownload = false` — download hanya dimulai saat user benar-benar menekan tombol, sehingga progress % streaming langsung terlihat di banner. Bonus: tidak ada lagi download 100 MB tersembunyi di setiap launch.
+- **Banner Settings menampilkan state update yang basi** — state banner hanya diisi dari event push, jadi event yang terjadi sebelum Settings dibuka (mis. update sudah ter-download oleh silent check) hilang dan banner tetap menawarkan "Download & install" padahal sudah siap "Restart & install". Kini renderer **menarik snapshot state updater** saat Settings mount (`update-get-state` baru: `getState()` dari state machine) sehingga banner langsung akurat. +1 test preload.
+- **Notifikasi "Update ready" menampilkan versi yang salah** — body toast memakai `app.getVersion()` (versi yang sedang berjalan), jadi bunyinya "Version 0.1.9 is downloaded" padahal yang diunduh 0.2.1. Versi baru kini di-capture dari event `update-available` dan dikirim di payload `update-state`; toast menampilkan versi update yang benar. Test updater diperbarui.
+
 ## [0.2.0] - 2026-08-15
 
 ### Added
