@@ -6,6 +6,11 @@ Format mengikuti [Keep a Changelog](https://keepachangelog.com/id-ID/1.1.0/), da
 
 ## [Unreleased]
 
+### Fixed
+
+- **Notifikasi Windows masih bertuliskan "electron"** — AppUserModelID runtime (`com.devlauncher.desktop`) tidak cocok dengan `appId` yang didaftarkan installer (`com.devlauncher.app` di `electron-builder.json`), sehingga notification center tidak bisa me-resolve nama/icon aplikasi dan fallback ke nama proses ("electron") — bahkan di build packaged. Kini `app.setAppUserModelId('com.devlauncher.app')` sinkron dengan installer: notifikasi, taskbar grouping, dan icon di Windows memakai identitas DevLauncher. (Catatan: di `npm run dev`, taskbar & notifikasi tetap menampilkan "electron" karena prosesnya `electron.exe` — ini inherent dan hanya berubah di build packaged.)
+- **Icon taskbar masih Electron di app terinstall** — window icon memakai `build/icon.png` (PNG 512×512); di Windows, icon PNG sering gagal diterapkan ke taskbar dan fallback ke icon default Electron, padahal icon exe (`build/icon.ico`) sudah benar — itu sebabnya daftar aplikasi/Start menu menampilkan DevLauncher dengan benar. Kini `BrowserWindow` memakai `icon.ico` di Windows (multi-resolution, sesuai rekomendasi Electron); macOS/Linux tetap pakai PNG.
+
 ## [0.2.2] - 2026-08-16
 
 ### Added

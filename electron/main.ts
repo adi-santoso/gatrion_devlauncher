@@ -92,10 +92,12 @@ function focusAppWindow() {
 }
 
 // Identity: notifications, taskbar grouping, and the default window title all
-// fall back to the app name. Without this, dev runs attribute notifications to
-// the electron binary ("electron") and windows can flash an untitled title.
+// fall back to the app name. On Windows the AppUserModelID MUST match the
+// appId registered by the installer (electron-builder.json → appId), otherwise
+// the notification center cannot resolve the app and falls back to showing the
+// process name ("electron") — even in the packaged build.
 const APP_NAME = 'DevLauncher'
-const APP_ID = 'com.devlauncher.desktop'
+const APP_ID = 'com.devlauncher.app'
 app.setName(APP_NAME)
 app.setAppUserModelId(APP_ID)
 
@@ -129,6 +131,11 @@ function createWindow(windowBounds?: WindowBounds | null) {
       }
     : { width: defaults.width, height: defaults.height }
 
+  // Windows taskbar renders the window icon from an .ico (multi-resolution);
+  // a PNG window icon can silently fall back to the default Electron icon in
+  // the taskbar even though the exe icon is correct. macOS/Linux keep the PNG.
+  const windowIcon = process.platform === 'win32' ? 'icon.ico' : 'icon.png'
+
   mainWindow = new BrowserWindow({
     ...bounds,
     title: APP_NAME,
@@ -143,7 +150,7 @@ function createWindow(windowBounds?: WindowBounds | null) {
       nodeIntegration: false,
       contextIsolation: true,
     },
-    icon: path.join(__dirname, '../../build/icon.png'),
+    icon: path.join(__dirname, '../../build', windowIcon),
   })
 
   if (windowBounds?.maximized) {
