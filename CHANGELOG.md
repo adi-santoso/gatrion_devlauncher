@@ -4,6 +4,18 @@ Semua perubahan penting pada project ini dicatat di file ini.
 
 Format mengikuti [Keep a Changelog](https://keepachangelog.com/id-ID/1.1.0/), dan project ini mengikuti [Semantic Versioning](https://semver.org/spec/v2.0.0.html) begitu versi rilis resmi ditetapkan.
 
+## [0.2.5] - 2026-08-17
+
+### Added
+
+- **Reset DevLauncher** (Settings → Data & Backup) — kembalikan aplikasi ke kondisi fresh seperti install baru: hapus semua project, preset, config, health analytics, log, crash dumps, dan aktivitas. Konfirmasi dua langkah (wajib mengetik `RESET`), app relaunch otomatis, dan folder project di disk tidak pernah disentuh. Deletion dilakukan di startup berikutnya via marker `.reset-pending` sebelum manager init (karena `HealthManager.dispose` menulis ulang `health.json` saat quit, penghapusan langsung sebelum quit tidak akan bertahan).
+- **Layout aksi project detail** — baris tombol header dirapikan: quick actions ikon-only (Open App, Agent) + menu overflow `⋯` untuk Explorer / Open in Editor / Edit / Duplicate, dengan separator sebelum kontrol lifecycle yang tetap prominent. Label `Editor` diganti `Open in Editor` (membuka handler default OS, belum tentu editor).
+- **Editor env ter-highlight saat edit** — mode edit memakai overlay textarea transparan di atas layer yang di-highlight (key/value/comment berwarna, scroll tersinkron). Nilai secret tampil asli saat edit agar layer cocok 1:1 — sama dengan perilaku textarea lama.
+
+### Fixed
+
+- **Error `fn is not a function` + tab Environment kosong** — `listEnvFiles`/`readEnvFile`/`writeEnvFile` memanggil `invoke()` dengan nama channel IPC (kebab-case) padahal `invoke()` mencari nama method preload (camelCase). Bridge undefined → error saat membuka project detail dan daftar `.env` selalu kosong. Kini memakai nama method yang benar + test data layer yang mengunci pola ini.
+
 ## [0.2.4] - 2026-08-17
 
 ### Fixed
