@@ -131,11 +131,13 @@ function createWindow(windowBounds?: WindowBounds | null) {
       }
     : { width: defaults.width, height: defaults.height }
 
-  // Windows taskbar renders the window icon from an .ico (multi-resolution);
-  // a PNG window icon can silently fall back to the default Electron icon in
-  // the taskbar even though the exe icon is correct. macOS/Linux keep the PNG.
-  const windowIcon = process.platform === 'win32' ? 'icon.ico' : 'icon.png'
-
+  // Window icon for the running app (taskbar, alt-tab). The multi-resolution
+  // ICO used by the shell (Start menu, apps list, file explorer) is embedded in
+  // the exe by electron-builder from build/icon.png (see electron-builder.json),
+  // and Windows resolves the app identity through the AppUserModelID below — so
+  // the window icon only needs to be a reliably decodable image: PNG works on
+  // every platform (build/icon.ico is a single-size 256px file, kept only for
+  // tooling compatibility).
   mainWindow = new BrowserWindow({
     ...bounds,
     title: APP_NAME,
@@ -150,7 +152,7 @@ function createWindow(windowBounds?: WindowBounds | null) {
       nodeIntegration: false,
       contextIsolation: true,
     },
-    icon: path.join(__dirname, '../../build', windowIcon),
+    icon: path.join(__dirname, '../../build/icon.png'),
   })
 
   if (windowBounds?.maximized) {

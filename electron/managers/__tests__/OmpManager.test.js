@@ -98,7 +98,9 @@ describe('OmpManager (mock omp RPC)', () => {
     // Other projects are untouched.
     await reloaded.createSession('other-project', 'Keep me')
     expect(reloaded.getSessions('other-project')).toHaveLength(1)
-  })
+    // ensureRpc spawns a real child process; Windows runners under parallel
+    // worker load can exceed the 5s default (same as the init tests above).
+  }, 15000)
 
   test('clearProject on an unknown project is a safe no-op', async () => {
     await manager.init()

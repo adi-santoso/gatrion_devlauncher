@@ -4,7 +4,12 @@ Semua perubahan penting pada project ini dicatat di file ini.
 
 Format mengikuti [Keep a Changelog](https://keepachangelog.com/id-ID/1.1.0/), dan project ini mengikuti [Semantic Versioning](https://semver.org/spec/v2.0.0.html) begitu versi rilis resmi ditetapkan.
 
-## [Unreleased]
+## [0.2.4] - 2026-08-17
+
+### Fixed
+
+- **Icon aplikasi jadi default Electron di build terinstall (0.2.3)** — akar masalahnya folder `build/` (berisi `icon.ico`, `icon.png`, `icon-tray.png`) di-`.gitignore` dan tidak pernah di-commit, sehingga semua build CI (release.yml) di-packaging **tanpa asset icon**: electron-builder fallback ke icon default Electron di exe, dan `BrowserWindow.icon` tidak menemukan file di asar → taskbar, Start menu, dan apps list semuanya menampilkan icon Electron. Build lokal tampak benar karena folder `build/` ada di mesin dev — itu sebabnya masalah ini tidak terlihat saat uji lokal. Kini ketiga asset icon **di-commit ke repo** (`.gitignore` di-update dengan pengecualian `!build/icon.*`), jadi CI selalu memakainya.
+- **`build/icon.ico` hanya berisi satu ukuran (256×256 PNG-compressed)** — Windows shell bekerja lebih baik dengan ICO multi-ukuran (16/24/32/48/64/128/256) untuk konteks kecil (taskbar kecil, Start menu, details view). `electron-builder.json` kini memakai `win.icon: "build/icon.png"` (512×512) dan electron-builder meng-generate ICO multi-ukuran untuk exe secara otomatis. `BrowserWindow.icon` memakai `build/icon.png` di semua platform (nativeImage mendecode PNG dengan andal; identitas shell ditentukan oleh icon exe + AppUserModelID).
 
 ## [0.2.3] - 2026-08-16
 

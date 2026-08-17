@@ -84,7 +84,7 @@ Output diarahkan ke `dist/`. Config membuat target NSIS dan portable x64. Nama a
 `electron-builder.json` mengharapkan:
 
 ```text
-build/icon.ico
+build/icon.png
 ```
 
 `electron/main.ts` (di-bundle ke `out/main/index.js`) juga mengharapkan:
@@ -93,13 +93,13 @@ build/icon.ico
 build/icon.png
 ```
 
-Generate ketiga asset dengan satu perintah (tanpa dependency tambahan):
+Ketiga asset icon (`build/icon.ico`, `build/icon.png`, `build/icon-tray.png`) **di-commit ke repo** (pengecualian di `.gitignore`), jadi CI packaging selalu memakai icon aplikasi — tanpa ini electron-builder fallback ke icon default Electron. Untuk mengubah artwork, regenerate dengan satu perintah (tanpa dependency tambahan):
 
 ```bash
 npm run icons
 ```
 
-Script `scripts/generate-icons.js` menulis `build/icon.ico` (256px), `build/icon.png` (512px), dan `build/icon-tray.png` (32px) — tile rounded-square purple gradient dengan monogram "G". Folder `build/` di-`.gitignore`, jadi jalankan `npm run icons` sebelum packaging.
+Script `scripts/generate-icons.js` menulis `build/icon.ico` (256px), `build/icon.png` (512px), dan `build/icon-tray.png` (32px) — tile rounded-square purple gradient dengan monogram "G". Setelah regenerate, commit ulang assetnya.
 
 ## Data dan Backup
 

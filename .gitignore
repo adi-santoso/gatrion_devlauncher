@@ -8,7 +8,13 @@ pnpm-debug.log*
 # Build outputs
 dist/
 dist-react/
-build/
+build/*
+# Canonical app icon assets are committed so CI packaging (electron-builder)
+# always embeds the real icon instead of falling back to the default Electron
+# one. Regenerate with `npm run icons` if the artwork changes.
+!build/icon.ico
+!build/icon.png
+!build/icon-tray.png
 *.exe
 *.msi
 *.dmg
