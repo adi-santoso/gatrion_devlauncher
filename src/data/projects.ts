@@ -200,21 +200,24 @@ export const listEnvFiles = async (projectPath: string): Promise<EnvFilesResult>
   if (!isElectron()) {
     return { success: true, files: [] }
   }
-  return invoke<EnvFilesResult>('list-env-files', projectPath)
+  // Method name = preload bridge method (camelCase), not the IPC channel
+  // name (kebab-case). Passing the channel name here makes window.electron
+  // undefined -> 'fn is not a function' and the env tab stays empty.
+  return invoke<EnvFilesResult>('listEnvFiles', projectPath)
 }
 
 export const readEnvFile = async (projectPath: string, fileName: string): Promise<EnvFileResult> => {
   if (!isElectron()) {
     return { success: true, content: '' }
   }
-  return invoke<EnvFileResult>('read-env-file', projectPath, fileName)
+  return invoke<EnvFileResult>('readEnvFile', projectPath, fileName)
 }
 
 export const writeEnvFile = async (projectPath: string, fileName: string, content: string): Promise<SimpleResult> => {
   if (!isElectron()) {
     return { success: true }
   }
-  return invoke<SimpleResult>('write-env-file', projectPath, fileName, content)
+  return invoke<SimpleResult>('writeEnvFile', projectPath, fileName, content)
 }
 
 export const detectProjectType = async (projectPath: string): Promise<DetectTypeResult> => {
