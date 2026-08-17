@@ -148,3 +148,8 @@ export const openCrashDumpsFolder = async (): Promise<SimpleResult> => {
   if (!isElectron()) return { success: false, error: 'Electron not available' }
   return invoke<SimpleResult>('openCrashDumpsFolder')
 }
+
+export const resetAppData = async (): Promise<SimpleResult> => {
+  if (!isElectron()) return { success: false, error: 'Reset is only available in the desktop app' }
+  return invoke<SimpleResult>('resetAppData')
+}

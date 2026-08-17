@@ -10,6 +10,8 @@ import Logger from './utils/logger'
 
 const { app, ipcMain, Notification } = require('electron') as typeof import('electron')
 const https = require('https')
+const path = require('path')
+const fs = require('fs').promises
 
 export interface IpcHandlersDeps {
   processManager: ProcessManagerType
@@ -356,6 +358,27 @@ export function registerCoreIpcHandlers({
         updateAvailable,
         url: String(parsed.html_url || 'https://github.com/adi-santoso/gatrion_devlauncher/releases'),
       }
+    } catch (error) {
+      return { success: false, error: (error as Error).message }
+    }
+  })
+
+  // Reset DevLauncher to a fresh-install state. We only write a marker file
+  // and relaunch — the actual deletion happens on the NEXT startup in
+  // `applyPendingReset` (electron/utils/resetData.ts), before any manager
+  // initializes. Deleting here would be undone by manager flush-on-quit
+  // (e.g. HealthManager.dispose rewrites health.json).
+  ipcMain.handle('reset-app-data', async (event) => {
+    try {
+      assertTrustedIpcEvent(event)
+      const marker = path.join(app.getPath('userData'), '.reset-pending')
+      await fs.writeFile(marker, new Date().toISOString(), 'utf8')
+      // E2E hook: verify the marker without actually relaunching the app.
+      if (!process.env.DEVLAUNCHER_E2E_NO_RELAUNCH) {
+        app.relaunch()
+        app.quit()
+      }
+      return { success: true }
     } catch (error) {
       return { success: false, error: (error as Error).message }
     }

@@ -35,6 +35,7 @@ import { setupProjectNotifications } from './notifications'
 import { setupAutoUpdater } from './utils/updater'
 import { setupMcpManager, type McpManager as McpManagerType } from './mcp'
 import Logger from './utils/logger'
+import { applyPendingReset } from './utils/resetData'
 
 // Global error capture — log anything that escapes normal error handling so
 // crashes and silent failures are visible in main.log instead of dying
@@ -48,10 +49,9 @@ process.on('unhandledRejection', (reason) => {
   Logger.error('main', 'Unhandled promise rejection', { reason: detail })
 })
 
-// E2E test hook: point the app at an isolated userData directory so tests never
-// touch real workspace data (projects, config, agent sessions). Must be set
-// before the single-instance lock (keyed on userData) and before any manager
-// reads app paths.
+// E2E test hook: isolated userData so tests never touch real workspace data.
+// Must be set before the single-instance lock and before any manager reads
+// app paths.
 if (process.env.DEVLAUNCHER_USER_DATA) {
   app.setPath('userData', process.env.DEVLAUNCHER_USER_DATA)
 }
@@ -102,10 +102,9 @@ app.setName(APP_NAME)
 app.setAppUserModelId(APP_ID)
 
 // Content Security Policy — applied to every response (dev and production).
-// Must be registered after `app.whenReady()` because session.defaultSession is
-// only available once the app is ready.
-// Production restricts scripts to self; dev keeps 'unsafe-inline' so the Vite
-// react-refresh preamble and injected styles keep working.
+// Registered after app.whenReady() (session.defaultSession is only available
+// once ready). Production restricts scripts to self; dev keeps 'unsafe-inline'
+// so the Vite react-refresh preamble and injected styles keep working.
 function applyContentSecurityPolicy() {
   const scriptSrc = app.isPackaged ? "'self'" : "'self' 'unsafe-inline'"
   const CSP = `default-src 'self'; script-src ${scriptSrc}; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' ws://localhost:* http://localhost:*; frame-src http://localhost:* https://localhost:*; object-src 'none'; base-uri 'self'; form-action 'self'`
@@ -131,12 +130,10 @@ function createWindow(windowBounds?: WindowBounds | null) {
       }
     : { width: defaults.width, height: defaults.height }
 
-  // Window icon for the running app (taskbar, alt-tab). The multi-resolution
-  // ICO used by the shell (Start menu, apps list, file explorer) is embedded in
-  // the exe by electron-builder from build/icon.png (see electron-builder.json),
-  // and Windows resolves the app identity through the AppUserModelID below — so
-  // the window icon only needs to be a reliably decodable image: PNG works on
-  // every platform (build/icon.ico is a single-size 256px file, kept only for
+  // Window icon for the running app (taskbar, alt-tab): the shell icon (Start
+  // menu, apps list) is embedded in the exe by electron-builder from
+  // build/icon.png; here only a reliably decodable image is needed, so PNG
+  // works everywhere (build/icon.ico is a single-size 256px file kept for
   // tooling compatibility).
   mainWindow = new BrowserWindow({
     ...bounds,
@@ -155,9 +152,7 @@ function createWindow(windowBounds?: WindowBounds | null) {
     icon: path.join(__dirname, '../../build/icon.png'),
   })
 
-  if (windowBounds?.maximized) {
-    mainWindow.maximize()
-  }
+  if (windowBounds?.maximized) mainWindow.maximize()
 
   // Persist window bounds on move/resize
   const saveBounds = () => {
@@ -244,7 +239,8 @@ async function applyOSSettings(config: AppConfig) {
 
 async function initialize() {
   applyContentSecurityPolicy()
-
+  // Reset-to-fresh-install: wipe app data BEFORE managers init.
+  await applyPendingReset(app.getPath('userData'))
   // The UI is fully custom-rendered — drop the default application menu
   // (File/Edit/View/…) from packaged builds on Windows/Linux. Kept on macOS
   // (menu bar is part of the OS chrome there) and in dev (standard
@@ -253,9 +249,8 @@ async function initialize() {
     Menu.setApplicationMenu(null)
   }
 
-  // Local crash dump collection: minidumps are written to
-  // userData/crashDumps (never uploaded — uploadToServer: false). The
-  // Settings "Crash Reports" card lists them for manual inspection.
+  // Local crash dumps: written to userData/crashDumps (never uploaded);
+  // the Settings "Crash Reports" card lists them for manual inspection.
   try {
     const crashDumpsDir = path.join(app.getPath('userData'), 'crashDumps')
     app.setPath('crashDumps', crashDumpsDir)

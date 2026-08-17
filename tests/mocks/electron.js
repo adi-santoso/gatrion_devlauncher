@@ -124,9 +124,13 @@ const app = {
   // Overridable so tests can point userData at a private temp dir instead of
   // sharing a fixed path across files (which was a source of flakes).
   _userDataPath: TEMP_USER_DATA,
+  _relaunched: false,
+  _quitted: false,
   getPath: (name) => (name === 'userData' ? app._userDataPath : app._userDataPath),
   getVersion: () => '0.0.0-test',
   getName: () => 'devlauncher-test',
+  relaunch: () => { app._relaunched = true },
+  quit: () => { app._quitted = true },
 }
 
 const contextBridge = {
@@ -151,6 +155,8 @@ function __reset() {
   views.clear()
   sessions.clear()
   app._userDataPath = TEMP_USER_DATA
+  app._relaunched = false
+  app._quitted = false
 }
 
 // Exposed for PreviewManager tests to inspect window attachment.

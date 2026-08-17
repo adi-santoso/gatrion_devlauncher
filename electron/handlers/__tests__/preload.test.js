@@ -44,6 +44,9 @@ describe('preload API surface', () => {
 
     await api.terminalCreate({ cwd: 'C:\\proj' })
     expect(ipcRenderer.invoke).toHaveBeenLastCalledWith('terminal-create', { cwd: 'C:\\proj' })
+
+    await api.resetAppData()
+    expect(ipcRenderer.invoke).toHaveBeenLastCalledWith('reset-app-data')
   })
 
   test('every invoke wrapper makes exactly one invoke call', async () => {

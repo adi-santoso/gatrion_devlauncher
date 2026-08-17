@@ -203,6 +203,7 @@ const CHANNEL_RULES: Record<string, ArgRule[]> = {
   'get-crash-dumps': [],
   'clear-crash-dumps': [],
   'open-crash-dumps-folder': [],
+  'reset-app-data': [],
 
   // --- workspace backup -------------------------------------------------
   'backup-export': [['password', 'string', { optional: true, maxLength: 512 }]],

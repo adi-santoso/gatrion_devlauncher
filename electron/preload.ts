@@ -147,6 +147,9 @@ interface ElectronApi {
   clearCrashDumps: () => Promise<unknown>
   openCrashDumpsFolder: () => Promise<unknown>
 
+  // Reset DevLauncher to a fresh-install state (writes a marker, relaunches)
+  resetAppData: () => Promise<unknown>
+
   // Health analytics
   getHealth: (projectId: string) => Promise<unknown>
   clearHealth: (projectId: string) => Promise<unknown>
@@ -397,6 +400,9 @@ const api: ElectronApi = {
   getCrashDumps: () => ipcRenderer.invoke('get-crash-dumps'),
   clearCrashDumps: () => ipcRenderer.invoke('clear-crash-dumps'),
   openCrashDumpsFolder: () => ipcRenderer.invoke('open-crash-dumps-folder'),
+
+  // Reset DevLauncher to a fresh-install state (writes a marker, relaunches)
+  resetAppData: () => ipcRenderer.invoke('reset-app-data'),
 
   // Health analytics
   getHealth: (projectId) => ipcRenderer.invoke('get-health', projectId),

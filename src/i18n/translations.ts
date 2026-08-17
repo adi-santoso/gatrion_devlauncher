@@ -95,6 +95,18 @@ export const translations: { en: TranslationTable; id: TranslationTable } = {
     'settings.backup.configUpdated': ', updated config',
     'settings.backup.presetsAdded': ', added {count} preset(s)',
 
+    // Settings — reset app data
+    'settings.reset.title': 'Reset DevLauncher',
+    'settings.reset.desc': 'Delete all DevLauncher data — projects, presets, config, health analytics, logs and activity — and start fresh like a new install. Your project folders on disk are never touched.',
+    'settings.reset.button': 'Reset app data…',
+    'settings.reset.confirmTitle': 'Reset all DevLauncher data?',
+    'settings.reset.confirmDesc': 'This permanently deletes every project, preset, setting, health record, log and activity. The app will close and reopen as a fresh install.',
+    'settings.reset.suggestion': 'Consider exporting a workspace backup first if you want to keep anything.',
+    'settings.reset.typeToConfirm': 'Type RESET to confirm',
+    'settings.reset.confirm': 'Reset & restart',
+    'settings.reset.cancel': 'Cancel',
+    'settings.reset.working': 'Resetting…',
+
     // Settings — main log
     'settings.log.title': 'Main Log',
     'settings.log.refresh': 'Refresh',
@@ -272,6 +284,18 @@ export const translations: { en: TranslationTable; id: TranslationTable } = {
     'settings.backup.skipped': ', dilewati {count}',
     'settings.backup.configUpdated': ', konfigurasi diperbarui',
     'settings.backup.presetsAdded': ', ditambah {count} preset',
+
+    // Settings — reset data aplikasi
+    'settings.reset.title': 'Reset DevLauncher',
+    'settings.reset.desc': 'Hapus semua data DevLauncher — proyek, preset, konfigurasi, analitik health, log, dan aktivitas — dan mulai bersih seperti instalasi baru. Folder proyek Anda di disk tidak pernah disentuh.',
+    'settings.reset.button': 'Reset data aplikasi…',
+    'settings.reset.confirmTitle': 'Reset semua data DevLauncher?',
+    'settings.reset.confirmDesc': 'Ini akan menghapus permanen setiap proyek, preset, pengaturan, catatan health, log, dan aktivitas. Aplikasi akan ditutup dan dibuka kembali sebagai instalasi baru.',
+    'settings.reset.suggestion': 'Pertimbangkan mengekspor cadangan workspace dulu jika ingin menyimpan sesuatu.',
+    'settings.reset.typeToConfirm': 'Ketik RESET untuk konfirmasi',
+    'settings.reset.confirm': 'Reset & mulai ulang',
+    'settings.reset.cancel': 'Batal',
+    'settings.reset.working': 'Meriset…',
 
     // Settings — main log
     'settings.log.title': 'Log Utama',
