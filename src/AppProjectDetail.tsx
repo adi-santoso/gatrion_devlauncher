@@ -65,7 +65,13 @@ export default function AppProjectDetail({
   const hidden = currentView !== 'project-detail'
 
   return (
-    <div className={hidden ? 'hidden' : ''}>
+    // h-full is required for the fullscreen preview: without a definite
+    // height on this wrapper, the h-full chain inside ProjectDetailView
+    // collapses to the content height (~the floating bar), the preview
+    // placeholder measures 0px, and the embedded WebContentsView gets hidden
+    // (bounds height 0 -> 1px) leaving a blank/black screen. In normal mode
+    // the page scrolls, so the extra height is harmless.
+    <div className={hidden ? 'hidden' : 'h-full flex flex-col'}>
       <ProjectDetailView
         project={liveProject}
         projects={projects}

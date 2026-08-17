@@ -72,6 +72,32 @@ describe('PreviewManager', () => {
     expect(manager.getView('p1').bounds).toEqual({ x: 0, y: 0, width: 100, height: 50 })
   })
 
+  test('size change forces a repaint; position-only move does not', () => {
+    // Windows: growing the view can leave the newly exposed area black until
+    // the web contents repaints — invalidate() is the sanctioned fix.
+    const manager = new PreviewManager()
+    manager.setWindow(makeWindow())
+    manager.show({ projectId: 'p1', url: 'http://localhost:3000', bounds })
+    const view = manager.getView('p1')
+    // The fake's webContents.invalidate closes over the view's `this`, so the
+    // counter lives on the view instance.
+    const before = view.invalidateCount
+
+    // Same size, moved -> no new surface exposed, no repaint needed
+    manager.setBounds('p1', { x: 99, y: 99, width: bounds.width, height: bounds.height })
+    expect(view.invalidateCount).toBe(before)
+
+    // Size grows (e.g. entering the in-app fullscreen preview) -> force repaint
+    manager.setBounds('p1', { x: 0, y: 0, width: 1920, height: 1080 })
+    expect(view.invalidateCount).toBe(before + 1)
+    expect(view.bounds).toEqual({ x: 0, y: 0, width: 1920, height: 1080 })
+
+    // Shrinking back also exposes/repaints and stays clamped to >=1px
+    manager.setBounds('p1', { x: 0, y: 0, width: 0, height: 50 })
+    expect(view.bounds).toEqual({ x: 0, y: 0, width: 1, height: 50 })
+    expect(view.invalidateCount).toBe(before + 2)
+  })
+
   test('zoom clamps to 0.25x–3x', () => {
     const manager = new PreviewManager()
     manager.setWindow(makeWindow())

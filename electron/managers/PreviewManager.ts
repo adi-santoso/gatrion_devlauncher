@@ -181,12 +181,22 @@ class PreviewManager {
     if (!view || !bounds) return
     const { x, y, width, height } = bounds
     if (![x, y, width, height].every(Number.isFinite)) return
-    view.setBounds({
+    const next = {
       x: Math.round(x),
       y: Math.round(y),
       width: Math.max(1, Math.round(width)),
       height: Math.max(1, Math.round(height)),
-    })
+    }
+    const prev = view.getBounds?.() ?? null
+    view.setBounds(next)
+    // Windows compositor quirk: growing a WebContentsView can leave the newly
+    // exposed area black until the web contents repaints (classic "blank
+    // fullscreen" symptom — e.g. entering the in-app fullscreen preview).
+    // Force a repaint when the size changed; position-only moves expose no
+    // new surface and can skip it.
+    if (!prev || prev.width !== next.width || prev.height !== next.height) {
+      view.webContents.invalidate?.()
+    }
   }
 
   navigate(projectId: string, url: string) {

@@ -74,6 +74,7 @@ class FakeWebContentsView {
     this.devtoolsOpen = false
     this.consoleHandlers = {}
     this.reloadCount = 0
+    this.invalidateCount = 0
     this.webContents = {
       loadURL: (url) => { this.loadedUrls.push(url); return Promise.resolve() },
       reload: () => { this.reloadCount += 1 },
@@ -85,10 +86,12 @@ class FakeWebContentsView {
       closeDevTools: () => { this.devtoolsOpen = false },
       isDestroyed: () => false,
       close: () => {},
+      invalidate: () => { this.invalidateCount += 1 },
     }
   }
   setVisible(v) { this.visible = v }
   setBounds(b) { this.bounds = b }
+  getBounds() { return this.bounds }
   emitConsole(level, message, sourceId, line) {
     this.consoleHandlers['console-message']?.({}, level, message, line, sourceId)
   }

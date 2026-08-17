@@ -96,6 +96,14 @@ export default function AppPreviewTab({
     if (useNative && active) show();
     else ipc.previewHide(projectId);
 
+    // Re-assert bounds after the layout settles (e.g. the top bar hides one
+    // frame after the fullscreen toggle), so the native view lands exactly on
+    // the final container rect instead of an intermediate one.
+    const settle = (): void => {
+      requestAnimationFrame(() => requestAnimationFrame(sendBounds));
+    };
+    settle();
+
     const ro = new ResizeObserver(sendBounds);
     ro.observe(containerRef.current);
     window.addEventListener('resize', sendBounds);
@@ -110,8 +118,12 @@ export default function AppPreviewTab({
       if (!nativeAvailable()) return;
       if (keepAlive) ipc.previewHide(projectId);
       else ipc.previewDestroy(projectId);
+      // `fullscreen` is a dependency on purpose: toggling fullscreen changes the
+      // container layout (top bar hides, card becomes full-window), so the view
+      // is re-shown with fresh bounds. Without it, a view resized to the full
+      // window can stay black on Windows until it is re-placed/repainted.
     };
-  }, [useNative, active, keepAlive, projectId, appUrl]);
+  }, [useNative, active, keepAlive, projectId, appUrl, fullscreen]);
 
   // Apply zoom level to the native view
   useEffect(() => {
