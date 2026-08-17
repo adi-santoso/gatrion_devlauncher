@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { JSX } from 'react';
 import * as ipc from '../../utils/ipcRenderer';
 import Icon from '../Common/Icon';
@@ -52,6 +52,17 @@ function EnvFileSection({ projectPath }: { projectPath: string }) {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [pendingSwitch, setPendingSwitch] = useState<string | null>(null);
   const [revealSecrets, setRevealSecrets] = useState(false);
+  // Syntax-highlighted editor: a transparent <textarea> is layered over a
+  // <pre> that renders the same content with per-line colors (key/value/
+  // comment). Scrolling is synced so the colors stay glued to the text.
+  const highlightRef = useRef<HTMLPreElement>(null);
+  const syncScroll = (event: React.UIEvent<HTMLTextAreaElement>): void => {
+    const el = event.currentTarget;
+    if (highlightRef.current) {
+      highlightRef.current.scrollTop = el.scrollTop;
+      highlightRef.current.scrollLeft = el.scrollLeft;
+    }
+  };
 
   const loadFile = useCallback(async (fileName: string): Promise<void> => {
     if (!fileName) return;
@@ -228,13 +239,34 @@ function EnvFileSection({ projectPath }: { projectPath: string }) {
           </div>
 
           {editing ? (
-            <textarea
-              value={content}
-              onChange={(event) => setContent(event.target.value)}
-              spellCheck={false}
-              aria-label={`Edit ${selectedFile}`}
-              className="w-full h-72 bg-base border border-border rounded-lg p-3 text-xs font-mono text-ink leading-relaxed focus:outline-none focus:ring-2 focus:ring-accent/40 resize-y"
-            />
+            /*
+             * Highlighted editor: a transparent <textarea> sits over a <pre>
+             * that renders the same content with per-line colors. Both share
+             * identical typography/padding so characters align 1:1; scroll is
+             * synced so colors stay glued to the text while editing. Values
+             * are shown as-is (not masked) because the layers must match
+             * character-for-character — same as the plain textarea before.
+             */
+            <div className="relative">
+              <pre
+                ref={highlightRef}
+                aria-hidden="true"
+                className="absolute inset-0 overflow-hidden whitespace-pre bg-base border border-border rounded-lg p-3 text-xs font-mono leading-relaxed pointer-events-none"
+              >
+                {(content || ' ').split('\n').map((line, index) => (
+                  <div key={index}>{highlightLine(line, true)}</div>
+                ))}
+              </pre>
+              <textarea
+                value={content}
+                onChange={(event) => setContent(event.target.value)}
+                onScroll={syncScroll}
+                wrap="off"
+                spellCheck={false}
+                aria-label={`Edit ${selectedFile}`}
+                className="relative w-full h-72 resize-y bg-transparent border border-border rounded-lg p-3 text-xs font-mono text-transparent caret-accent leading-relaxed whitespace-pre overflow-auto focus:outline-none focus:ring-2 focus:ring-accent/40 selection:bg-accent/20"
+              />
+            </div>
           ) : (
             <pre
               aria-label={`Content of ${selectedFile}`}

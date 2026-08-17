@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from 'react';
 import * as ipc from '../../utils/ipcRenderer';
 import StackLogo from '../Common/StackLogo';
 import Icon from '../Common/Icon';
@@ -10,10 +11,12 @@ const statusClasses: Record<string, string> = {
 };
 
 const btnBase = 'inline-flex items-center gap-1.5 h-8 px-3 rounded-lg text-xs font-medium transition-colors whitespace-nowrap';
-const btnSecondary = `${btnBase} bg-surface-3 hover:bg-surface-2 text-ink-soft hover:text-ink border border-border`;
 const btnPrimary = `${btnBase} px-3.5 bg-accent hover:bg-accent-hover text-white font-semibold shadow-glow`;
 const btnDanger = `${btnBase} px-3.5 bg-danger/10 hover:bg-danger/20 text-danger border border-danger/25 font-semibold`;
 const btnAccent = `${btnBase} bg-surface-3 hover:bg-surface-2 text-accent border border-accent/30`;
+// Icon-only variant for quick actions: same hit area, no label, tooltip only.
+const btnIcon = `${btnBase} w-8 h-8 px-0 justify-center`;
+const menuItem = 'w-full flex items-center gap-2 px-3 py-2 text-xs text-ink-soft hover:text-ink hover:bg-surface-3 transition-colors text-left';
 
 interface CommandStatus {
   id: string;
@@ -40,6 +43,27 @@ export default function ProjectDetailHeader({ project, onStart, onStop, onRestar
   const busy = status === 'starting' || status === 'stopping';
   const port = project?.port;
   const appUrl = port != null && Number.isInteger(port) ? `http://localhost:${port}` : null;
+
+  // Overflow menu (⋯) holds the rare actions (Explorer / Open in Editor /
+  // Edit / Duplicate) so the primary row stays short: quick actions on the
+  // left, lifecycle controls on the right, everything else behind a menu.
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!menuOpen) return undefined;
+    const onPointerDown = (event: MouseEvent): void => {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) setMenuOpen(false);
+    };
+    const onKeyDown = (event: KeyboardEvent): void => {
+      if (event.key === 'Escape') setMenuOpen(false);
+    };
+    document.addEventListener('mousedown', onPointerDown);
+    document.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', onPointerDown);
+      document.removeEventListener('keydown', onKeyDown);
+    };
+  }, [menuOpen]);
 
   const handleOpenBrowser = (): void => {
     if (appUrl) {
@@ -84,42 +108,71 @@ export default function ProjectDetailHeader({ project, onStart, onStop, onRestar
           </div>
         </div>
 
-        {/* Action Group */}
-        <div className="flex items-center gap-2 flex-wrap">
+        {/* Action Group — grouped by frequency: quick actions (icon-only),
+            overflow menu for rare actions, then the lifecycle controls. */}
+        <div className="flex items-center gap-1.5 flex-wrap">
+          {/* Quick actions (icon-only, tooltip) */}
           {appUrl && (
             <button
               onClick={handleOpenBrowser}
               disabled={status !== 'running'}
+              aria-label={status === 'running' ? `Open ${appUrl} in browser` : 'Start the project to open the app'}
               title={status === 'running' ? `Open ${appUrl} in browser` : 'Start the project to open the app'}
-              className={`${btnBase} px-3.5 border font-semibold ${
+              className={`${btnIcon} ${
                 status === 'running'
-                  ? 'text-success border-success/30 bg-success/10 hover:bg-success/20'
-                  : 'bg-surface-3 opacity-50 cursor-not-allowed'
+                  ? 'text-success border border-success/30 bg-success/10 hover:bg-success/20'
+                  : 'bg-surface-3 opacity-50 cursor-not-allowed border border-border'
               }`}
             >
-              <Icon name="globe" size={13} />
-              Open App
+              <Icon name="globe" size={14} />
+            </button>
+          )}
+          {onOpenAgent && (
+            <button onClick={onOpenAgent} aria-label="Open the AI agent workspace for this project" title="Open the AI agent workspace for this project" className={`${btnIcon} bg-surface-3 hover:bg-surface-2 text-accent border border-accent/30`}>
+              <Icon name="messageSquare" size={14} />
             </button>
           )}
 
-          <button
-            onClick={handleRevealInExplorer}
-            title="Reveal project folder in File Explorer"
-            className={btnSecondary}
-          >
-            <Icon name="folder" size={13} />
-            Explorer
-          </button>
-          <button
-            onClick={handleOpenInEditor}
-            title="Open project folder in VS Code / Editor"
-            className={btnSecondary}
-          >
-            <Icon name="code" size={13} />
-            Editor
-          </button>
+          {/* Overflow menu — rare actions stay one click away, off the row */}
+          <div ref={menuRef} className="relative">
+            <button
+              onClick={() => setMenuOpen((prev) => !prev)}
+              aria-label="More actions"
+              aria-expanded={menuOpen}
+              title="More actions"
+              className={`${btnIcon} ${menuOpen ? 'bg-surface-2 text-ink border border-accent/40' : 'bg-surface-3 hover:bg-surface-2 text-ink-soft border border-border'}`}
+            >
+              <Icon name="more" size={14} />
+            </button>
+            {menuOpen && (
+              <div className="absolute right-0 top-full mt-1.5 z-40 min-w-[190px] rounded-lg border border-border bg-surface-2 shadow-card py-1">
+                <button onClick={() => { handleRevealInExplorer(); setMenuOpen(false); }} className={menuItem}>
+                  <Icon name="folder" size={13} />
+                  Explorer
+                </button>
+                <button onClick={() => { handleOpenInEditor(); setMenuOpen(false); }} className={menuItem}>
+                  <Icon name="code" size={13} />
+                  Open in Editor
+                </button>
+                <div className="my-1 border-t border-border/60" />
+                <button onClick={() => { onEdit?.(); setMenuOpen(false); }} className={menuItem}>
+                  <Icon name="gear" size={13} />
+                  Edit
+                </button>
+                {onDuplicate && (
+                  <button onClick={() => { onDuplicate(); setMenuOpen(false); }} className={menuItem}>
+                    <Icon name="duplicate" size={13} />
+                    Duplicate
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
 
-          {/* Lifecycle Controls */}
+          {/* Separator between secondary actions and the lifecycle controls */}
+          <div className="w-px h-6 bg-border mx-1 hidden sm:block" />
+
+          {/* Lifecycle Controls (primary action, always visible) */}
           {status === 'running' ? (
             <>
               <button onClick={onRestart} className={btnAccent}>
@@ -144,23 +197,6 @@ export default function ProjectDetailHeader({ project, onStart, onStop, onRestar
             <button onClick={onStart} className={btnPrimary}>
               <Icon name="play" size={13} />
               Start Project
-            </button>
-          )}
-
-          {onOpenAgent && (
-            <button onClick={onOpenAgent} title="Open the AI agent workspace for this project" className={btnAccent}>
-              <Icon name="messageSquare" size={13} />
-              Agent
-            </button>
-          )}
-          <button onClick={onEdit} title="Edit project configuration" className={btnSecondary}>
-            <Icon name="gear" size={13} />
-            Edit
-          </button>
-          {onDuplicate && (
-            <button onClick={onDuplicate} title="Duplicate this project as a new entry" className={btnSecondary}>
-              <Icon name="duplicate" size={13} />
-              Duplicate
             </button>
           )}
         </div>

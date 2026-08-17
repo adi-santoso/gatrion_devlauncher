@@ -68,4 +68,23 @@ describe('EnvironmentTab env files', () => {
     render(<EnvironmentTab project={project} />)
     await waitFor(() => expect(screen.getByText('No .env files found in this project.')).toBeInTheDocument())
   })
+
+  it('keeps syntax highlighting visible while editing (overlay editor)', async () => {
+    render(<EnvironmentTab project={project} />)
+    await waitFor(() => expect(screen.getByText('APP_KEY')).toBeInTheDocument())
+
+    fireEvent.click(screen.getByRole('button', { name: 'Edit' }))
+
+    // The highlighted layer stays rendered while the textarea is transparent
+    const highlight = document.querySelector('pre[aria-hidden="true"]')
+    expect(highlight).toBeInTheDocument()
+    expect(highlight.textContent).toContain('APP_KEY=secret')
+    const editor = screen.getByLabelText('Edit .env')
+    expect(editor.className).toContain('text-transparent')
+    expect(editor.value).toContain('APP_KEY=secret')
+
+    // Typing updates both layers with the same content
+    fireEvent.change(editor, { target: { value: 'APP_KEY=newvalue\nNEW=1\n' } })
+    expect(highlight.textContent).toContain('APP_KEY=newvalue')
+  })
 })
