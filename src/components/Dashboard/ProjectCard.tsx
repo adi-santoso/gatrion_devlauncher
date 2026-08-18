@@ -81,13 +81,13 @@ export default function ProjectCard({ project, onStart, onStop, onRestart, onNav
           <button
             type="button"
             onClick={() => onNavigate?.(project)}
-            className={`w-10 h-10 shrink-0 rounded-lg flex items-center justify-center text-sm font-bold transition-all ${
-              project.color
-                ? `bg-${project.color}-100 text-${project.color}`
-                : 'bg-gradient-to-br from-accent-soft to-accent text-white'
-            }`}
+            className="w-10 h-10 shrink-0 rounded-lg bg-surface-3 flex items-center justify-center transition-all hover:bg-surface-2"
           >
-            <StackLogo type={project.type} size={20} mono />
+            {/* Brand-colored logo on a neutral tile — same as the Projects
+                list. (The old `bg-${project.color}-100` tint never rendered:
+                project.color is a hex value, not a Tailwind class name, and
+                `mono` forced the mark to the default text color.) */}
+            <StackLogo type={project.type} size={20} />
           </button>
           <button
             type="button"
