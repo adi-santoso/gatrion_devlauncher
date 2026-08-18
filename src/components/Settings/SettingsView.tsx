@@ -7,6 +7,7 @@ import { DataPanel, DiagnosticsPanel, PrayerPanel } from './settingsDataPanels';
 import {
   geocodeCity,
   checkUpdate,
+  checkForUpdate,
   downloadUpdate,
   installUpdate,
   getUpdateState,
@@ -122,6 +123,12 @@ const SettingsView = ({ config, updateConfig, onExportProjects, onImportProjects
     return () => { cancelled = true; unsubscribe(); };
   }, []);
 
+  // Explicit check drives the real electron-updater state machine; only after
+  // it reaches `available` does the banner offer "Download & install".
+  const handleCheckUpdate = async () => {
+    await checkForUpdate();
+  };
+
   const handleDownloadUpdate = async () => {
     setDownloading(true);
     const result = await downloadUpdate();
@@ -220,6 +227,7 @@ const SettingsView = ({ config, updateConfig, onExportProjects, onImportProjects
         updateInfo={updateInfo}
         updateState={updateState}
         downloading={downloading}
+        onCheck={handleCheckUpdate}
         onDownload={handleDownloadUpdate}
         onInstall={handleInstallUpdate}
       />

@@ -282,9 +282,9 @@ Menampilkan dialog simpan dan menulis bundle support ke satu file JSON: versi ap
 { success: false, error: '...' }
 ```
 
-### `downloadUpdate()` / `installUpdate()` / `onUpdateState()`
+### `checkForUpdate()` / `downloadUpdate()` / `installUpdate()` / `onUpdateState()`
 
-Channel: `update-download` / `update-install` / event `update-state`
+Channel: `update-check` / `update-download` / `update-install` / event `update-state`
 
 Auto-update via **electron-updater** (packaged builds saja). `downloadUpdate` mengunduh rilis terbaru dari GitHub Releases; `installUpdate` me-restart app dan menerapkan update; state streaming dikirim ke renderer di event `update-state`:
 
@@ -297,11 +297,13 @@ Auto-update via **electron-updater** (packaged builds saja). `downloadUpdate` me
 ```
 
 ```js
-{ success: true }          // downloadUpdate / installUpdate
+{ success: true }          // checkForUpdate / downloadUpdate / installUpdate
 { success: false, error: 'Auto-update is unavailable in this build' }
 ```
 
 `checkUpdate` (manual, GitHub Releases API) tetap ada untuk banner Settings dan menyediakan URL release; perbandingan versi kini memakai semver numerik (`isVersionNewer`), jadi `1.0.10 > 1.0.9` dan rilis lama tidak pernah diiklankan sebagai update.
+
+**Penting — urutan check dulu, baru download**: banner Settings hanya menampilkan tombol *Download & install* setelah tombol *Check update* (`checkForUpdate` → `update-check`) memanggil `checkForUpdates()` electron-updater dan state machine mencapai `available`. Tanpa ini, `downloadUpdate()` bisa melempar `Please check update first` saat check diam-diam di awal app gagal (mis. release belum lengkap / GitHub down), karena state internal electron-updater kosong walau GitHub API bilang ada versi baru.
 
 ## Presets & Activities API
 

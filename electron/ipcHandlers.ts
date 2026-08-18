@@ -20,6 +20,7 @@ export interface IpcHandlersDeps {
   projectDetector: ProjectDetectorType
   getWindow: () => InstanceType<typeof import('electron').BrowserWindow> | null
   getUpdater: () => {
+    check: () => Promise<{ success: boolean; error?: string }>
     startDownload: () => Promise<{ success: boolean; error?: string }>
     quitAndInstall: () => { success: boolean; error?: string }
     getState: () => { state: string; progress: unknown; error: string | null; version?: string | null }
@@ -52,6 +53,22 @@ export function registerCoreIpcHandlers({
       const updater = getUpdater()
       if (!updater) return { success: false, error: 'Auto-update is unavailable' }
       return await updater.startDownload()
+    } catch (error) {
+      return { success: false, error: (error as Error).message }
+    }
+  })
+
+  // Explicit check triggered by the Settings "Check update" button. This runs
+  // the real electron-updater check (not the GitHub API one) so its internal
+  // state is populated before the user can ask for a download — without this,
+  // downloadUpdate() throws "Please check update first" when the silent
+  // launch-time check failed (e.g. release was incomplete / GitHub down).
+  ipcMain.handle('update-check', async (event) => {
+    try {
+      assertTrustedIpcEvent(event)
+      const updater = getUpdater()
+      if (!updater) return { success: false, error: 'Auto-update is unavailable' }
+      return await updater.check()
     } catch (error) {
       return { success: false, error: (error as Error).message }
     }

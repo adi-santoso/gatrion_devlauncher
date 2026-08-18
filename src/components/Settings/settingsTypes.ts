@@ -59,6 +59,7 @@ export interface UpdateBannerProps {
   updateInfo: UpdateInfoResult | null;
   updateState: UpdateStatePayload | null;
   downloading: boolean;
+  onCheck: () => void;
   onDownload: () => void;
   onInstall: () => void;
 }

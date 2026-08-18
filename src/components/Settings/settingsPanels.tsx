@@ -13,55 +13,93 @@ import type {
 
 /**
  * UpdateBanner - update-available banner shown above the tab bar.
+ *
+ * The "available" message comes from the manual GitHub API check, while the
+ * Download/Install buttons follow the real electron-updater state machine
+ * (`updateState`). A check must succeed first (state → available) before the
+ * download button is offered; this guarantees electron-updater's internal
+ * state is populated so downloadUpdate() never fails with "Please check
+ * update first". Download progress is rendered as a bar, not text.
  */
-export function UpdateBanner({ updateInfo, updateState, downloading, onDownload, onInstall }: UpdateBannerProps) {
+export function UpdateBanner({ updateInfo, updateState, downloading, onCheck, onDownload, onInstall }: UpdateBannerProps) {
   const { t } = useI18n();
   if (!updateInfo?.updateAvailable || !updateInfo.latest) return null;
+  const state = updateState?.state;
+  const isDownloading = downloading || state === 'downloading';
+  const percent = Math.min(100, Math.max(0, updateState?.progress?.percent ?? 0));
   return (
     <div className="flex items-center gap-3 px-4 py-3 rounded-xl border border-accent/25 bg-accent/10 mb-5">
       <div className="w-8 h-8 rounded-full bg-accent/20 text-accent flex items-center justify-center shrink-0">
-        <Icon name={updateState?.state === 'downloaded' ? 'check' : 'download'} size={15} />
+        <Icon name={state === 'downloaded' ? 'check' : 'download'} size={15} />
       </div>
       <div className="flex-1 min-w-0">
         <p className="text-xs font-semibold text-ink">
-          {updateState?.state === 'downloaded'
+          {state === 'downloaded'
             ? t('settings.update.ready', { version: updateInfo.latest })
             : t('settings.update.availableLine', { version: updateInfo.latest })}
         </p>
         <p className="text-[11px] text-ink-faint mt-0.5">
-          {updateState?.state === 'error'
-            ? t('settings.update.failed', { error: updateState.error || 'unknown error' })
-            : downloading
-              ? t('settings.update.downloadingProgress', { percent: updateState?.progress?.percent ?? 0 })
-              : updateState?.state === 'downloaded'
+          {state === 'error'
+            ? t('settings.update.failed', { error: updateState?.error || 'unknown error' })
+            : isDownloading
+              ? t('settings.update.downloading')
+              : state === 'downloaded'
                 ? t('settings.update.restartToApply')
-                : t('settings.update.runningOld', { current: updateInfo.current })}
+                : state === 'checking'
+                  ? t('settings.update.checking')
+                  : t('settings.update.runningOld', { current: updateInfo.current })}
         </p>
+        {isDownloading && (
+          <div
+            className="mt-2 h-1.5 w-full max-w-[240px] rounded-full bg-surface-3 overflow-hidden"
+            role="progressbar"
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuenow={Math.round(percent)}
+          >
+            <div
+              className="h-full rounded-full bg-accent transition-[width] duration-200"
+              style={{ width: `${percent}%` }}
+            />
+          </div>
+        )}
       </div>
-      {updateState?.state === 'downloaded' ? (
-        <button
-          onClick={onInstall}
-          className="px-3 py-1.5 rounded-lg bg-accent hover:bg-accent-hover text-white text-xs font-semibold transition-colors"
-        >
-          {t('settings.update.install')}
-        </button>
-      ) : (
-        <>
+      <div className="flex items-center gap-2 shrink-0">
+        {state === 'downloaded' ? (
           <button
-            onClick={onDownload}
-            disabled={downloading}
-            className="px-3 py-1.5 rounded-lg bg-accent hover:bg-accent-hover text-white text-xs font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            onClick={onInstall}
+            className="px-3 py-1.5 rounded-lg bg-accent hover:bg-accent-hover text-white text-xs font-semibold transition-colors"
           >
-            {downloading ? t('settings.update.downloading') : t('settings.update.downloadInstall')}
+            {t('settings.update.install')}
           </button>
-          <button
-            onClick={() => openExternalUrl(updateInfo.url || '')}
-            className="px-3 py-1.5 rounded-lg bg-surface-3 hover:bg-surface-2 text-xs font-medium text-ink-soft hover:text-ink border border-border transition-colors"
-          >
-            {t('settings.update.viewRelease')}
-          </button>
-        </>
-      )}
+        ) : (
+          <>
+            {state === 'available' ? (
+              <button
+                onClick={onDownload}
+                disabled={isDownloading}
+                className="px-3 py-1.5 rounded-lg bg-accent hover:bg-accent-hover text-white text-xs font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isDownloading ? t('settings.update.downloading') : t('settings.update.downloadInstall')}
+              </button>
+            ) : (
+              <button
+                onClick={onCheck}
+                disabled={state === 'checking'}
+                className="px-3 py-1.5 rounded-lg bg-accent hover:bg-accent-hover text-white text-xs font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {state === 'checking' ? t('settings.update.checking') : t('settings.update.check')}
+              </button>
+            )}
+            <button
+              onClick={() => openExternalUrl(updateInfo.url || '')}
+              className="px-3 py-1.5 rounded-lg bg-surface-3 hover:bg-surface-2 text-xs font-medium text-ink-soft hover:text-ink border border-border transition-colors"
+            >
+              {t('settings.update.viewRelease')}
+            </button>
+          </>
+        )}
+      </div>
     </div>
   );
 }

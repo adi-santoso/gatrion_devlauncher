@@ -79,6 +79,13 @@ export const checkUpdate = async (): Promise<UpdateCheckResult> => {
   return invoke<UpdateCheckResult>('checkUpdate')
 }
 
+/** Triggers the real electron-updater check (populates its internal state so
+ * `downloadUpdate` can't fail with "Please check update first"). */
+export const checkForUpdate = async (): Promise<SimpleResult> => {
+  if (!isElectron()) return { success: false, error: 'Electron not available' }
+  return invoke<SimpleResult>('checkForUpdate')
+}
+
 export const downloadUpdate = async (): Promise<SimpleResult> => {
   if (!isElectron()) return { success: false, error: 'Electron not available' }
   return invoke<SimpleResult>('downloadUpdate')

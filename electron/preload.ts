@@ -159,6 +159,7 @@ interface ElectronApi {
 
   // Update checker + auto-update (electron-updater)
   checkUpdate: () => Promise<unknown>
+  checkForUpdate: () => Promise<unknown>
   downloadUpdate: () => Promise<unknown>
   installUpdate: () => Promise<unknown>
   getUpdateState: () => Promise<unknown>
@@ -413,6 +414,7 @@ const api: ElectronApi = {
 
   // Update checker + auto-update (electron-updater)
   checkUpdate: () => ipcRenderer.invoke('check-update'),
+  checkForUpdate: () => ipcRenderer.invoke('update-check'),
   downloadUpdate: () => ipcRenderer.invoke('update-download'),
   installUpdate: () => ipcRenderer.invoke('update-install'),
   getUpdateState: () => ipcRenderer.invoke('update-get-state'),

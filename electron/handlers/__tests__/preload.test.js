@@ -116,6 +116,10 @@ describe('preload API surface', () => {
     await api.getUpdateState()
     expect(ipcRenderer.invoke).toHaveBeenLastCalledWith('update-get-state')
 
+    ipcRenderer.invoke = vi.fn(async () => ({ success: true }))
+    await api.checkForUpdate()
+    expect(ipcRenderer.invoke).toHaveBeenLastCalledWith('update-check')
+
     const configCb = vi.fn()
     api.onConfigUpdated(configCb)
     for (const listener of ipcRenderer._listeners.get('config-updated')) listener({}, { theme: 'light' })
