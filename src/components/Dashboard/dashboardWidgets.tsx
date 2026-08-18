@@ -1,3 +1,4 @@
+import { useEffect, useMemo, useState } from 'react';
 import ProjectCard, { type ViewProject } from './ProjectCard';
 import { type FormattedLog } from './dashboardUtils';
 import type { FeedActivity } from './DashboardView';
@@ -247,77 +248,122 @@ export interface ProjectsGridProps {
   getMetricHistory?: (projectId: string) => MetricSample[];
 }
 
-export function ProjectsGrid({ grouped, projects, emptyHeading, emptyHint, showAddAction, onOpenModal, onStop, onStart, onRestart, onNavigate, getMetricHistory }: ProjectsGridProps) {
-  if (grouped) {
-    return (
-      <section className="space-y-6">
-        {grouped.length === 0 && (
-          <div className="rounded-xl border border-dashed border-border bg-surface/60 py-12 text-center">
-            <p className="mt-1 text-xs text-ink-faint">No projects match current filters.</p>
-          </div>
-        )}
-        {grouped.map(([tag, tagProjects]) => (
-          <div key={tag}>
-            <div className="mb-2 flex items-center gap-2">
-              <h3 className="font-mono text-[10px] font-semibold uppercase tracking-wider text-ink-soft">{tag}</h3>
-              <span className="font-mono text-[9px] text-ink-faint">{tagProjects.length}</span>
-              <div className="h-px flex-1 bg-border" />
-            </div>
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-              {tagProjects.map((project) => (
-                <ProjectCard
-                  key={project.id || project.name}
-                  project={project}
-                  onStop={onStop}
-                  onStart={onStart}
-                  onRestart={onRestart}
-                  onNavigate={onNavigate}
-                  getMetricHistory={getMetricHistory}
-                />
-              ))}
-            </div>
-          </div>
-        ))}
-      </section>
-    );
-  }
-  return (
-    <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-      {projects.map((project) => (
-        <ProjectCard
-          key={project.id || project.name}
-          project={project}
-          onStop={onStop}
-          onStart={onStart}
-          onRestart={onRestart}
-          onNavigate={onNavigate}
-          getMetricHistory={getMetricHistory}
-        />
-      ))}
+// Show at most this many project cards on the dashboard before offering a
+// "Show all" button, so a workspace with dozens of projects stays a manageable
+// page instead of a wall of cards pushing Live Activity / logs far below the
+// fold. Search & filter keep running against the full list either way.
+const VISIBLE_LIMIT = 12;
 
-      {projects.length === 0 && (
-        <div className="col-span-full">
-          <div className="rounded-xl border border-dashed border-border bg-surface/60 py-12 text-center">
-            <svg className="mx-auto h-12 w-12 text-ink-faint" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
-            </svg>
-            <p className="mt-3 font-display text-sm font-semibold text-ink">{emptyHeading}</p>
-            <p className="mt-1 text-xs text-ink-faint">{emptyHint}</p>
-            {showAddAction && (
-              <button
-                type="button"
-                onClick={() => onOpenModal?.('project')}
-                className="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-accent px-4 py-2 text-xs font-semibold text-white hover:bg-accent-hover"
-              >
-                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                </svg>
-                Add Project
-              </button>
-            )}
-          </div>
-        </div>
+export function ProjectsGrid({ grouped, projects, emptyHeading, emptyHint, showAddAction, onOpenModal, onStop, onStart, onRestart, onNavigate, getMetricHistory }: ProjectsGridProps) {
+  // Flatten both modes into one ordered item list so the cap applies uniformly
+  // (grouped mode can still wall up: untagged projects all land in one group).
+  const flatItems = useMemo(() => {
+    if (grouped) return grouped.flatMap(([tag, list]) => list.map((project) => ({ tag, project })));
+    return projects.map((project) => ({ tag: null, project }));
+  }, [grouped, projects]);
+
+  const [showAll, setShowAll] = useState(false);
+  const total = flatItems.length;
+  // Collapse the expansion whenever the underlying filtered set changes
+  // (search / filter / sort / group toggle), but not on status or metric
+  // updates — those keep the same project ids.
+  const idKey = useMemo(
+    () => flatItems.map(({ project }) => project.id ?? project.name).join(','),
+    [flatItems],
+  );
+  useEffect(() => { setShowAll(false); }, [idKey]);
+
+  const limited = total > VISIBLE_LIMIT && !showAll;
+  const visibleItems = limited ? flatItems.slice(0, VISIBLE_LIMIT) : flatItems;
+
+  const renderCard = (project: ViewProject) => (
+    <ProjectCard
+      key={project.id || project.name}
+      project={project}
+      onStop={onStop}
+      onStart={onStart}
+      onRestart={onRestart}
+      onNavigate={onNavigate}
+      getMetricHistory={getMetricHistory}
+    />
+  );
+
+  // Rebuild tag groups from the visible slice, preserving order.
+  let rebuilt: Array<[string, ViewProject[]]> | null = null;
+  if (grouped) {
+    rebuilt = [];
+    const byTag = new Map<string, ViewProject[]>();
+    for (const item of visibleItems) {
+      // Flat items carry tag: null; grouped items always have a real tag.
+      if (item.tag === null) continue;
+      const { tag, project } = item;
+      let list = byTag.get(tag);
+      if (!list) { list = []; byTag.set(tag, list); rebuilt.push([tag, list]); }
+      list.push(project);
+    }
+  }
+
+  return (
+    <>
+      {grouped && rebuilt && (
+        <section className="space-y-6">
+          {grouped.length === 0 && (
+            <div className="rounded-xl border border-dashed border-border bg-surface/60 py-12 text-center">
+              <p className="mt-1 text-xs text-ink-faint">No projects match current filters.</p>
+            </div>
+          )}
+          {rebuilt.map(([tag, tagProjects]) => (
+            <div key={tag}>
+              <div className="mb-2 flex items-center gap-2">
+                <h3 className="font-mono text-[10px] font-semibold uppercase tracking-wider text-ink-soft">{tag}</h3>
+                <span className="font-mono text-[9px] text-ink-faint">{tagProjects.length}</span>
+                <div className="h-px flex-1 bg-border" />
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                {tagProjects.map((project) => renderCard(project))}
+              </div>
+            </div>
+          ))}
+        </section>
       )}
-    </section>
+      {!grouped && (
+        <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          {visibleItems.map(({ project }) => renderCard(project))}
+
+          {total === 0 && (
+            <div className="col-span-full">
+              <div className="rounded-xl border border-dashed border-border bg-surface/60 py-12 text-center">
+                <svg className="mx-auto h-12 w-12 text-ink-faint" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                </svg>
+                <p className="mt-3 font-display text-sm font-semibold text-ink">{emptyHeading}</p>
+                <p className="mt-1 text-xs text-ink-faint">{emptyHint}</p>
+                {showAddAction && (
+                  <button
+                    type="button"
+                    onClick={() => onOpenModal?.('project')}
+                    className="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-accent px-4 py-2 text-xs font-semibold text-white hover:bg-accent-hover"
+                  >
+                    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                    </svg>
+                    Add Project
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+        </section>
+      )}
+      {limited && (
+        <button
+          type="button"
+          onClick={() => setShowAll(true)}
+          className="mt-4 w-full rounded-xl border border-dashed border-border bg-surface/60 py-3 text-xs font-medium text-ink-soft hover:text-ink hover:bg-surface-2 transition-colors"
+        >
+          Show all ({total} project{total > 1 ? 's' : ''})
+        </button>
+      )}
+    </>
   );
 }
