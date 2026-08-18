@@ -57,6 +57,12 @@ const ProjectModal = ({ isOpen, onClose, onSave, project = null, droppedProject 
       if (droppedProject && !project) setDetection({ success: true, name: (source.type as string) || 'CUSTOM' });
     } else {
       setFormData(EMPTY_PROJECT);
+      // Seed "last detected" with fresh defaults so the FIRST detection can
+      // overwrite non-empty EMPTY_PROJECT values that otherwise look edited.
+      lastDetected.current = {
+        name: EMPTY_PROJECT.name, type: EMPTY_PROJECT.type, port: EMPTY_PROJECT.port,
+        startCommand: EMPTY_PROJECT.startCommand, commands: EMPTY_PROJECT.commands, emoji: EMPTY_PROJECT.emoji, color: EMPTY_PROJECT.color,
+      };
       setShowAdvanced(false);
     }
     setDetection(null);
