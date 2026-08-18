@@ -4,6 +4,20 @@ Semua perubahan penting pada project ini dicatat di file ini.
 
 Format mengikuti [Keep a Changelog](https://keepachangelog.com/id-ID/1.1.0/), dan project ini mengikuti [Semantic Versioning](https://semver.org/spec/v2.0.0.html) begitu versi rilis resmi ditetapkan.
 
+## [0.2.6] - 2026-08-18
+
+### Added
+
+- **Show more di dashboard** — grid project dibatasi 12 kartu (default) di mode flat maupun grouped dengan tombol **"Show all (N)"** untuk me-render sisanya, sehingga workspace dengan puluhan project tidak lagi menjadi tembok kartu yang mendorong Live Activity/log ke bawah. Search/filter tetap berlaku untuk semua project; ekspansi otomatis collapse saat set filter berubah (tidak saat update status/metrik).
+- **Update banner gated oleh tombol Check update** — banner Settings hanya menampilkan *Download & install* setelah tombol *Check update* (IPC baru `update-check`) menjalankan `checkForUpdates()` electron-updater sungguhan dan state mencapai `available`; ini mencegah error `Please check update first` saat check diam-diam di awal app gagal (release belum lengkap / GitHub down). Progress download kini dirender sebagai **progress bar**, bukan teks persen.
+
+### Fixed
+
+- **Deteksi project pertama Browse selalu "custom"** — `EMPTY_PROJECT` sudah berisi `type: 'CUSTOM'` (non-kosong), sehingga `applyDetection` menganggapnya edit manual dan deteksi pertama tidak pernah menimpa type; baru setelah Change folder (deteksi kedua) type tersimpan. Kini `lastDetected` di-seed dengan default form kosong supaya deteksi pertama bisa menimpa nilai bawaan (edit manual tetap dihormati).
+- **Minimize to tray selalu full close** — close handler window bersifat async (`await loadConfig()` sebelum `preventDefault()`), dan Electron tidak menunggu async close handler: `preventDefault` datang telat → window tertutup → `app.quit()`. Kini keputusan dibuat sinkron dari cache config in-memory (`currentConfig`, di-update via `onConfigChange` setelah tiap `update-config`).
+- **Ikon project di kartu dashboard hitam-putih** — kartu memakai `<StackLogo mono />` di atas class dinamis `bg-${project.color}-100` yang tidak pernah ter-render (color berisi hex, bukan nama kelas Tailwind). Kini tile netral `bg-surface-3` + logo berwarna brand, konsisten dengan menu Projects.
+- **Flake e2e `app.spec` saat DevLauncher terinstall berjalan** — spec ini satu-satunya yang launch tanpa `DEVLAUNCHER_USER_DATA`, jadi berbagi single-instance lock dengan app terpasang → instance e2e langsung `app.quit()` saat startup ("Target page closed"). Kini memakai userData terisolasi + teardown kill-tree.
+
 ## [0.2.5] - 2026-08-17
 
 ### Added

@@ -1,7 +1,7 @@
 {
   "name": "devlauncher",
   "productName": "DevLauncher",
-  "version": "0.2.5",
+  "version": "0.2.6",
   "description": "Desktop application to manage multiple development projects",
   "main": "out/main/index.js",
   "type": "commonjs",
