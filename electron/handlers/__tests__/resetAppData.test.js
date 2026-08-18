@@ -25,6 +25,7 @@ beforeEach(() => {
     getUpdater: () => null,
     getMcp: () => null,
     applyOSSettings: async () => {},
+    onConfigChange: () => {},
   })
   handler = ipcMain._handlers.get('reset-app-data')
 })

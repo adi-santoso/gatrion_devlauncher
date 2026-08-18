@@ -31,6 +31,8 @@ export interface IpcHandlersDeps {
     getState: () => { running: boolean; port: number | null; token: string | null }
   } | null
   applyOSSettings: (config: AppConfig) => Promise<void>
+  /** Fires with the merged config after every successful update-config save. */
+  onConfigChange: (config: AppConfig) => void
 }
 
 /**
@@ -46,6 +48,7 @@ export function registerCoreIpcHandlers({
   getWindow,
   getUpdater,
   applyOSSettings,
+  onConfigChange,
 }: IpcHandlersDeps) {
   ipcMain.handle('update-download', async (event) => {
     try {
@@ -315,6 +318,9 @@ export function registerCoreIpcHandlers({
           await mcp.stop()
         }
       }
+      // Keep main-process consumers (e.g. the synchronous minimize-to-tray
+      // close handler) in sync without a disk read on every window close.
+      onConfigChange(updatedConfig)
       // Broadcast so every renderer context (e.g. MainLayout's own config hook)
       // stays in sync with the caller that just changed the config.
       getWindow()?.webContents.send('config-updated', updatedConfig)

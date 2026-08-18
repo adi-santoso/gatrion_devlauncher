@@ -24,6 +24,7 @@ beforeEach(() => {
     getUpdater: () => updater,
     getMcp: () => null,
     applyOSSettings: async () => {},
+    onConfigChange: () => {},
   })
   handler = ipcMain._handlers.get('update-check')
 })
@@ -64,6 +65,7 @@ describe('update-check', () => {
       getUpdater: () => null,
       getMcp: () => null,
       applyOSSettings: async () => {},
+      onConfigChange: () => {},
     })
     const unavailable = ipcMain._handlers.get('update-check')
     const result = await unavailable(trustedEvent)

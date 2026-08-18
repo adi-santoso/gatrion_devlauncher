@@ -82,6 +82,9 @@ let ompInstaller!: OmpInstallerType
 let mcpManager: McpManagerType | null = null
 let ompConfig!: OmpConfigType
 let isQuitting = false
+// In-memory copy of the app config so window-close decisions (minimize to tray)
+// can be made synchronously — Electron does not await async close handlers.
+let currentConfig: AppConfig | null = null
 
 // Bring the main window to the front (used by notification click handlers).
 function focusAppWindow() {
@@ -202,19 +205,14 @@ function createWindow(windowBounds?: WindowBounds | null) {
     mainWindow.loadFile(path.join(__dirname, '../../dist-react/index.html'))
   }
 
-  // Handle minimize to tray when user closes window
-  mainWindow.on('close', async (event) => {
-    if (!isQuitting) {
-      try {
-        const config = await storageManager.loadConfig()
-        if (config && config.minimizeToTray) {
-          event.preventDefault()
-          mainWindow!.hide()
-          return
-        }
-      } catch (err) {
-        console.error('[App] Error reading config on close:', err)
-      }
+  // Handle minimize to tray when user closes window. This MUST be synchronous:
+  // Electron decides whether to close right after the close event dispatch, so
+  // an event.preventDefault() after an await (e.g. reading config from disk) is
+  // ignored and the window closes → app quits, breaking minimize-to-tray.
+  mainWindow.on('close', (event) => {
+    if (!isQuitting && currentConfig?.minimizeToTray) {
+      event.preventDefault()
+      mainWindow!.hide()
     }
   })
 
@@ -310,6 +308,7 @@ async function initialize() {
 
   // Apply auto-restart config
   const initialConfig = await storageManager.loadConfig()
+  currentConfig = initialConfig
   if (initialConfig?.autoRestart) {
     processManager.autoRestartConfig = initialConfig.autoRestart
   }
@@ -403,6 +402,8 @@ async function initialize() {
     getUpdater: () => autoUpdaterHandle,
     getMcp: () => mcpManager,
     applyOSSettings,
+    // Keep the synchronous close-handler cache in sync with Settings changes.
+    onConfigChange: (config) => { currentConfig = config },
   })
 
   // Agent-control over the app is opt-in (Settings toggle, default off).
