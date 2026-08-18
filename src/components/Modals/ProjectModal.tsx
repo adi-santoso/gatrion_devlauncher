@@ -1,8 +1,9 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useProjects } from '../../hooks';
 import DropdownMenu, { DropdownItem } from '../Common/DropdownMenu';
 import AnimatedModal from '../Common/AnimatedModal';
 import StackLogo from '../Common/StackLogo';
+import TagsField, { type TagsFieldHandle } from './TagsField';
 import { typeLabel, TYPE_LABELS } from '../../utils/typeLabels';
 import type { ProjectRuntime } from '../../hooks/useProjects';
 import type { DetectTypeResult } from '../../data/projects';
@@ -31,7 +32,18 @@ const ProjectModal = ({ isOpen, onClose, onSave, project = null, droppedProject 
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [errors, setErrors] = useState<Record<string, string | undefined>>({});
   const [isSaving, setIsSaving] = useState(false);
+  const tagsFieldRef = useRef<TagsFieldHandle>(null);
   const isEditing = Boolean(project);
+
+  // All tags already used by existing projects — offered as chips so a tag can
+  // be picked instead of retyped (reused across projects consistently).
+  const existingTags = useMemo(() => {
+    const seen = new Set<string>();
+    for (const p of allProjects) {
+      for (const tag of p.tags || []) if (typeof tag === 'string' && tag.trim()) seen.add(tag.trim());
+    }
+    return [...seen].sort((a, b) => a.localeCompare(b));
+  }, [allProjects]);
 
   useEffect(() => {
     detectionId.current += 1;
@@ -183,11 +195,15 @@ const ProjectModal = ({ isOpen, onClose, onSave, project = null, droppedProject 
   };
 
   const handleSubmit = async (): Promise<void> => {
+    // Flush a tag typed but not yet committed (Enter not pressed) so it is not
+    // lost on save — the synchronous handle also returns it for the payload.
+    const finalTags = tagsFieldRef.current?.flush() ?? formData.tags;
     if (!validateForm()) return;
     setIsSaving(true);
     try {
       const result = await onSave({
         ...formData,
+        tags: finalTags,
         port: formData.port.trim() ? Number(formData.port) : null,
         commands: formData.commands.map((item) => ({
           ...item,
@@ -370,19 +386,7 @@ const ProjectModal = ({ isOpen, onClose, onSave, project = null, droppedProject 
                   <div><p className="text-xs text-ink">Start on app launch</p><p className="text-[11px] text-ink-faint">Auto-run this project when Gatrion opens.</p></div>
                   <button type="button" onClick={() => handleChange('autoStart', !formData.autoStart)} className={`w-9 h-5 rounded-full relative shrink-0 ${formData.autoStart ? 'bg-accent' : 'bg-surface-3 border border-border'}`}><span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-transform ${formData.autoStart ? 'right-0.5' : 'left-0.5'}`}></span></button>
                 </div>
-                <div>
-                  <label className="text-xs text-ink-soft mb-1.5 block">Tags</label>
-                  <div className="flex gap-2">
-                    <input type="text" placeholder="Add tag..." onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); const val = (e.target as HTMLInputElement).value.trim(); if (val && !formData.tags.includes(val)) { setFormData((p) => ({ ...p, tags: [...p.tags, val] })); } (e.target as HTMLInputElement).value = ''; } }} className="flex-1 bg-surface-3 border border-border rounded-lg px-2.5 py-1.5 text-xs text-ink focus:outline-none focus:ring-2 focus:ring-accent/40" />
-                  </div>
-                  {formData.tags.length > 0 && (
-                    <div className="flex flex-wrap gap-1.5 mt-2">
-                      {formData.tags.map((tag) => (
-                        <span key={tag} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-surface-3 border border-border text-[10px] text-ink-soft">{tag}<button type="button" onClick={() => setFormData((p) => ({ ...p, tags: p.tags.filter((t) => t !== tag) }))} className="text-ink-faint hover:text-danger">✕</button></span>
-                      ))}
-                    </div>
-                  )}
-                </div>
+                <TagsField ref={tagsFieldRef} tags={formData.tags} existingTags={existingTags} onChange={(tags) => setFormData((p) => ({ ...p, tags }))} />
                 <div>
                   <div className="flex items-center justify-between mb-1.5">
                     <label className="text-xs text-ink-soft">Custom commands</label>

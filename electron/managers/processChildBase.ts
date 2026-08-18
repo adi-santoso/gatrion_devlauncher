@@ -50,7 +50,7 @@ export abstract class ProcessChildBase extends ProcessPortBase {
     try {
       const readiness = [...data.commands.values()].map(async (item) => {
         if (item.port === null || item.port === undefined) return
-        const ready = await this.waitForCommandPort(projectId, item.port, 30000, runId)
+        const ready = await this.waitForCommandPort(projectId, item.port, data.readyTimeoutMs ?? 60000, runId)
         if (!ready) return
         item.ready = true
         item.status = this.STATUS.RUNNING

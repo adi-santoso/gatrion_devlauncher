@@ -77,6 +77,16 @@ describe('GitTab', () => {
     expect(screen.getByText('WIP auth work')).toBeInTheDocument()
   })
 
+  it('shows short status letters (M/A) instead of the raw words', async () => {
+    render(<GitTab project={project} />)
+    await screen.findByText('src/App.jsx')
+    // Badges use git porcelain letters, with the full word as a tooltip.
+    const modifiedBadge = screen.getByTitle('Modified')
+    expect(modifiedBadge.textContent).toBe('M')
+    expect(screen.getByTitle('Added').textContent).toBe('A')
+    expect(screen.queryByText('modified')).toBeNull()
+  })
+
   it('stages an unstaged file when its checkbox is toggled', async () => {
     render(<GitTab project={project} />)
     const checkbox = await screen.findByLabelText('Stage src/App.jsx')

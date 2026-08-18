@@ -31,7 +31,7 @@ export abstract class ProcessPortBase extends ProcessLogBase {
     return false
   }
 
-  async waitForCommandPort(projectId: string, port: number, timeout = 30000, runId: symbol | null = null) {
+  async waitForCommandPort(projectId: string, port: number, timeout = 60000, runId: symbol | null = null) {
     const deadline = Date.now() + timeout
     while (Date.now() < deadline) {
       const processData = this.processes.get(projectId)
@@ -44,7 +44,7 @@ export abstract class ProcessPortBase extends ProcessLogBase {
     throw new Error(`Timed out waiting for port ${port}`)
   }
 
-  async waitForPort(projectId: string, port: number, timeout = 30000, runId: symbol | null = null, commandId: string | null = null) {
+  async waitForPort(projectId: string, port: number, timeout = 60000, runId: symbol | null = null, commandId: string | null = null) {
     const deadline = Date.now() + timeout
     while (Date.now() < deadline) {
       const processData = this.processes.get(projectId)

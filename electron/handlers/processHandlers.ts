@@ -112,40 +112,73 @@ function setupProcessHandlers(processManager: ProcessManager, storageManager: St
     })
   }
 
-  // Start a project
+  // Start a single project with the standard status/log callbacks wired up.
+  const startOne = (project: Project) => {
+    const launch = resolveLaunchConfig(project)
+    return processManager.startProcess(
+      project.id,
+      project.path,
+      launch.command,
+      envVarsToObject(project.envVars),
+      launch.port,
+      // onLog callback
+      (projectId, log) => {
+        safeSend('process-log', projectId, log)
+      },
+      // onExit callback
+      (projectId, code, signal) => {
+        safeSend('process-exit', projectId, code, signal)
+        safeSend('process-status', projectId, processManager.getProcessStatus(projectId))
+      },
+      // onError callback
+      (projectId, error) => {
+        safeSend('process-error', projectId, error.message)
+        safeSend('process-status', projectId, processManager.getProcessStatus(projectId))
+      },
+      (projectId) => {
+        safeSend('process-status', projectId, processManager.getProcessStatus(projectId))
+      }
+    )
+  }
+
+  // Transitive dependencies of a project, in start order (dependencies first).
+  const collectDependencies = (project: Project, all: Project[]): Project[] => {
+    const byId = new Map(all.map((p) => [p.id, p]))
+    const order: Project[] = []
+    const seen = new Set<string>()
+    const visit = (p: Project) => {
+      if (seen.has(p.id)) return
+      seen.add(p.id)
+      for (const depId of Array.isArray(p.dependsOn) ? p.dependsOn : []) {
+        const dep = byId.get(depId)
+        if (dep) visit(dep)
+      }
+      if (p.id !== project.id) order.push(p)
+    }
+    visit(project)
+    return order
+  }
+
+  // Start a project. If it depends on other projects, those are started first
+  // (transitively), matching the Start-all behavior — but only when they are
+  // not already running/starting.
   secureHandle('start-project', async (_event, projectId) => {
     try {
       const project = await loadPersistedProject(projectId)
-      const launch = resolveLaunchConfig(project)
-      const result = await processManager.startProcess(
-        project.id,
-        project.path,
-        launch.command,
-        envVarsToObject(project.envVars),
-        launch.port,
-        // onLog callback
-        (projectId, log) => {
-          safeSend('process-log', projectId, log)
-        },
-        // onExit callback
-        (projectId, code, signal) => {
-          safeSend('process-exit', projectId, code, signal)
-          safeSend('process-status', projectId, processManager.getProcessStatus(projectId))
-        },
-        // onError callback
-        (projectId, error) => {
-          safeSend('process-error', projectId, error.message)
-          safeSend('process-status', projectId, processManager.getProcessStatus(projectId))
-        },
-        (projectId) => {
-          safeSend('process-status', projectId, processManager.getProcessStatus(projectId))
-        }
-      )
+      const allProjects = await storageManager.loadProjects()
+      const startedDependencies: string[] = []
+      for (const dep of collectDependencies(project, allProjects)) {
+        const depStatus = processManager.getProcessStatus(dep.id)?.status?.toLowerCase()
+        if (depStatus === 'running' || depStatus === 'starting') continue
+        await startOne(dep)
+        startedDependencies.push(dep.id)
+      }
+      const result = await startOne(project)
 
       // Send initial status
       safeSend('process-status', project.id, processManager.getProcessStatus(project.id))
 
-      return { ...result, success: true }
+      return { ...result, success: true, startedDependencies }
     } catch (error) {
       return { success: false, error: (error as Error).message }
     }

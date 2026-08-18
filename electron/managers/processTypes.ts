@@ -54,6 +54,7 @@ export interface ProcessData {
   onLog?: LogCallback
   env: Record<string, string>
   restartCount: number
+  readyTimeoutMs?: number
   error?: string
   exitCode?: number | null
   exitSignal?: string | null

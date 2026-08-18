@@ -96,6 +96,12 @@ class ProcessManager extends ProcessMetricsBase {
 
     for (const item of commands) if (item.port !== null && item.port !== undefined && await this.isPortOpen(item.port)) throw new Error(`Port ${item.port} is already in use`)
 
+    // Readiness window. First build/compile (e.g. `go run .` downloading modules +
+    // compiling) routinely takes longer than the old 30s default; give Go toolchain
+    // commands 2 minutes and everything else 1 minute.
+    const primaryCommand = (commands.find((item) => item.primary) || commands[0]).command.toLowerCase()
+    const readyTimeoutMs = /\bgo\s+(run|build|test|install)\b/.test(primaryCommand) ? 120000 : 60000
+
     try {
       log.info('ProcessManager', 'Starting process', { projectId, projectPath, commands })
 
@@ -118,6 +124,7 @@ class ProcessManager extends ProcessMetricsBase {
         onLog,
         env,
         restartCount: 0,
+        readyTimeoutMs,
       }
       this.processes.set(projectId, processData)
       this.emit('status-change', { projectId, status: 'starting' })

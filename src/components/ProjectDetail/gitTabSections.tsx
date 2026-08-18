@@ -53,7 +53,27 @@ const CODE_STYLE: Record<string, string> = {
   '?': 'text-ink-faint bg-surface-3 border-border',
 };
 
-const CODE_LABEL: Record<string, string> = { A: 'A', M: 'M', D: 'D', R: 'R', C: 'C', U: 'U', T: 'T', '?': '?' };
+// git status codes come from the parser as words (e.g. "modified") for the
+// letters M/A/D/... — map both forms to the short badge letter + a full label
+// (tooltip) so the badge shows "M", not "modified".
+const STATUS_META: Record<string, { code: string; label: string }> = {
+  A: { code: 'A', label: 'Added' },
+  M: { code: 'M', label: 'Modified' },
+  D: { code: 'D', label: 'Deleted' },
+  R: { code: 'R', label: 'Renamed' },
+  C: { code: 'C', label: 'Copied' },
+  U: { code: 'U', label: 'Unmerged' },
+  T: { code: 'T', label: 'Type change' },
+  '?': { code: '?', label: 'Untracked' },
+  added: { code: 'A', label: 'Added' },
+  modified: { code: 'M', label: 'Modified' },
+  deleted: { code: 'D', label: 'Deleted' },
+  renamed: { code: 'R', label: 'Renamed' },
+  copied: { code: 'C', label: 'Copied' },
+  unmerged: { code: 'U', label: 'Unmerged' },
+  'type change': { code: 'T', label: 'Type change' },
+  untracked: { code: '?', label: 'Untracked' },
+};
 
 const btnBase = 'inline-flex items-center gap-1.5 h-8 px-3 rounded-lg text-xs font-medium transition-colors whitespace-nowrap';
 export const btnSecondary = `${btnBase} bg-surface-3 hover:bg-surface-2 text-ink-soft hover:text-ink border border-border`;
@@ -85,7 +105,8 @@ interface FileRowProps {
 }
 
 function FileRow({ entry, section, onToggle, onShowDiff, onDiscard, diffOpen }: FileRowProps) {
-  const code = section === 'staged' ? entry.staged : entry.unstaged || '?';
+  const rawCode = (section === 'staged' ? entry.staged : entry.unstaged) || '?';
+  const meta = STATUS_META[rawCode] || { code: rawCode, label: rawCode };
   const checked = section === 'staged';
   const canDiscard = section === 'unstaged' || section === 'untracked';
   return (
@@ -97,8 +118,11 @@ function FileRow({ entry, section, onToggle, onShowDiff, onDiscard, diffOpen }: 
         className="w-3.5 h-3.5 accent-accent cursor-pointer shrink-0"
         aria-label={`${checked ? 'Unstage' : 'Stage'} ${entry.path}`}
       />
-      <span className={`inline-flex items-center justify-center w-5 h-5 rounded border text-[10px] font-bold shrink-0 ${CODE_STYLE[code || '?'] || CODE_STYLE['?']}`}>
-        {CODE_LABEL[code || '?'] || code || '?'}
+      <span
+        title={meta.label}
+        className={`inline-flex items-center justify-center w-5 h-5 rounded border text-[10px] font-bold shrink-0 ${CODE_STYLE[meta.code] || CODE_STYLE['?']}`}
+      >
+        {meta.code}
       </span>
       <span className="flex-1 min-w-0 font-mono text-ink truncate" title={entry.path}>{entry.path}</span>
       {canDiscard && onDiscard && (

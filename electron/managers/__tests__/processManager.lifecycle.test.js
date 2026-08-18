@@ -47,6 +47,15 @@ describe('ProcessManager lifecycle (real spawns)', () => {
     await close(occupiedServer)
   })
 
+  test('readiness timeout is longer for Go toolchain commands', async () => {
+    const manager = new ProcessManager()
+    await manager.startProcess('go-app', '.', 'echo go run .', {}, null)
+    expect(manager.processes.get('go-app').readyTimeoutMs).toBe(120000)
+
+    await manager.startProcess('node-app', '.', 'npm --version', {}, null)
+    expect(manager.processes.get('node-app').readyTimeoutMs).toBe(60000)
+  })
+
   test('waitForPort transitions to RUNNING when the port opens', async () => {
     const manager = new ProcessManager()
     manager.processes.set('readiness-check', { status: manager.STATUS.STARTING })

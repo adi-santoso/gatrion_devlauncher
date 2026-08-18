@@ -7,12 +7,20 @@
 - Git untuk development
 - Runtime yang dibutuhkan project terdaftar, misalnya Node.js/npm, PHP/Composer, atau Go
 
-Repository mendeklarasikan `engines: { node: ">=20.0.0" }` dan CI berjalan di Node 20. Environment yang sudah diverifikasi: Node.js `v23.9.0`, npm `10.9.2`. Sebelum release, tetapkan versi LTS final yang didukung.
+Repository mendeklarasikan `engines: { node: ">=20.0.0" }`. Versi kanonik ada di **`.nvmrc`**: `20.19.0` (Node 20 LTS terakhir, bundel npm 10.8.2) — sama dengan yang terpasang di mesin dev dan yang dipakai CI (`ci.yml` & `release.yml`).
+
+```powershell
+# pakai versi kanonik
+nvm use
+node -v   # v20.19.0
+npm -v    # 10.8.2
+```
 
 ## Instalasi
 
 ```powershell
 git clone <repository-url>
+nvm use
 npm install
 ```
 

@@ -133,6 +133,63 @@ describe('processHandlers flows', () => {
     expect(pm.stopAllProcesses).toHaveBeenCalled()
   })
 
+  test('start-project auto-starts missing dependencies first (dependsOn)', async () => {
+    const pm = makeProcessManager()
+    const storage = makeStorageManager([project('db'), project('app', { dependsOn: ['db'] })])
+    setupProcessHandlers(pm, storage, makeWindow())
+
+    const result = await ipcMain._handlers.get('start-project')(fakeEvent, 'app')
+    expect(result.success).toBe(true)
+    expect(result.startedDependencies).toEqual(['db'])
+    // db starts before app
+    expect(pm.startProcess.mock.calls.map((call) => call[0])).toEqual(['db', 'app'])
+  })
+
+  test('start-project starts transitive dependencies in order', async () => {
+    const pm = makeProcessManager()
+    const storage = makeStorageManager([
+      project('db'),
+      project('api', { dependsOn: ['db'] }),
+      project('web', { dependsOn: ['api'] }),
+    ])
+    setupProcessHandlers(pm, storage, makeWindow())
+
+    const result = await ipcMain._handlers.get('start-project')(fakeEvent, 'web')
+    expect(result.startedDependencies).toEqual(['db', 'api'])
+    expect(pm.startProcess.mock.calls.map((call) => call[0])).toEqual(['db', 'api', 'web'])
+  })
+
+  test('start-project skips dependencies that are already running', async () => {
+    const pm = makeProcessManager()
+    pm.getProcessStatus.mockImplementation((id) => ({
+      status: id === 'db' ? 'running' : 'stopped',
+      pid: id === 'db' ? 5 : null,
+    }))
+    const storage = makeStorageManager([project('db'), project('app', { dependsOn: ['db'] })])
+    setupProcessHandlers(pm, storage, makeWindow())
+
+    const result = await ipcMain._handlers.get('start-project')(fakeEvent, 'app')
+    expect(result.success).toBe(true)
+    expect(result.startedDependencies).toEqual([])
+    expect(pm.startProcess.mock.calls.map((call) => call[0])).toEqual(['app'])
+  })
+
+  test('start-project fails when a dependency fails to start', async () => {
+    const pm = makeProcessManager()
+    pm.startProcess.mockImplementation(async (id) => {
+      if (id === 'db') throw new Error('db exploded')
+      return { started: true, pid: 123 }
+    })
+    const storage = makeStorageManager([project('db'), project('app', { dependsOn: ['db'] })])
+    setupProcessHandlers(pm, storage, makeWindow())
+
+    const result = await ipcMain._handlers.get('start-project')(fakeEvent, 'app')
+    expect(result.success).toBe(false)
+    expect(result.error).toMatch(/db exploded/)
+    // app is never started because its dependency failed
+    expect(pm.startProcess.mock.calls.map((call) => call[0])).toEqual(['db'])
+  })
+
   test('start-all-projects starts everything without a filter', async () => {
     const pm = makeProcessManager()
     const storage = makeStorageManager([project('db'), project('app', { dependsOn: ['db'] })])

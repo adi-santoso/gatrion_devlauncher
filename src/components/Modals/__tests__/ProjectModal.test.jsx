@@ -38,8 +38,16 @@ const nodeDetection = {
   warnings: [],
 }
 
-const renderModal = () =>
-  render(<ProjectModal isOpen onClose={() => {}} onSave={async () => ({ success: true })} />)
+const renderModal = (overrides = {}) =>
+  render(
+    <ProjectModal isOpen onClose={() => {}} onSave={async () => ({ success: true })} {...overrides} />
+  )
+
+const openAdvancedAfterBrowse = async () => {
+  fireEvent.click(screen.getByRole('button', { name: /browse project folder/i }))
+  await waitFor(() => expect(screen.getByText('Detected as Go')).toBeTruthy())
+  fireEvent.click(screen.getByRole('button', { name: /advanced settings/i }))
+}
 
 describe('ProjectModal folder detection', () => {
   beforeEach(() => {
@@ -92,5 +100,51 @@ describe('ProjectModal folder detection', () => {
     await waitFor(() => {
       expect(screen.getByText('Configured as Node.js')).toBeTruthy()
     })
+  })
+
+  test('a tag typed without Enter is still saved (blur/save commit regression)', async () => {
+    const onSave = vi.fn(async () => ({ success: true }))
+    renderModal({ onSave })
+    await openAdvancedAfterBrowse()
+
+    const input = screen.getByPlaceholderText(/add tag/i)
+    fireEvent.change(input, { target: { value: 'backend' } })
+    // No Enter — click Add Project directly.
+    fireEvent.click(screen.getByRole('button', { name: /add project/i }))
+
+    await waitFor(() => expect(onSave).toHaveBeenCalled())
+    expect(onSave.mock.calls[0][0].tags).toContain('backend')
+  })
+
+  test('Enter commits a tag as a chip and it is saved', async () => {
+    const onSave = vi.fn(async () => ({ success: true }))
+    renderModal({ onSave })
+    await openAdvancedAfterBrowse()
+
+    const input = screen.getByPlaceholderText(/add tag/i)
+    fireEvent.change(input, { target: { value: 'api' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+    expect(screen.getByText('api')).toBeTruthy()
+
+    fireEvent.click(screen.getByRole('button', { name: /add project/i }))
+    await waitFor(() => expect(onSave).toHaveBeenCalled())
+    expect(onSave.mock.calls[0][0].tags).toContain('api')
+  })
+
+  test('existing tags from other projects render as selectable chips', async () => {
+    const onSave = vi.fn(async () => ({ success: true }))
+    const allProjects = [
+      { id: 'p-x', name: 'Existing', type: 'NODEJS', tags: ['backend', 'api'] },
+    ]
+    renderModal({ onSave, allProjects })
+    await openAdvancedAfterBrowse()
+
+    const chip = screen.getByRole('button', { name: 'backend' })
+    expect(chip).toBeTruthy()
+    fireEvent.click(chip)
+    fireEvent.click(screen.getByRole('button', { name: /add project/i }))
+
+    await waitFor(() => expect(onSave).toHaveBeenCalled())
+    expect(onSave.mock.calls[0][0].tags).toContain('backend')
   })
 })
