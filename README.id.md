@@ -2,9 +2,36 @@
 
 > [English](README.md) | **Bahasa Indonesia**
 
-DevLauncher adalah aplikasi desktop untuk mengelola semua project development dari satu jendela. Daftarkan project, mulai dan hentikan process-nya, pantau log-nya, jalankan perintah git, kelola dependency, lalu buka preview aplikasinya — semuanya dari satu UI. Mendukung Laravel, Next.js, React/Vite, Vue, Go, Node.js, dan project lain dengan start command custom.
+**Command center untuk semua project development lokal-mu.**
 
-Status: **masih development — belum siap production**. Lihat [Feature Status](docs/FEATURE_STATUS.md) untuk status tiap fitur dan [Changelog](CHANGELOG.md) untuk riwayat lengkap.
+DevLauncher adalah aplikasi Windows gratis dan open-source yang start, pantau, preview, dan chat dengan semua project dari satu jendela — Laravel, Next.js, Vite, Vue, Go, Node.js, atau command custom apa pun.
+
+![Dashboard DevLauncher](docs/screenshots/dashboard.png)
+
+## Kenapa Gatrion?
+
+Karena workflow development-mu seharusnya tidak seperti chaos theory.
+
+Tiap hari kamu melakukan tarian yang sama: buka lima terminal, jalankan `npm run dev` di masing-masing, mengingat port mana milik service mana, alt-tab antara browser dan editor, lalu berdoa log crash-nya masih ada di scrollback saat ada yang mati. DevLauncher menghilangkan pekerjaan itu — satu jendela untuk seluruh workspace, plus agent AI yang benar-benar bisa bertindak, bukan cuma bicara.
+
+- **Satu jendela, semuanya.** Start, stop, pantau, dan lihat semua project — status, CPU, RAM, port, dan PID sekilas. Tidak perlu lagi berburu di task manager.
+- **Agent yang bisa bertindak.** Chat dengan agent bertenaga omp per project. Ia membaca kode-mu dan — dengan izinmu — mengontrol aplikasinya sendiri lewat lapisan MCP dengan permission matrix (44 tool: start/stop project, git, `.env`, terminal, backup, update). Aksi destruktif selalu menunggu persetujuan eksplisit darimu.
+- **Local-first secara arsitektur.** Project, config, dan log tersimpan di folder user-data lokal. Tanpa cloud, tanpa telemetry, tanpa upload — kode-mu tidak pernah meninggalkan mesinmu.
+- **Ia memperbarui dirinya sendiri.** Auto-update in-app dengan progress bar sungguhan. Tidak ada ritual "download versi baru dari postingan blog".
+
+Unduh rilis terbaru → [GitHub Releases](https://github.com/adi-santoso/gatrion_devlauncher/releases/latest). Gratis, MIT licensed, tanpa paywall, tanpa akun.
+
+## Screenshot
+
+Screenshot asli aplikasi yang sedang berjalan — bukan mockup.
+
+| | |
+|---|---|
+| ![Preview embedded](docs/screenshots/preview.png) | ![Terminal & log](docs/screenshots/terminal.png) |
+| **Preview embedded** — aplikasi yang berjalan dirender langsung di dalam jendela, dengan mini browser bar dan mode fullscreen. | **Terminal & log** — output real-time dengan pencarian, filter tipe, dan auto-scroll. |
+| ![Agent chat](docs/screenshots/agent.png) | |
+
+**Agent AI + kontrol MCP** — agent membaca kode-mu dan memanggil tool DevLauncher (di sini: `devlauncher_get_processes`, `devlauncher_get_git_status`), selalu di bawah aturan izinmu.
 
 ## Fitur
 
@@ -38,6 +65,7 @@ Status: **masih development — belum siap production**. Lihat [Feature Status](
 - **Session** dikelompokkan per project: buat, rename, hapus, pin, cari, export ke Markdown, branch dari pesan mana pun, jalankan bash, dan draft per session.
 - **Cost tracking** — pemakaian token per turn dan per session, dengan estimasi biaya per model.
 - **Installer bawaan** — unduh binary omp (verifikasi SHA256, tanpa admin rights) dan konfigurasi provider dari Settings, atau deteksi otomatis instalasi existing dari PATH.
+- **Agent bisa mengontrol DevLauncher (MCP, opt-in)** — aktifkan toggle di Settings dan agent mendapat 44 tool lewat server HTTP MCP lokal (start/stop project, git, npm, terminal, preview, `.env`, backup, update…). Izin read/write/destructive adalah toggle per kategori; aksi destruktif selalu menanyakan konfirmasi di modal. Mati secara default, localhost-only dengan token per-launch. Lihat [docs/MCP_API.md](docs/MCP_API.md) untuk katalog lengkap tool-nya.
 
 ### Lintas workspace
 - **Command palette** (`Ctrl+K`) — lompat ke project, session agent, file (pencarian file di workspace dengan highlight), dan command bawaan.
@@ -101,6 +129,7 @@ npm run dev:vite
 ## Dokumentasi
 
 - [Setup dan troubleshooting](docs/SETUP.md)
+- [MCP API — 44 tool agent](docs/MCP_API.md)
 - [Arsitektur dan model data](docs/ARCHITECTURE.md)
 - [Kontrak IPC](docs/IPC_API.md)
 - [Status fitur aktual](docs/FEATURE_STATUS.md)

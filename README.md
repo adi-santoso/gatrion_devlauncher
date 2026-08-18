@@ -2,83 +2,98 @@
 
 > **English** | [Bahasa Indonesia](README.id.md)
 
-DevLauncher is a desktop app for keeping all your development projects in one place. Register a project, start and stop it, watch its logs, run git commands, manage dependencies, and open its preview — all from a single window. It works with Laravel, Next.js, React/Vite, Vue, Go, Node.js, and anything with a custom start command.
+**Command center for local dev projects.**
 
-Status: **in development — not production-ready yet**. See [Feature Status](docs/FEATURE_STATUS.md) for per-feature status and the [Changelog](CHANGELOG.md) for the full history.
+DevLauncher is a free, open-source Windows app that starts, monitors, previews, and chats with every local project from a single window — Laravel, Next.js, Vite, Vue, Go, Node.js, or any custom command.
 
-## Features
+![DevLauncher dashboard](docs/screenshots/dashboard.png)
+
+## Why Gatrion?
+
+Because your dev workflow shouldn't look like chaos theory.
+
+Every day you juggle the same dance: open five terminals, run `npm run dev` in each, remember which port belongs to which service, alt-tab between the browser and the editor, and pray the crash logs are still in scrollback when something dies. DevLauncher removes the juggling — one window for the whole workspace, plus an AI agent that can actually do things, not just talk.
+
+- **One window, everything.** Start, stop, monitor, and see every project — status, CPU, RAM, port, and PID at a glance. No more hunting through task managers.
+- **An agent that can act.** Chat with an omp-powered agent per project. It reads your code and, with your permission, controls the app itself through a permission-gated MCP layer (44 tools: start/stop projects, git, .env, terminal, backup, update). Destructive actions always wait for your explicit approval.
+- **Local-first by architecture.** Projects, configs, and logs live in your user-data folder. No cloud, no telemetry, no upload — your code never leaves your machine.
+- **It updates itself.** In-app auto-update with a real progress bar. No "download the new version from a blog post" ritual.
+
+Download the latest release → [GitHub Releases](https://github.com/adi-santoso/gatrion_devlauncher/releases/latest). Free, MIT licensed, no paywall, no account.
+
+## Screenshots
+
+Real screenshots of the app in action — no mockups.
+
+| | |
+|---|---|
+| ![Embedded preview](docs/screenshots/preview.png) | ![Terminal & logs](docs/screenshots/terminal.png) |
+| **Embedded preview** — the running app rendered right inside the window, with a mini browser bar and fullscreen mode. | **Terminal & logs** — real-time output with search, type filters, and auto-scroll. |
+| ![Agent chat](docs/screenshots/agent.png) | |
+
+**AI agent + MCP control** — the agent reads your code and calls DevLauncher tools (here: `devlauncher_get_processes`, `devlauncher_get_git_status`), always under your permission rules.
+
+## What you get
 
 ### Project management
-- **Register any folder as a project** — the framework is auto-detected (Laravel, Next.js, React/Vite, Vue, Go, Node.js, or Custom) along with its start command and port. Every project can define its own start commands, environment variables, and tags.
-- **Full CRUD** — edit, duplicate, or delete projects; drag & drop a folder onto the window to auto-fill the form. Export/import projects as portable JSON (import merges without overwriting duplicates).
-- **Workspace presets** — save a group of projects as a preset and start/stop the whole stack with one click, with staggered start delays and per-project progress.
+- **Register any folder as a project** — framework auto-detected (Laravel, Next.js, React/Vite, Vue, Go, Node.js, or Custom) with start command and port. Per-project start commands, env vars, and tags.
+- **Full CRUD** — edit, duplicate, delete; drag & drop a folder onto the window to auto-fill the form. Export/import projects as portable JSON (import merges, never overwrites).
+- **Workspace presets** — save a group of projects as a preset and start/stop the whole stack with one click, with staggered delays and per-project progress.
 
 ### Process control
-- **Start / stop / restart** individual projects or all at once (`Start All` / `Stop All`), with visible status transitions (Starting → Running → Stopping → Stopped) and PID tracking.
-- **Auto-restart** crashed projects with exponential backoff and configurable retries/delay; a smart restart waits for the old port to free up first.
-- **Dependency ordering** — projects can declare `dependsOn`, and Start All respects the topological order; port conflicts are detected before starting.
-- **Monitoring** — CPU/RAM sampled every 4 seconds with a 30-point history and sparklines on the dashboard; crashes are detected on non-zero exit.
-- **Notifications** — native Windows notifications with action buttons (Restart on crash, Restart & install when an update is ready).
+- **Start / stop / restart** individual projects or all at once, with visible status transitions (Starting → Running → Stopping → Stopped) and PID tracking.
+- **Auto-restart** crashed projects with exponential backoff; a smart restart waits for the old port to free up first.
+- **Dependency ordering** — `dependsOn` is respected by Start All *and* by the single-project Start button (dependencies auto-start first, topologically).
+- **Monitoring** — CPU/RAM sampled every 4 seconds with sparklines on the dashboard; crashes detected on non-zero exit.
+- **Notifications** — native Windows notifications with action buttons (Restart on crash, Restart & install on update).
 
-### Logs & terminal
-- **Live logs** — stdout/stderr stream in real time per project, with search, highlight, and type filters (stdout/stderr/error/warn/system). Very long logs are virtualized so thousands of lines scroll smoothly.
-- **Interactive terminal** — open a real PTY shell per project directly inside the app.
-- **Main log** — the main-process log is rotated automatically and can be tailed from Settings.
+### Logs, terminal & preview
+- **Live logs** — stdout/stderr stream in real time with search, highlight, and type filters; thousands of lines scroll smoothly via virtualization.
+- **Interactive terminal** — a real PTY shell per project inside the app.
+- **Embedded preview** — the running app in a native view with persistent per-project sessions, plus fullscreen and DevTools.
 
-### Project Detail
-- **Git tab** — status, stage/unstage, commit, log, diff, checkout branch, pull/push, stash, discard changes, and blame.
-- **Dependencies tab** — `npm outdated` in a table (current/wanted/latest), update one package or all at once with automatic backup of `package.json` and the lockfile.
-- **Environment tab** — view/edit `.env` files with quick profile switching (base/dev/staging/production) and masked secrets (KEY/TOKEN/SECRET/PASSWORD).
-- **Analytics tab** — crash history, run history with uptime, total runs/uptime, daily CPU/memory trends.
+### Project detail
+- **Git** — status, stage/unstage, commit, log, diff, branch checkout, pull/push, stash, discard, blame.
+- **Dependencies** — `npm outdated` table, update one package or all at once with automatic backup.
+- **Environment** — view/edit `.env` files with profile switching and masked secrets.
+- **Analytics** — crash history, run history with uptime, daily CPU/memory trends.
 - **Script runner** — run any `package.json` script with a health check.
-- **App preview** — the running app opens in an embedded native view (WebContentsView) with persistent per-project sessions (cookies/storage survive), plus a focus mode with DevTools.
 
-### AI coding agent (oh-my-pi)
-- **Streaming chat per project** over omp's RPC protocol — text, thinking, and tool cards stream in real time.
-- **Sessions** grouped per project: create, rename, delete, pin, search, export to Markdown, branch from any message, run bash commands, and per-session drafts.
-- **Cost tracking** — token usage per turn and per session, with cost estimation per model.
-- **Built-in installer** — downloads the omp binary (SHA256-verified, no admin rights) and lets you configure providers from Settings, or picks up an existing install from PATH.
-- **Agent can control DevLauncher (MCP, opt-in)** — flip "Agent can control DevLauncher" in Settings and the agent gains 37 tools over a local HTTP MCP server (start/stop projects, git, npm, terminal, preview, .env, backup, update…), shown as tool cards in the chat. Read/write/destructive permissions are per-category toggles; destructive actions always ask for your approval in a modal. Off by default, localhost-only with a per-launch token. See [docs/ROADMAP_AGENT_MCP.md](docs/ROADMAP_AGENT_MCP.md).
+### AI agent (oh-my-pi)
+- **Streaming chat per project** over omp's RPC — text, thinking, and tool cards in chronological order.
+- **Sessions** per project: create, rename, delete, pin, search, export to Markdown, branch from any message, bash commands, drafts.
+- **Cost tracking** — token usage and estimated cost per turn and session.
+- **Built-in installer** — downloads the omp binary (SHA256-verified, no admin) or picks up an existing install.
+- **Agent can control DevLauncher (MCP, opt-in)** — flip the toggle in Settings and the agent gains 44 tools over a local HTTP MCP server (start/stop projects, git, npm, terminal, preview, .env, backup, update…). Read/write/destructive permissions are per-category toggles; destructive actions always ask in a modal. Off by default, localhost-only with a per-launch token. See [docs/MCP_API.md](docs/MCP_API.md) for the full tool catalog.
 
 ### Workspace-wide
-- **Command palette** (`Ctrl+K`) — jump to projects, agent sessions, files (workspace file search with highlighting), and built-in commands.
-- **Dashboard** — live status overview, workspace presets, group-by-tag, live activity feed, and recent logs.
-- **Prayer-time widget** — sidebar/topbar widget computed offline (PrayTimes, Kemenag RI + 5 methods), city geocoding, countdown, notifications and sound.
-- **Global shortcut** — `Ctrl+Shift+Space` (Cmd on macOS) summons the window from any application.
+- **Command palette** (`Ctrl+K`) — jump to projects, agent sessions, files, and commands.
+- **Dashboard** — live status, presets, group-by-tag, activity feed, recent logs.
+- **Global shortcut** — `Ctrl+Shift+Space` summons the window from anywhere.
 
 ### Settings & data
-- **Tabbed settings** — General, Terminal, Data & Backup, Diagnostics, AI Agent, and Prayer; changes save automatically.
-- **Theme & language** — dark/light/system theme (follows the OS live) and an instant EN/ID interface switch.
-- **Workspace backup** — export everything (projects incl. `.env` secrets, config, presets, health) into a single file, optionally encrypted with AES-256-GCM; import merges without overwriting.
-- **Diagnostics** — local crash dumps with a viewer, main-log tail, and a system environment check for 17 tools (node, npm, git, php, composer, python, go, java, docker, mysql, redis, omp, …).
-- **Updates** — checks GitHub for new releases, downloads and installs in-app.
+- **Tabbed settings** — General, Terminal, Data & Backup, Diagnostics, AI Agent, Prayer; saved automatically.
+- **Theme & language** — dark/light/system + instant EN/ID switch.
+- **Backup** — export everything (projects incl. `.env`, config, presets) to one file, optionally AES-256-GCM encrypted; import merges safely.
+- **Diagnostics** — crash dumps, main-log tail, environment check for 17 tools.
+- **Updates** — check, download, and install in-app.
 - **Desktop integration** — minimize to tray, start on boot, auto-start projects on launch.
-
-## Tech Stack
-
-- Electron 43 — main process bundled with [electron-vite](https://electron-vite.org) 5
-- React 19
-- Vite 7 (renderer)
-- TypeScript 5.9 — **strict, 100% of app code** (renderer `.tsx` + main process `.ts`)
-- Tailwind CSS 4
-- electron-builder 26
 
 ## Quick Start
 
-Requirements: Windows, Node.js ≥ 20, npm, plus whatever runtimes your projects need (PHP, Go, Node.js, …). Tested with Node.js v23.9.0 and npm 10.9.2.
+Requirements: Windows 10/11, Node.js ≥ 20, plus whatever runtimes your projects need.
 
 ```powershell
+git clone https://github.com/adi-santoso/gatrion_devlauncher
+cd gatrion_devlauncher
+nvm use        # reads .nvmrc (Node 23.9.0)
 npm install
 npm run dev
 ```
 
-`npm run dev` starts Vite and Electron together. Closing Electron also stops Vite (handled by `concurrently`).
+`npm run dev` starts Vite + Electron together; closing Electron stops Vite too. To run the renderer in a plain browser with mock data: `npm run dev:vite`.
 
-To run the UI in a plain browser without Electron APIs:
-
-```powershell
-npm run dev:vite
-```
+**Using the app:** add a project folder → framework is detected → Start → watch the terminal → open the embedded preview → ask the agent for help when something breaks.
 
 ## Commands
 
@@ -86,45 +101,31 @@ npm run dev:vite
 |---|---|
 | `npm run dev` | Start Vite + Electron (development) |
 | `npm run dev:vite` | Renderer only, in a browser with mock data |
-| `npm run dev:electron` | Electron only (Vite must already be running on port 5173) |
-| `npm test` / `npm run test:unit` | All Vitest unit + integration tests |
-| `npm run test:watch` | Vitest watch mode |
-| `npm run test:coverage` | Vitest with coverage report |
+| `npm test` | All Vitest unit + integration tests |
 | `npm run test:e2e` | Playwright end-to-end tests (Electron) |
 | `npm run lint` / `npm run lint:fix` | ESLint |
-| `npm run typecheck` | TypeScript strict typecheck (renderer + main process, 0 errors) |
-| `npm run changelog` / `npm run changelog:apply` | Generate CHANGELOG.md from conventional commits (dry-run / apply) |
-| `npm run icons` | Generate app icons into `build/` |
-| `npm run preview` | Preview the renderer build |
+| `npm run typecheck` | TypeScript strict typecheck (renderer + main) |
 | `npm run build` | Build renderer, then package NSIS + portable |
-| `npm run build:win` | Build Windows x64 |
+| `npm run icons` | Regenerate app icons into `build/` |
+| `npm run changelog` | Generate CHANGELOG.md from conventional commits |
+
+## Tech Stack
+
+- Electron 43 (electron-vite 5)
+- React 19, Vite 7, TypeScript 5.9 — **strict, 100% of app code**
+- Tailwind CSS 4, xterm.js, node-pty
+- electron-builder 26 (NSIS + portable)
 
 ## Documentation
 
 - [Setup & troubleshooting](docs/SETUP.md)
+- [MCP API — 44 agent tools](docs/MCP_API.md)
 - [Architecture & data model](docs/ARCHITECTURE.md)
 - [IPC contract](docs/IPC_API.md)
 - [Feature status](docs/FEATURE_STATUS.md)
-- [Roadmap to release](docs/ROADMAP.md)
-- [TypeScript migration roadmap (completed)](docs/ROADMAP_TS.md)
+- [Roadmap & status](docs/ROADMAP.md)
 - [Keyboard shortcuts](docs/KEYBOARD_SHORTCUTS.md)
-- [Testing guide](docs/TESTING_GUIDE.md)
 - [Changelog](CHANGELOG.md)
-
-The detailed docs are written in Bahasa Indonesia.
-
-## Project Layout
-
-```
-electron/       Electron main process, IPC handlers, managers
-src/            React renderer: hooks, components, styles, i18n
-tests/          Vitest mocks + setup
-e2e/            Playwright end-to-end tests
-scripts/        Utility scripts (icons, changelog generator)
-.github/        CI workflow (lint, test, build, e2e on Windows/macOS/Linux)
-dist-react/     Vite output (generated)
-dist/           electron-builder output (generated)
-```
 
 ## Where Data Lives
 
@@ -134,32 +135,17 @@ Nothing is stored in the repository. Electron uses `app.getPath('userData')`:
 <userData>/projects.json
 <userData>/config.json
 <userData>/presets.json
-<userData>/activities.json
-<userData>/health.json
 <userData>/agent-sessions.json
 <userData>/crashDumps/            (local minidumps)
-<userData>/backups/projects-<timestamp>.json
 <userData>/omp/omp.exe            (managed omp binary)
 ```
 
-`StorageManager` prints the exact location on startup.
-
-## AI Agent (oh-my-pi)
-
-The **Agent** menu in the sidebar runs the [oh-my-pi (omp)](https://omp.sh) coding agent inside each project:
-
-- Sessions are grouped per project; text, thinking, and tool cards stream in real time over omp's RPC protocol.
-- Create/rename/delete/pin/search sessions, export to Markdown, branch from any message, run bash commands, per-session drafts, and a notification when a turn finishes.
-- Token usage and cost per turn are tracked and shown in the session list and composer.
-- Install the omp binary from **Settings → AI Agent** (no admin rights, SHA256-verified) or let it pick up an existing install from PATH. Providers are configured via `omp setup` or the custom-provider form.
-
 ## Important Notes
 
-- Start commands run through your local shell. Only add projects and commands you trust.
-- App icons are generated into `build/` with `npm run icons` (`scripts/generate-icons.js`); `build/` is gitignored, so run the script before packaging.
-- The preview uses a native WebContentsView (persistent per-project sessions) and falls back to an iframe when native views aren't available.
-- Windows x64 is the primary target. macOS and Linux run in CI (3-OS matrix) and platform-specific paths are handled, but the packaged apps are not yet validated on real machines.
-- A global shortcut (`Ctrl+Shift+Space` on Windows/Linux, `Cmd+Shift+Space` on macOS) summons the window from anywhere.
+- Start commands run through your local shell — only add projects and commands you trust.
+- Windows x64 is the primary target; macOS and Linux build in CI but aren't validated on real hardware yet.
+- The preview uses a native WebContentsView with a sandboxed iframe fallback.
+- App icons regenerate with `npm run icons` into `build/` (gitignored — run before packaging).
 
 ## License
 

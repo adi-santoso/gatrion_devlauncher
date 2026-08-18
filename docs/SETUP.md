@@ -7,13 +7,13 @@
 - Git untuk development
 - Runtime yang dibutuhkan project terdaftar, misalnya Node.js/npm, PHP/Composer, atau Go
 
-Repository mendeklarasikan `engines: { node: ">=20.0.0" }`. Versi kanonik ada di **`.nvmrc`**: `20.19.0` (Node 20 LTS terakhir, bundel npm 10.8.2) — sama dengan yang terpasang di mesin dev dan yang dipakai CI (`ci.yml` & `release.yml`).
+Repository mendeklarasikan `engines: { node: ">=20.0.0" }`. Versi kanonik ada di **`.nvmrc`**: `23.9.0` (versi nvm tertinggi yang terpasang di mesin dev, bundel npm 10.9.2) — sama dengan yang dipakai CI (`ci.yml` & `release.yml`).
 
 ```powershell
 # pakai versi kanonik
 nvm use
-node -v   # v20.19.0
-npm -v    # 10.8.2
+node -v   # v23.9.0
+npm -v    # 10.9.2
 ```
 
 ## Instalasi
