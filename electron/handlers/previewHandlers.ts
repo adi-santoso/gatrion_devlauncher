@@ -25,6 +25,7 @@ function setupPreviewHandlers(previewManager: PreviewManager) {
   handle('preview-zoom', (_event, projectId: string, zoomLevel: number) => previewManager.setZoom(projectId, zoomLevel))
   handle('preview-toggle-devtools', (_event, projectId: string) => previewManager.toggleDevTools(projectId))
   handle('preview-clear-data', (_event, projectId: string) => previewManager.clearSiteData(projectId))
+  handle('preview-nudge', (_event, projectId: string) => previewManager.nudge(projectId))
   handle('preview-destroy', (_event, projectId: string) => previewManager.destroy(projectId))
 }
 

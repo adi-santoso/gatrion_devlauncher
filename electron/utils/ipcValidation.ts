@@ -70,6 +70,7 @@ const CHANNEL_RULES: Record<string, ArgRule[]> = {
   ],
   'preview-toggle-devtools': [['projectId', 'string', { minLength: 1 }]],
   'preview-clear-data': [['projectId', 'string', { minLength: 1 }]],
+  'preview-nudge': [['projectId', 'string', { minLength: 1 }]],
   'preview-destroy': [['projectId', 'string', { minLength: 1 }]],
 
   // --- process lifecycle -----------------------------------------------

@@ -42,6 +42,7 @@ class PreviewManager {
   onConsoleMessage: ((info: ConsoleInfo) => void) | null
   /** Recent console messages per project (MCP preview_read_console). */
   private consoleBuffer = new Map<string, ConsoleInfo[]>()
+  private pendingNudges = new WeakSet<WebContentsViewType>()
 
   constructor() {
     this.win = null
@@ -246,6 +247,54 @@ class PreviewManager {
       }
       return { success: true }
     } catch (error) {
+      return { success: false, error: (error as Error).message }
+    }
+  }
+
+  /**
+   * Force the view to repaint without changing its layout.
+   *
+   * Windows compositor quirk: after the window loses and regains focus (or is
+   * restored), a WebContentsView can keep showing its last painted frame — the
+   * classic "black/frozen preview". `invalidate()` alone is not always enough,
+   * so shrink the view by 1px and restore it on the next tick: the resize makes
+   * the compositor hand out a fresh surface. Net bounds are unchanged.
+   */
+  nudge(projectId: string) {
+    const view = this.getView(projectId)
+    if (!view) return { success: false, error: 'Preview not created yet' }
+    try {
+      view.webContents.invalidate?.()
+      // Coalesce repeated focus events while the current repaint cycle is
+      // pending; shrinking again would make the second restore target 1px off.
+      if (this.pendingNudges.has(view)) return { success: true }
+      const bounds = view.getBounds?.()
+      // No bounds yet (never shown) — invalidate is all we can do.
+      if (!bounds || !Number.isFinite(bounds.width)) return { success: true }
+      // Keep the temporary width >= 1: setBounds with 0/negative width is
+      // rejected by Chromium and would leave the view mis-sized.
+      const shrunk = Math.max(1, bounds.width - 1)
+      if (shrunk === bounds.width) return { success: true }
+      const temporaryBounds = { ...bounds, width: shrunk }
+      view.setBounds(temporaryBounds)
+      this.pendingNudges.add(view)
+      setImmediate(() => {
+        try {
+          const current = view.getBounds?.()
+          // A resize or a newer nudge may have updated the view while this
+          // restore was queued. Do not overwrite those newer bounds.
+          if (!current || current.x !== temporaryBounds.x || current.y !== temporaryBounds.y
+            || current.width !== temporaryBounds.width || current.height !== temporaryBounds.height) return
+          view.setBounds(bounds)
+        } catch (error) {
+          console.error('[Preview] Error restoring bounds after nudge:', error)
+        } finally {
+          this.pendingNudges.delete(view)
+        }
+      })
+      return { success: true }
+    } catch (error) {
+      console.error('[Preview] Error nudging view:', error)
       return { success: false, error: (error as Error).message }
     }
   }

@@ -104,7 +104,7 @@ class TrayManager {
       if (runningProjects.length > 0) {
         runningProjects.forEach((p) => {
           menuTemplate.push({
-            label: `  ⚡ ${p.name}`,
+            label: `${p.name}`,
             click: () => {
               if (this.mainWindow && !this.mainWindow.isDestroyed()) {
                 this.mainWindow.show();
@@ -124,7 +124,7 @@ class TrayManager {
       menuTemplate.push(
         { type: 'separator' },
         {
-          label: '▶ Start All Projects',
+          label: 'Start All Projects',
           click: async () => {
             for (const p of projects) {
               if (p.path && p.startCommand) {
@@ -160,7 +160,7 @@ class TrayManager {
           }
         },
         {
-          label: '⏹ Stop All Projects',
+          label: 'Stop All Projects',
           click: async () => {
             await this.processManager.stopAllProcesses();
             this.updateContextMenu();

@@ -53,6 +53,11 @@ export const previewClearData = async (projectId: string): Promise<SimpleResult>
   return invoke<SimpleResult>('previewClearData', projectId)
 }
 
+export const previewNudge = async (projectId: string): Promise<SimpleResult> => {
+  if (!isElectron()) return { success: true }
+  return invoke<SimpleResult>('previewNudge', projectId)
+}
+
 export const previewDestroy = async (projectId: string): Promise<SimpleResult> => {
   if (!isElectron()) return { success: true }
   return invoke<SimpleResult>('previewDestroy', projectId)

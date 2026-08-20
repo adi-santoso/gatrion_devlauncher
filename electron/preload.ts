@@ -121,6 +121,7 @@ interface ElectronApi {
   previewZoom: (projectId: string, zoomLevel: number) => Promise<unknown>
   previewClearData: (projectId: string) => Promise<unknown>
   previewToggleDevTools: (projectId: string) => Promise<unknown>
+  previewNudge: (projectId: string) => Promise<unknown>
   previewDestroy: (projectId: string) => Promise<unknown>
   onPreviewConsole: (callback: (data: unknown) => void) => Unsub
 
@@ -364,6 +365,7 @@ const api: ElectronApi = {
   previewZoom: (projectId, zoomLevel) => ipcRenderer.invoke('preview-zoom', projectId, zoomLevel),
   previewClearData: (projectId) => ipcRenderer.invoke('preview-clear-data', projectId),
   previewToggleDevTools: (projectId) => ipcRenderer.invoke('preview-toggle-devtools', projectId),
+  previewNudge: (projectId) => ipcRenderer.invoke('preview-nudge', projectId),
   previewDestroy: (projectId) => ipcRenderer.invoke('preview-destroy', projectId),
   onPreviewConsole: (callback) => {
     const listener = (_event: IpcRendererEvent, data: unknown) => callback(data)

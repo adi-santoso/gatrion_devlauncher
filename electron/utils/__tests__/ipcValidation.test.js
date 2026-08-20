@@ -119,6 +119,12 @@ describe('assertPayload', () => {
     expect(() => assertPayload('preview-show', [undefined])).not.toThrow()
   })
 
+  test('preview-nudge requires a non-empty project id', () => {
+    expect(() => assertPayload('preview-nudge', ['p1'])).not.toThrow()
+    expect(() => assertPayload('preview-nudge', [''])).toThrow(/required/)
+    expect(() => assertPayload('preview-nudge', [42])).toThrow(/must be a string/)
+  })
+
   test('check-port-conflict requires an integer in range', () => {
     expect(() => assertPayload('check-port-conflict', [3000])).not.toThrow()
     expect(() => assertPayload('check-port-conflict', ['3000'])).toThrow(/must be an integer/)

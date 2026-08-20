@@ -17,6 +17,7 @@ function makePreviewManager() {
     setZoom: vi.fn(async () => ({ success: true })),
     toggleDevTools: vi.fn(async () => ({ success: true })),
     clearSiteData: vi.fn(async () => ({ success: true })),
+    nudge: vi.fn(async () => ({ success: true })),
     destroy: vi.fn(async () => ({ success: true })),
   }
 }
@@ -65,7 +66,23 @@ describe('previewHandlers', () => {
     await ipcMain._handlers.get('preview-clear-data')(fakeEvent, 'p1')
     expect(pm.clearSiteData).toHaveBeenCalledWith('p1')
 
+    await ipcMain._handlers.get('preview-nudge')(fakeEvent, 'p1')
+    expect(pm.nudge).toHaveBeenCalledWith('p1')
+
     await ipcMain._handlers.get('preview-destroy')(fakeEvent, 'p1')
     expect(pm.destroy).toHaveBeenCalledWith('p1')
+  })
+
+  test('preview-nudge rejects an empty project id at the validation layer', async () => {
+    const pm = makePreviewManager()
+    setupPreviewHandlers(pm)
+    const nudge = ipcMain._handlers.get('preview-nudge')
+
+    // safeHandle turns a validation failure into an error envelope instead of
+    // letting it reject across the IPC boundary.
+    const result = await nudge(fakeEvent, '')
+    expect(result.success).toBe(false)
+    expect(result.error).toMatch(/projectId is required/)
+    expect(pm.nudge).not.toHaveBeenCalled()
   })
 })

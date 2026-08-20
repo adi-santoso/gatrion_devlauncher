@@ -70,6 +70,9 @@ class FakeWebContentsView {
     this.options = options
     this.visible = false
     this.bounds = null
+    // Every setBounds call in order — lets tests assert transient resizes
+    // (e.g. PreviewManager.nudge shrinks by 1px then restores).
+    this.boundsHistory = []
     this.loadedUrls = []
     this.devtoolsOpen = false
     this.consoleHandlers = {}
@@ -90,7 +93,7 @@ class FakeWebContentsView {
     }
   }
   setVisible(v) { this.visible = v }
-  setBounds(b) { this.bounds = b }
+  setBounds(b) { this.bounds = b; this.boundsHistory.push(b) }
   getBounds() { return this.bounds }
   emitConsole(level, message, sourceId, line) {
     this.consoleHandlers['console-message']?.({}, level, message, line, sourceId)

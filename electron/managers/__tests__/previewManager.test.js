@@ -186,3 +186,116 @@ describe('PreviewManager', () => {
     expect(manager.reload('ghost').success).toBe(false)
   })
 })
+
+describe('PreviewManager.nudge', () => {
+  // Windows: after the window regains focus a WebContentsView can keep its last
+  // painted frame. nudge() invalidates and briefly resizes by 1px so the
+  // compositor hands out a fresh surface, then restores the original bounds.
+  const flushImmediate = () => new Promise((resolve) => setImmediate(resolve))
+
+  test('invalidates, shrinks by 1px, then restores the original bounds', async () => {
+    const manager = new PreviewManager()
+    manager.setWindow(makeWindow())
+    manager.show({ projectId: 'p1', url: 'http://localhost:3000', bounds })
+    const view = manager.getView('p1')
+    const invalidateBefore = view.invalidateCount
+    view.boundsHistory.length = 0
+
+    expect(manager.nudge('p1').success).toBe(true)
+    expect(view.invalidateCount).toBe(invalidateBefore + 1)
+    // Synchronously the view is 1px narrower...
+    expect(view.bounds).toEqual({ ...bounds, width: bounds.width - 1 })
+
+    await flushImmediate()
+    // ...and back to its real size on the next tick, so layout is unchanged.
+    expect(view.bounds).toEqual(bounds)
+    expect(view.boundsHistory).toEqual([
+      { ...bounds, width: bounds.width - 1 },
+      bounds,
+    ])
+  })
+
+  test('does not resize a 1px-wide view (0 width would be rejected)', async () => {
+    const manager = new PreviewManager()
+    manager.setWindow(makeWindow())
+    manager.show({ projectId: 'p1', url: 'http://localhost:3000', bounds })
+    manager.setBounds('p1', { x: 0, y: 0, width: 1, height: 40 })
+    const view = manager.getView('p1')
+    view.boundsHistory.length = 0
+
+    expect(manager.nudge('p1').success).toBe(true)
+    await flushImmediate()
+    expect(view.boundsHistory).toEqual([])
+    expect(view.bounds).toEqual({ x: 0, y: 0, width: 1, height: 40 })
+  })
+
+  test('does not overwrite bounds updated while the restore is queued', async () => {
+    const manager = new PreviewManager()
+    manager.setWindow(makeWindow())
+    manager.show({ projectId: 'p1', url: 'http://localhost:3000', bounds })
+    const view = manager.getView('p1')
+    view.boundsHistory.length = 0
+
+    expect(manager.nudge('p1').success).toBe(true)
+    const updated = { ...bounds, width: bounds.width + 200 }
+    manager.setBounds('p1', updated)
+
+    await flushImmediate()
+    expect(view.bounds).toEqual(updated)
+    expect(view.boundsHistory).toEqual([
+      { ...bounds, width: bounds.width - 1 },
+      updated,
+    ])
+  })
+
+  test('coalesces consecutive nudges into one complete restore cycle', async () => {
+    const manager = new PreviewManager()
+    manager.setWindow(makeWindow())
+    manager.show({ projectId: 'p1', url: 'http://localhost:3000', bounds })
+    const view = manager.getView('p1')
+    view.boundsHistory.length = 0
+
+    expect(manager.nudge('p1').success).toBe(true)
+    expect(manager.nudge('p1').success).toBe(true)
+
+    await flushImmediate()
+    expect(view.bounds).toEqual(bounds)
+    expect(view.boundsHistory).toEqual([
+      { ...bounds, width: bounds.width - 1 },
+      bounds,
+    ])
+  })
+
+  test('succeeds on a view that was never given bounds', async () => {
+    const manager = new PreviewManager()
+    manager.setWindow(makeWindow())
+    // ensureView without show(): no bounds have been assigned yet.
+    manager.ensureView('p1')
+    const view = manager.getView('p1')
+    expect(view.getBounds()).toBeNull()
+
+    expect(manager.nudge('p1').success).toBe(true)
+    await flushImmediate()
+    expect(view.invalidateCount).toBe(1)
+    expect(view.boundsHistory).toEqual([])
+  })
+
+  test('errors for an unknown project instead of throwing', () => {
+    const manager = new PreviewManager()
+    manager.setWindow(makeWindow())
+    expect(manager.nudge('ghost')).toEqual({
+      success: false,
+      error: 'Preview not created yet',
+    })
+  })
+
+  test('reports a failing setBounds as an error result', () => {
+    const manager = new PreviewManager()
+    manager.setWindow(makeWindow())
+    manager.show({ projectId: 'p1', url: 'http://localhost:3000', bounds })
+    const view = manager.getView('p1')
+    view.setBounds = () => { throw new Error('view detached') }
+
+    expect(manager.nudge('p1')).toEqual({ success: false, error: 'view detached' })
+  })
+})

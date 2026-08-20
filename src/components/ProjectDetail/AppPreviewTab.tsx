@@ -104,15 +104,26 @@ export default function AppPreviewTab({
     };
     settle();
 
+    // Regaining window focus can leave the native view stale on Windows (the
+    // compositor keeps the last painted frame). Re-assert bounds, then nudge
+    // the view to force a repaint.
+    const onWindowFocus = (): void => {
+      if (!active) return;
+      sendBounds();
+      ipc.previewNudge(projectId);
+    };
+
     const ro = new ResizeObserver(sendBounds);
     ro.observe(containerRef.current);
     window.addEventListener('resize', sendBounds);
     window.addEventListener('scroll', sendBounds, true);
+    window.addEventListener('focus', onWindowFocus);
 
     return () => {
       ro.disconnect();
       window.removeEventListener('resize', sendBounds);
       window.removeEventListener('scroll', sendBounds, true);
+      window.removeEventListener('focus', onWindowFocus);
       // If we never owned the native view (project stopped, or this renderer
       // can't drive it), there is nothing to clean up for this project.
       if (!nativeAvailable()) return;
