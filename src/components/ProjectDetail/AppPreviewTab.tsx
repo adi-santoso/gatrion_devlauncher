@@ -47,6 +47,7 @@ export default function AppPreviewTab({
   const [nativeMode] = useState(() => nativeAvailable() && Boolean((project as ViewProject)?.port));
   const [nativeFailed, setNativeFailed] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+  const wasInactiveRef = useRef(false);
   const status = ((project as ViewProject)?.status || 'stopped').toLowerCase();
   const isRunning = status === 'running';
   const appUrl = Number.isInteger((project as ViewProject)?.port) ? `http://localhost:${(project as ViewProject).port}` : null;
@@ -58,6 +59,7 @@ export default function AppPreviewTab({
   // renderer owns layout; main positions the WebContentsView at these bounds.
   useEffect(() => {
     if (!useNative || !containerRef.current) return undefined;
+    let disposed = false;
 
     const sendBounds = (): void => {
       const el = containerRef.current;
@@ -88,13 +90,30 @@ export default function AppPreviewTab({
         url: appUrl as string,
         bounds: { x: rect.left, y: rect.top, width: rect.width, height: rect.height },
       });
+      if (disposed) return;
       if (!result?.success) {
         setNativeFailed(true);
+        return;
       }
+      // Returning from another top-level view does not necessarily fire a
+      // window focus event. Wait for the hidden wrapper's layout to be
+      // committed, then explicitly repaint the native view.
+      if (wasInactiveRef.current) {
+        requestAnimationFrame(() => requestAnimationFrame(() => {
+          if (!disposed && active) {
+            sendBounds();
+            void ipc.previewNudge(projectId);
+          }
+        }));
+      }
+      wasInactiveRef.current = false;
     };
 
-    if (useNative && active) show();
-    else ipc.previewHide(projectId);
+    if (useNative && active) void show();
+    else {
+      wasInactiveRef.current = true;
+      void ipc.previewHide(projectId);
+    }
 
     // Re-assert bounds after the layout settles (e.g. the top bar hides one
     // frame after the fullscreen toggle), so the native view lands exactly on
@@ -120,6 +139,7 @@ export default function AppPreviewTab({
     window.addEventListener('focus', onWindowFocus);
 
     return () => {
+      disposed = true;
       ro.disconnect();
       window.removeEventListener('resize', sendBounds);
       window.removeEventListener('scroll', sendBounds, true);

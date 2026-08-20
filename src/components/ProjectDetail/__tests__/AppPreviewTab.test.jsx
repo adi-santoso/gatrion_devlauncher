@@ -1,5 +1,5 @@
 import React from 'react'
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 // AppPreviewTab drives the native WebContentsView through the IPC layer; stub
@@ -84,6 +84,14 @@ describe('AppPreviewTab native view focus handling', () => {
 
     fireEvent.focus(window)
     expect(ipc.previewNudge).not.toHaveBeenCalled()
+  })
+
+  it('repaints after returning from an inactive keep-alive view', async () => {
+    const { rerender } = render(<AppPreviewTab project={project} active={false} />)
+
+    rerender(<AppPreviewTab project={project} active />)
+
+    await waitFor(() => expect(ipc.previewNudge).toHaveBeenCalledWith('p1'))
   })
 
   it('does not touch the native view for a stopped project (iframe fallback)', () => {

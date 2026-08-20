@@ -76,6 +76,7 @@ export default function AppProjectDetail({
         project={liveProject}
         projects={projects}
         keepPreviewAlive={keepAlive}
+        visible={currentView === 'project-detail'}
         logs={getLogs(liveProject.id)}
         onBack={onBack}
         onStart={() => onStart(liveProject)}

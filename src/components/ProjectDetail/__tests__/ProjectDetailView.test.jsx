@@ -4,8 +4,8 @@ import { describe, expect, it, vi } from 'vitest'
 import ProjectDetailView from '../ProjectDetailView'
 
 vi.mock('../AppPreviewTab', () => ({
-  default: ({ project, onToggleFullscreen }) => (
-    <div data-testid={`preview-${project?.id}`}>
+  default: ({ project, onToggleFullscreen, active }) => (
+    <div data-testid={`preview-${project?.id}`} data-active={String(active)}>
       <span>Preview {project?.name}</span>
       <button type="button" onClick={onToggleFullscreen}>toggle-fullscreen</button>
     </div>
@@ -41,6 +41,16 @@ describe('ProjectDetailView preview mounting', () => {
     fireEvent.click(screen.getByRole('tab', { name: 'Terminal' }))
     rerender(<ProjectDetailView project={projectA} keepPreviewAlive projects={[projectA]} />)
     expect(screen.getByTestId('preview-a')).toBeInTheDocument()
+  })
+
+  it('deactivates the preview while the project detail view is hidden', () => {
+    const { rerender } = render(
+      <ProjectDetailView project={projectA} keepPreviewAlive visible={false} projects={[projectA]} />
+    )
+    expect(screen.getByTestId('preview-a')).toHaveAttribute('data-active', 'false')
+
+    rerender(<ProjectDetailView project={projectA} keepPreviewAlive visible projects={[projectA]} />)
+    expect(screen.getByTestId('preview-a')).toHaveAttribute('data-active', 'true')
   })
 
   it('keep-alive mode keeps previous projects previews mounted when switching projects', () => {

@@ -20,6 +20,7 @@ interface ProjectDetailViewProps {
   project: ViewProject | null;
   projects?: ViewProject[];
   keepPreviewAlive?: boolean;
+  visible?: boolean;
   logs?: ProcessLogLine[];
   onBack?: () => void;
   onRemove?: () => void;
@@ -42,6 +43,7 @@ export default function ProjectDetailView({
   project,
   projects = [],
   keepPreviewAlive = true,
+  visible = true,
   logs = [],
   onBack,
   onRemove,
@@ -106,16 +108,16 @@ export default function ProjectDetailView({
 
   const renderPreview = (previewProject: PreviewProject): JSX.Element => {
     const isActive = previewProject.id === project?.id;
-    const visible = isActive && activeTab === 'app';
+    const previewVisible = visible && isActive && activeTab === 'app';
     return (
-      <div key={previewProject.id} className={visible ? (fullscreen ? 'h-full flex-1 flex flex-col' : 'block') : 'hidden'}>
+      <div key={previewProject.id} className={previewVisible ? (fullscreen ? 'h-full flex-1 flex flex-col' : 'block') : 'hidden'}>
         <AppPreviewTab
           project={previewProject}
           onStart={isActive ? onStart : undefined}
           onEdit={isActive ? onEdit : undefined}
           onBack={onBack}
           fullscreen={fullscreen && isActive}
-          active={visible}
+          active={previewVisible}
           keepAlive={keepPreviewAlive}
           onPrevProject={isActive && fullscreen ? onPrevProject : undefined}
           onNextProject={isActive && fullscreen ? onNextProject : undefined}
