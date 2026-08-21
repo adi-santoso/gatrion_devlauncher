@@ -131,14 +131,20 @@ class ProjectDetector {
       }
 
       const usesJavaScriptCommand = ['NEXTJS', 'VUE', 'REACT_VITE', 'REACT', 'NODEJS'].includes(matchedType)
+      const composerDevScript = matchedType === 'LARAVEL'
+        ? this.detectComposerDevScript(composerJson)
+        : null
       const startCommand = usesJavaScriptCommand
         ? this.detectStartCommand(packageJson?.scripts as Record<string, unknown> | undefined, packageManager)
-        : matchedConfig.defaultCommand
+        : composerDevScript ?? matchedConfig.defaultCommand
+      const laravelAppPort = matchedType === 'LARAVEL'
+        ? await this.detectAppPortFromEnv(projectPath)
+        : null
       const detectedPort = matchedType === 'LARAVEL'
-        ? matchedConfig.defaultPort
+        ? laravelAppPort ?? matchedConfig.defaultPort
         : await this.detectActualPort(projectPath, matchedConfig.defaultPort)
       const projectName = this.detectProjectName(projectPath, packageJson, composerJson, goModule)
-      const commands = await this.detectCommands(matchedType, matchedConfig, packageJson, packageManager, projectPath, detectedPort)
+      const commands = await this.detectCommands(matchedType, matchedConfig, packageJson, composerJson, packageManager, projectPath, detectedPort)
       const detectedName = this.detectStackName(matchedType, matchedConfig.name, packageJson)
       const warnings: string[] = []
 
@@ -223,17 +229,55 @@ class ProjectDetector {
     return fallback
   }
 
+  // Laravel 11+ ships a `scripts.dev` entry in composer.json. Laravel 11/12
+  // runs `npx concurrently "php artisan serve" "npm run dev" ...`; Laravel 13
+  // runs `@php artisan dev` (single artisan command). When present we surface
+  // `composer run dev` as a single composite command — matching the official
+  // recommendation — instead of splitting into separate serve/assets slots.
+  // For Laravel 10 (no composer dev script) we fall back to the legacy
+  // two-slot `php artisan serve` + `npm run dev` behavior.
+  detectComposerDevScript(composerJson: Record<string, unknown> | null | undefined): string | null {
+    if (!composerJson || typeof composerJson !== 'object') return null
+    const scripts = (composerJson.scripts as Record<string, unknown> | undefined) || {}
+    const dev = scripts.dev
+    const flatten = (value: unknown): string => {
+      if (typeof value === 'string') return value
+      if (Array.isArray(value)) return value.map((entry) => flatten(entry)).join(' ')
+      return ''
+    }
+    const scriptBody = flatten(dev)
+    if (!scriptBody.trim()) return null
+    return 'composer run dev'
+  }
+
+  async detectAppPortFromEnv(projectPath: string): Promise<number | null> {
+    for (const envFile of ['.env', '.env.local', '.env.development']) {
+      try {
+        const content = await fs.readFile(path.join(projectPath, envFile), 'utf8')
+        const port = this.validPort(content.match(/^APP_PORT\s*=\s*["']?(\d+)["']?/m)?.[1])
+        if (port) return port
+      } catch {
+        // Missing and unreadable optional files are ignored.
+      }
+    }
+    return null
+  }
+
   async detectCommands(
     type: string,
     config: { name: string; defaultCommand: string; defaultPort: number | null; icon: string; color: string },
     packageJson: Record<string, unknown> | null | undefined,
+    composerJson: Record<string, unknown> | null | undefined,
     packageManager: string | null,
     projectPath: string,
     primaryPort: number | null,
   ): Promise<Array<{ id: string; name: string; command: string; port: number | null; primary: boolean }>> {
     const isJavaScriptProject = ['NEXTJS', 'VUE', 'REACT_VITE', 'REACT', 'NODEJS'].includes(type)
+    const composerDevScript = type === 'LARAVEL'
+      ? this.detectComposerDevScript(composerJson)
+      : null
     const primaryCommand: { id: string; name: string; command: string; port: number | null; primary: boolean } = type === 'LARAVEL'
-      ? { id: 'app', name: 'Laravel', command: config.defaultCommand, port: primaryPort, primary: true }
+      ? { id: 'app', name: 'Laravel', command: composerDevScript ?? config.defaultCommand, port: primaryPort, primary: true }
       : {
         id: 'main',
         name: config.name,
@@ -245,6 +289,13 @@ class ProjectDetector {
       }
     if (type !== 'LARAVEL') return primaryCommand.command ? [primaryCommand] : []
 
+    // Laravel with a composer dev script (L11/12/13): single composite command.
+    // `composer run dev` wraps server + queue + vite (and more) per official docs,
+    // so we don't split into separate slots — the user can still edit/remove it.
+    if (composerDevScript) return [primaryCommand]
+
+    // Laravel without a composer dev script (L10 or custom): legacy two-slot
+    // behavior splitting `php artisan serve` and the frontend asset builder.
     const frontend = this.detectStartCommand(packageJson?.scripts as Record<string, unknown> | undefined, packageManager)
     const dependencies = (packageJson?.dependencies as Record<string, unknown> | undefined) || {}
     const devDependencies = (packageJson?.devDependencies as Record<string, unknown> | undefined) || {}

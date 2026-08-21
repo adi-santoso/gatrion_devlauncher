@@ -13,10 +13,16 @@ const artisanServe = /(?:^|[\\/])artisan\s+serve\b/i
 const phpArtisanServe = /\bphp(?:\.exe)?\s+(?:-[a-zA-Z]\S*\s+)*artisan\s+serve\b/i
 const npmRunScript = /^npm\s+run\s+([A-Za-z0-9:_-]+)\s*$/i
 const packageManagerScript = /^(pnpm|yarn|bun)\s+([A-Za-z0-9:_-]+)\s*$/i
+// `composer run dev` (Laravel 11+) wraps multiple processes concurrently and
+// does not accept a `--port` flag — it would be passed through to whichever
+// sub-process composer invokes first, with unreliable results. We leave such
+// commands untouched and let the user control the port via APP_PORT in .env.
+const composerRunScript = /^composer(?:\.phar)?\s+run(?:-script)?\s+([A-Za-z0-9:_-]+)\s*$/i
 
 function withRequestedPort(command: unknown, port: number | null): unknown {
   if (typeof command !== 'string' || !Number.isInteger(port) || portArguments.test(command)) return command
   const trimmed = command.trim()
+  if (composerRunScript.test(trimmed)) return command
   if (phpArtisanServe.test(trimmed) || artisanServe.test(trimmed)) return `${trimmed} --port=${port}`
 
   const npmScript = trimmed.match(npmRunScript)

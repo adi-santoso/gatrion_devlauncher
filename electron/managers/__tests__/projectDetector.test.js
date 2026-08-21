@@ -79,6 +79,88 @@ describe('ProjectDetector', () => {
     expect(inertia.commands[1].name).toContain('Inertia Vue assets')
   })
 
+  test('Laravel 11/12 composer.json with scripts.dev yields single composer run dev command', async () => {
+    await write('laravel11/artisan', '<?php //')
+    await write('laravel11/composer.json', JSON.stringify({
+      require: { 'laravel/framework': '^11.31' },
+      scripts: {
+        dev: [
+          'Composer\\Config::disableProcessTimeout',
+          'npx concurrently -c "#93c5fd,#c4b5fd,#fb7185,#fdba74" "php artisan serve" "php artisan queue:listen --tries=1" "php artisan pail --timeout=0" "npm run dev" --names=server,queue,logs,vite',
+        ],
+      },
+    }))
+    await write('laravel11/package.json', JSON.stringify({
+      scripts: { dev: 'vite' },
+      dependencies: { '@inertiajs/vue3': '^2', vue: '^3', vite: '^6' },
+    }))
+    const result = await detector.detectProjectType(path.join(tempDir, 'laravel11'))
+    expect(result.type).toBe('LARAVEL')
+    expect(result.defaultCommand).toBe('composer run dev')
+    expect(result.commands).toHaveLength(1)
+    expect(result.commands[0].command).toBe('composer run dev')
+    expect(result.commands[0].primary).toBe(true)
+    expect(result.defaultPort).toBe(8000)
+  })
+
+  test('Laravel 13 composer.json with @php artisan dev script yields single composer run dev command', async () => {
+    await write('laravel13/artisan', '<?php //')
+    await write('laravel13/composer.json', JSON.stringify({
+      require: { 'laravel/framework': '^13.17' },
+      scripts: {
+        dev: [
+          'Composer\\Config::disableProcessTimeout',
+          '@php artisan dev',
+        ],
+      },
+    }))
+    await write('laravel13/package.json', JSON.stringify({
+      scripts: { dev: 'vite' },
+      dependencies: { '@inertiajs/vue3': '^2', vue: '^3', vite: '^6' },
+    }))
+    const result = await detector.detectProjectType(path.join(tempDir, 'laravel13'))
+    expect(result.type).toBe('LARAVEL')
+    expect(result.defaultCommand).toBe('composer run dev')
+    expect(result.commands).toHaveLength(1)
+    expect(result.commands[0].command).toBe('composer run dev')
+  })
+
+  test('Laravel 10 without composer scripts.dev falls back to php artisan serve + npm run dev', async () => {
+    await write('laravel10/artisan', '<?php //')
+    await write('laravel10/composer.json', JSON.stringify({
+      require: { 'laravel/framework': '^10.10' },
+      scripts: {
+        'post-autoload-dump': [
+          'Illuminate\\Foundation\\ComposerScripts::postAutoloadDump',
+          '@php artisan package:discover --ansi',
+        ],
+      },
+    }))
+    await write('laravel10/package.json', JSON.stringify({
+      scripts: { dev: 'vite' },
+      dependencies: { '@inertiajs/vue3': '^2', vue: '^3', vite: '^6' },
+    }))
+    const result = await detector.detectProjectType(path.join(tempDir, 'laravel10'))
+    expect(result.type).toBe('LARAVEL')
+    expect(result.defaultCommand).toBe('php artisan serve')
+    expect(result.commands).toHaveLength(2)
+    expect(result.commands[0].command).toBe('php artisan serve')
+    expect(result.commands[1].command).toBe('npm run dev')
+  })
+
+  test('Laravel reads APP_PORT from .env for defaultPort', async () => {
+    await write('laravel-port/artisan', '<?php //')
+    await write('laravel-port/composer.json', JSON.stringify({
+      require: { 'laravel/framework': '^13.17' },
+      scripts: { dev: '@php artisan dev' },
+    }))
+    await write('laravel-port/.env', 'APP_NAME=MyApp\nAPP_PORT=8181\n')
+    const result = await detector.detectProjectType(path.join(tempDir, 'laravel-port'))
+    expect(result.type).toBe('LARAVEL')
+    expect(result.defaultPort).toBe(8181)
+    expect(result.commands[0].port).toBe(8181)
+  })
+
   test('detects Go via go.mod and main.go', async () => {
     await write('go-app/go.mod', 'module github.com/me/api\n\ngo 1.22\n')
     const goMod = await detector.detectProjectType(path.join(tempDir, 'go-app'))

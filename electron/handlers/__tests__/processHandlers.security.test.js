@@ -111,6 +111,10 @@ describe('processHandlers security (trusted-id lookup)', () => {
     expect(withRequestedPort('pnpm dev', 5174)).toBe('pnpm dev --port=5174')
     expect(withRequestedPort('yarn dev', 5174)).toBe('yarn dev --port=5174')
     expect(withRequestedPort('bun dev', 5174)).toBe('bun dev --port=5174')
+    // composer run dev wraps multiple processes and must not receive --port.
+    expect(withRequestedPort('composer run dev', 8001)).toBe('composer run dev')
+    expect(withRequestedPort('composer run-script dev', 8001)).toBe('composer run-script dev')
+    expect(withRequestedPort('composer.phar run dev', 8001)).toBe('composer.phar run dev')
   })
 
   test('resolveLaunchConfig falls back to startCommand when commands are missing', () => {
