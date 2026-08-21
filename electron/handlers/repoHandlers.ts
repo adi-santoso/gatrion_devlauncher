@@ -339,7 +339,7 @@ function setupRepoHandlers(storageManager: StorageManager, processManager: Proce
     if (!pkg) return { success: true, hasPackageJson: false, scripts: [], packageManager: null }
     const scripts = Object.entries(pkg.scripts || {})
       .map(([name, command]) => ({ name, command: String(command) }))
-      .sort((a, b) => a.name.localeCompare(b.name))
+      .sort((a, b) => (a.name || '').localeCompare(b.name || ''))
     return { success: true, hasPackageJson: true, scripts, packageManager: null }
   })
 
@@ -432,7 +432,7 @@ function setupRepoHandlers(storageManager: StorageManager, processManager: Proce
     return { success: true, output: output.trim().slice(-2000), backups: backupFiles.map((file) => `${file}.bak-*`) }
   })
 
-  // Install dependencies through the process manager so progress is visible in
+// Install dependencies through the process manager so progress is visible in
   // the Terminal tab. The renderer must confirm this before calling.
   secureHandle('install-dependencies', async (_event, projectId) => {
     try {

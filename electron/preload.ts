@@ -75,6 +75,14 @@ interface ElectronApi {
   installDependencies: (projectId: string) => Promise<unknown>
   npmOutdated: (projectPath: string) => Promise<unknown>
   npmUpdate: (projectPath: string, packageName?: string) => Promise<unknown>
+  composerOutdated: (projectPath: string) => Promise<unknown>
+  composerUpdate: (projectPath: string, packageName?: string) => Promise<unknown>
+  goOutdated: (projectPath: string) => Promise<unknown>
+  goUpdate: (projectPath: string, moduleName: string) => Promise<unknown>
+  pipOutdated: (projectPath: string) => Promise<unknown>
+  pipUpdate: (projectPath: string, packageName: string) => Promise<unknown>
+  cargoOutdated: (projectPath: string) => Promise<unknown>
+  cargoUpdate: (projectPath: string, packageName: string) => Promise<unknown>
 
   // Desktop Integration
   openExternalUrl: (url: string) => Promise<unknown>
@@ -283,6 +291,14 @@ const api: ElectronApi = {
   installDependencies: (projectId) => ipcRenderer.invoke('install-dependencies', projectId),
   npmOutdated: (projectPath) => ipcRenderer.invoke('npm-outdated', projectPath),
   npmUpdate: (projectPath, packageName) => ipcRenderer.invoke('npm-update', projectPath, packageName),
+  composerOutdated: (projectPath) => ipcRenderer.invoke('composer-outdated', projectPath),
+  composerUpdate: (projectPath, packageName) => ipcRenderer.invoke('composer-update', projectPath, packageName),
+  goOutdated: (projectPath) => ipcRenderer.invoke('go-outdated', projectPath),
+  goUpdate: (projectPath, moduleName) => ipcRenderer.invoke('go-update', projectPath, moduleName),
+  pipOutdated: (projectPath) => ipcRenderer.invoke('pip-outdated', projectPath),
+  pipUpdate: (projectPath, packageName) => ipcRenderer.invoke('pip-update', projectPath, packageName),
+  cargoOutdated: (projectPath) => ipcRenderer.invoke('cargo-outdated', projectPath),
+  cargoUpdate: (projectPath, packageName) => ipcRenderer.invoke('cargo-update', projectPath, packageName),
 
   // Desktop Integration
   openExternalUrl: (url) => ipcRenderer.invoke('open-external-url', url),

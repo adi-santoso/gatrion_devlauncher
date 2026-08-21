@@ -193,6 +193,26 @@ const CHANNEL_RULES: Record<string, ArgRule[]> = {
     ['projectPath', 'string', { minLength: 1 }],
     ['packageName', 'string', { optional: true, maxLength: 200 }],
   ],
+  'composer-outdated': [['projectPath', 'string', { minLength: 1 }]],
+  'composer-update': [
+    ['projectPath', 'string', { minLength: 1 }],
+    ['packageName', 'string', { optional: true, maxLength: 200 }],
+  ],
+  'go-outdated': [['projectPath', 'string', { minLength: 1 }]],
+  'go-update': [
+    ['projectPath', 'string', { minLength: 1 }],
+    ['moduleName', 'string', { minLength: 1, maxLength: 200 }],
+  ],
+  'pip-outdated': [['projectPath', 'string', { minLength: 1 }]],
+  'pip-update': [
+    ['projectPath', 'string', { minLength: 1 }],
+    ['packageName', 'string', { minLength: 1, maxLength: 200 }],
+  ],
+  'cargo-outdated': [['projectPath', 'string', { minLength: 1 }]],
+  'cargo-update': [
+    ['projectPath', 'string', { minLength: 1 }],
+    ['packageName', 'string', { minLength: 1, maxLength: 200 }],
+  ],
   'install-dependencies': [['projectId', 'string', { minLength: 1 }]],
 
   // --- system ----------------------------------------------------------

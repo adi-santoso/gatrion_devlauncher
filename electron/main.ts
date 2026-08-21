@@ -27,6 +27,7 @@ import { setupDesktopHandlers } from './handlers/desktopHandlers'
 import { setupTerminalHandlers, killAllTerminals } from './handlers/terminalHandlers'
 import { setupPreviewHandlers } from './handlers/previewHandlers'
 import { setupRepoHandlers } from './handlers/repoHandlers'
+import { setupDependencyHandlers } from './handlers/dependencyHandlers'
 import { setupSystemHandlers } from './handlers/systemHandlers'
 import { setupBackupHandlers } from './handlers/backupHandlers'
 import { setupAgentHandlers } from './handlers/agentHandlers'
@@ -390,6 +391,7 @@ async function initialize() {
   setupTerminalHandlers(mainWindow)
   setupPreviewHandlers(previewManager)
   setupRepoHandlers(storageManager, processManager, mainWindow)
+  setupDependencyHandlers()
   setupSystemHandlers()
   setupBackupHandlers(storageManager, healthManager, mainWindow)
   setupAgentHandlers(ompManager, ompInstaller, ompConfig, () => mainWindow)

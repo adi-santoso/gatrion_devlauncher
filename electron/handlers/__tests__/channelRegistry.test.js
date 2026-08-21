@@ -21,6 +21,7 @@ import { setupPreviewHandlers } from '../previewHandlers'
 import { setupProcessHandlers } from '../processHandlers'
 import { setupProjectHandlers } from '../projectHandlers'
 import { setupRepoHandlers } from '../repoHandlers'
+import { setupDependencyHandlers } from '../dependencyHandlers'
 import { setupSystemHandlers } from '../systemHandlers'
 import { setupBackupHandlers } from '../backupHandlers'
 import { setupTerminalHandlers } from '../terminalHandlers'
@@ -34,6 +35,7 @@ function registerAll() {
   setupTerminalHandlers(null)
   setupPreviewHandlers({})
   setupRepoHandlers(emitter, emitter, null)
+  setupDependencyHandlers()
   setupSystemHandlers()
   setupBackupHandlers(emitter, null, null)
   return [...ipcMain._handlers.keys()]
