@@ -1,5 +1,6 @@
 const fs = require('fs').promises
 const path = require('path')
+import { detectComposerDevScript as detectComposerDev, detectAppPortFromEnv as detectAppPort, detectPythonConfig as detectPython } from '../utils/projectDetection'
 
 interface ProjectTypeConfig {
   name: string
@@ -76,6 +77,19 @@ class ProjectDetector {
         icon: '🐹',
         color: '#00ADD8',
       },
+      PYTHON: {
+        name: 'Python',
+        detector: async (projectPath: string): Promise<boolean> => (
+          await this.fileExists(path.join(projectPath, 'requirements.txt')) ||
+          await this.fileExists(path.join(projectPath, 'pyproject.toml')) ||
+          await this.fileExists(path.join(projectPath, 'main.py')) ||
+          await this.fileExists(path.join(projectPath, 'app.py'))
+        ),
+        defaultCommand: 'python main.py',
+        defaultPort: null,
+        icon: '🐍',
+        color: '#3776AB',
+      },
       NODEJS: {
         name: 'Node.js',
         detector: (projectPath: string): Promise<boolean> => this.fileExists(path.join(projectPath, 'package.json')),
@@ -132,17 +146,24 @@ class ProjectDetector {
 
       const usesJavaScriptCommand = ['NEXTJS', 'VUE', 'REACT_VITE', 'REACT', 'NODEJS'].includes(matchedType)
       const composerDevScript = matchedType === 'LARAVEL'
-        ? this.detectComposerDevScript(composerJson)
+        ? detectComposerDev(composerJson)
         : null
-      const startCommand = usesJavaScriptCommand
-        ? this.detectStartCommand(packageJson?.scripts as Record<string, unknown> | undefined, packageManager)
-        : composerDevScript ?? matchedConfig.defaultCommand
+      const pythonHint = matchedType === 'PYTHON'
+        ? await detectPython(projectPath)
+        : null
+      const startCommand = pythonHint
+        ? pythonHint.command
+        : usesJavaScriptCommand
+          ? this.detectStartCommand(packageJson?.scripts as Record<string, unknown> | undefined, packageManager)
+          : composerDevScript ?? matchedConfig.defaultCommand
       const laravelAppPort = matchedType === 'LARAVEL'
-        ? await this.detectAppPortFromEnv(projectPath)
+        ? await detectAppPort(projectPath)
         : null
       const detectedPort = matchedType === 'LARAVEL'
         ? laravelAppPort ?? matchedConfig.defaultPort
-        : await this.detectActualPort(projectPath, matchedConfig.defaultPort)
+        : pythonHint
+          ? pythonHint.port
+          : await this.detectActualPort(projectPath, matchedConfig.defaultPort)
       const projectName = this.detectProjectName(projectPath, packageJson, composerJson, goModule)
       const commands = await this.detectCommands(matchedType, matchedConfig, packageJson, composerJson, packageManager, projectPath, detectedPort)
       const detectedName = this.detectStackName(matchedType, matchedConfig.name, packageJson)
@@ -236,33 +257,6 @@ class ProjectDetector {
   // recommendation — instead of splitting into separate serve/assets slots.
   // For Laravel 10 (no composer dev script) we fall back to the legacy
   // two-slot `php artisan serve` + `npm run dev` behavior.
-  detectComposerDevScript(composerJson: Record<string, unknown> | null | undefined): string | null {
-    if (!composerJson || typeof composerJson !== 'object') return null
-    const scripts = (composerJson.scripts as Record<string, unknown> | undefined) || {}
-    const dev = scripts.dev
-    const flatten = (value: unknown): string => {
-      if (typeof value === 'string') return value
-      if (Array.isArray(value)) return value.map((entry) => flatten(entry)).join(' ')
-      return ''
-    }
-    const scriptBody = flatten(dev)
-    if (!scriptBody.trim()) return null
-    return 'composer run dev'
-  }
-
-  async detectAppPortFromEnv(projectPath: string): Promise<number | null> {
-    for (const envFile of ['.env', '.env.local', '.env.development']) {
-      try {
-        const content = await fs.readFile(path.join(projectPath, envFile), 'utf8')
-        const port = this.validPort(content.match(/^APP_PORT\s*=\s*["']?(\d+)["']?/m)?.[1])
-        if (port) return port
-      } catch {
-        // Missing and unreadable optional files are ignored.
-      }
-    }
-    return null
-  }
-
   async detectCommands(
     type: string,
     config: { name: string; defaultCommand: string; defaultPort: number | null; icon: string; color: string },
@@ -274,19 +268,21 @@ class ProjectDetector {
   ): Promise<Array<{ id: string; name: string; command: string; port: number | null; primary: boolean }>> {
     const isJavaScriptProject = ['NEXTJS', 'VUE', 'REACT_VITE', 'REACT', 'NODEJS'].includes(type)
     const composerDevScript = type === 'LARAVEL'
-      ? this.detectComposerDevScript(composerJson)
+      ? detectComposerDev(composerJson)
       : null
     const primaryCommand: { id: string; name: string; command: string; port: number | null; primary: boolean } = type === 'LARAVEL'
       ? { id: 'app', name: 'Laravel', command: composerDevScript ?? config.defaultCommand, port: primaryPort, primary: true }
-      : {
-        id: 'main',
-        name: config.name,
-        command: isJavaScriptProject
-          ? this.detectStartCommand(packageJson?.scripts as Record<string, unknown> | undefined, packageManager)
-          : config.defaultCommand,
-        port: primaryPort,
-        primary: true,
-      }
+      : type === 'PYTHON'
+        ? { id: 'main', name: 'Python', command: (await detectPython(projectPath)).command, port: primaryPort, primary: true }
+        : {
+          id: 'main',
+          name: config.name,
+          command: isJavaScriptProject
+            ? this.detectStartCommand(packageJson?.scripts as Record<string, unknown> | undefined, packageManager)
+            : config.defaultCommand,
+          port: primaryPort,
+          primary: true,
+        }
     if (type !== 'LARAVEL') return primaryCommand.command ? [primaryCommand] : []
 
     // Laravel with a composer dev script (L11/12/13): single composite command.

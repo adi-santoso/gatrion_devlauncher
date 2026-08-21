@@ -37,6 +37,7 @@ export const TYPE_METADATA: Record<string, { emoji: string; color: string }> = {
   VUE: { emoji: '🟢', color: '#42B883' },
   LARAVEL: { emoji: '🔴', color: '#FF2D20' },
   GOLANG: { emoji: '🐹', color: '#00ADD8' },
+  PYTHON: { emoji: '🐍', color: '#3776AB' },
   NODEJS: { emoji: '🟩', color: '#339933' },
   CUSTOM: { emoji: '⚙️', color: '#6B7280' },
 };

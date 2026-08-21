@@ -173,6 +173,37 @@ describe('ProjectDetector', () => {
     expect(goMain.type).toBe('GOLANG')
   })
 
+  test('detects Python via requirements.txt/pyproject.toml and infers the entry point', async () => {
+    await write('py-app/requirements.txt', 'flask==3.0.0\n')
+    await write('py-app/app.py', 'from flask import Flask\napp = Flask(__name__)\n')
+    const flask = await detector.detectProjectType(path.join(tempDir, 'py-app'))
+    expect(flask.type).toBe('PYTHON')
+    expect(flask.defaultCommand).toBe('python app.py')
+    expect(flask.defaultPort).toBe(5000)
+
+    await write('django-app/manage.py', '#!/usr/bin/env python\n')
+    await write('django-app/requirements.txt', 'django==5.0\n')
+    const django = await detector.detectProjectType(path.join(tempDir, 'django-app'))
+    expect(django.type).toBe('PYTHON')
+    expect(django.defaultCommand).toBe('python manage.py runserver')
+    expect(django.defaultPort).toBe(8000)
+    expect(django.commands).toHaveLength(1)
+    expect(django.commands[0].command).toBe('python manage.py runserver')
+
+    await write('pypj-app/pyproject.toml', '[project]\nname = "demo"\n')
+    await write('pypj-app/main.py', 'print("hi")\n')
+    const generic = await detector.detectProjectType(path.join(tempDir, 'pypj-app'))
+    expect(generic.type).toBe('PYTHON')
+    expect(generic.defaultCommand).toBe('python main.py')
+    expect(generic.defaultPort).toBe(null)
+  })
+
+  test('falls back to CUSTOM when a folder has no recognized signal', async () => {
+    await write('no-signal/readme.txt', 'nothing here')
+    const result = await detector.detectProjectType(path.join(tempDir, 'no-signal'))
+    expect(result.type).toBe('CUSTOM')
+  })
+
   test('detects plain Node and respects package manager lockfiles', async () => {
     await write('node-app/package.json', JSON.stringify({ name: 'plain-node', scripts: { start: 'node index.js' } }))
     await write('node-app/pnpm-lock.yaml', 'lockfileVersion: 9\n')

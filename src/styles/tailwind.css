@@ -378,7 +378,8 @@ html.theme-transition *::after {
 .stack-logo-vue { color: #4FC08D; }
 .stack-logo-react { color: #61DAFB; }
 .stack-logo-go { color: #00ADD8; }
-.stack-logo-nodejs { color: #5FA04E; }
+  .stack-logo-python { color: #3776AB; }
+  .stack-logo-nodejs { color: #5FA04E; }
 [data-theme="light"] .stack-logo-nextjs { color: #000000; }
 
 /* Light theme overrides */

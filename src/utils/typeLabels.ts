@@ -7,6 +7,7 @@ export const TYPE_LABELS: Record<ProjectType, string> = {
   REACT_VITE: 'React (Vite)',
   REACT: 'React',
   GOLANG: 'Go',
+  PYTHON: 'Python',
   NODEJS: 'Node.js',
   CUSTOM: 'Custom',
 }

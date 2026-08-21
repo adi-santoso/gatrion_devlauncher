@@ -86,7 +86,7 @@ export type DeepPartial<T> = {
 
 // ---------- Project ----------
 
-export type ProjectType = 'LARAVEL' | 'NEXTJS' | 'REACT_VITE' | 'REACT' | 'VUE' | 'GOLANG' | 'NODEJS' | 'CUSTOM'
+export type ProjectType = 'LARAVEL' | 'NEXTJS' | 'REACT_VITE' | 'REACT' | 'VUE' | 'GOLANG' | 'PYTHON' | 'NODEJS' | 'CUSTOM'
 
 export interface ProjectCommand {
   id: string

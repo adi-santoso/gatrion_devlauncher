@@ -13,6 +13,7 @@ const PROJECT_TYPES: Record<ProjectType, ProjectTypeMeta> = {
   REACT: { labels: ['React', '⚛️ React'], emoji: '⚛️', color: '#61DAFB' },
   VUE: { labels: ['Vue', 'Vue.js', '🟢 Vue.js'], emoji: '🟢', color: '#42B883' },
   GOLANG: { labels: ['Go', 'Golang', '🐹 Go'], emoji: '🐹', color: '#00ADD8' },
+  PYTHON: { labels: ['Python', '🐍 Python'], emoji: '🐍', color: '#3776AB' },
   NODEJS: { labels: ['Node', 'Node.js', '🟩 Node.js'], emoji: '🟩', color: '#339933' },
   CUSTOM: { labels: ['Custom', '⚙️ Custom'], emoji: '⚙️', color: '#6B7280' },
 }
