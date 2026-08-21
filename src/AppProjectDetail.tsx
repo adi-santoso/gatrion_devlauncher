@@ -8,6 +8,7 @@ export interface AppProjectDetailProps {
   project: ProjectRuntime
   projects: ProjectRuntime[]
   currentView: string
+  modalOpen?: boolean
   keepAlive: boolean
   fullscreenRef: RefObject<ProjectRuntime | null>
   getLogs: (projectId: string) => ProcessLogLine[]
@@ -37,6 +38,7 @@ export default function AppProjectDetail({
   project,
   projects,
   currentView,
+  modalOpen = false,
   keepAlive,
   fullscreenRef,
   getLogs,
@@ -76,7 +78,7 @@ export default function AppProjectDetail({
         project={liveProject}
         projects={projects}
         keepPreviewAlive={keepAlive}
-        visible={currentView === 'project-detail'}
+        visible={currentView === 'project-detail' && !modalOpen}
         logs={getLogs(liveProject.id)}
         onBack={onBack}
         onStart={() => onStart(liveProject)}

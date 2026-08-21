@@ -335,6 +335,7 @@ function App() {
                   project={selectedProject}
                   projects={projects}
                   currentView={currentView}
+                  modalOpen={Boolean(openModal || portConflictTarget || presetModalOpen || presetToDelete)}
                   keepAlive={config.preview?.keepAlive !== false}
                   fullscreenRef={fullscreenProjectRef}
                   getLogs={getLogs}
