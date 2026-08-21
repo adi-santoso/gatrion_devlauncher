@@ -12,6 +12,26 @@ interface ProcessResources {
 type SingleSample = (pid: number | string) => Promise<ProcessResources | null>
 
 /**
+ * CPU percentages are derived by diffing two cumulative CPU-second snapshots
+ * taken across consecutive monitoring ticks (seconds apart), not a 250ms
+ * inline micro-sample. A 250ms window reads ~0 for an idle framework server,
+ * which is why CPU always surfaced as 0%. Each key (a pid, or a sorted
+ * process-tree pid list) remembers its previous snapshot so `computeCpuPercent`
+ * has a real elapsed interval to measure against.
+ */
+const cpuSampleCache = new Map<string, { cpuSec: number; at: number }>()
+
+function computeCpuPercent(key: string, cpuSec: number): number {
+  const prev = cpuSampleCache.get(key)
+  const now = Date.now()
+  cpuSampleCache.set(key, { cpuSec, at: now })
+  if (!prev) return 0
+  const elapsedSec = (now - prev.at) / 1000
+  if (elapsedSec <= 0 || cpuSec < prev.cpuSec) return 0
+  return Math.min(100, Math.max(0, ((cpuSec - prev.cpuSec) / elapsedSec) * 100 / Math.max(1, os.cpus().length)))
+}
+
+/**
  * Kill a process tree. On Windows this uses taskkill /T (tree kill), on
  * POSIX it signals the process group (children are spawned detached, so the
  * group id equals the child pid).
@@ -140,24 +160,16 @@ async function getProcessResources(pid: number | string): Promise<ProcessResourc
 
     let cpuPercent = 0
     try {
-      const { stdout: firstSample } = await execAsync(
+      const { stdout: sample } = await execAsync(
         `powershell.exe -NoProfile -Command "$p=Get-Process -Id ${numericPid} -ErrorAction Stop; Write-Output ($p.CPU.ToString([Globalization.CultureInfo]::InvariantCulture))"`,
-        { timeout: 3000 }
+        { timeout: 2000 }
       )
-      const firstCpu = Number.parseFloat(firstSample.trim())
-      const firstTime = Date.now()
-      await new Promise((resolve) => setTimeout(resolve, 250))
-      const { stdout: secondSample } = await execAsync(
-        `powershell.exe -NoProfile -Command "$p=Get-Process -Id ${numericPid} -ErrorAction Stop; Write-Output ($p.CPU.ToString([Globalization.CultureInfo]::InvariantCulture))"`,
-        { timeout: 3000 }
-      )
-      const secondCpu = Number.parseFloat(secondSample.trim())
-      const elapsedSeconds = (Date.now() - firstTime) / 1000
-      if (Number.isFinite(firstCpu) && Number.isFinite(secondCpu) && elapsedSeconds > 0) {
-        cpuPercent = Math.min(100, Math.max(0, ((secondCpu - firstCpu) / elapsedSeconds) * 100 / Math.max(1, os.cpus().length)))
+      const cpuSeconds = Number.parseFloat(sample.trim())
+      if (Number.isFinite(cpuSeconds) && cpuSeconds >= 0) {
+        cpuPercent = computeCpuPercent(`pid:${numericPid}`, cpuSeconds)
       }
     } catch {
-      // The process can exit between samples; memory data remains useful.
+      // The process can exit between memory and CPU sampling; memory remains useful.
     }
 
     return {
@@ -190,29 +202,28 @@ async function getProcessTreeResources(
     }
   }
 
+  const key = `tree:${roots.sort((a, b) => a - b).join(',')}`
   const script = [
     `$roots=@(${roots.join(',')})`,
     '$rows=Get-CimInstance Win32_Process | Select-Object ProcessId,ParentProcessId',
     "$ids=New-Object 'System.Collections.Generic.HashSet[int]'",
     '$roots | ForEach-Object { [void]$ids.Add([int]$_) }',
     'do { $added=$false; foreach($row in $rows) { if($ids.Contains([int]$row.ParentProcessId) -and $ids.Add([int]$row.ProcessId)) { $added=$true } } } while($added)',
-    '$first=@{}; Get-Process -Id @($ids) -ErrorAction SilentlyContinue | ForEach-Object { $first[$_.Id]=$_.CPU }',
-    '$started=[DateTime]::UtcNow; Start-Sleep -Milliseconds 250',
-    '$elapsed=([DateTime]::UtcNow-$started).TotalSeconds; $memory=0.0; $cpu=0.0',
-    'Get-Process -Id @($ids) -ErrorAction SilentlyContinue | ForEach-Object { $memory+=$_.WorkingSet64; if($first.ContainsKey($_.Id) -and $null -ne $_.CPU) { $cpu+=($_.CPU-$first[$_.Id]) } }',
-    `[PSCustomObject]@{memory=($memory/1MB);cpu=[Math]::Min(100,[Math]::Max(0,($cpu/$elapsed)*100/${Math.max(1, os.cpus().length)}))} | ConvertTo-Json -Compress`,
+    '$cpu=0.0; $memory=0.0',
+    'Get-Process -Id @($ids) -ErrorAction SilentlyContinue | ForEach-Object { $memory+=$_.WorkingSet64; if($null -ne $_.CPU) { $cpu += $_.CPU } }',
+    '[PSCustomObject]@{memory=($memory/1MB);cpu=$cpu} | ConvertTo-Json -Compress',
   ].join('; ')
 
   try {
     const { stdout } = await execAsync(`powershell.exe -NoProfile -Command "${script}"`, { timeout: 5000 })
     const resources = JSON.parse(stdout.trim())
     if (!Number.isFinite(resources.memory) || !Number.isFinite(resources.cpu)) return null
-    return resources
+    return { memory: resources.memory, cpu: computeCpuPercent(key, resources.cpu) }
   } catch (error) {
     console.warn('[ProcessManager] Failed to sample process tree:', (error as Error).message)
     return null
   }
 }
 
-export { killProcessTree, getProcessResources, getProcessTreeResources }
+export { killProcessTree, getProcessResources, getProcessTreeResources, computeCpuPercent }
 

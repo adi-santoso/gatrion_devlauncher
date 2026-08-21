@@ -4,6 +4,21 @@ Semua perubahan penting pada project ini dicatat di file ini.
 
 Format mengikuti [Keep a Changelog](https://keepachangelog.com/id-ID/1.1.0/), dan project ini mengikuti [Semantic Versioning](https://semver.org/spec/v2.0.0.html) begitu versi rilis resmi ditetapkan.
 
+## [0.2.7] - 2026-08-21
+
+### Added
+
+- **Tab Dependencies multi-ecosystem** — tab Dependencies kini tidak terbatas npm saja: setiap project di-scan memakai daftar manifest yang ada dan merender section terpisah per manager — **npm** (package.json), **Composer** (composer.json yang punya section `require-dev`), **Go** (go.mod), **pip** (requirements.txt / pyproject.toml picker), dan **Cargo** (Cargo.toml). Tiap section menjalankan *outdated check* miliknya sendiri dan mendukung update per-package; `composer.json`+`composer.lock` dan `Cargo.toml`+`Cargo.lock` di-backup otomatis sebelum update. Komposer & npm mempertahankan **Update all**; Go, pip, dan Cargo update satu-per-satu (tidak ada update-all yang aman). Runtime tool di-dispatkan lewat runner shell generik baru (`electron/utils/packageRunner.ts`) sehingga eksekusi bisa diset per-command (shell, timeout, exit code) tanpa harus me-reuse konkuren npm; seluruh handler pindah ke module tersendiri (`electron/handlers/dependencyHandlers.ts`) agar `repoHandlers` tetap di bawah cap lint 400 baris. Parser output *outdated* adalah fungsi murni (`parseComposerOutdated`/`parseGoOutdated`/`parsePipOutdated`/`parseCargoOutdated`, plus scanner `parseGoObjects`) yang teruji unit termasuk kasus keluaran nyata. Channel baru semuanya ter-wire ke validasi IPC terpusat + bridge preload (tidak ada channel tanpa rule).
+- **Deteksi project Python (Django/Flask/generic)** — detector kini mengenali project Python lewat `requirements.txt`, `pyproject.toml`, `main.py`, atau `app.py`, dan menyimpulkan perintah dev + port dari konvensi framework: `manage.py` → `python manage.py runserver` (port 8000, Django), `app.py` → `python app.py` (port 5000, Flask), `main.py` → `python main.py` (tanpa port monitorkan), fallback `python main.py`. Ikon/logo brand (simple-icons, `stack-logo-python`) dan warna `#3776AB` ditambahkan ke schema, label, metadata form, serta `StackLogo`. Tipe `PYTHON` disisipkan **sebelum** NODEJS pada matriks deteksi sehingga repo hybrid `pyproject.toml`+`package.json` di-resolve sebagai Python.
+
+### Changed
+
+- **Laravel memakai `composer run dev`** — untuk Laravel 11/12 (yang `scripts.dev`-nya `npx concurrently "php artisan serve" "npm run dev" ...`) dan Laravel 13 (`@php artisan dev`), detector kini menampilkan **`composer run dev` sebagai satu slot komposit** alih-alih memecah menjadi slot terpisah `php artisan serve` + `npm run dev` — mencocokkan rekomendasi resmi. Karena `composer run dev` adalah wrapper multi-proses, process handler **tidak meng-inject `--port`** (regex `composerRunScript` baru); user mengontrol port lewat `APP_PORT` di `.env` (tetap terdeteksi). Laravel 10 (tanpa `scripts.dev`) mempertahankan fallback dua-slot. `detectCommands` kini cabang 4-path.
+
+### Fixed
+
+- **Monitoring CPU selalu 0% (global & per-project)** — CPU dihitung dari dua snapshot yang dipisah **hanya 250 ms inline** (`Start-Sleep -Milliseconds 250`) di dalam satu panggilan PowerShell, lalu dibagi per-core dan dibulatkan: untuk process dev-server yang idle menunggu, delta CPU 250 ms ≈ 0 sehingga tampil 0% terus-menerus (RAM aman karena `WorkingSet64` diambil langsung). Kini `processTree.ts` mengambil **satu snapshot cepat** total CPU-seconds oleh proses tree per tick monitoring, lalu menghitung persentase dari **selisih antar-tick monitoring** (interval 5 detik) via cache snapshot per tree (`computeCpuPercent`), dinormalisasi per-core dan di-clamp 0–100. Hasilnya akurat — beban kerja nyata (build/HMR) terbaca, proses benar-benar idle tetap ~0% — tanpa menambah latensi tiap tick (tidak ada lagi `Start-Sleep` inline). Helper murni `computeCpuPercent` diekspor dan diuji deterministik (+5 test); verifikasi typecheck 0 error, lint 0 error, unit 713 passed, e2e 15 passed.
+
 ## [0.2.6] - 2026-08-18
 
 ### Added

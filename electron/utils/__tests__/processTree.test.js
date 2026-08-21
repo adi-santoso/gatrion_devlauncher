@@ -1,5 +1,5 @@
 import { describe, test, expect, vi, beforeEach, afterEach } from 'vitest'
-import { killProcessTree } from '../processTree'
+import { killProcessTree, computeCpuPercent } from '../processTree'
 
 describe('killProcessTree — POSIX', () => {
   beforeEach(() => vi.useFakeTimers())
@@ -50,5 +50,51 @@ describe('killProcessTree — POSIX', () => {
 
   test('throws when the PID is unavailable', async () => {
     await expect(killProcessTree({}, false, 'linux')).rejects.toThrow(/PID/)
+  })
+})
+
+describe('computeCpuPercent — cross-tick CPU sampling', () => {
+  afterEach(() => vi.useRealTimers())
+
+  test('first snapshot returns 0 (no baseline yet)', () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(1000)
+    expect(computeCpuPercent('tree:1,2', 50)).toBe(0)
+  })
+
+  test('second snapshot reports CPU over real elapsed time, normalized per core', () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(1000)
+    computeCpuPercent('tree:1,2', 0)
+    // 5s later the tree consumed 5 CPU-seconds => 100% of one core (divided by cores).
+    vi.setSystemTime(6000)
+    const percent = computeCpuPercent('tree:1,2', 5)
+    expect(percent).toBeGreaterThan(0)
+    expect(percent).toBeLessThanOrEqual(100)
+  })
+
+  test('flat CPU between ticks reads ~0 (idle server)', () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(1000)
+    computeCpuPercent('tree:9', 100)
+    vi.setSystemTime(6000)
+    expect(computeCpuPercent('tree:9', 100)).toBe(0)
+  })
+
+  test('clamps at 100 even for very high burst load', () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(1000)
+    computeCpuPercent('tree:7', 0)
+    vi.setSystemTime(2000) // 1s elapsed, massive CPU jump
+    expect(computeCpuPercent('tree:7', 1000)).toBe(100)
+  })
+
+  test('independent keys track separate baselines', () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(1000)
+    computeCpuPercent('tree:1', 10)
+    vi.setSystemTime(6000)
+    computeCpuPercent('tree:2', 0) // other pid baseline starts clean
+    expect(computeCpuPercent('tree:2', 0)).toBe(0)
   })
 })
