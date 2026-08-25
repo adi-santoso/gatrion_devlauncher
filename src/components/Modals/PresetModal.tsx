@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ProjectRuntime } from '../../hooks/useProjects';
 
 export const PRESET_COLORS = ['#6D5EF5', '#38BDF8', '#22C55E', '#F5A623', '#EF4444', '#EC4899'];
@@ -48,10 +48,25 @@ export default function PresetModal({
   const [selected, setSelected] = useState<string[]>([]);
   const [delaySeconds, setDelaySeconds] = useState<number | string>(0);
   const [autoStart, setAutoStart] = useState(false);
+  const prefilledKey = useRef<string | null>(null);
 
-  // Prefill from an existing preset (edit) or a selection (bulk "Save as preset") whenever the modal opens
+  // Identity of the thing being edited. `projects` is deliberately absent: it gets a
+  // new array reference on every metrics poll / projects-updated tick, and depending
+  // on it would re-run the prefill and wipe in-progress edits.
+  const prefillKey = isOpen
+    ? `${initialPreset?.id ?? 'new'}|${(initialSelected || []).join(',')}`
+    : null;
+
+  // Prefill from an existing preset (edit) or a selection (bulk "Save as preset").
+  // Runs when the modal opens and when it is retargeted at a different preset while
+  // open — but never on unrelated re-renders.
   useEffect(() => {
-    if (!isOpen) return;
+    if (prefillKey === null) {
+      prefilledKey.current = null;
+      return;
+    }
+    if (prefilledKey.current === prefillKey) return;
+    prefilledKey.current = prefillKey;
     if (initialPreset) {
       setName(initialPreset.name || '');
       setDescription(initialPreset.description || '');
@@ -72,7 +87,9 @@ export default function PresetModal({
         setSelected([]);
       }
     }
-  }, [isOpen, initialPreset, initialSelected, projects]);
+    // `projects` is only read to filter a fresh preselection, never to re-prefill.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [prefillKey, initialPreset, initialSelected]);
 
   const toggle = (id: string): void => {
     setSelected((prev) => prev.includes(id) ? prev.filter((p) => p !== id) : [...prev, id]);
