@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import Icon from '../Common/Icon';
 import { TOOL_ICONS } from './agentChatUtils';
+import Markdown from './Markdown';
 
 export interface ToolCallInfo {
   name: string;
@@ -10,12 +11,19 @@ export interface ToolCallInfo {
   [key: string]: unknown;
 }
 
+// Tool bodies are often raw terminal/JSON output — plain <pre> is fine for
+// those. But when a tool returns code (a fenced markdown block), render it
+// through Markdown so it gets the same code block with a copy button as the
+// rest of the chat.
+const containsFencedCode = (body: string): boolean => /```[\s\S]*```/.test(body);
+
 export default function ToolCard({ tool }: { tool: ToolCallInfo }) {
   const [expanded, setExpanded] = useState(false);
   const running = tool.state === 'running';
   const done = tool.state === 'done';
+  const bodyCode = Boolean(tool.body && containsFencedCode(tool.body));
   return (
-    <div className={`my-1.5 rounded-xl border overflow-hidden transition-colors ${running ? 'border-accent/25 bg-accent/[0.03]' : 'border-border bg-surface'}`}>
+    <div className={`my-3 rounded-xl border overflow-hidden transition-colors ${running ? 'border-accent/25 bg-accent/[0.03]' : 'border-border bg-surface'}`}>
       <button
         type="button"
         onClick={() => tool.body && setExpanded((value) => !value)}
@@ -36,8 +44,12 @@ export default function ToolCard({ tool }: { tool: ToolCallInfo }) {
         )}
       </button>
       {expanded && tool.body && (
-        <div className="border-t border-border px-3 py-2">
-          <pre className="text-xs font-mono text-ink-soft whitespace-pre-wrap break-all max-h-52 overflow-auto">{tool.body}</pre>
+        <div className="border-t border-border px-3 py-3">
+          {bodyCode ? (
+            <Markdown content={tool.body} />
+          ) : (
+            <pre className="text-xs font-mono text-ink-soft whitespace-pre-wrap break-all max-h-72 overflow-auto">{tool.body}</pre>
+          )}
         </div>
       )}
     </div>

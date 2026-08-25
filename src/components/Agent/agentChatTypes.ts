@@ -9,7 +9,7 @@ export type ChatImage = Pick<ImageAttachment, 'mimeType' | 'dataUrl' | 'base64'>
 export interface ChatMessage {
   id: string;
   entryId?: string;
-  role: 'user' | 'assistant';
+  role: 'user' | 'assistant' | 'system';
   content: string;
   thinking?: string;
   /** Chronological text/thinking/tool segments (present when tools exist). */
@@ -21,6 +21,10 @@ export interface ChatMessage {
   createdAt?: string;
   stopped?: boolean;
   steered?: boolean;
+  /** Local-only UI variant — e.g. a "context compacted" note in the chat. */
+  kind?: 'normal' | 'compact' | 'notice';
+  /** Optional detail rendered with a notice/compact message. */
+  detail?: string;
 }
 
 /** A tool call rendered as a collapsible card (ToolCard). */

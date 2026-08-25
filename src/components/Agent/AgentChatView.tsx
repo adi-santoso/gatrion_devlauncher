@@ -8,7 +8,7 @@ import { AssistantMessage, UserMessage } from './MessageBubble';
 import ChatComposer, { type ComposerAttachment } from './ChatComposer';
 import ChatHeader from './ChatHeader';
 import LiveTurnBlocks from './LiveTurnBlocks';
-import { BashRunnerList, HandoffPopover, HistoryStates, SubagentChips, TodosPanel } from './agentChatWidgets';
+import { BashRunnerList, HandoffPopover, HistoryStates, SubagentChips, SystemMessage, TodosPanel } from './agentChatWidgets';
 import type {
   BashRun,
   ChatMessage,
@@ -312,6 +312,8 @@ export default function AgentChatView(props: AgentChatViewProps) {
                 <div className="message-in" style={{ animationDelay: `${Math.min(index * 30, 150)}ms` }}>
                   {message.role === 'user' ? (
                     <UserMessage message={message} isLast={index === lastUserIndex} busy={busy} onSave={handleEditSave} onBranch={handleBranch} />
+                  ) : message.role === 'system' ? (
+                    <SystemMessage message={message} />
                   ) : (
                     <AssistantMessage message={message} isLast={index === messages.length - 1} busy={busy} onRetry={handleRetry} onBranch={handleBranch} />
                   )}

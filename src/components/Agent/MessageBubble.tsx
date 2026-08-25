@@ -216,7 +216,9 @@ export function UserMessage({ message, isLast, busy, onSave, onBranch }: UserMes
         ) : (
           <>
             {message.content && (
-              <div className="text-sm text-ink leading-[1.7] whitespace-pre-wrap break-words">{message.content}</div>
+              <div className="text-sm text-ink leading-[1.7]">
+                <Markdown content={message.content} />
+              </div>
             )}
             {message.images && message.images.length > 0 && (
               <div className="flex gap-2 mt-2 flex-wrap">

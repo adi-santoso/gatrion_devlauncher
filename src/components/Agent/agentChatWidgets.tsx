@@ -80,7 +80,7 @@ export function SubagentChips({ subagents }: { subagents: SubagentInfo[] }) {
             className="inline-flex items-center gap-1.5 text-[11px] text-ink-soft bg-surface-2 border border-border rounded-full px-2.5 py-1"
           >
             <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${running ? 'bg-warning animate-pulse' : done ? 'bg-success' : 'bg-ink-faint/50'}`} />
-            <Icon name="bot" size={11} className="text-accent shrink-0" />
+            <Icon name="users" size={11} className="text-accent shrink-0" />
             <span className="max-w-[200px] truncate">{agent.task || agent.name || 'subagent'}</span>
             {typeof agent.progress === 'number' && agent.progress < 1 && (
               <span className="text-ink-faint tabular-nums">{Math.round(agent.progress * 100)}%</span>
@@ -104,20 +104,29 @@ export interface TodosPanelProps {
 
 export function TodosPanel({ todos, open, setOpen }: TodosPanelProps) {
   if (todos.length === 0) return null;
+  const total = todos.reduce((sum, phase) => sum + (phase.tasks?.length || 0), 0);
+  const done = todos.reduce(
+    (sum, phase) => sum + (phase.tasks || []).filter((task) => task.status === 'done').length,
+    0
+  );
+  const progress = total > 0 ? Math.round((done / total) * 100) : 0;
   return (
-    <div className="absolute right-4 top-4 z-20 w-64 max-h-[60%] flex flex-col rounded-xl border border-border bg-surface shadow-card overflow-hidden">
+    <div className="max-w-[760px] mx-auto mb-3 rounded-xl border border-border bg-surface shadow-card overflow-hidden">
       <button
         type="button"
         onClick={() => setOpen((value) => !value)}
-        className="flex items-center gap-2 px-3 py-2 text-left border-b border-border bg-surface-2"
+        className="flex items-center gap-2 w-full px-3 py-2 text-left border-b border-border bg-surface-2"
       >
         <Icon name="check" size={12} className="text-accent" />
-        <span className="text-xs font-semibold text-ink flex-1">Todos</span>
-        <span className="text-[10px] text-ink-faint tabular-nums">{todos.reduce((sum, phase) => sum + (phase.tasks?.length || 0), 0)}</span>
+        <span className="text-xs font-semibold text-ink flex-1">Agent TODO</span>
+        <span className="w-20 h-1.5 rounded-full bg-surface-3 overflow-hidden">
+          <span className="block h-full rounded-full bg-accent transition-all" style={{ width: `${progress}%` }} />
+        </span>
+        <span className="text-[10px] text-ink-faint tabular-nums">{done}/{total}</span>
         <Icon name={open ? 'chevronDown' : 'chevronRight'} size={11} className="text-ink-faint" />
       </button>
       {open && (
-        <div className="overflow-auto p-2 space-y-2">
+        <div className="max-h-64 overflow-auto p-2 space-y-2">
           {todos.map((phase) => (
             <div key={phase.id}>
               {phase.name && phase.name !== 'Todos' && (
@@ -256,6 +265,25 @@ export function HistoryStates({ historyError, historyLoading, isFresh, notConfig
     );
   }
   return null;
+}
+
+// ---------------------------------------------------------------------------
+// System message (compaction/notice) rendered inline in the chat list
+// ---------------------------------------------------------------------------
+
+export function SystemMessage({ message }: { message: { content: string; detail?: string; kind?: string } }) {
+  const compact = message.kind === 'compact';
+  return (
+    <div className={`flex gap-[13px] ${compact ? 'mt-2' : ''}`}>
+      <div className="w-7 h-7 rounded-[7px] bg-surface-2 border border-border text-ink-faint flex items-center justify-center shrink-0 mt-0.5">
+        <Icon name={compact ? 'minimize' : 'info'} size={12} />
+      </div>
+      <div className={`flex-1 min-w-0 rounded-lg border px-3 py-2 text-[12.5px] leading-relaxed ${compact ? 'border-warning/25 bg-warning/5 text-warning' : 'border-border bg-surface-2 text-ink-soft'}`}>
+        <p className="font-medium text-ink-soft">{message.content}</p>
+        {message.detail && <p className="text-[11px] text-ink-faint mt-0.5">{message.detail}</p>}
+      </div>
+    </div>
+  );
 }
 
 // ---------------------------------------------------------------------------

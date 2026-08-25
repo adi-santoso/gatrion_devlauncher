@@ -33,6 +33,10 @@ export interface AgentSessionSidebarProps {
   onRenameSession: (project: Project, session: AgentSession, title: string) => void;
   onTogglePin: (project: Project, session: AgentSession) => void;
   onRequestDelete: (project: Project, session: AgentSession) => void;
+  status?: { installed: boolean; configured: boolean; version?: string | null };
+  statusLoading?: boolean;
+  sessionCount?: number;
+  onOpenSettings?: () => void;
 }
 
 export default function AgentSessionSidebar({
@@ -52,6 +56,10 @@ export default function AgentSessionSidebar({
   onRenameSession,
   onTogglePin,
   onRequestDelete,
+  status,
+  statusLoading,
+  sessionCount = 0,
+  onOpenSettings,
 }: AgentSessionSidebarProps) {
   const selectedProject = projects.find((project) => project.id === selectedProjectId) || null;
 
@@ -221,8 +229,42 @@ export default function AgentSessionSidebar({
           );
         })}
       </div>
-      <div className="border-t border-border p-3 text-[11px] text-ink-faint leading-relaxed">
-        Sessions are stored locally by omp per project. Chat history survives app restarts.
+      <div className="border-t border-border p-3 space-y-2">
+        <div className="flex items-center gap-2">
+          <span className="text-[11px] text-ink-faint tabular-nums shrink-0">{sessionCount} session{sessionCount === 1 ? '' : 's'}</span>
+          <span className="ml-auto flex items-center gap-1.5">
+            {statusLoading ? (
+              <span className="text-[11px] text-ink-faint">Checking agent...</span>
+            ) : status?.installed ? (
+              status?.configured ? (
+                <span className="inline-flex items-center gap-1.5 text-[11px] text-success bg-success/10 border border-success/20 rounded-full px-2 py-0.5">
+                  <span className="w-1.5 h-1.5 rounded-full bg-success" />
+                  provider ready
+                </span>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => onOpenSettings?.()}
+                  className="text-[11px] text-warning bg-warning/10 border border-warning/25 rounded-full px-2 py-0.5 hover:bg-warning/20 transition-colors"
+                >
+                  provider not configured — set up
+                </button>
+              )
+            ) : (
+              <button
+                type="button"
+                onClick={() => onOpenSettings?.()}
+                className="text-[11px] font-semibold text-accent bg-accent/10 border border-accent/25 rounded-full px-2 py-0.5 hover:bg-accent/20 transition-colors"
+              >
+                Install omp
+              </button>
+            )}
+          </span>
+        </div>
+        {status?.installed && status?.version && (
+          <p className="text-[10.5px] text-ink-faint font-mono leading-relaxed">oh-my-pi {status.version} · local</p>
+        )}
+        <p className="text-[10.5px] text-ink-faint leading-relaxed">Sessions are stored locally by omp per project. Chat history survives app restarts.</p>
       </div>
     </div>
   );

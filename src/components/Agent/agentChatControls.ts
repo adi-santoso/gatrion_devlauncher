@@ -75,7 +75,14 @@ export function createAgentControls({
     if (!project) return;
     try {
       await ipc.ompCompact(project.id, project.path);
-      showNotice('Context compacted');
+      setMessages((prev) => [...prev, {
+        id: uid(),
+        role: 'system',
+        kind: 'compact',
+        content: 'Context compacted — conversation was summarized to stay within the context window.',
+        detail: 'Manual compact requested.',
+        createdAt: new Date().toISOString(),
+      }]);
     } catch (caught) {
       setError((caught instanceof Error ? caught.message : String(caught)) || 'Compact failed');
     }

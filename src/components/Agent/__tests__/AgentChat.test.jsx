@@ -766,6 +766,18 @@ describe('AgentChat', () => {
     expect(await screen.findByText(/Context compacted/)).toBeInTheDocument()
   })
 
+  it('renders an auto-compaction notice entry in the chat list', async () => {
+    mocks.onOmpEvent.mockImplementation((callback) => { eventCb = callback; return () => {} })
+    mocks.ompGetMessages.mockResolvedValue({ success: true, messages: [] })
+
+    render(<Harness />)
+    eventCb({ projectId: 'p1', event: { type: 'auto_compaction_start' } })
+    eventCb({ projectId: 'p1', event: { type: 'auto_compaction_end', messages: [] } })
+
+    expect(await screen.findByText(/Context compacted/)).toBeInTheDocument()
+    expect(screen.getByText(/Older messages were folded into a summary/)).toBeInTheDocument()
+  })
+
   it('toggles fast mode from the options menu', async () => {
     mocks.onOmpEvent.mockImplementation((callback) => { eventCb = callback; return () => {} })
     mocks.ompGetMessages.mockResolvedValue({ success: true, messages: [] })

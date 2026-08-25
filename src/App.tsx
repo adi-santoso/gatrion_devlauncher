@@ -363,7 +363,7 @@ function App() {
               {/* Agent View — kept mounted (hidden) while browsing other views so an
                   in-flight conversation, streaming response, and selected session
                   survive navigation, exactly like the preview keep-alive. */}
-              <div className={currentView !== 'agent' ? 'hidden' : ''}>
+              <div className={(currentView !== 'agent' ? 'hidden ' : '') + 'h-full flex flex-col'}>
                 <AgentView
                   projects={projects}
                   initialProjectId={agentProjectId}

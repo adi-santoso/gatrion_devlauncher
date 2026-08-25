@@ -254,8 +254,27 @@ export function createOmpEventHandler(context: OmpEventContext): (event: OmpEven
     }
     if (type === 'auto_retry_start') { setRetrying(true); return; }
     if (type === 'auto_retry_end') { setRetrying(false); return; }
-    if (type === 'auto_compaction_start') { setCompacting(true); return; }
-    if (type === 'auto_compaction_end') { setCompacting(false); return; }
+    if (type === 'auto_compaction_start') {
+      setCompacting(true);
+      return;
+    }
+    if (type === 'auto_compaction_end') {
+      setCompacting(false);
+      // Surface the compaction as a notice entry in the chat list so the user
+      // can see that history was summarized and roughly how much was dropped.
+      const compacted = event.messages || event.summary
+        ? (Array.isArray(event.messages) ? event.messages.length : 0)
+        : 0;
+      setMessages((prev) => [...prev, {
+        id: uid(),
+        role: 'system',
+        kind: 'compact',
+        content: 'Context compacted — earlier conversation was summarized to stay within the context window.',
+        detail: compacted > 0 ? `${compacted} older message(s) folded into a summary.` : 'Older messages were folded into a summary.',
+        createdAt: new Date().toISOString(),
+      }]);
+      return;
+    }
     if (type === 'model_changed' || type === 'thinking_level_changed') {
       refreshStateRef.current?.();
       return;

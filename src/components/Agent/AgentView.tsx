@@ -167,47 +167,7 @@ export default function AgentView({ projects, initialProjectId = null, initialSe
   const sessionCount = Object.values(sessionsByProject).reduce((sum, list) => sum + list.length, 0);
 
   return (
-    <div className="view flex flex-col" style={{ height: 'calc(100vh - 140px)', minHeight: 480 }}>
-      {/* Status bar */}
-      <div className="shrink-0 flex items-center gap-2.5 px-4 py-2.5 border border-border rounded-xl bg-surface shadow-card mb-3 flex-wrap">
-        {statusLoading ? (
-          <span className="text-xs text-ink-faint">Checking agent…</span>
-        ) : status.installed ? (
-          <>
-            <span className="flex items-center gap-2 text-xs text-ink-soft">
-              <span className="relative flex w-2 h-2">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-success opacity-60" />
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-success" />
-              </span>
-              <b className="text-ink">oh-my-pi</b>
-              {status.version && <span className="font-mono text-[11px] text-ink-faint">{status.version}</span>}
-            </span>
-            {status.configured ? (
-              <span className="text-[11px] text-success bg-success/10 border border-success/20 rounded-full px-2.5 py-0.5">provider ready</span>
-            ) : (
-              <button
-                onClick={() => onOpenSettings?.()}
-                className="text-[11px] text-warning bg-warning/10 border border-warning/25 rounded-full px-2.5 py-0.5 hover:bg-warning/20 transition-colors"
-              >
-                provider not configured — set up
-              </button>
-            )}
-          </>
-        ) : (
-          <>
-            <span className="w-2 h-2 rounded-full bg-ink-faint" />
-            <span className="text-xs text-ink-soft">AI Agent requires <b className="text-ink">oh-my-pi (omp)</b></span>
-            <button
-              onClick={onOpenSettings}
-              className="text-[11px] font-semibold text-accent bg-accent/10 border border-accent/25 rounded-full px-2.5 py-0.5 hover:bg-accent/20 transition-colors"
-            >
-              Install in Settings
-            </button>
-          </>
-        )}
-        <span className="ml-auto text-[11px] text-ink-faint tabular-nums">{sessionCount} session{sessionCount === 1 ? '' : 's'}</span>
-      </div>
-
+    <div className="flex flex-col h-full min-h-0">
       <div className="flex-1 min-h-0 flex border border-border rounded-xl bg-surface shadow-card overflow-hidden">
         <AgentSessionSidebar
           projects={projects}
@@ -226,6 +186,10 @@ export default function AgentView({ projects, initialProjectId = null, initialSe
           onRenameSession={handleRenameSession}
           onTogglePin={handleTogglePin}
           onRequestDelete={(project, session) => setConfirmDelete({ project, session })}
+          status={status}
+          statusLoading={statusLoading}
+          sessionCount={sessionCount}
+          onOpenSettings={onOpenSettings}
         />
 
         <ConfirmDialog

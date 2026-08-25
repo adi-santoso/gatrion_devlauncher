@@ -27,7 +27,7 @@ export default function LiveTurnBlocks({ blocks, busy }: LiveTurnBlocksProps) {
   }
 
   return (
-    <>
+    <div className="space-y-3">
       {blocks.map((block, index) => {
         if (block.kind === 'tool') {
           return <ToolCard key={block.id} tool={block.tool || { name: 'tool' }} />;
@@ -57,6 +57,6 @@ export default function LiveTurnBlocks({ blocks, busy }: LiveTurnBlocksProps) {
           </div>
         );
       })}
-    </>
+    </div>
   );
 }

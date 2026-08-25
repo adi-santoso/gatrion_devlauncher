@@ -103,7 +103,7 @@ export default function ChatHeader({
               title="Thinking level"
               className="inline-flex items-center gap-1.5 text-[11px] font-medium text-ink-soft bg-surface-2 border border-border rounded-full px-2.5 py-1 hover:border-border-hover hover:text-ink transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
             >
-              <Icon name="brain" size={11} className="text-warning" />
+              <Icon name="sliders" size={11} className="text-warning" />
               <span className="capitalize">{thinkingLevel || 'thinking'}</span>
               <Icon name="chevronDown" size={11} className="text-ink-faint" />
             </button>
