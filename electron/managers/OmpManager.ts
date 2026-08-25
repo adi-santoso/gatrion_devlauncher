@@ -16,9 +16,19 @@ interface AgentSessionMeta {
   cost?: number
 }
 
+/** One typed part of a transcript content array (text | thinking | tool | ...). */
+interface ContentPart {
+  type?: unknown
+  text?: unknown
+  [key: string]: unknown
+}
+
 interface NormalizedMessage {
   role: 'user' | 'assistant'
-  content: string
+  // String for plain text; kept as the original part array when the entry has
+  // tool calls so the renderer can rebuild its tool cards on reload instead of
+  // flattening them into invisible text.
+  content: string | ContentPart[]
 }
 
 /**
@@ -347,8 +357,15 @@ class OmpManager extends EventEmitter {
       if (typeof content === 'string' && content.trim()) {
         messages.push({ role: role === 'assistant' ? 'assistant' : 'user', content })
       } else if (Array.isArray(content)) {
-        const text = content.map((part) => part?.text || (part?.type === 'text' ? part?.text : '')).filter(Boolean).join('\n')
-        if (text.trim()) messages.push({ role: role === 'assistant' ? 'assistant' : 'user', content: text })
+        const parts = content.filter((part): part is ContentPart => Boolean(part && typeof part === 'object')) as ContentPart[]
+        const text = parts.map((part) => (typeof part.text === 'string' ? part.text : '')).filter(Boolean).join('\n')
+        // Keep the raw part array when the entry carries tool calls so the
+        // renderer can restore the tool cards; plain text stays a string so
+        // existing consumers (markdown export, plain rendering) are unaffected.
+        const hasTool = parts.some((part) => /tool/i.test(String(part.type || '')))
+        if (text.trim() || hasTool) {
+          messages.push({ role: role === 'assistant' ? 'assistant' : 'user', content: hasTool ? parts : text })
+        }
       }
     }
     return messages

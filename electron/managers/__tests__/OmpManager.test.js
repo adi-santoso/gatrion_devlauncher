@@ -250,11 +250,39 @@ describe('OmpManager (mock omp RPC)', () => {
       ])
     })
 
-    test('joins array content parts and drops empties', () => {
+    test('joins plain-text array content into a string', () => {
       const out = manager.normalizeMessages([
-        { role: 'assistant', content: [{ type: 'text', text: 'part one' }, { type: 'tool_use', name: 'bash' }, { text: 'part two' }] },
+        { role: 'assistant', content: [{ type: 'text', text: 'part one' }, { text: 'part two' }] },
       ])
       expect(out).toEqual([{ role: 'assistant', content: 'part one\npart two' }])
+    })
+
+    test('keeps the raw part array when a tool call is present (reload tool cards)', () => {
+      const out = manager.normalizeMessages([
+        {
+          role: 'assistant',
+          content: [
+            { type: 'text', text: 'Checking…' },
+            { type: 'tool_use', name: 'bash', input: { command: 'ls' }, toolCallId: 'call-1' },
+            { type: 'text', text: 'done' },
+          ],
+        },
+      ])
+      expect(out).toHaveLength(1)
+      const entry = out[0]
+      expect(Array.isArray(entry.content)).toBe(true)
+      const parts = entry.content
+      // The renderer's contentPartsToSegments reads these exact fields.
+      expect(parts.some((part) => /tool/i.test(String(part.type)) && part.name === 'bash')).toBe(true)
+      expect(parts.some((part) => part.type === 'text' && part.text === 'Checking…')).toBe(true)
+    })
+
+    test('keeps a tool-only array (no text at all)', () => {
+      const out = manager.normalizeMessages([
+        { role: 'assistant', content: [{ type: 'tool_use', name: 'grep', args: { pattern: 'x' } }] },
+      ])
+      expect(out).toHaveLength(1)
+      expect(Array.isArray(out[0].content)).toBe(true)
     })
 
     test('accepts { messages } and plain array envelopes, ignores nulls and blanks', () => {
