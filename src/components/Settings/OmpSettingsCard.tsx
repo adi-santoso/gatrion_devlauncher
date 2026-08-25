@@ -57,6 +57,8 @@ export default function OmpSettingsCard({ onNotifyStatus }: OmpSettingsCardProps
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState<ProviderForm>(EMPTY_FORM);
+  // Expanded provider → its model list is shown inline in Settings.
+  const [expandedProvider, setExpandedProvider] = useState<string | null>(null);
 
   const notify = useCallback((type: 'success' | 'error', text: string) => {
     setMessage({ type, text });
@@ -306,22 +308,60 @@ export default function OmpSettingsCard({ onNotifyStatus }: OmpSettingsCardProps
             <p className="text-[11px] text-ink-faint">No providers in ~/.omp/agent/models.yml yet.</p>
           ) : (
             <ul className="space-y-1.5">
-              {config.providers.map((provider) => (
-                <li key={provider.name} className="flex items-center gap-2 px-3 py-2 rounded-lg bg-surface-2 border border-border">
-                  <span className="text-[11px] font-mono font-semibold text-ink">{provider.name}</span>
-                  <span className="text-[10px] font-mono text-ink-faint truncate">{provider.baseUrl}</span>
-                  <span className="text-[10px] text-ink-faint shrink-0">· {provider.modelCount} model(s)</span>
-                  {provider.apiKey && <span className="text-[10px] text-ink-faint shrink-0">· key {provider.apiKey}</span>}
-                  <button
-                    type="button"
-                    onClick={() => handleDeleteProvider(provider.name)}
-                    className="ml-auto text-ink-faint hover:text-danger transition-colors shrink-0"
-                    title={`Delete ${provider.name}`}
-                  >
-                    <Icon name="trash" size={12} />
-                  </button>
-                </li>
-              ))}
+              {config.providers.map((provider) => {
+                const isExpanded = expandedProvider === provider.name;
+                const models = provider.models || [];
+                return (
+                  <li key={provider.name} className="rounded-lg bg-surface-2 border border-border overflow-hidden">
+                    <div className="flex items-center gap-2 px-3 py-2">
+                      <button
+                        type="button"
+                        onClick={() => setExpandedProvider(isExpanded ? null : provider.name)}
+                        className="flex items-center gap-2 min-w-0 flex-1 text-left"
+                        title={models.length > 0 ? `Show ${models.length} model(s)` : 'No models listed'}
+                        aria-expanded={isExpanded}
+                      >
+                        <Icon name={isExpanded ? 'chevronDown' : 'chevronRight'} size={11} className="text-ink-faint shrink-0" />
+                        <span className="text-[11px] font-mono font-semibold text-ink">{provider.name}</span>
+                      </button>
+                      <span className="text-[10px] font-mono text-ink-faint truncate">{provider.baseUrl}</span>
+                      <span className="text-[10px] text-ink-faint shrink-0">· {provider.modelCount} model(s)</span>
+                      {provider.apiKey && <span className="text-[10px] text-ink-faint shrink-0">· key {provider.apiKey}</span>}
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteProvider(provider.name)}
+                        className="ml-auto text-ink-faint hover:text-danger transition-colors shrink-0"
+                        title={`Delete ${provider.name}`}
+                      >
+                        <Icon name="trash" size={12} />
+                      </button>
+                    </div>
+                    {isExpanded && (
+                      <div className="border-t border-border px-3 py-2">
+                        {models.length > 0 ? (
+                          <ul className="space-y-1">
+                            {models.map((model) => (
+                              <li key={model.id} className="flex items-center gap-2 px-1 py-0.5">
+                                <span className="w-1.5 h-1.5 rounded-full bg-accent/50 shrink-0" />
+                                <span className="text-[11px] font-mono text-ink-soft truncate">{model.id}</span>
+                                {model.name && model.name !== model.id && (
+                                  <span className="text-[10px] text-ink-faint truncate">· {model.name}</span>
+                                )}
+                              </li>
+                            ))}
+                          </ul>
+                        ) : (
+                          <p className="text-[10px] text-ink-faint px-1 py-1">
+                            {String(provider.modelCount) === 'auto' || provider.modelCount === 0
+                              ? 'No explicit model list — using discovery (models fetched live from the API).'
+                              : 'No models defined.'}
+                          </p>
+                        )}
+                      </div>
+                    )}
+                  </li>
+                );
+              })}
             </ul>
           )}
 
