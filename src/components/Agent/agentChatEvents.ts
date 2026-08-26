@@ -6,8 +6,7 @@ import type { Dispatch, MutableRefObject, SetStateAction } from 'react';
 import * as ipc from '../../utils/ipcRenderer';
 import { estimateCost } from '../../utils/costEstimate';
 import {
-  appendTextBlock,
-  appendThinkingBlock,
+  appendStreamedBlock,
   argsToString,
   blocksToText,
   normalizeTranscriptMessage,
@@ -15,7 +14,7 @@ import {
   updateToolBlock,
 } from './agentChatUtils';
 import { extractTurnUsage, mergeFinishedTurn } from './agentChatMessages';
-import type { ChatMessage, ChatTool, LastTurnInfo, SlashCommand, SubagentInfo, TodoPhase, TurnBlock } from './agentChatTypes';
+import type { ChatMessage, ChatTool, LastTurnInfo, SlashCommand, StreamedPart, SubagentInfo, TodoPhase, TurnBlock } from './agentChatTypes';
 
 /** omp RPC event payload (fields are optional — shapes vary by event type). */
 export interface OmpEvent {
@@ -39,8 +38,8 @@ export interface OmpEvent {
 export interface OmpEventContext {
   setMessages: Dispatch<SetStateAction<ChatMessage[]>>;
   lastEventAtRef: MutableRefObject<number>;
-  streamingBufRef: MutableRefObject<string>;
-  thinkingBufRef: MutableRefObject<string>;
+  /** Ordered streamed text/thinking deltas awaiting flush (arrival order). */
+  streamQueueRef: MutableRefObject<StreamedPart[]>;
   toolUpdateRef: MutableRefObject<{ toolCallId: string; text: string } | null>;
   /** The ordered text/thinking/tool timeline of the in-progress turn. */
   setBlocks: Dispatch<SetStateAction<TurnBlock[]>>;
@@ -69,23 +68,21 @@ export interface OmpEventContext {
 //   tool_execution_start/update/end = { toolCallId, toolName, args, result }
 //   agent_end = { messages: [...full transcript...] }
 
-// Commit any buffered text/thinking into the timeline before a tool block is
-// inserted, so the tool card lands after the text that preceded it (the flush
-// interval may not have run yet — e.g. the view is hidden).
-const commitPendingBuffers = (
+// Commit any buffered text/thinking into the timeline in ARRIVAL ORDER before
+// a tool block is inserted, so the tool card lands after the text/thinking
+// that preceded it (the flush interval may not have run yet — e.g. the view
+// is hidden). Each part appends to the last block of its own kind, so a text
+// delta separated from earlier text by a thinking block stays on its own text
+// block in the correct chronological position.
+const commitPendingStream = (
   setBlocks: Dispatch<SetStateAction<TurnBlock[]>>,
-  streamingBufRef: MutableRefObject<string>,
-  thinkingBufRef: MutableRefObject<string>,
+  streamQueueRef: MutableRefObject<StreamedPart[]>,
 ) => {
-  const pendingText = streamingBufRef.current;
-  if (pendingText) {
-    streamingBufRef.current = '';
-    setBlocks((prev) => appendTextBlock(prev, pendingText));
-  }
-  const pendingThinking = thinkingBufRef.current;
-  if (pendingThinking) {
-    thinkingBufRef.current = '';
-    setBlocks((prev) => appendThinkingBlock(prev, pendingThinking));
+  if (!streamQueueRef.current.length) return;
+  const pending = streamQueueRef.current;
+  streamQueueRef.current = [];
+  for (const part of pending) {
+    setBlocks((prev) => appendStreamedBlock(prev, part.kind, part.text));
   }
 };
 
@@ -93,8 +90,7 @@ export function createOmpEventHandler(context: OmpEventContext): (event: OmpEven
   const {
     setMessages,
     lastEventAtRef,
-    streamingBufRef,
-    thinkingBufRef,
+    streamQueueRef,
     toolUpdateRef,
     setBlocks,
     setSubagents,
@@ -121,16 +117,17 @@ export function createOmpEventHandler(context: OmpEventContext): (event: OmpEven
     if (type === 'message_update') {
       const assistantEvent = event.assistantMessageEvent;
       if (!assistantEvent) return;
-      if (assistantEvent.type === 'text_delta' && typeof assistantEvent.delta === 'string') {
-        streamingBufRef.current += assistantEvent.delta;
-      } else if (/think|reason/i.test(assistantEvent.type || '') && typeof assistantEvent.delta === 'string') {
-        thinkingBufRef.current += assistantEvent.delta;
-      }
+      if (typeof assistantEvent.delta !== 'string') return;
+      // Both text and thinking deltas go into ONE ordered queue so the flush
+      // consumes them in arrival order — a text delta arriving after a
+      // thinking delta is appended after it, never drawn on top of the
+      // thought like a cut-in.
+      const kind = /think|reason/i.test(assistantEvent.type || '') ? 'thinking' : 'text';
+      streamQueueRef.current.push({ kind, text: assistantEvent.delta });
       return;
     }
     if (type === 'agent_start') {
-      streamingBufRef.current = '';
-      thinkingBufRef.current = '';
+      streamQueueRef.current = [];
       setBlocks([]);
       setSubagents([]);
       setError(null);
@@ -154,7 +151,7 @@ export function createOmpEventHandler(context: OmpEventContext): (event: OmpEven
     if (type === 'tool_execution_start') {
       // Commit buffered text/thinking first so this tool card lands AFTER the
       // text that preceded it in real time, not above the whole reply.
-      commitPendingBuffers(setBlocks, streamingBufRef, thinkingBufRef);
+      commitPendingStream(setBlocks, streamQueueRef);
       const toolId = event.toolCallId || '';
       const tool: ChatTool = {
         id: toolId,
@@ -187,16 +184,17 @@ export function createOmpEventHandler(context: OmpEventContext): (event: OmpEven
       // Fold any deltas still sitting in the 30ms flush window into the
       // blocks first — agent_end can arrive right after the last delta, and
       // discarding the buffers here would drop the final text/thinking chunk
-      // (and any unflushed tool output) from the merged transcript.
-      const pendingText = streamingBufRef.current;
-      const pendingThinking = thinkingBufRef.current;
+      // (and any unflushed tool output) from the merged transcript. The queue
+      // is consumed in ARRIVAL order, and each part appends to the last block
+      // of its own kind, so the final chunk lands in the right position.
+      const pending = streamQueueRef.current;
       const pendingTool = toolUpdateRef.current;
-      streamingBufRef.current = '';
-      thinkingBufRef.current = '';
+      streamQueueRef.current = [];
       toolUpdateRef.current = null;
       let blocks = getBlocksFallback();
-      if (pendingText) blocks = appendTextBlock(blocks, pendingText);
-      if (pendingThinking) blocks = appendThinkingBlock(blocks, pendingThinking);
+      for (const part of pending) {
+        blocks = appendStreamedBlock(blocks, part.kind, part.text);
+      }
       if (pendingTool) blocks = updateToolBlock(blocks, pendingTool.toolCallId, '', { body: pendingTool.text.slice(0, 2000) });
       const turnMessages = (Array.isArray(event.messages) ? event.messages : [])
         .map((item) => normalizeTranscriptMessage(item as { id?: string; role?: string; content?: unknown }))
@@ -221,8 +219,7 @@ export function createOmpEventHandler(context: OmpEventContext): (event: OmpEven
         completionTokens: usage.completionTokens,
         totalTokens: usage.totalTokens,
       }).next);
-      streamingBufRef.current = '';
-      thinkingBufRef.current = '';
+      streamQueueRef.current = [];
       setBlocks([]);
       setSubagents([]);
       setBusyState(false);

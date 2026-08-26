@@ -16,6 +16,7 @@ import type {
   LastTurnInfo,
   ModelOption,
   SlashCommand,
+  StreamedPart,
   SubagentInfo,
   TodoPhase,
   TurnBlock,
@@ -102,8 +103,11 @@ export default function AgentChat({
   // whatever menu is on screen.
   const visibleRef = useRef(visible);
   visibleRef.current = visible;
-  const streamingBufRef = useRef('');
-  const thinkingBufRef = useRef('');
+  // Ordered streamed deltas (text/thinking) awaiting the flush interval.
+  // Parts are pushed in ARRIVAL order so the timeline renders them
+  // chronologically — a text delta arriving after a thinking delta must not
+  // jump above the thought block.
+  const streamQueueRef = useRef<StreamedPart[]>([]);
   // Latest tool output update, flushed on the same interval (tool output can
   // stream many chunks per second; each one must not re-render the chat).
   const toolUpdateRef = useRef<{ toolCallId: string; text: string } | null>(null);
@@ -149,8 +153,7 @@ export default function AgentChat({
   const { scrollToBottom, handleScroll } = useAgentStream({
     visible,
     visibleRef,
-    streamingBufRef,
-    thinkingBufRef,
+    streamQueueRef,
     toolUpdateRef,
     scrollRef,
     bottomRef,
@@ -172,7 +175,7 @@ export default function AgentChat({
     sentSessionIdRef,
     draftsRef,
     inputRef,
-    streamingBufRef,
+    streamQueueRef,
     setMessages,
     setBlocks,
     setSubagents,
@@ -212,8 +215,7 @@ export default function AgentChat({
     projectRef,
     handleEventRef,
     lastEventAtRef,
-    streamingBufRef,
-    thinkingBufRef,
+    streamQueueRef,
     toolUpdateRef,
     notifyOnFinish,
     notifySound,
@@ -275,8 +277,7 @@ export default function AgentChat({
     sentSessionIdRef,
     lastEventAtRef,
     draftsRef,
-    streamingBufRef,
-    thinkingBufRef,
+    streamQueueRef,
     inputRef,
     refreshHistory,
     setInput,

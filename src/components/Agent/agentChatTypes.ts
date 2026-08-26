@@ -49,6 +49,18 @@ export interface MessageSegment {
 }
 
 /**
+ * A single streamed delta chunk before it lands in the turn timeline. The
+ * buffer keeps these in the exact order they arrived so text/thinking that
+ * interleave in the RPC stream render chronologically (a separate per-kind
+ * buffer used to reorder them — a late text delta after a thinking delta
+ * ended up drawn AFTER the thinking, looking like the thought "cut" the reply).
+ */
+export interface StreamedPart {
+  kind: 'text' | 'thinking';
+  text: string;
+}
+
+/**
  * A chronological block of the in-progress turn. Text/thinking deltas and
  * tool executions all land in one ordered list so the chat renders them
  * interleaved by time instead of grouping each type together.

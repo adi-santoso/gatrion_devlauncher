@@ -331,6 +331,41 @@ describe('AgentChat', () => {
     expect(screen.queryByText(/step 19/)).not.toBeInTheDocument()
   })
 
+  it('renders interleaved text and thinking in arrival order (thinking never cuts the reply)', async () => {
+    mocks.onOmpEvent.mockImplementation((callback) => { eventCb = callback; return () => {} })
+    mocks.ompGetMessages.mockResolvedValue({ success: true, messages: [] })
+    mocks.ompChat.mockResolvedValue({
+      success: true,
+      sessionId: 'sInterleaveThinking',
+      session: { id: 'sInterleaveThinking', title: 'InterleaveThink', sessionPath: 'C:/sessions/sInterleaveThinking.jsonl' },
+    })
+
+    render(<Harness />)
+    const input = document.querySelector('textarea')
+    fireEvent.change(input, { target: { value: 'interleave thinking' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Send message' }))
+    await screen.findByText('interleave thinking')
+    await waitFor(() => expect(mocks.ompChat).toHaveBeenCalled())
+
+    // text → thinking → MORE text. The late text delta must append to the
+    // FIRST text block — the thought must NOT sit between "Saya sudah" and
+    // "dapat gambaran besar" (the reported bug).
+    await act(async () => {
+      eventCb({ projectId: 'p1', event: { type: 'agent_start' } })
+      eventCb({ projectId: 'p1', event: { type: 'message_update', assistantMessageEvent: { type: 'text_delta', delta: 'Saya sudah ' } } })
+      eventCb({ projectId: 'p1', event: { type: 'message_update', assistantMessageEvent: { type: 'reasoning_delta', delta: 'let me reason... ' } } })
+      eventCb({ projectId: 'p1', event: { type: 'message_update', assistantMessageEvent: { type: 'text_delta', delta: 'dapat gambaran besar.' } } })
+      await new Promise((resolve) => setTimeout(resolve, 120))
+    })
+
+    // The text is ONE continuous phrase (not split by the thought), and the
+    // thinking panel renders BELOW it, not interleaved inside the sentence.
+    const text = await screen.findByText(/Saya sudah dapat gambaran besar/)
+    const thinking = await screen.findByText(/let me reason/)
+    // thinking FOLLOWS text in the DOM (Document.POSITION_FOLLOWING = 4)
+    expect(text.compareDocumentPosition(thinking) & 4).toBeTruthy()
+  })
+
   it('persists thinking on the assistant message after the turn ends (open by default, collapsible with preview)', async () => {
     mocks.onOmpEvent.mockImplementation((callback) => { eventCb = callback; return () => {} })
     mocks.ompGetMessages.mockResolvedValue({ success: true, messages: [] })

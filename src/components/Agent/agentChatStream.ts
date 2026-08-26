@@ -1,12 +1,12 @@
 import { useCallback, useEffect } from 'react';
-import { appendTextBlock, appendThinkingBlock, updateToolBlock } from './agentChatUtils';
-import type { TurnBlock } from './agentChatTypes';
+import { appendStreamedBlock, updateToolBlock } from './agentChatUtils';
+import type { StreamedPart, TurnBlock } from './agentChatTypes';
 
 export interface AgentStreamOptions {
   visible: boolean;
   visibleRef: React.RefObject<boolean>;
-  streamingBufRef: React.RefObject<string>;
-  thinkingBufRef: React.RefObject<string>;
+  /** Ordered streamed text/thinking deltas awaiting flush (arrival order). */
+  streamQueueRef: React.RefObject<StreamedPart[]>;
   toolUpdateRef: React.RefObject<{ toolCallId: string; text: string } | null>;
   scrollRef: React.RefObject<HTMLDivElement | null>;
   bottomRef: React.RefObject<HTMLDivElement | null>;
@@ -28,8 +28,7 @@ export interface AgentStreamOptions {
 export function useAgentStream({
   visible,
   visibleRef,
-  streamingBufRef,
-  thinkingBufRef,
+  streamQueueRef,
   toolUpdateRef,
   scrollRef,
   bottomRef,
@@ -55,29 +54,29 @@ export function useAgentStream({
     setNearBottom(isNearBottom());
   };
 
-  // Push whatever accumulated in the streaming buffers into the turn timeline.
-  // The pending text is captured before clearing the ref so the updater closes
-  // over a stable string instead of reading the (already cleared) ref when
-  // React invokes it. No-op while the view is hidden. Memoized (all deps are
+  // Push whatever accumulated in the streaming queue into the turn timeline.
+  // The pending parts are captured before clearing the ref so the updater
+  // closes over a stable array instead of reading the (already cleared) ref
+  // when React invokes it. Parts are consumed in ARRIVAL ORDER and each one
+  // appends to the last block of its own kind, so text/thinking that
+  // interleave stay chronological (a late text delta never jumps above a
+  // thought block). No-op while the view is hidden. Memoized (all deps are
   // stable refs/setters) so the flush-rate interval is created exactly once.
   const flushBuffers = useCallback(() => {
     if (!visibleRef.current) return;
-    const pendingText = streamingBufRef.current;
-    if (pendingText) {
-      streamingBufRef.current = '';
-      setBlocks((prev) => appendTextBlock(prev, pendingText));
-    }
-    const pendingThinking = thinkingBufRef.current;
-    if (pendingThinking) {
-      thinkingBufRef.current = '';
-      setBlocks((prev) => appendThinkingBlock(prev, pendingThinking));
+    const pending = streamQueueRef.current;
+    if (pending.length) {
+      streamQueueRef.current = [];
+      for (const part of pending) {
+        setBlocks((prev) => appendStreamedBlock(prev, part.kind, part.text));
+      }
     }
     if (toolUpdateRef.current) {
       const { toolCallId, text } = toolUpdateRef.current;
       toolUpdateRef.current = null;
       setBlocks((prev) => updateToolBlock(prev, toolCallId, '', { body: text.slice(0, 2000) }));
     }
-  }, [visibleRef, streamingBufRef, thinkingBufRef, toolUpdateRef, setBlocks]);
+  }, [visibleRef, streamQueueRef, toolUpdateRef, setBlocks]);
 
   // Flush buffered streaming deltas at a bounded rate (render rate cap).
   useEffect(() => {

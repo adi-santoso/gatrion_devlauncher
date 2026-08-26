@@ -7,6 +7,7 @@ import type {
   ContextUsage,
   ModelOption,
   SlashCommand,
+  StreamedPart,
   SubagentInfo,
   TodoPhase,
   TurnBlock,
@@ -36,7 +37,8 @@ export interface SessionHistoryOptions {
   sentSessionIdRef: React.RefObject<string | null>;
   draftsRef: React.RefObject<Record<string, string>>;
   inputRef: React.RefObject<HTMLTextAreaElement | null>;
-  streamingBufRef: React.RefObject<string>;
+  /** Ordered streamed text/thinking deltas awaiting flush (arrival order). */
+  streamQueueRef: React.RefObject<StreamedPart[]>;
   setMessages: React.Dispatch<React.SetStateAction<ChatMessage[]>>;
   setBlocks: React.Dispatch<React.SetStateAction<TurnBlock[]>>;
   setSubagents: React.Dispatch<React.SetStateAction<SubagentInfo[]>>;
@@ -62,7 +64,7 @@ export function useAgentSessionHistory({
   sentSessionIdRef,
   draftsRef,
   inputRef,
-  streamingBufRef,
+  streamQueueRef,
   setMessages,
   setBlocks,
   setSubagents,
@@ -104,7 +106,7 @@ export function useAgentSessionHistory({
     }
     setMessages([]);
     setBlocks([]);
-    streamingBufRef.current = '';
+    streamQueueRef.current = [];
     setSubagents([]);
     setError(null);
     setHistoryError(null);

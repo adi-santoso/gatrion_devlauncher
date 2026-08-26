@@ -54,11 +54,17 @@ export function mergeFinishedTurn(
   const canonicalContent = assistantMessages.map((item) => item.content).join('\n\n');
   const canonicalThinking = assistantMessages.map((item) => item.thinking).filter(Boolean).join('\n\n');
   // The live blocks carry the true chronological order (text and tool calls
-  // interleaved). Text content falls back to the canonical transcript when the
-  // turn streamed no text (e.g. thinking-only replies, or when the RPC process
-  // was respawned mid-turn).
+  // interleaved) and can interleave thinking between text chunks. But the
+  // legacy committed message renders `thinking` as a single ThinkingBlock
+  // ABOVE the whole content — reordering would misrepresent a reply whose
+  // reasoning streamed mid-text. When the blocks interleave text and thinking,
+  // keep only the text as `content` and let the ordered `segments` render the
+  // reasoning at its true position. Text content falls back to the canonical
+  // transcript when the turn streamed no text (e.g. thinking-only replies, or
+  // when the RPC process was respawned mid-turn).
+  const interleaved = options.blocks.some((block) => block.kind === 'text') && options.blocks.some((block) => block.kind === 'thinking');
   const blockText = blocksToText(options.blocks);
-  const blockThinking = blocksToThinking(options.blocks);
+  const blockThinking = interleaved ? '' : blocksToThinking(options.blocks);
   const assistantContent = blockText || canonicalContent;
   const assistantThinking = blockThinking || canonicalThinking;
   const segments = blocksToSegments(options.blocks);

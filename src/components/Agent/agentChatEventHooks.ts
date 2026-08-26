@@ -1,15 +1,15 @@
 import { useCallback, useEffect, useRef } from 'react';
 import * as ipc from '../../utils/ipcRenderer';
 import { createOmpEventHandler, type OmpEvent } from './agentChatEvents';
-import type { ChatMessage, LastTurnInfo, SlashCommand, SubagentInfo, TodoPhase, TurnBlock } from './agentChatTypes';
+import type { ChatMessage, LastTurnInfo, SlashCommand, StreamedPart, SubagentInfo, TodoPhase, TurnBlock } from './agentChatTypes';
 import type { Project } from '../../types/shared';
 
 export interface AgentEventsOptions {
   projectRef: React.RefObject<Project | null>;
   handleEventRef: React.RefObject<((event: OmpEvent) => void) | null>;
   lastEventAtRef: React.RefObject<number>;
-  streamingBufRef: React.RefObject<string>;
-  thinkingBufRef: React.RefObject<string>;
+  /** Ordered streamed text/thinking deltas awaiting flush (arrival order). */
+  streamQueueRef: React.RefObject<StreamedPart[]>;
   toolUpdateRef: React.RefObject<{ toolCallId: string; text: string } | null>;
   notifyOnFinish: boolean;
   notifySound: boolean;
@@ -41,8 +41,7 @@ export function useAgentEvents({
   projectRef,
   handleEventRef,
   lastEventAtRef,
-  streamingBufRef,
-  thinkingBufRef,
+  streamQueueRef,
   toolUpdateRef,
   notifyOnFinish,
   notifySound,
@@ -80,8 +79,7 @@ export function useAgentEvents({
   const handleEvent = createOmpEventHandler({
     setMessages,
     lastEventAtRef,
-    streamingBufRef,
-    thinkingBufRef,
+    streamQueueRef,
     toolUpdateRef,
     setBlocks,
     setSubagents,

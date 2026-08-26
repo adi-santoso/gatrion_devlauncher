@@ -1,9 +1,9 @@
 import { useCallback, useRef } from 'react';
 import * as ipc from '../../utils/ipcRenderer';
 import { fileToAttachment, MAX_ATTACHMENTS, MAX_IMAGE_BYTES } from './imageAttachment';
-import { blocksToSegments, blocksToText, blocksToThinking, uid } from './agentChatUtils';
+import { appendStreamedBlock, blocksToSegments, blocksToText, blocksToThinking, uid } from './agentChatUtils';
 import type { ComposerAttachment } from './ChatComposer';
-import type { ChatImage, ChatMessage, SlashCommand, TurnBlock } from './agentChatTypes';
+import type { ChatImage, ChatMessage, SlashCommand, StreamedPart, TurnBlock } from './agentChatTypes';
 import type { AgentSession, Project } from '../../types/shared';
 
 export interface AgentTurnOptions {
@@ -18,8 +18,8 @@ export interface AgentTurnOptions {
   sentSessionIdRef: React.RefObject<string | null>;
   lastEventAtRef: React.RefObject<number>;
   draftsRef: React.RefObject<Record<string, string>>;
-  streamingBufRef: React.RefObject<string>;
-  thinkingBufRef: React.RefObject<string>;
+  /** Ordered streamed text/thinking deltas awaiting flush (arrival order). */
+  streamQueueRef: React.RefObject<StreamedPart[]>;
   inputRef: React.RefObject<HTMLTextAreaElement | null>;
   refreshHistory: () => void;
   setInput: React.Dispatch<React.SetStateAction<string>>;
@@ -56,8 +56,7 @@ export function useAgentTurn({
   sentSessionIdRef,
   lastEventAtRef,
   draftsRef,
-  streamingBufRef,
-  thinkingBufRef,
+  streamQueueRef,
   inputRef,
   refreshHistory,
   setInput,
@@ -86,8 +85,7 @@ export function useAgentTurn({
       }]);
     }
     setBlocks([]);
-    streamingBufRef.current = '';
-    thinkingBufRef.current = '';
+    streamQueueRef.current = [];
     setNearBottom(true);
     setBusyState(true);
     const ompImages = images.map((image) => ({ type: 'image', data: image.base64, mimeType: image.mimeType }));
@@ -206,9 +204,17 @@ export function useAgentTurn({
     // Keep whatever streamed so far as a marked partial reply (timeline
     // blocks preserved, so tool calls survive a stop) instead of discarding
     // it — a follow-up agent_end replaces it with canonical text.
-    const blocks = blocksRef.current;
-    const partial = blocksToText(blocks) || streamingBufRef.current.trim();
-    const partialThinking = blocksToThinking(blocks) || thinkingBufRef.current.trim();
+    // Fold any unflushed stream deltas into the blocks in arrival order so a
+    // stop preserves the exact partial reply (text and thinking stay
+    // chronological, and partial text is not dropped).
+    const pending = streamQueueRef.current;
+    streamQueueRef.current = [];
+    const blocks = pending.reduce<TurnBlock[]>(
+      (acc, part) => appendStreamedBlock(acc, part.kind, part.text),
+      blocksRef.current,
+    );
+    const partial = blocksToText(blocks);
+    const partialThinking = blocksToThinking(blocks);
     const segments = blocksToSegments(blocks);
     if (partial || segments.length > 0) {
       setMessages((prev) => [...prev, {
@@ -222,8 +228,6 @@ export function useAgentTurn({
     }
     setBusyState(false);
     setBlocks([]);
-    streamingBufRef.current = '';
-    thinkingBufRef.current = '';
   };
 
   const insertSlashCommand = (command: SlashCommand) => {

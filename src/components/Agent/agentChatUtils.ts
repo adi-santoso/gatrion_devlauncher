@@ -150,29 +150,53 @@ export const argsToString = (args: unknown): string => {
 // Live turn blocks (ordered text / thinking / tool timeline)
 // ---------------------------------------------------------------------------
 
-/** Append text to the last text block, or start a new one after the current blocks. */
-export const appendTextBlock = (blocks: TurnBlock[], text: string): TurnBlock[] => {
+/**
+ * Append a streamed delta, treating TOOL blocks as real timeline content but
+ * THINKING blocks as a side-channel that must never split a sentence:
+ *
+ * - A text delta merges into the last TEXT block as long as no tool block has
+ *   been added since it (a tool execution is content — text that follows it
+ *   belongs AFTER the tool card, so it starts a fresh block there).
+ * - A thinking delta merges into the last THINKING block under the same rule,
+ *   so thinking coalesces into one panel instead of fragmenting.
+ *
+ * This is what keeps an interleaved stream chronological: "Saya sudah" → (a
+ * thinking delta arrives) → "dapat gambaran besar" renders as ONE continuous
+ * text block with the thought below it, instead of the thought cutting the
+ * reply in half.
+ */
+export const appendStreamedBlock = (blocks: TurnBlock[], kind: 'text' | 'thinking', text: string): TurnBlock[] => {
   if (!text) return blocks;
-  const last = blocks[blocks.length - 1];
-  if (last && last.kind === 'text') {
+  let lastKindIndex = -1;
+  let lastToolIndex = -1;
+  for (let i = blocks.length - 1; i >= 0; i -= 1) {
+    if (blocks[i].kind === kind && lastKindIndex === -1) lastKindIndex = i;
+    if (blocks[i].kind === 'tool' && lastToolIndex === -1) lastToolIndex = i;
+    if (lastKindIndex !== -1 && lastToolIndex !== -1) break;
+  }
+  // Merge into the existing block of this kind ONLY when nothing was added
+  // after it (a tool block forces a new block so content stays chronological).
+  if (lastKindIndex !== -1 && lastKindIndex > lastToolIndex) {
     const next = [...blocks];
-    next[next.length - 1] = { ...last, text: last.text + text };
+    next[lastKindIndex] = { ...blocks[lastKindIndex], text: blocks[lastKindIndex].text + text };
     return next;
   }
-  return [...blocks, { id: uid(), kind: 'text', text }];
+  return [...blocks, { id: uid(), kind, text }];
 };
 
-/** Append text to the last thinking block, or start a new one after the current blocks. */
-export const appendThinkingBlock = (blocks: TurnBlock[], text: string): TurnBlock[] => {
-  if (!text) return blocks;
-  const last = blocks[blocks.length - 1];
-  if (last && last.kind === 'thinking') {
-    const next = [...blocks];
-    next[next.length - 1] = { ...last, text: last.text + text };
-    return next;
-  }
-  return [...blocks, { id: uid(), kind: 'thinking', text }];
-};
+/**
+ * Append text to the last text block, or start a new one after the current
+ * blocks. Kept for direct callers that build a timeline by kind (agent_end
+ * folding); the stream path uses appendStreamedBlock to preserve order.
+ */
+export const appendTextBlock = (blocks: TurnBlock[], text: string): TurnBlock[] => appendStreamedBlock(blocks, 'text', text);
+
+/**
+ * Append text to the last thinking block, or start a new one after the current
+ * blocks. Kept for direct callers that build a timeline by kind (agent_end
+ * folding); the stream path uses appendStreamedBlock to preserve order.
+ */
+export const appendThinkingBlock = (blocks: TurnBlock[], text: string): TurnBlock[] => appendStreamedBlock(blocks, 'thinking', text);
 
 /** Patch a tool block by its call id (falls back to name matching when the id is empty). */
 export const updateToolBlock = (blocks: TurnBlock[], toolId: string, name: string, patch: Partial<ChatTool>): TurnBlock[] => {

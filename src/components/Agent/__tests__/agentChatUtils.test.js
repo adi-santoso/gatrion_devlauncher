@@ -1,5 +1,6 @@
 import { describe, test, expect } from 'vitest'
 import {
+  appendStreamedBlock,
   appendTextBlock,
   appendThinkingBlock,
   blocksToSegments,
@@ -106,6 +107,38 @@ describe('turn block helpers', () => {
     const merged = appendThinkingBlock(appendThinkingBlock([], 'step1 '), 'step2')
     expect(merged).toHaveLength(1)
     expect(merged[0]).toMatchObject({ kind: 'thinking', text: 'step1 step2' })
+  })
+
+  test('appendStreamedBlock keeps text/thinking interleaved chronologically', () => {
+    // The exact bug: text, then thinking, then MORE text. The late text delta
+    // must append to the FIRST text block — not jump above the thinking block.
+    let blocks = []
+    blocks = appendStreamedBlock(blocks, 'text', 'Saya sudah ')
+    blocks = appendStreamedBlock(blocks, 'thinking', 'hmm, let me think...')
+    blocks = appendStreamedBlock(blocks, 'text', 'dapat gambaran besar.')
+    expect(blocks.map((block) => block.kind)).toEqual(['text', 'thinking'])
+    expect(blocks[0].text).toBe('Saya sudah dapat gambaran besar.')
+    expect(blocks[1].text).toBe('hmm, let me think...')
+  })
+
+  test('appendStreamedBlock coalesces multiple thinking deltas into one panel', () => {
+    let blocks = []
+    blocks = appendStreamedBlock(blocks, 'thinking', 'why A ')
+    blocks = appendStreamedBlock(blocks, 'text', 'answer A ')
+    blocks = appendStreamedBlock(blocks, 'thinking', 'why B ')
+    expect(blocks.map((block) => block.kind)).toEqual(['thinking', 'text'])
+    // The second thinking delta appends to the FIRST thinking block — a flush
+    // can coalesce multiple deltas without fragmenting the thought panel.
+    expect(blocks[0].text).toBe('why A why B ')
+    expect(blocks[1].text).toBe('answer A ')
+  })
+
+  test('appendTextBlock starts a new block after a tool block', () => {
+    const blocks = [textBlock('before '), toolBlock('t1', 'read')]
+    const merged = appendTextBlock(blocks, 'after')
+    expect(merged.map((block) => block.kind)).toEqual(['text', 'tool', 'text'])
+    expect(merged[0].text).toBe('before ')
+    expect(merged[2].text).toBe('after')
   })
 
   test('updateToolBlock matches by tool id and falls back to name', () => {
