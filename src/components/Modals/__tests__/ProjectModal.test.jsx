@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { StrictMode } from 'react'
 import { describe, test, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import ProjectModal from '../ProjectModal'
@@ -129,6 +129,49 @@ describe('ProjectModal folder detection', () => {
     fireEvent.click(screen.getByRole('button', { name: /add project/i }))
     await waitFor(() => expect(onSave).toHaveBeenCalled())
     expect(onSave.mock.calls[0][0].tags).toContain('api')
+  })
+
+  test('detection applies the type under React.StrictMode double-invoked updaters', async () => {
+    // Regression: analyzeFolder used to write lastDetected inside the
+    // setFormData updater. React StrictMode (dev) invokes updater functions
+    // twice; the second run then saw updated refs and SKIPped the type, leaving
+    // the form as "Configured as Custom" in npm run dev. The merge now happens
+    // outside the updater, so this must hold even with double invocation.
+    render(
+      <StrictMode>
+        <ProjectModal isOpen onClose={() => {}} onSave={async () => ({ success: true })} />
+      </StrictMode>
+    )
+    fireEvent.click(screen.getByRole('button', { name: /browse project folder/i }))
+
+    await waitFor(() => {
+      expect(screen.getByText('Detected as Go')).toBeTruthy()
+      expect(screen.getByText('go run .')).toBeTruthy()
+    })
+  })
+
+  test('a dropped folder with pre-detected type is applied, not stuck as CUSTOM', async () => {
+    // Regression: drag & drop calls detectProjectType before opening the modal,
+    // so droppedProject arrives with a non-empty type. applyDetection must treat
+    // that prefill as "detected", not as a manual edit that blocks overwriting.
+    renderModal({
+      droppedProject: {
+        path: 'D:/projects/goapp',
+        name: 'goapp',
+        type: 'GOLANG',
+        startCommand: 'go run .',
+        commands: [{ id: 'main', name: 'Go', command: 'go run .', port: null, primary: true }],
+      },
+    })
+    // The dropped prefill is shown as the configured stack (the drop handler
+    // already ran detection before opening the modal).
+    expect(screen.getByText('Configured as Go')).toBeTruthy()
+
+    // Re-analyze the same folder — the dropped prefill must be overwritable.
+    vi.mocked(ipc.detectProjectType).mockResolvedValue(nodeDetection)
+    fireEvent.click(screen.getByRole('button', { name: /change folder/i }))
+    await waitFor(() => expect(screen.getByText('Detected as Node.js')).toBeTruthy())
+    expect(screen.getByText('npm start')).toBeTruthy()
   })
 
   test('existing tags from other projects render as selectable chips', async () => {

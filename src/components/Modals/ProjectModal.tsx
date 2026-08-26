@@ -66,7 +66,22 @@ const ProjectModal = ({ isOpen, onClose, onSave, project = null, droppedProject 
         dependsOn: (source.dependsOn as string[]) || [],
       });
       setShowAdvanced(true);
-      if (droppedProject && !project) setDetection({ success: true, name: (source.type as string) || 'CUSTOM' });
+      if (droppedProject && !project) {
+        // A dropped folder arrives pre-detected (drop handler ran detectProjectType).
+        // Seed "last detected" with those values so re-analysis (Browse / Change
+        // folder) can still overwrite them — otherwise applyDetection treats the
+        // non-empty prefill as a manual edit and the type stays CUSTOM.
+        const seed: Partial<ProjectFormData> = {
+          name: (source.name as string) || '',
+          type: (source.type as string) || 'CUSTOM',
+          port: source.port == null ? '' : String(source.port),
+          startCommand: (source.startCommand as string) || '',
+          commands: (source.commands as ProjectFormData['commands']) || [],
+          emoji: (source.emoji as string) || '⚙️',
+          color: (source.color as string) || '#6B7280',
+        };
+        lastDetected.current = seed;
+      }
     } else {
       setFormData(EMPTY_PROJECT);
       // Seed "last detected" with fresh defaults so the FIRST detection can
@@ -133,29 +148,31 @@ const ProjectModal = ({ isOpen, onClose, onSave, project = null, droppedProject 
       }
 
       setDetection(result);
-      setFormData((previous) => {
-        const next = {
-          ...previous,
-          path: projectPath,
-          name: (applyDetection(previous, 'name', result.projectName) as string) ?? previous.name,
-          type: (applyDetection(previous, 'type', result.type || 'CUSTOM') as string) ?? previous.type,
-          port: (applyDetection(previous, 'port', result.defaultPort == null ? '' : String(result.defaultPort)) as string) ?? previous.port,
-          startCommand: (applyDetection(previous, 'startCommand', result.defaultCommand) as string) ?? previous.startCommand,
-          commands: (applyDetection(previous, 'commands', result.commands) as ProjectFormData['commands']) ?? previous.commands,
-          emoji: (applyDetection(previous, 'emoji', result.icon) as string) ?? previous.emoji,
-          color: (applyDetection(previous, 'color', result.color) as string) ?? previous.color,
-        };
-        lastDetected.current = {
-          name: next.name,
-          type: next.type,
-          port: next.port,
-          startCommand: next.startCommand,
-          commands: next.commands,
-          emoji: next.emoji,
-          color: next.color,
-        };
-        return next;
-      });
+      // Merge detection results into the form OUTSIDE the state updater: React
+      // StrictMode (dev) invokes updater functions twice to surface impurity, so
+      // writing `lastDetected` inside setFormData made the second invocation see
+      // already-updated refs and skip legitimate fields (type stayed CUSTOM).
+      const next = {
+        ...formData,
+        path: projectPath,
+        name: (applyDetection(formData, 'name', result.projectName) as string) ?? formData.name,
+        type: (applyDetection(formData, 'type', result.type || 'CUSTOM') as string) ?? formData.type,
+        port: (applyDetection(formData, 'port', result.defaultPort == null ? '' : String(result.defaultPort)) as string) ?? formData.port,
+        startCommand: (applyDetection(formData, 'startCommand', result.defaultCommand) as string) ?? formData.startCommand,
+        commands: (applyDetection(formData, 'commands', result.commands) as ProjectFormData['commands']) ?? formData.commands,
+        emoji: (applyDetection(formData, 'emoji', result.icon) as string) ?? formData.emoji,
+        color: (applyDetection(formData, 'color', result.color) as string) ?? formData.color,
+      };
+      lastDetected.current = {
+        name: next.name,
+        type: next.type,
+        port: next.port,
+        startCommand: next.startCommand,
+        commands: next.commands,
+        emoji: next.emoji,
+        color: next.color,
+      };
+      setFormData(next);
       if (!result.defaultCommand) setShowAdvanced(true);
     } catch (error) {
       if (currentDetectionId === detectionId.current) {
