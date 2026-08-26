@@ -31,7 +31,7 @@ describe('OmpConfig', () => {
     expect(provider.name).toBe('anthropic')
     expect(provider.apiKey).not.toContain('0123456789')
     expect(provider.modelCount).toBe(2)
-    expect(provider.models).toContainEqual({ id: 'claude-opus-4', name: 'Opus' })
+    expect(provider.models).toContainEqual({ id: 'claude-opus-4', name: 'Opus', contextWindow: null })
   })
 
   test('saveProvider validates name and base URL', async () => {
@@ -76,6 +76,37 @@ describe('OmpConfig', () => {
     expect(result.providers).toHaveLength(1)
     expect(result.defaultModel).toBe('x/model-1')
     expect(result.configPath).toContain('.omp')
+  })
+
+  test('contextWindow round-trips per model and is omitted when unset/invalid', async () => {
+    await config.saveProvider({
+      name: 'custom',
+      baseUrl: 'https://custom.example.com',
+      models: [
+        { id: 'm1', contextWindow: 32768 },
+        { id: 'm2' },
+      ],
+    })
+    let providers = await config.listProviders()
+    expect(providers.providers[0].models[0].contextWindow).toBe(32768)
+    expect(providers.providers[0].models[1].contextWindow).toBeNull()
+    // Provider-level summary is the max model window.
+    expect(providers.providers[0].contextWindow).toBe(32768)
+
+    // Persisted into models.yml at the model level so omp reads it.
+    const raw = await fs.readFile(path.join(homeDir, '.omp', 'agent', 'models.yml'), 'utf8')
+    expect(raw).toContain('contextWindow: 32768')
+
+    // Clearing the field removes the override.
+    await config.saveProvider({ name: 'custom', baseUrl: 'https://custom.example.com', models: [{ id: 'm1', contextWindow: 0 }] })
+    providers = await config.listProviders()
+    expect(providers.providers[0].models[0].contextWindow).toBeNull()
+    expect(providers.providers[0].contextWindow).toBeNull()
+
+    // Invalid values are ignored.
+    await config.saveProvider({ name: 'custom', baseUrl: 'https://custom.example.com', models: [{ id: 'm1', contextWindow: Number.NaN }] })
+    providers = await config.listProviders()
+    expect(providers.providers[0].models[0].contextWindow).toBeNull()
   })
 
   test('writes are preceded by a timestamped backup', async () => {

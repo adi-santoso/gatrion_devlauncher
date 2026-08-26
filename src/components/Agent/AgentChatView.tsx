@@ -45,6 +45,8 @@ export interface AgentChatViewProps {
   handleSelectModel: (ref: string) => void;
   contextPercent: number | null;
   contextUsage: ContextUsage | null;
+  /** Per-provider context window from models.yml (overrides omp's default). */
+  contextWindowOverride: number | null;
   tokensPerSecond: number | null;
   compacting: boolean;
   retrying: boolean;
@@ -145,6 +147,7 @@ export default function AgentChatView(props: AgentChatViewProps) {
     handleSelectModel,
     contextPercent,
     contextUsage,
+    contextWindowOverride,
     tokensPerSecond,
     compacting,
     retrying,
@@ -240,6 +243,7 @@ export default function AgentChatView(props: AgentChatViewProps) {
         onOpenSettings={onOpenSettings}
         contextPercent={contextPercent}
         contextUsage={contextUsage}
+        contextWindowOverride={contextWindowOverride}
         tokensPerSecond={tokensPerSecond}
         compacting={compacting}
         retrying={retrying}

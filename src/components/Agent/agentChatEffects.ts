@@ -153,6 +153,7 @@ export interface RuntimeDataOptions {
   setDefaultModel: React.Dispatch<React.SetStateAction<string | null>>;
   setSubagents: React.Dispatch<React.SetStateAction<SubagentInfo[]>>;
   setCommands: React.Dispatch<React.SetStateAction<SlashCommand[]>>;
+  setProviderContextWindows: React.Dispatch<React.SetStateAction<Record<string, number>>>;
   applyState: (state: Record<string, unknown>) => void;
 }
 
@@ -173,6 +174,7 @@ export function useAgentRuntimeData({
   setDefaultModel,
   setSubagents,
   setCommands,
+  setProviderContextWindows,
   applyState,
 }: RuntimeDataOptions) {
   // Model list + current default, merged from models.yml and the live RPC.
@@ -196,6 +198,22 @@ export function useAgentRuntimeData({
           vision: null, // explicit models.yml entries carry no input-type info
         }))
       );
+      // Per-model context-window override from models.yml — used to render an
+      // accurate context bar for custom providers instead of omp's blanket
+      // default (omp reports 128k for unknown providers). omp itself reads
+      // models[].contextWindow (docs/models.md), so this also honors the real
+      // window end-to-end.
+      const windows: Record<string, number> = {};
+      for (const provider of (result?.providers as Array<{ name?: string; contextWindow?: number | null; models?: Array<{ id?: string; contextWindow?: number | null }> }>) || []) {
+        if (!provider.name) continue;
+        for (const model of provider.models || []) {
+          const window = model.contextWindow ?? provider.contextWindow;
+          if (model.id && typeof window === 'number' && window > 0) {
+            windows[`${provider.name}/${model.id}`] = window;
+          }
+        }
+      }
+      setProviderContextWindows(windows);
       if (!targetProject) {
         apply(configOptions, current);
         return;
@@ -218,7 +236,7 @@ export function useAgentRuntimeData({
       }).catch(() => {});
     }).catch(() => {});
     return () => { cancelled = true; };
-  }, [projectId, sessionId, projectRef, applyState, setModels, setDefaultModel]);
+  }, [projectId, sessionId, projectRef, applyState, setModels, setDefaultModel, setProviderContextWindows]);
 
   // Keep the context-usage indicator fresh while a conversation is active.
   // Polls once immediately, then on a timer (faster while the agent works).

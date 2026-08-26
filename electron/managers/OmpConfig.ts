@@ -14,7 +14,7 @@ interface ModelsDoc {
     apiKey?: string
     authHeader?: boolean
     disableStrictTools?: boolean
-    models?: Array<{ id: string; name?: string }>
+    models?: Array<{ id: string; name?: string; contextWindow?: number }>
     discovery?: object
   }>
 }
@@ -24,7 +24,7 @@ interface ProviderInput {
   baseUrl?: string
   apiKey?: string
   api?: string
-  models?: Array<{ id: string; name?: string }>
+  models?: Array<{ id: string; name?: string; contextWindow?: number }>
   discovery?: object
   authHeader?: boolean
   disableStrictTools?: boolean
@@ -58,16 +58,23 @@ class OmpConfig {
     }
   }
 
-  async listProviders(): Promise<{ providers: Array<{ name: string; baseUrl: string; api: string; apiKey: string; modelCount: number | string; models: Array<{ id: string; name: string }> }> }> {
+  async listProviders(): Promise<{ providers: Array<{ name: string; baseUrl: string; api: string; apiKey: string; modelCount: number | string; contextWindow: number | null; models: Array<{ id: string; name: string; contextWindow: number | null }> }> }> {
     const models = await this.readModels()
     const providers = Object.entries(models.providers || {}).map(([name, entry]) => ({
       name,
       baseUrl: entry.baseUrl || '',
       api: entry.api || 'openai-completions',
-      apiKey: entry.apiKey ? (entry.apiKey.length > 8 ? `${entry.apiKey.slice(0, 3)}…${entry.apiKey.slice(-3)}` : '••••') : '',
+      apiKey: entry.apiKey ? (entry.apiKey.length > 8 ? `${entry.apiKey.slice(0, 3)}...${entry.apiKey.slice(-3)}` : '••••') : '',
       modelCount: Array.isArray(entry.models) ? entry.models.length : (entry.discovery ? 'auto' : 0),
+      contextWindow: Array.isArray(entry.models) && entry.models.some((model) => typeof model.contextWindow === 'number' && model.contextWindow > 0)
+        ? Math.max(...entry.models.map((model) => (typeof model.contextWindow === 'number' ? model.contextWindow : 0)))
+        : null,
       models: Array.isArray(entry.models)
-        ? entry.models.map((model) => ({ id: model.id, name: model.name || model.id }))
+        ? entry.models.map((model) => ({
+            id: model.id,
+            name: model.name || model.id,
+            contextWindow: typeof model.contextWindow === 'number' && model.contextWindow > 0 ? model.contextWindow : null,
+          }))
         : [],
     }))
     return { providers }
@@ -108,7 +115,16 @@ class OmpConfig {
     if (input.disableStrictTools === true) entry.disableStrictTools = true
 
     const models = Array.isArray(input.models)
-      ? input.models.map((model) => ({ id: model.id, name: model.name || model.id }))
+      ? input.models.map((model) => {
+          // Optional per-model context window override (tokens). omp reads
+          // contextWindow from models.yml (docs/models.md), so this both fixes
+          // the context bar display and lets omp honor the real window.
+          const out: Record<string, unknown> = { id: model.id, name: model.name || model.id }
+          if (typeof model.contextWindow === 'number' && Number.isFinite(model.contextWindow) && model.contextWindow > 0) {
+            out.contextWindow = Math.round(model.contextWindow)
+          }
+          return out
+        })
       : []
     if (models.length) entry.models = models
     if (input.discovery) entry.discovery = input.discovery

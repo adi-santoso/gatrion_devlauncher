@@ -726,6 +726,37 @@ describe('AgentChat', () => {
     expect(screen.queryByText('3063%')).not.toBeInTheDocument()
   })
 
+  it('uses the models.yml contextWindow override for custom providers', async () => {
+    mocks.onOmpEvent.mockImplementation((callback) => { eventCb = callback; return () => {} })
+    mocks.ompGetMessages.mockResolvedValue({ success: true, messages: [] })
+    // omp reports a blanket 128k window; the custom provider overrides it to
+    // 32k, so 32k tokens must render as 100%, not 25%.
+    mocks.ompConfigGet.mockResolvedValue({
+      success: true,
+      defaultModel: 'my-gateway/gpt-4o-mini',
+      providers: [
+        {
+          name: 'my-gateway',
+          baseUrl: 'https://my-gateway.com/v1',
+          api: 'openai-completions',
+          apiKey: '',
+          modelCount: 1,
+          models: [{ id: 'gpt-4o-mini', name: 'GPT-4o mini', contextWindow: 32768 }],
+        },
+      ],
+    })
+    mocks.ompGetState.mockResolvedValue({ success: true, state: {
+      thinkingLevel: 'off',
+      contextUsage: { tokens: 32768, contextWindow: 128000, percent: 0.256 },
+    } })
+
+    render(<Harness />)
+
+    // Overridden to the real 32k limit → 100%, and the tooltip shows 32k.
+    expect(await screen.findByText('100%')).toBeInTheDocument()
+    expect(screen.getByText('100%').closest('[title]')).toHaveAttribute('title', expect.stringMatching(/32[,.]768/))
+  })
+
   it('steers the running agent when a message is sent while busy', async () => {
     mocks.onOmpEvent.mockImplementation((callback) => { eventCb = callback; return () => {} })
     mocks.ompGetMessages.mockResolvedValue({ success: true, messages: [] })

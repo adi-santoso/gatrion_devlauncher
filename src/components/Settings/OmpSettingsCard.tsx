@@ -16,6 +16,7 @@ const API_TYPES: Array<[string, string]> = [
 interface ProviderModel {
   id: string;
   name?: string;
+  contextWindow?: number | null;
 }
 
 interface OmpProviderInfo {
@@ -24,6 +25,7 @@ interface OmpProviderInfo {
   modelCount: number;
   apiKey?: string;
   models?: ProviderModel[];
+  contextWindow?: number | null;
 }
 
 interface ProviderForm {
@@ -130,13 +132,21 @@ export default function OmpSettingsCard({ onNotifyStatus }: OmpSettingsCardProps
   const handleSaveProvider = async () => {
     setBusy(true);
     setMessage(null);
+    // One model per line: "id", "id: display name", or "id: display name: contextWindow".
     const models = form.models
       .split(/[\n,]/)
       .map((item) => item.trim())
       .filter(Boolean)
       .map((item) => {
-        const [id, ...nameParts] = item.split(':');
-        return { id: id.trim(), name: nameParts.join(':').trim() };
+        const [id, ...rest] = item.split(':');
+        const namePart = rest.slice(0, -1).join(':').trim();
+        const windowRaw = rest.length > 1 ? rest[rest.length - 1].trim() : '';
+        const contextWindow = windowRaw && Number(windowRaw) > 0 ? Number(windowRaw) : undefined;
+        return {
+          id: id.trim(),
+          name: namePart || undefined,
+          contextWindow,
+        };
       });
     const result = await ipc.ompConfigSaveProvider({
       name: form.name,
@@ -326,6 +336,7 @@ export default function OmpSettingsCard({ onNotifyStatus }: OmpSettingsCardProps
                       </button>
                       <span className="text-[10px] font-mono text-ink-faint truncate">{provider.baseUrl}</span>
                       <span className="text-[10px] text-ink-faint shrink-0">· {provider.modelCount} model(s)</span>
+                      {provider.contextWindow && <span className="text-[10px] text-ink-faint shrink-0">· ctx {provider.contextWindow.toLocaleString()}</span>}
                       {provider.apiKey && <span className="text-[10px] text-ink-faint shrink-0">· key {provider.apiKey}</span>}
                       <button
                         type="button"
@@ -346,6 +357,9 @@ export default function OmpSettingsCard({ onNotifyStatus }: OmpSettingsCardProps
                                 <span className="text-[11px] font-mono text-ink-soft truncate">{model.id}</span>
                                 {model.name && model.name !== model.id && (
                                   <span className="text-[10px] text-ink-faint truncate">· {model.name}</span>
+                                )}
+                                {model.contextWindow && (
+                                  <span className="text-[10px] text-ink-faint shrink-0 tabular-nums">· ctx {model.contextWindow.toLocaleString()}</span>
                                 )}
                               </li>
                             ))}
@@ -381,10 +395,10 @@ export default function OmpSettingsCard({ onNotifyStatus }: OmpSettingsCardProps
                 <input type="text" value={form.baseUrl} onChange={(e) => setForm({ ...form, baseUrl: e.target.value })} placeholder="https://my-gateway.com/v1" className={`${inputClass} mt-0.5 font-mono`} />
               </label>
               <label className="block text-[10px] text-ink-faint">API key (optional — or reference an env var name)
-                <input type="password" value={form.apiKey} onChange={(e) => setForm({ ...form, apiKey: e.target.value })} placeholder="sk-… or MY_GATEWAY_KEY" className={`${inputClass} mt-0.5 font-mono`} />
+                <input type="password" value={form.apiKey} onChange={(e) => setForm({ ...form, apiKey: e.target.value })} placeholder="sk-... or MY_GATEWAY_KEY" className={`${inputClass} mt-0.5 font-mono`} />
               </label>
-              <label className="block text-[10px] text-ink-faint">Models (one per line — "id" or "id: display name")
-                <textarea value={form.models} onChange={(e) => setForm({ ...form, models: e.target.value })} rows={3} placeholder={'gpt-4o-mini: GPT-4o mini\nclaude-sonnet-4.5: Sonnet 4.5'} className={`${inputClass} mt-0.5 font-mono resize-none`} />
+              <label className="block text-[10px] text-ink-faint">Models (one per line — "id", "id: name", or "id: name: contextWindow")
+                <textarea value={form.models} onChange={(e) => setForm({ ...form, models: e.target.value })} rows={3} placeholder={'gpt-4o-mini: GPT-4o mini: 128000\nclaude-sonnet-4.5: Sonnet 4.5: 200000'} className={`${inputClass} mt-0.5 font-mono resize-none`} />
               </label>
               <div className="flex items-center gap-4">
                 <label className="flex items-center gap-1.5 text-[10px] text-ink-soft cursor-pointer">

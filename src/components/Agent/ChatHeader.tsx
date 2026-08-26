@@ -26,6 +26,8 @@ interface ChatHeaderProps {
   onOpenSettings?: () => void;
   contextPercent: number | null;
   contextUsage: ContextUsage | null;
+  /** Per-provider context window from models.yml (overrides omp's default). */
+  contextWindowOverride: number | null;
   tokensPerSecond: number | null;
   compacting: boolean;
   retrying: boolean;
@@ -66,6 +68,7 @@ export default function ChatHeader({
   onOpenSettings,
   contextPercent,
   contextUsage,
+  contextWindowOverride,
   tokensPerSecond,
   compacting,
   retrying,
@@ -207,7 +210,7 @@ export default function ChatHeader({
         {contextPercent != null && (
           <div
             className="hidden md:flex items-center gap-1.5 text-[11px]"
-            title={`${contextUsage?.tokens?.toLocaleString() || 0} / ${contextUsage?.contextWindow?.toLocaleString() || '?'} tokens in context`}
+            title={`${contextUsage?.tokens?.toLocaleString() || 0} / ${(contextWindowOverride ?? contextUsage?.contextWindow)?.toLocaleString() || '?'} tokens in context`}
           >
             <span className="w-14 h-1.5 rounded-full bg-surface-3 overflow-hidden">
               <span

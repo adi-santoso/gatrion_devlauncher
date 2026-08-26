@@ -62,6 +62,10 @@ export default function AgentChat({
   const [thinkingLevel, setThinkingLevel] = useState<string | null>(null);
   const [levelOpen, setLevelOpen] = useState(false);
   const [contextUsage, setContextUsage] = useState<ContextUsage | null>(null);
+  // Per-provider context window override from models.yml (custom providers).
+  // omp reports a blanket 128k default for unknown providers — this lets the
+  // context bar show the real window when the user configured one.
+  const [providerContextWindows, setProviderContextWindows] = useState<Record<string, number>>({});
   const [autoCompaction, setAutoCompaction] = useState(true);
   const [fastMode, setFastMode] = useState(false);
   const [autoRetry, setAutoRetry] = useState(false);
@@ -193,6 +197,7 @@ export default function AgentChat({
     setDefaultModel,
     setSubagents,
     setCommands,
+    setProviderContextWindows,
     applyState,
   });
 
@@ -329,7 +334,15 @@ export default function AgentChat({
     ? models.filter((model) => `${model.ref} ${model.label}`.toLowerCase().includes(modelQuery))
     : models;
 
-  const contextPercent = computeContextPercent(contextUsage);
+  // The active model drives the context window. Prefer the models.yml override
+  // (custom providers, keyed provider/model); fall back to what omp reports.
+  const effectiveContextWindow = (currentModelRef ? providerContextWindows[currentModelRef] : undefined) ?? contextUsage?.contextWindow ?? null;
+  // Recompute the percent against the effective window so the bar, tooltip and
+  // auto-compact indicator reflect the real limit instead of omp's default.
+  const contextUsageForPercent = effectiveContextWindow !== null && effectiveContextWindow !== contextUsage?.contextWindow
+    ? { ...(contextUsage || {}), contextWindow: effectiveContextWindow, percent: undefined }
+    : contextUsage;
+  const contextPercent = computeContextPercent(contextUsageForPercent);
   // Slash-command palette: shown while typing a / command without a space.
   const slashOpen = input.startsWith('/') && !input.includes(' ') && input.length > 1;
   const slashQuery = slashOpen ? input.slice(1).toLowerCase() : '';
@@ -357,6 +370,7 @@ export default function AgentChat({
       handleSelectModel={controls.handleSelectModel}
       contextPercent={contextPercent}
       contextUsage={contextUsage}
+      contextWindowOverride={effectiveContextWindow}
       tokensPerSecond={tokensPerSecond}
       compacting={compacting}
       retrying={retrying}
