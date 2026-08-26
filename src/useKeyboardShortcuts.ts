@@ -45,12 +45,19 @@ export function useKeyboardShortcuts({ openModal, onOpenModal, onCloseModal, onS
         return
       }
 
-      // Escape - Close modals
+      // Escape - Close modals (not while typing)
       if (e.key === 'Escape' && openModal) {
         e.preventDefault()
         onCloseModal()
         return
       }
+
+      // Typing guard: let ? and Escape type normally into inputs/textareas,
+      // otherwise the global shortcut steals the keystroke.
+      const target = e.target as HTMLElement | null
+      const isTyping = target
+        && (target.tagName === 'INPUT' || target.tagName === 'SELECT' || target.tagName === 'TEXTAREA' || (target as HTMLElement & { isContentEditable?: boolean }).isContentEditable)
+      if (isTyping) return
 
       // ? - Open shortcuts modal
       if (e.key === '?' && !openModal) {
