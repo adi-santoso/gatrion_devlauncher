@@ -1,4 +1,4 @@
-import { useRef, useState, type Dispatch, type MutableRefObject, type RefObject, type SetStateAction } from 'react';
+import { useEffect, useRef, useState, type Dispatch, type MutableRefObject, type RefObject, type SetStateAction } from 'react';
 import Icon from '../Common/Icon';
 import { formatCost } from '../../utils/costEstimate';
 import { MAX_ATTACHMENTS } from './imageAttachment';
@@ -115,13 +115,29 @@ export default function ChatComposer({
     requestAnimationFrame(() => inputRef.current?.focus());
   };
 
+  // Elapsed time of the current agent turn, ticking every second while busy.
+  const [workElapsed, setWorkElapsed] = useState(0);
+  useEffect(() => {
+    if (!busy) return undefined;
+    const startedAt = Date.now();
+    const timer = setInterval(() => {
+      setWorkElapsed(Math.floor((Date.now() - startedAt) / 1000));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [busy]);
+  const formatElapsed = (totalSeconds: number): string => {
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = totalSeconds % 60;
+    return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+  };
+
   return (
     <div className="shrink-0 border-t border-border bg-base px-5 py-3.5">
       <div className="relative max-w-[760px] mx-auto">
         {busy && (
-          <p className="text-[11px] text-accent mb-1.5 flex items-center gap-1.5">
-            <Icon name="bolt" size={11} />
-            Agent is working — type a message to steer it mid-task.
+          <p className="text-[11px] text-accent mb-1.5 flex items-center gap-1.5 tabular-nums">
+            <Icon name="spinner" size={11} className="animate-spin" />
+            working · {formatElapsed(workElapsed)}
           </p>
         )}
         <div className={`relative rounded-[13px] border bg-surface-2 px-4 py-2.5 transition-all ${busy ? 'border-border' : 'border-border hover:border-border-hover focus-within:border-border-hover'}`}>
@@ -159,7 +175,7 @@ export default function ChatComposer({
                   if (event.key === 'Enter') { event.preventDefault(); runBash(bashCommand); }
                   if (event.key === 'Escape') setBashInputOpen(false);
                 }}
-                placeholder="Run command in project…"
+                placeholder="Run command in project..."
                 className="flex-1 min-w-0 bg-transparent text-sm font-mono text-ink placeholder:text-ink-faint focus:outline-none"
               />
               <button
@@ -172,48 +188,7 @@ export default function ChatComposer({
               </button>
             </div>
           )}
-          <div className="flex items-end gap-2.5">
-            <button
-              type="button"
-              onClick={() => setBashInputOpen((value) => !value)}
-              disabled={busy || notConfigured || !project}
-              className="w-7 h-7 shrink-0 rounded-md text-ink-faint hover:text-ink hover:bg-surface-3 flex items-center justify-center transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-              title="Run command in project"
-              aria-label="Run command in project"
-            >
-              <Icon name="terminal" size={14} />
-            </button>
-            <button
-              type="button"
-              onClick={() => { setTemplateOpen((value) => !value); if (!templateOpen) setTimeout(() => templateInputRef.current?.focus(), 0); }}
-              disabled={busy || notConfigured || !project}
-              className="w-7 h-7 shrink-0 rounded-md text-ink-faint hover:text-ink hover:bg-surface-3 flex items-center justify-center transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-              title="Prompt templates"
-              aria-label="Prompt templates"
-            >
-              <Icon name="fileText" size={14} />
-            </button>
-            <button
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-              disabled={busy || notConfigured || !project}
-              className="w-7 h-7 shrink-0 rounded-md text-ink-faint hover:text-ink hover:bg-surface-3 flex items-center justify-center transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-              title="Attach image"
-              aria-label="Attach image"
-            >
-              <Icon name="paperclip" size={14} />
-            </button>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/*"
-              multiple
-              hidden
-              onChange={(event) => {
-                handleFiles(event.target.files);
-                event.target.value = '';
-              }}
-            />
+          <div className="flex flex-col">
             <textarea
               ref={inputRef}
               value={input}
@@ -236,19 +211,64 @@ export default function ChatComposer({
                 }
               }}
               rows={1}
-              placeholder={notConfigured ? 'Configure a provider to start chatting…' : 'Describe a task, ask a question…'}
+              placeholder={notConfigured ? 'Configure a provider to start chatting...' : 'Describe a task, ask a question...'}
               disabled={notConfigured || !project}
-              className="flex-1 min-w-0 bg-transparent text-sm text-ink placeholder:text-ink-faint focus:outline-none resize-none max-h-[130px] py-1 disabled:opacity-50"
+              className="w-full bg-transparent text-sm text-ink placeholder:text-ink-faint focus:outline-none resize-none max-h-[130px] py-0.5 disabled:opacity-50"
               style={{ overflowY: 'auto' }}
             />
-            <button
-              onClick={() => handleSend()}
-              disabled={(!input.trim() && attachments.length === 0) || notConfigured || !project}
-              className="w-[34px] h-[34px] shrink-0 rounded-lg bg-accent hover:bg-accent-hover text-white flex items-center justify-center transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-              aria-label="Send message"
-            >
-              <Icon name="upload" size={14} />
-            </button>
+            <div className="flex items-center gap-1 pt-1.5">
+              <button
+                type="button"
+                onClick={() => setBashInputOpen((value) => !value)}
+                disabled={busy || notConfigured || !project}
+                className="w-7 h-7 shrink-0 rounded-md text-ink-faint hover:text-ink hover:bg-surface-3 flex items-center justify-center transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                title="Run command in project"
+                aria-label="Run command in project"
+              >
+                <Icon name="terminal" size={14} />
+              </button>
+              <button
+                type="button"
+                onClick={() => { setTemplateOpen((value) => !value); if (!templateOpen) setTimeout(() => templateInputRef.current?.focus(), 0); }}
+                disabled={busy || notConfigured || !project}
+                className="w-7 h-7 shrink-0 rounded-md text-ink-faint hover:text-ink hover:bg-surface-3 flex items-center justify-center transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                title="Prompt templates"
+                aria-label="Prompt templates"
+              >
+                <Icon name="fileText" size={14} />
+              </button>
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={busy || notConfigured || !project}
+                className="w-7 h-7 shrink-0 rounded-md text-ink-faint hover:text-ink hover:bg-surface-3 flex items-center justify-center transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                title="Attach image"
+                aria-label="Attach image"
+              >
+                <Icon name="paperclip" size={14} />
+              </button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                multiple
+                hidden
+                onChange={(event) => {
+                  handleFiles(event.target.files);
+                  event.target.value = '';
+                }}
+              />
+              <div className="flex-1" />
+              <button
+                onClick={() => handleSend()}
+                disabled={(!input.trim() && attachments.length === 0) || notConfigured || !project}
+                className="w-[34px] h-[34px] shrink-0 rounded-lg bg-accent hover:bg-accent-hover text-white flex items-center justify-center transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                aria-label="Send message"
+                title="Send (Enter)"
+              >
+                <Icon name="upload" size={14} />
+              </button>
+            </div>
           </div>
         </div>
         {templateOpen && (
@@ -322,16 +342,16 @@ export default function ChatComposer({
             The active model may not support images — switch to a vision-capable model from the header.
           </p>
         )}
-        <div className="text-center text-[11px] font-mono text-ink-faint mt-2 flex items-center justify-center gap-2 flex-wrap">
-          <span><kbd className="px-1 py-0.5 rounded bg-surface-3 border border-border text-[10px]">Enter</kbd> to send · <kbd className="px-1 py-0.5 rounded bg-surface-3 border border-border text-[10px]">Shift+Enter</kbd> newline</span>
+        <div className="text-center text-[10px] text-ink-faint mt-1.5 flex items-center justify-center gap-x-3 gap-y-0.5 flex-wrap">
+          <span className="font-mono flex items-center gap-1"><kbd className="px-1 py-0.5 rounded bg-surface-3 border border-border text-[9.5px]">Enter</kbd> send · <kbd className="px-1 py-0.5 rounded bg-surface-3 border border-border text-[9.5px]">Shift+Enter</kbd> newline</span>
           {lastTurn && (lastTurn.tokens > 0 || lastTurn.cost > 0) && (
             <span className="tabular-nums text-ink-soft" title="Estimated from the active model's list price">
-              last turn · {lastTurn.tokens.toLocaleString()} tokens · ≈{formatCost(lastTurn.cost)}
+              last turn · {lastTurn.tokens.toLocaleString()} tok · ≈{formatCost(lastTurn.cost)}
             </span>
           )}
           {input.length > 0 && <span className="tabular-nums">{input.length.toLocaleString()} chars</span>}
+          <span className="text-ink-faint/80">Sessions stored locally by omp</span>
         </div>
-        <div className="text-center text-[10px] text-ink-faint mt-1">Sessions &amp; context are stored by omp locally</div>
       </div>
     </div>
   );

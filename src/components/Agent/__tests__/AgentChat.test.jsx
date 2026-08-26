@@ -101,7 +101,7 @@ describe('AgentChat', () => {
 
     render(<Harness />)
 
-    const input = screen.getByPlaceholderText('Describe a task, ask a question…')
+    const input = screen.getByPlaceholderText('Describe a task, ask a question...')
     fireEvent.change(input, { target: { value: 'hello there' } })
     fireEvent.click(screen.getByRole('button', { name: 'Send message' }))
 
@@ -128,7 +128,7 @@ describe('AgentChat', () => {
     // the first send fills it in.
     const { rerender } = render(<Harness initialSession={{ id: 's2', title: 'Session 2', sessionPath: null }} />)
 
-    const input = screen.getByPlaceholderText('Describe a task, ask a question…')
+    const input = screen.getByPlaceholderText('Describe a task, ask a question...')
     fireEvent.change(input, { target: { value: 'keep me' } })
     fireEvent.click(screen.getByRole('button', { name: 'Send message' }))
 
@@ -158,7 +158,7 @@ describe('AgentChat', () => {
 
     render(<Harness />)
 
-    const input = screen.getByPlaceholderText('Describe a task, ask a question…')
+    const input = screen.getByPlaceholderText('Describe a task, ask a question...')
 
     // Turn 1
     fireEvent.change(input, { target: { value: 'first question' } })
@@ -201,7 +201,7 @@ describe('AgentChat', () => {
     })
 
     render(<Harness />)
-    const input = screen.getByPlaceholderText('Describe a task, ask a question…')
+    const input = screen.getByPlaceholderText('Describe a task, ask a question...')
     fireEvent.change(input, { target: { value: 'stream test' } })
     fireEvent.click(screen.getByRole('button', { name: 'Send message' }))
     await screen.findByText('stream test')
@@ -248,7 +248,7 @@ describe('AgentChat', () => {
     }
 
     const { rerender } = render(<HiddenHarness visible={false} />)
-    const input = screen.getByPlaceholderText('Describe a task, ask a question…')
+    const input = screen.getByPlaceholderText('Describe a task, ask a question...')
     fireEvent.change(input, { target: { value: 'hidden stream' } })
     fireEvent.click(screen.getByRole('button', { name: 'Send message' }))
     await screen.findByText('hidden stream')
@@ -281,7 +281,7 @@ describe('AgentChat', () => {
     })
 
     render(<Harness />)
-    const input = screen.getByPlaceholderText('Describe a task, ask a question…')
+    const input = screen.getByPlaceholderText('Describe a task, ask a question...')
     fireEvent.change(input, { target: { value: 'long stream' } })
     fireEvent.click(screen.getByRole('button', { name: 'Send message' }))
     await screen.findByText('long stream')
@@ -311,7 +311,7 @@ describe('AgentChat', () => {
     })
 
     render(<Harness />)
-    const input = screen.getByPlaceholderText('Describe a task, ask a question…')
+    const input = screen.getByPlaceholderText('Describe a task, ask a question...')
     fireEvent.change(input, { target: { value: 'think test' } })
     fireEvent.click(screen.getByRole('button', { name: 'Send message' }))
     await screen.findByText('think test')
@@ -376,7 +376,7 @@ describe('AgentChat', () => {
     })
 
     render(<Harness />)
-    const input = screen.getByPlaceholderText('Describe a task, ask a question…')
+    const input = screen.getByPlaceholderText('Describe a task, ask a question...')
     fireEvent.change(input, { target: { value: 'think again' } })
     fireEvent.click(screen.getByRole('button', { name: 'Send message' }))
     await screen.findByText('think again')
@@ -418,7 +418,7 @@ describe('AgentChat', () => {
     })
 
     render(<Harness />)
-    const input = screen.getByPlaceholderText('Describe a task, ask a question…')
+    const input = screen.getByPlaceholderText('Describe a task, ask a question...')
     fireEvent.change(input, { target: { value: 'fix the bug' } })
     fireEvent.click(screen.getByRole('button', { name: 'Send message' }))
     await screen.findByText('fix the bug')
@@ -477,7 +477,7 @@ describe('AgentChat', () => {
     })
 
     render(<Harness />)
-    const input = screen.getByPlaceholderText('Describe a task, ask a question…')
+    const input = screen.getByPlaceholderText('Describe a task, ask a question...')
     fireEvent.change(input, { target: { value: 'tokens please' } })
     fireEvent.click(screen.getByRole('button', { name: 'Send message' }))
     await screen.findByText('tokens please')
@@ -502,7 +502,7 @@ describe('AgentChat', () => {
     })
 
     render(<Harness />)
-    const input = screen.getByPlaceholderText('Describe a task, ask a question…')
+    const input = screen.getByPlaceholderText('Describe a task, ask a question...')
     fireEvent.change(input, { target: { value: 'fix the bug' } })
     fireEvent.click(screen.getByRole('button', { name: 'Send message' }))
     await screen.findByText('fix the bug')
@@ -532,7 +532,7 @@ describe('AgentChat', () => {
     })
 
     render(<Harness />)
-    const input = screen.getByPlaceholderText('Describe a task, ask a question…')
+    const input = screen.getByPlaceholderText('Describe a task, ask a question...')
     fireEvent.change(input, { target: { value: 'old question' } })
     fireEvent.click(screen.getByRole('button', { name: 'Send message' }))
     await screen.findByText('old question')
@@ -567,7 +567,7 @@ describe('AgentChat', () => {
     mocks.ompAbort.mockResolvedValue({ success: true })
 
     render(<Harness />)
-    const input = screen.getByPlaceholderText('Describe a task, ask a question…')
+    const input = screen.getByPlaceholderText('Describe a task, ask a question...')
     fireEvent.change(input, { target: { value: 'stop me' } })
     fireEvent.click(screen.getByRole('button', { name: 'Send message' }))
     await screen.findByText('stop me')
@@ -615,7 +615,7 @@ describe('AgentChat', () => {
     mocks.ompGetMessages.mockResolvedValue({ success: true, messages: [] })
 
     render(<Harness />)
-    const input = screen.getByPlaceholderText('Describe a task, ask a question…')
+    const input = screen.getByPlaceholderText('Describe a task, ask a question...')
     const longText = 'a'.repeat(1234)
     fireEvent.change(input, { target: { value: longText } })
 
@@ -641,12 +641,12 @@ describe('AgentChat', () => {
     expect(screen.getByText('kreova · kiro-haiku-4.5')).toBeInTheDocument()
 
     // Type in the search box → only matching models remain
-    fireEvent.change(screen.getByPlaceholderText('Search models…'), { target: { value: 'haiku' } })
+    fireEvent.change(screen.getByPlaceholderText('Search models...'), { target: { value: 'haiku' } })
     expect(screen.getByText('kreova · kiro-haiku-4.5')).toBeInTheDocument()
     expect(screen.queryByText('kreova · kiro-claude-sonnet-4.5')).not.toBeInTheDocument()
 
     // No match → empty state
-    fireEvent.change(screen.getByPlaceholderText('Search models…'), { target: { value: 'zzz' } })
+    fireEvent.change(screen.getByPlaceholderText('Search models...'), { target: { value: 'zzz' } })
     expect(screen.getByText(/No models match/)).toBeInTheDocument()
   })
 
@@ -711,7 +711,7 @@ describe('AgentChat', () => {
       // The active model is text-only → warn before sending
       expect(await screen.findByText(/may not support images/)).toBeInTheDocument()
 
-      const input = screen.getByPlaceholderText('Describe a task, ask a question…')
+      const input = screen.getByPlaceholderText('Describe a task, ask a question...')
       fireEvent.change(input, { target: { value: 'what is in this image?' } })
       fireEvent.click(screen.getByRole('button', { name: 'Send message' }))
 
@@ -802,14 +802,14 @@ describe('AgentChat', () => {
     })
 
     render(<Harness />)
-    const input = screen.getByPlaceholderText('Describe a task, ask a question…')
+    const input = screen.getByPlaceholderText('Describe a task, ask a question...')
     fireEvent.change(input, { target: { value: 'first task' } })
     fireEvent.click(screen.getByRole('button', { name: 'Send message' }))
     await screen.findByText('first task')
     await waitFor(() => expect(mocks.ompChat).toHaveBeenCalled())
 
-    // While busy the input stays enabled and shows the steer hint
-    expect(await screen.findByText(/steer it mid-task/)).toBeInTheDocument()
+    // While busy the input stays enabled and the composer shows the working indicator
+    expect(await screen.findByText(/working · \d{2}:\d{2}/)).toBeInTheDocument()
 
     fireEvent.change(input, { target: { value: 'no wait, do it differently' } })
     fireEvent.click(screen.getByRole('button', { name: 'Send message' }))
@@ -864,7 +864,7 @@ describe('AgentChat', () => {
     ] })
 
     render(<Harness />)
-    const input = screen.getByPlaceholderText('Describe a task, ask a question…')
+    const input = screen.getByPlaceholderText('Describe a task, ask a question...')
     fireEvent.change(input, { target: { value: '/com' } })
 
     expect(await screen.findByText('/compact')).toBeInTheDocument()
@@ -912,7 +912,7 @@ describe('AgentChat', () => {
 
     render(<Harness />)
     fireEvent.click(screen.getByTitle('Session options'))
-    fireEvent.click(await screen.findByText('Custom instructions…'))
+    fireEvent.click(await screen.findByText('Custom instructions...'))
 
     const textarea = screen.getByPlaceholderText(/Always explain changes/)
     fireEvent.change(textarea, { target: { value: 'Always explain before editing' } })
@@ -932,20 +932,20 @@ describe('AgentChat', () => {
     const sessionB = { id: 'sb', title: 'B', sessionPath: 'C:/sessions/sb.jsonl' }
     const { rerender } = render(<Harness initialSession={sessionA} />)
 
-    const input = screen.getByPlaceholderText('Describe a task, ask a question…')
+    const input = screen.getByPlaceholderText('Describe a task, ask a question...')
     fireEvent.change(input, { target: { value: 'unsent draft for A' } })
     expect(input.value).toBe('unsent draft for A')
 
     // Switch to B — the input is empty (B has no draft)
     rerender(<Harness initialSession={sessionB} />)
     await waitFor(() => {
-      expect(screen.getByPlaceholderText('Describe a task, ask a question…').value).toBe('')
+      expect(screen.getByPlaceholderText('Describe a task, ask a question...').value).toBe('')
     })
 
     // Switch back to A — the draft is restored
     rerender(<Harness initialSession={sessionA} />)
     await waitFor(() => {
-      expect(screen.getByPlaceholderText('Describe a task, ask a question…').value).toBe('unsent draft for A')
+      expect(screen.getByPlaceholderText('Describe a task, ask a question...').value).toBe('unsent draft for A')
     })
   })
 
@@ -960,7 +960,7 @@ describe('AgentChat', () => {
     mocks.ompGetState.mockResolvedValue({ success: true, state: { thinkingLevel: 'off', tokensPerSecond: 12.3 } })
 
     render(<Harness />)
-    const input = screen.getByPlaceholderText('Describe a task, ask a question…')
+    const input = screen.getByPlaceholderText('Describe a task, ask a question...')
     fireEvent.change(input, { target: { value: 'go' } })
     fireEvent.click(screen.getByRole('button', { name: 'Send message' }))
     await screen.findByText('go')
@@ -982,7 +982,7 @@ describe('AgentChat', () => {
     ] })
 
     render(<Harness />)
-    const input = screen.getByPlaceholderText('Describe a task, ask a question…')
+    const input = screen.getByPlaceholderText('Describe a task, ask a question...')
     fireEvent.change(input, { target: { value: 'go' } })
     fireEvent.click(screen.getByRole('button', { name: 'Send message' }))
     await screen.findByText('go')
@@ -1012,7 +1012,7 @@ describe('AgentChat', () => {
 
     render(<Harness />)
     fireEvent.click(screen.getByTitle('Run command in project'))
-    fireEvent.change(screen.getByPlaceholderText('Run command in project…'), { target: { value: 'npm run build' } })
+    fireEvent.change(screen.getByPlaceholderText('Run command in project...'), { target: { value: 'npm run build' } })
     fireEvent.click(screen.getByText('Run'))
 
     await waitFor(() => expect(mocks.ompBash).toHaveBeenCalledWith('p1', 'C:/demo', 'npm run build'))
@@ -1029,7 +1029,7 @@ describe('AgentChat', () => {
 
     render(<Harness />)
     fireEvent.click(screen.getByTitle('Run command in project'))
-    fireEvent.change(screen.getByPlaceholderText('Run command in project…'), { target: { value: 'sleep 100' } })
+    fireEvent.change(screen.getByPlaceholderText('Run command in project...'), { target: { value: 'sleep 100' } })
     fireEvent.click(screen.getByText('Run'))
 
     expect(await screen.findByText('$ sleep 100')).toBeInTheDocument()
@@ -1056,7 +1056,7 @@ describe('AgentChat', () => {
     mocks.ompBranch.mockResolvedValue({ success: true, data: { text: '', cancelled: false } })
 
     render(<Harness />)
-    const input = screen.getByPlaceholderText('Describe a task, ask a question…')
+    const input = screen.getByPlaceholderText('Describe a task, ask a question...')
     fireEvent.change(input, { target: { value: 'first task' } })
     fireEvent.click(screen.getByRole('button', { name: 'Send message' }))
     await screen.findByText('first task')
@@ -1093,7 +1093,7 @@ describe('AgentChat', () => {
     Object.defineProperty(document, 'visibilityState', { value: 'hidden', configurable: true })
     try {
       render(<Harness />)
-      const input = screen.getByPlaceholderText('Describe a task, ask a question…')
+      const input = screen.getByPlaceholderText('Describe a task, ask a question...')
       fireEvent.change(input, { target: { value: 'notify me' } })
       fireEvent.click(screen.getByRole('button', { name: 'Send message' }))
       await screen.findByText('notify me')
@@ -1159,7 +1159,7 @@ describe('AgentChat', () => {
 
     const { rerender } = render(<Harness initialSession={sessionA} />)
     // Send a message so sentSessionIdRef is armed for the just-created session
-    const input = screen.getByPlaceholderText('Describe a task, ask a question…')
+    const input = screen.getByPlaceholderText('Describe a task, ask a question...')
     fireEvent.change(input, { target: { value: 'first task' } })
     fireEvent.click(screen.getByRole('button', { name: 'Send message' }))
     await screen.findByText('first task')

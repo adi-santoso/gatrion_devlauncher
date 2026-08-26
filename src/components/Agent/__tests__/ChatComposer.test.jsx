@@ -71,9 +71,23 @@ describe('ChatComposer', () => {
     expect(screen.getAllByText((_, element) =>
       typeof element?.className === 'string' && element.className.includes('tabular-nums') &&
       element.textContent?.includes('last turn') &&
-      /[\d,.]+ tokens/.test(element.textContent) &&
+      /[\d,.]+ tok/.test(element.textContent) &&
       element.textContent.includes('≈$0.01')
     ).length).toBeGreaterThan(0)
+  })
+
+  it('shows a spinner with an elapsed timer while the agent is working', () => {
+    render(<ChatComposer {...baseProps} busy />)
+    // The busy line shows a spinner + "working" + a live mm:ss count-up.
+    const busyLine = screen.getByText(/working · \d{2}:\d{2}/).closest('p')
+    expect(busyLine).toBeInTheDocument()
+    expect(busyLine?.querySelector('.animate-spin')).toBeTruthy()
+    expect(screen.queryByText(/Agent is working/)).not.toBeInTheDocument()
+  })
+
+  it('hides the working timer when idle', () => {
+    render(<ChatComposer {...baseProps} busy={false} />)
+    expect(screen.queryByText(/working/)).not.toBeInTheDocument()
   })
 
   it('hides the last-turn line until a turn finishes', () => {
