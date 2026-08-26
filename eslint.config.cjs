@@ -52,7 +52,7 @@ module.exports = [
         console: 'readonly', CustomEvent: 'readonly', document: 'readonly', File: 'readonly', FileReader: 'readonly', global: 'readonly',
         Image: 'readonly', localStorage: 'readonly', module: 'readonly', navigator: 'readonly', process: 'readonly', queueMicrotask: 'readonly',
         requestAnimationFrame: 'readonly', ResizeObserver: 'readonly', setInterval: 'readonly', setTimeout: 'readonly',
-        SpeechSynthesisUtterance: 'readonly', URL: 'readonly', window: 'readonly',
+        SpeechSynthesisUtterance: 'readonly', URL: 'readonly', window: 'readonly', KeyboardEvent: 'readonly',
       },
     },
     plugins: { 'react-hooks': reactHooks, react },
