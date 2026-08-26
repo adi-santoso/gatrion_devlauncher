@@ -585,6 +585,92 @@ describe('AgentChat', () => {
     expect(screen.getByText(/Generation stopped/)).toBeInTheDocument()
   })
 
+  it('keeps the partial reply when agent_end arrives after a stop with an empty transcript', async () => {
+    // Regression: pressing stop aborts the turn, then omp still emits an
+    // agent_end whose transcript may carry no assistant content (abort does not
+    // commit the partial reply). The merge must not wipe the partial reply the
+    // stop already preserved — otherwise the chat collapses back to the user's
+    // prompt ("terhapus sampai prompt terakhir").
+    mocks.onOmpEvent.mockImplementation((callback) => { eventCb = callback; return () => {} })
+    mocks.ompGetMessages.mockResolvedValue({ success: true, messages: [] })
+    mocks.ompChat.mockResolvedValue({
+      success: true,
+      sessionId: 's13',
+      session: { id: 's13', title: 'StopEmpty', sessionPath: 'C:/sessions/s13.jsonl' },
+    })
+    mocks.ompAbort.mockResolvedValue({ success: true })
+
+    render(<Harness />)
+    const input = screen.getByPlaceholderText('Describe a task, ask a question...')
+    fireEvent.change(input, { target: { value: 'stop now' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Send message' }))
+    await screen.findByText('stop now')
+    await waitFor(() => expect(mocks.ompChat).toHaveBeenCalled())
+
+    // Stream a partial reply, then stop.
+    await act(async () => {
+      eventCb({ projectId: 'p1', event: { type: 'agent_start' } })
+      eventCb({ projectId: 'p1', event: { type: 'message_update', assistantMessageEvent: { type: 'text_delta', delta: 'partial answer ' } } })
+      await new Promise((resolve) => setTimeout(resolve, 120))
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Stop' }))
+    expect(await screen.findByText(/partial answer/)).toBeInTheDocument()
+
+    // omp reacts to the abort with an agent_end that has NO assistant content
+    // (nothing was committed). The partial reply must survive.
+    await act(async () => {
+      eventCb({ projectId: 'p1', event: { type: 'agent_end', messages: [
+        { role: 'user', content: 'stop now' },
+      ] } })
+    })
+
+    expect(screen.getByText(/partial answer/)).toBeInTheDocument()
+    expect(screen.getByText(/Generation stopped/)).toBeInTheDocument()
+  })
+
+  it('keeps the longer partial reply when agent_end after a stop carries a shorter transcript', async () => {
+    // Regression: after abort omp may commit only a fragment of the reply to
+    // the transcript. That shorter text must NOT replace the longer partial
+    // reply the stop already preserved, or the chat looks wiped back to the
+    // user's prompt.
+    mocks.onOmpEvent.mockImplementation((callback) => { eventCb = callback; return () => {} })
+    mocks.ompGetMessages.mockResolvedValue({ success: true, messages: [] })
+    mocks.ompChat.mockResolvedValue({
+      success: true,
+      sessionId: 's14',
+      session: { id: 's14', title: 'StopShort', sessionPath: 'C:/sessions/s14.jsonl' },
+    })
+    mocks.ompAbort.mockResolvedValue({ success: true })
+
+    render(<Harness />)
+    const input = screen.getByPlaceholderText('Describe a task, ask a question...')
+    fireEvent.change(input, { target: { value: 'stop now' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Send message' }))
+    await screen.findByText('stop now')
+    await waitFor(() => expect(mocks.ompChat).toHaveBeenCalled())
+
+    await act(async () => {
+      eventCb({ projectId: 'p1', event: { type: 'agent_start' } })
+      eventCb({ projectId: 'p1', event: { type: 'message_update', assistantMessageEvent: { type: 'text_delta', delta: 'Here is a long partial answer that streamed ' } } })
+      eventCb({ projectId: 'p1', event: { type: 'message_update', assistantMessageEvent: { type: 'text_delta', delta: 'before the user hit stop.' } } })
+      await new Promise((resolve) => setTimeout(resolve, 120))
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Stop' }))
+    expect(await screen.findByText(/long partial answer/)).toBeInTheDocument()
+
+    // omp commits only a fragment ("Here is a short") to the transcript after
+    // the abort — it must not clobber the fuller partial reply above.
+    await act(async () => {
+      eventCb({ projectId: 'p1', event: { type: 'agent_end', messages: [
+        { role: 'user', content: 'stop now' },
+        { role: 'assistant', content: 'Here is a short' },
+      ] } })
+    })
+
+    expect(screen.getByText(/long partial answer that streamed before the user hit stop/)).toBeInTheDocument()
+    expect(screen.queryByText(/Generation stopped/)).toBeInTheDocument()
+  })
+
   it('lists discovery-based models from the running omp and switches the model from the chat header', async () => {
     mocks.onOmpEvent.mockImplementation((callback) => { eventCb = callback; return () => {} })
     mocks.ompGetMessages.mockResolvedValue({ success: true, messages: [] })

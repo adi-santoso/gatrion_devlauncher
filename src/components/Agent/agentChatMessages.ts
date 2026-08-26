@@ -84,22 +84,36 @@ export function mergeFinishedTurn(
   const lastAssistant = assistantMessages.pop();
   // A tool-only turn (no text streamed) must still commit its tool cards.
   if (assistantContent || segments.length > 0) {
-    // A stopped partial reply is replaced by the canonical transcript;
-    // otherwise append a fresh assistant message.
+    // A stopped partial reply is replaced by the canonical transcript UNLESS
+    // that transcript is shorter/empty — abort can commit only a fragment of
+    // the reply, and overwriting the longer partial the stop already preserved
+    // would wipe the chat back to the user's prompt.
     let replaced = false;
     for (let i = next.length - 1; i >= 0; i -= 1) {
       if (next[i].role === 'assistant') {
         if (next[i].stopped) {
-          next[i] = {
-            ...next[i],
-            content: assistantContent,
-            thinking: assistantThinking || next[i].thinking,
-            segments: segments.length ? segments : next[i].segments,
-            stopped: false,
-            promptTokens: options.promptTokens,
-            completionTokens: options.completionTokens,
-            totalTokens: options.totalTokens,
-          };
+          const existing = next[i].content || '';
+          const keepPartial = !assistantContent || assistantContent.length < existing.length;
+          if (keepPartial) {
+            next[i] = {
+              ...next[i],
+              segments: segments.length ? segments : next[i].segments,
+              promptTokens: options.promptTokens,
+              completionTokens: options.completionTokens,
+              totalTokens: options.totalTokens,
+            };
+          } else {
+            next[i] = {
+              ...next[i],
+              content: assistantContent,
+              thinking: assistantThinking || next[i].thinking,
+              segments: segments.length ? segments : next[i].segments,
+              stopped: false,
+              promptTokens: options.promptTokens,
+              completionTokens: options.completionTokens,
+              totalTokens: options.totalTokens,
+            };
+          }
           replaced = true;
         }
         break;
