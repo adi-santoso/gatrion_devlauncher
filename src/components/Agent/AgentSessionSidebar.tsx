@@ -84,7 +84,7 @@ export default function AgentSessionSidebar({
           <input
             value={sessionSearch}
             onChange={(event) => onSearchChange(event.target.value)}
-            placeholder="Search sessions…"
+            placeholder="Search sessions..."
             className="flex-1 bg-transparent text-xs text-ink placeholder:text-ink-faint focus:outline-none"
           />
           {sessionSearch && (

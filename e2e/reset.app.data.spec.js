@@ -24,7 +24,7 @@ test.describe('reset app data', () => {
       await window.getByRole('tab', { name: 'Data & Backup' }).click();
 
       // Open the reset modal
-      await window.getByRole('button', { name: 'Reset app data…' }).click();
+      await window.getByRole('button', { name: 'Reset app data...' }).click();
       await expect(window.getByText('Reset all DevLauncher data?')).toBeVisible();
 
       // Confirm stays disabled until the exact word RESET is typed

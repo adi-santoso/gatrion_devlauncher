@@ -31,7 +31,7 @@ export default function ThinkingBlock({ content, isStreaming = false }: Thinking
         <span className="font-medium">Thought process</span>
         {!open && hasContent && (
           <span className="text-[10.5px] text-ink-faint opacity-60 truncate ml-1 max-w-[300px]">
-            {trimmed.slice(0, 120)}{trimmed.length > 120 ? '…' : ''}
+            {trimmed.slice(0, 120)}{trimmed.length > 120 ? '...' : ''}
           </span>
         )}
         {isStreaming && (
@@ -47,7 +47,7 @@ export default function ThinkingBlock({ content, isStreaming = false }: Thinking
           <div className="relative">
             <div className="absolute left-0 top-1 bottom-1 w-px bg-border" />
             <div className="pl-4 text-[12.5px] leading-relaxed text-ink-soft whitespace-pre-wrap select-text">
-              {hasContent ? content : 'Thinking…'}
+              {hasContent ? content : 'Thinking...'}
             </div>
           </div>
         </div>

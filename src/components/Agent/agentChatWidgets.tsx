@@ -41,7 +41,7 @@ export function HandoffPopover({ open, text, setText, onApply, onClose }: Handof
             if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) { event.preventDefault(); onApply(); }
           }}
           rows={2}
-          placeholder="e.g. Always explain changes before editing files…"
+          placeholder="e.g. Always explain changes before editing files..."
           className="w-full bg-surface-3 border border-border rounded-lg px-3 py-2 text-sm text-ink placeholder:text-ink-faint focus:outline-none focus:border-accent/50 resize-none"
         />
         <div className="flex items-center gap-2 mt-2.5">
@@ -197,7 +197,7 @@ export function HistoryStates({ historyError, historyLoading, isFresh, notConfig
           <span className="w-5 h-5 rounded-md bg-accent/15 flex items-center justify-center">
             <span className="w-2.5 h-2.5 rounded-full border-2 border-accent/40 border-t-transparent animate-spin" />
           </span>
-          <span className="text-xs font-semibold text-ink-soft">Loading conversation…</span>
+          <span className="text-xs font-semibold text-ink-soft">Loading conversation...</span>
         </div>
         <div className="space-y-1.5">
           <div className="skeleton h-3.5 w-3/4 rounded" />
@@ -325,10 +325,10 @@ export function BashRunnerList({ runs, projectName, onUpdateRun, onAbortRun, onC
             {run.status === 'running' && (
               <span className="flex items-center gap-1.5 text-[10px] text-warning shrink-0">
                 <span className="w-2.5 h-2.5 rounded-full border-2 border-warning border-t-transparent animate-spin" />
-                running…
+                running...
               </span>
             )}
-            {run.status === 'cancelling' && <span className="text-[10px] text-ink-faint shrink-0">cancelling…</span>}
+            {run.status === 'cancelling' && <span className="text-[10px] text-ink-faint shrink-0">cancelling...</span>}
             {run.status === 'done' && (
               <span className={`text-[10px] font-mono shrink-0 ${run.exitCode === 0 ? 'text-success' : 'text-warning'}`}>
                 {run.cancelled ? 'cancelled' : run.timedOut ? 'timed out' : `exit ${run.exitCode ?? '?'}`}

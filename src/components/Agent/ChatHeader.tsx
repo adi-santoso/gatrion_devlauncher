@@ -94,7 +94,7 @@ export default function ChatHeader({
       </span>
       <div className="min-w-0">
         <p className="text-sm font-semibold text-ink truncate leading-tight">{project?.name || 'Agent'}</p>
-        <p className="text-[11px] text-ink-faint truncate">{session?.title || (busy ? 'working…' : 'New conversation')}</p>
+        <p className="text-[11px] text-ink-faint truncate">{session?.title || (busy ? 'working...' : 'New conversation')}</p>
       </div>
       <div className="ml-auto flex items-center gap-2 shrink-0">
         {project && status?.installed && status?.configured && (
@@ -157,7 +157,7 @@ export default function ChatHeader({
                         autoFocus
                         value={modelSearch}
                         onChange={(event) => setModelSearch(event.target.value)}
-                        placeholder="Search models…"
+                        placeholder="Search models..."
                         className="flex-1 bg-transparent text-xs text-ink placeholder:text-ink-faint focus:outline-none"
                       />
                       {modelSearch && (
@@ -193,7 +193,7 @@ export default function ChatHeader({
                       className="w-full flex items-center gap-2 px-3 py-2 text-left text-xs text-ink-faint hover:text-accent transition-colors"
                     >
                       <Icon name="gear" size={12} />
-                      Manage models in Settings…
+                      Manage models in Settings...
                     </button>
                   </div>
                 </div>
@@ -230,7 +230,7 @@ export default function ChatHeader({
         {(compacting || retrying) && (
           <span className="hidden md:inline-flex items-center gap-1.5 text-[11px] text-warning bg-warning/10 border border-warning/25 rounded-full px-2.5 py-1">
             <span className="w-1.5 h-1.5 rounded-full bg-warning animate-pulse" />
-            {compacting ? 'Compacting…' : 'Retrying…'}
+            {compacting ? 'Compacting...' : 'Retrying...'}
           </span>
         )}
         {project && status?.installed && status?.configured && (
@@ -262,7 +262,7 @@ export default function ChatHeader({
                     className="w-full flex items-center gap-2 px-3 py-1.5 text-left text-xs text-ink-soft hover:bg-surface-3 hover:text-ink transition-colors"
                   >
                     <Icon name="fileText" size={12} />
-                    Custom instructions…
+                    Custom instructions...
                   </button>
                   <div className="my-1 border-t border-border" />
                   <button

@@ -37,7 +37,7 @@ export default function ToolCard({ tool }: { tool: ToolCallInfo }) {
         <span className={`ml-auto flex items-center gap-1.5 text-[11px] font-medium shrink-0 ${running ? 'text-warning' : done ? 'text-success' : 'text-ink-faint'}`}>
           {running && <span className="w-3 h-3 rounded-full border-2 border-warning border-t-transparent animate-spin" />}
           {done && <Icon name="check" size={11} />}
-          {running ? 'working…' : done ? 'done' : 'idle'}
+          {running ? 'working...' : done ? 'done' : 'idle'}
         </span>
         {tool.body && (
           <Icon name={expanded ? 'chevronDown' : 'chevronRight'} size={12} className="text-ink-faint shrink-0" />

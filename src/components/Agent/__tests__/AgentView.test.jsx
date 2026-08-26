@@ -91,11 +91,11 @@ describe('AgentView', () => {
 
     fireEvent.click(screen.getByText('Demo'));
 
-    // Sessions appear in the sidebar…
+    // Sessions appear in the sidebar...
     expect(await screen.findByText('Session 1')).toBeInTheDocument();
-    // …but the chat stays on the placeholder: no composer, no accidental session.
+    // ...but the chat stays on the placeholder: no composer, no accidental session.
     expect(screen.getByText('Select a session to continue')).toBeInTheDocument();
-    expect(screen.queryByPlaceholderText('Describe a task, ask a question…')).not.toBeInTheDocument();
+    expect(screen.queryByPlaceholderText('Describe a task, ask a question...')).not.toBeInTheDocument();
     expect(mocks.ompGetMessages).not.toHaveBeenCalled();
   });
 
@@ -116,7 +116,7 @@ describe('AgentView', () => {
     fireEvent.click(await screen.findByText('Session 1'));
 
     // Composer is now visible and history was requested for that session
-    expect(screen.getByPlaceholderText('Describe a task, ask a question…')).toBeInTheDocument();
+    expect(screen.getByPlaceholderText('Describe a task, ask a question...')).toBeInTheDocument();
     await vi.waitFor(() => {
       expect(mocks.ompGetMessages).toHaveBeenCalledWith('p1', 'C:/demo', { sessionPath: 'C:/sessions/s1.jsonl' });
     });
@@ -129,7 +129,7 @@ describe('AgentView', () => {
 
     // Appears in the sidebar list (and the chat header once opened)
     expect((await screen.findAllByText('Session 2')).length).toBeGreaterThan(0);
-    expect(screen.getByPlaceholderText('Describe a task, ask a question…')).toBeInTheDocument();
+    expect(screen.getByPlaceholderText('Describe a task, ask a question...')).toBeInTheDocument();
   });
 
   it('sending the first message keeps the implicitly-created session visible in the list', async () => {
@@ -143,7 +143,7 @@ describe('AgentView', () => {
     fireEvent.click(screen.getByText('Demo'));
     fireEvent.click(await screen.findByText('Session 1'));
 
-    const input = screen.getByPlaceholderText('Describe a task, ask a question…');
+    const input = screen.getByPlaceholderText('Describe a task, ask a question...');
     fireEvent.change(input, { target: { value: 'my first task' } });
     fireEvent.click(screen.getByRole('button', { name: 'Send message' }));
 
@@ -160,7 +160,7 @@ describe('AgentView', () => {
     fireEvent.click(await screen.findByText('Session 1'));
     await vi.waitFor(() => expect(eventCb).toBeTruthy());
 
-    const input = screen.getByPlaceholderText('Describe a task, ask a question…');
+    const input = screen.getByPlaceholderText('Describe a task, ask a question...');
     fireEvent.change(input, { target: { value: 'count tokens' } });
     fireEvent.click(screen.getByRole('button', { name: 'Send message' }));
 
@@ -200,7 +200,7 @@ describe('AgentView', () => {
     render(<AgentView projects={[project]} initialProjectId="p1" initialSessionId="s1" />);
 
     // The project list auto-expands and the session auto-selects — no clicks.
-    const composer = await screen.findByPlaceholderText('Describe a task, ask a question…');
+    const composer = await screen.findByPlaceholderText('Describe a task, ask a question...');
     expect(composer).toBeInTheDocument();
     await vi.waitFor(() => expect(mocks.ompGetMessages).toHaveBeenCalled());
   });

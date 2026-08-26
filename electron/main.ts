@@ -241,7 +241,7 @@ async function initialize() {
   // Reset-to-fresh-install: wipe app data BEFORE managers init.
   await applyPendingReset(app.getPath('userData'))
   // The UI is fully custom-rendered — drop the default application menu
-  // (File/Edit/View/…) from packaged builds on Windows/Linux. Kept on macOS
+  // (File/Edit/View/...) from packaged builds on Windows/Linux. Kept on macOS
   // (menu bar is part of the OS chrome there) and in dev (standard
   // DevTools/reload shortcuts stay available while developing).
   if (app.isPackaged && process.platform !== 'darwin') {

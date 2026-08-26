@@ -37,7 +37,7 @@ export default function SystemEnvCard() {
           className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-surface-3 hover:bg-surface-2 text-xs font-medium transition-colors disabled:opacity-50"
         >
           <Icon name="restart" size={13} />
-          {loading ? 'Checking…' : 'Re-check'}
+          {loading ? 'Checking...' : 'Re-check'}
         </button>
       </div>
 

@@ -333,7 +333,7 @@ const CommandPalette = ({
               }}
               onKeyDown={handleKeyDown}
               type="text"
-              placeholder="Search projects, sessions, files, or run a command…"
+              placeholder="Search projects, sessions, files, or run a command..."
               className="flex-1 bg-transparent text-sm text-ink placeholder:text-ink-faint focus:outline-none"
               aria-label="Search projects, sessions, files, or commands"
             />
@@ -383,7 +383,7 @@ const CommandPalette = ({
             {!hasResults && (
               <p className="px-4 py-8 text-center text-xs text-ink-faint">
                 {searchQuery
-                  ? (filesLoading && canSearchFiles ? 'Searching files…' : 'No results found')
+                  ? (filesLoading && canSearchFiles ? 'Searching files...' : 'No results found')
                   : 'Type to search projects, sessions, files, and commands'}
               </p>
             )}

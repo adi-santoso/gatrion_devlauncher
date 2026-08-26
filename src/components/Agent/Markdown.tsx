@@ -2,7 +2,7 @@ import { useState, type ReactNode } from 'react';
 import Icon from '../Common/Icon';
 
 // A bullet marker is a dash/asterisk/plus, or an emoji that renders as a
-// bullet (✅ ❌ ⚠️ …). Plain symbols like © or → only count when they carry a
+// bullet (✅ ❌ ⚠️ ...). Plain symbols like © or → only count when they carry a
 // variation selector (which marks them as emoji), so prose keeps rendering
 // as paragraphs.
 const LIST_LINE = /^(?:[-*+]|(?:[\p{Emoji_Presentation}]|[\p{Extended_Pictographic}]\ufe0f)(?:\u200d[\p{Emoji_Presentation}]|\ufe0f)*)\s+/u;
@@ -156,7 +156,7 @@ export default function Markdown({ content }: { content: string }) {
         const marker = current.match(LIST_LINE)?.[0] || '';
         const bullet = marker.trim();
         // A dash/asterisk/plus is the invisible bullet dot; an emoji marker
-        // (✅ ❌ ⚠️ …) is kept visible as the item's bullet.
+        // (✅ ❌ ⚠️ ...) is kept visible as the item's bullet.
         items.push({ text: current.slice(marker.length), bullet: /^[-*+]$/.test(bullet) ? null : bullet });
         i += 1;
       }

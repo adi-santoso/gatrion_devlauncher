@@ -29,7 +29,7 @@ test.describe('agent chat (mock omp)', () => {
     await expect(window.getByRole('button', { name: /new session/i }).first()).toBeVisible({ timeout: 10000 });
     await window.getByRole('button', { name: /new session/i }).first().click();
 
-    const composer = window.getByPlaceholder('Describe a task, ask a question…');
+    const composer = window.getByPlaceholder('Describe a task, ask a question...');
     await expect(composer).toBeVisible({ timeout: 10000 });
 
     // --- Send a prompt ---

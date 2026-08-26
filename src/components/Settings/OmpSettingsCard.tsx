@@ -203,7 +203,7 @@ export default function OmpSettingsCard({ onNotifyStatus }: OmpSettingsCardProps
       <div className="flex items-center gap-2.5">
         <p className="font-display font-bold text-sm">AI Agent (oh-my-pi)</p>
         {statusLoading ? (
-          <span className="text-[10px] text-ink-faint">checking…</span>
+          <span className="text-[10px] text-ink-faint">checking...</span>
         ) : installed ? (
           <span className="flex items-center gap-1.5 text-[10px] text-success bg-success/10 border border-success/20 rounded-full px-2 py-0.5">
             <StatusDot ok /> {status?.version || 'installed'}
@@ -235,14 +235,14 @@ export default function OmpSettingsCard({ onNotifyStatus }: OmpSettingsCardProps
                   <div className="h-full bg-accent transition-all duration-300" style={{ width: `${installState.percent || 0}%` }} />
                 </div>
                 <p className="text-[10px] text-ink-faint">
-                  {installState.phase === 'verify' ? 'Verifying SHA256…' : `Downloading ${installState.version || ''}… ${installState.percent || 0}%`}
+                  {installState.phase === 'verify' ? 'Verifying SHA256...' : `Downloading ${installState.version || ''}... ${installState.percent || 0}%`}
                 </p>
               </div>
             ) : (
               <div className="flex flex-wrap items-center gap-2">
                 <button type="button" onClick={handleInstall} disabled={busy} className={`${buttonClass} !bg-accent !text-white hover:!bg-accent-hover border-transparent font-semibold`}>
                   <Icon name="download" size={12} />
-                  {busy ? 'Working…' : 'Install AI Agent'}
+                  {busy ? 'Working...' : 'Install AI Agent'}
                 </button>
                 <button type="button" onClick={handleCheckUpdate} disabled={busy} className={buttonClass}>
                   Check for updates
@@ -313,7 +313,7 @@ export default function OmpSettingsCard({ onNotifyStatus }: OmpSettingsCardProps
           </div>
 
           {configLoading ? (
-            <p className="text-[10px] text-ink-faint">Loading…</p>
+            <p className="text-[10px] text-ink-faint">Loading...</p>
           ) : config.providers.length === 0 ? (
             <p className="text-[11px] text-ink-faint">No providers in ~/.omp/agent/models.yml yet.</p>
           ) : (
@@ -417,7 +417,7 @@ export default function OmpSettingsCard({ onNotifyStatus }: OmpSettingsCardProps
                   disabled={busy || !form.name.trim() || !form.baseUrl.trim()}
                   className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-accent hover:bg-accent-hover text-white text-xs font-semibold transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                 >
-                  {busy ? 'Saving…' : 'Save provider'}
+                  {busy ? 'Saving...' : 'Save provider'}
                 </button>
               </div>
             </div>

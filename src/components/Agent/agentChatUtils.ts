@@ -41,7 +41,7 @@ export const uid = (): string => `msg-${Date.now()}-${Math.random().toString(36)
 
 /**
  * Strip Electron's IPC wrapping noise ("Error invoking remote method
- * 'omp-get-messages': Error: …") so the underlying failure is readable in the
+ * 'omp-get-messages': Error: ...") so the underlying failure is readable in the
  * UI. Returns the fallback when nothing usable is extracted.
  */
 export const cleanIpcError = (error: unknown, fallback = 'Something went wrong'): string => {

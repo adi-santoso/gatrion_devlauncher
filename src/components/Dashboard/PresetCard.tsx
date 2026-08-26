@@ -143,7 +143,7 @@ export default function PresetCard({
         {progressActive ? (
           <span className="flex items-center gap-1.5 text-[10px] font-medium text-warning">
             <Spinner />
-            Starting {done}/{totalCount}…
+            Starting {done}/{totalCount}...
           </span>
         ) : (
           <>

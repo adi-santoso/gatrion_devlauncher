@@ -6,7 +6,7 @@ import { useI18n } from '../../i18n/I18nContext'
 
 /**
  * McpApprovalModal — the agent (omp) asked to run a destructive DevLauncher
- * action (delete project, force stop, backup, update, …). The tool call is
+ * action (delete project, force stop, backup, update, ...). The tool call is
  * parked in the main process until the user answers here: Approve runs it,
  * Deny cancels it with a clear error for the agent. Multiple requests queue
  * up; "Deny all" rejects everything outstanding.
