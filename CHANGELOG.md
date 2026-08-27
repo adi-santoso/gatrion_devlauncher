@@ -4,6 +4,30 @@ Semua perubahan penting pada project ini dicatat di file ini.
 
 Format mengikuti [Keep a Changelog](https://keepachangelog.com/id-ID/1.1.0/), dan project ini mengikuti [Semantic Versioning](https://semver.org/spec/v2.0.0.html) begitu versi rilis resmi ditetapkan.
 
+## [Unreleased]
+
+### Added
+
+- **Per-model context window override** — `models.yml` kini bisa mendefinisikan `context_window` per model, sehingga indikator context chat memakai angka model yang benar (bukan default) untuk model yang di-override.
+- **Hasil tool dirender sebagai tool card saat reload sesi** — transkrip yang di-reload dari `get_messages` kini mempertahankan role `toolResult` (sebelumnya di-collapse menjadi role `user` di main process, membuat output tool mentah tampil seolah-olah pesan dari user). Hasil tool dirender sebagai tool card yang bisa di-expand, cocok dengan tampilan live tool card; export Markdown memberi label `**Tool result — <tool>**`.
+
+### Changed
+
+- **Working indicator compact di composer** — indikator "agent sedang bekerja" diganti dari teks panjang menjadi **spinner + kata `working` + timer `mm:ss`**, agar tidak mendorong isi chat.
+- **Posisi panel TODO** — panel TODO dipindah dari atas area scroll ke **tepat di atas input composer**, dan latarnya disamakan dengan background chat (`bg-base`) agar tidak terlihat beda.
+
+### Fixed
+
+- **Deteksi project StrictMode di dev** — `setFormData` updater yang double-invoked oleh StrictMode membuat deteksi project tidak berjalan; updater kini idempotent.
+- **Mojibake ellipsis di UI** — string ellipsis yang rusak (`CE 93 C3 87 C2 AA`) diganti `...` ASCII di seluruh UI dan e2e specs.
+- **Shortcut global `?` menelan ketikan di input** — guard `isTyping` (INPUT/SELECT/TEXTAREA/contenteditable) ditambahkan di `useKeyboardShortcuts` sehingga `?` tetap memunculkan shortcut saat tidak mengetik, tapi tidak mencuri karakter `?` yang diketik.
+- **Stop tidak menghapus / mendobel reply** — `mergeFinishedTurn` mempertahankan partial reply (`stopped: true`) bila `agent_end` membawa transkrip lebih pendek/kosong, dan tidak lagi menumpuk user prompt ganda saat menyelesaikan turn.
+- **Tool call delta tidak tampil sebagai teks mentah** — event `assistantMessageEvent` dengan tipe `toolcall_start/delta/end` dilewati di handler `message_update`, sehingga potongan JSON args tidak bocor sebagai teks.
+- **TODO tidak menempel antar-sesi** — TODO di-reset saat `agent_start` dan saat berpindah session (history hook), sehingga daftar tugas sesi sebelumnya tidak bocor ke sesi baru.
+- **Slash-command palette langsung muncul + navigasi keyboard** — daftar perintah `/` kini tampil segera setelah mengetik `/` (tanpa menunggu huruf kedua), dan bisa dinavigasi dengan **panah atas/bawah** lalu dipilih dengan **Enter/Tab** (Escape menutup).
+- **Context usage live di list session** — sesi yang aktif kini menampilkan **token yang dipakai sekarang / context window** (mis. `12,345/128k ctx`) di sidebar, diambil dari `get_state`, di samping total token kumulatif.
+- **Auto-title session dari omp disinkronkan** — saat omp otomatis menamai session dari pesan pertama (`sessionName` di `get_state`), DevLauncher kini mengadopsi judul itu ke registry sidebar (menggantikan placeholder "Session N") dan menyimpannya ke disk.
+
 ## [0.2.7] - 2026-08-21
 
 ### Added
