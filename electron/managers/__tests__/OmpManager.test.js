@@ -291,5 +291,16 @@ describe('OmpManager (mock omp RPC)', () => {
       expect(manager.normalizeMessages(null)).toEqual([])
       expect(manager.normalizeMessages({ items: [{ role: 'user', content: 'y' }] })).toHaveLength(1)
     })
+
+    test('keeps toolResult entries as their own role (not "user")', () => {
+      // Regression: toolResult was mapped to role "user", so every tool's raw
+      // output rendered as a message from the user in the reloaded chat.
+      const out = manager.normalizeMessages([
+        { role: 'toolResult', toolCallId: 'call_abc', toolName: 'read', content: [{ type: 'text', text: 'file listing here' }] },
+      ])
+      expect(out).toEqual([
+        { role: 'toolResult', toolCallId: 'call_abc', toolName: 'read', content: 'file listing here' },
+      ])
+    })
   })
 })

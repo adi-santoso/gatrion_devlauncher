@@ -59,6 +59,8 @@ export const cleanIpcError = (error: unknown, fallback = 'Something went wrong')
 // omp message content can be a plain string or an array of typed blocks
 // ({ type: 'text' | 'thinking' | ... }). Split text and reasoning apart so
 // thinking can be persisted per message instead of only shown while streaming.
+// NOTE: omp stores thinking in a `thinking` field (not `text`) on the block —
+// read both so reasoning survives a reload.
 export const extractContentParts = (content: unknown): { text: string; thinking: string } => {
   if (typeof content === 'string') return { text: content, thinking: '' };
   if (Array.isArray(content)) {
@@ -66,9 +68,9 @@ export const extractContentParts = (content: unknown): { text: string; thinking:
     let thinking = '';
     for (const part of content) {
       if (!part) continue;
-      const block = part as { type?: unknown; text?: unknown };
+      const block = part as { type?: unknown; text?: unknown; thinking?: unknown };
       if (block.type === 'text') text += block.text || '';
-      else if (/think|reason/i.test(String(block.type || ''))) thinking += block.text || '';
+      else if (/think|reason/i.test(String(block.type || ''))) thinking += block.text || block.thinking || '';
     }
     return { text, thinking };
   }
@@ -92,6 +94,30 @@ export interface NormalizedMessage {
 }
 
 export const normalizeTranscriptMessage = (item: TranscriptEntry): NormalizedMessage => {
+  // omp stores tool execution results as messages with role "toolResult"
+  // (they carry toolCallId/toolName + the result text). Rendering those as a
+  // plain assistant bubble is wrong — the raw tool output would look like a
+  // reply from the AI. Turn them into a tool card instead so the result is
+  // shown attached to the tool, matching the live tool-card look.
+  if (item.role === 'toolResult') {
+    const body = Array.isArray(item.content)
+      ? item.content.map((part) => (part as { text?: unknown })?.text || '').filter(Boolean).join('\n')
+      : typeof item.content === 'string' ? item.content : '';
+    const tool: ChatTool = {
+      id: String((item as { toolCallId?: unknown }).toolCallId || uid()),
+      name: String((item as { toolName?: unknown }).toolName || 'tool'),
+      arg: '',
+      state: 'done',
+      body: body.slice(0, 20000),
+    };
+    return {
+      id: item.id || uid(),
+      entryId: typeof item.id === 'string' ? item.id : undefined,
+      role: 'assistant',
+      content: '',
+      segments: [{ kind: 'tool', tool }],
+    };
+  }
   const { text, thinking } = extractContentParts(item.content);
   const segments = contentPartsToSegments(item.content);
   return {
@@ -118,19 +144,20 @@ const contentPartsToSegments = (content: unknown): MessageSegment[] => {
   const segments: MessageSegment[] = []
   for (const part of content) {
     if (!part) continue
-    const block = part as { type?: unknown; text?: unknown; name?: unknown; toolName?: unknown; tool?: unknown; args?: unknown; input?: unknown; id?: unknown; toolCallId?: unknown }
+    const block = part as { type?: unknown; text?: unknown; name?: unknown; toolName?: unknown; tool?: unknown; args?: unknown; arguments?: unknown; input?: unknown; id?: unknown; toolCallId?: unknown }
     const type = String(block.type || '')
     if (type === 'text' && typeof block.text === 'string' && block.text.trim()) {
       segments.push({ kind: 'text', text: block.text })
-    } else if (/think|reason/i.test(type) && typeof block.text === 'string' && block.text.trim()) {
-      segments.push({ kind: 'thinking', text: block.text })
+    } else if (/think|reason/i.test(type) && ((typeof block.text === 'string' && block.text.trim()) || (block as { thinking?: unknown }).thinking)) {
+      const thinkingText = String((block as { thinking?: unknown }).thinking || block.text || '')
+      if (thinkingText.trim()) segments.push({ kind: 'thinking', text: thinkingText })
     } else if (/tool/i.test(type)) {
       segments.push({
         kind: 'tool',
         tool: {
           id: String(block.id || block.toolCallId || `tool-${segments.length}`),
           name: String(block.name || block.toolName || block.tool || 'tool'),
-          arg: argsToString(block.args || block.input),
+          arg: argsToString(block.arguments ?? block.args ?? block.input),
           state: 'done',
         },
       })

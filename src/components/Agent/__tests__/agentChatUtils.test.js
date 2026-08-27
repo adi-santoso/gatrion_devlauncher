@@ -194,6 +194,50 @@ describe('normalizeTranscriptMessage tool parts', () => {
     })
     expect(message.segments).toBeUndefined()
   })
+
+  test('extracts thinking stored in the omp `thinking` field (not `text`)', () => {
+    const message = normalizeTranscriptMessage({
+      role: 'assistant',
+      content: [
+        { type: 'thinking', thinking: 'The reasoning body' },
+        { type: 'text', text: 'The answer' },
+      ],
+    })
+    expect(message.thinking).toBe('The reasoning body')
+    expect(message.content).toBe('The answer')
+  })
+
+  test('maps omp toolCall blocks with arguments into a tool segment', () => {
+    const message = normalizeTranscriptMessage({
+      role: 'assistant',
+      content: [
+        { type: 'thinking', thinking: 'planning' },
+        { type: 'toolCall', id: 'call_abc', name: 'read', arguments: { path: 'D:/x', i: 'listing' } },
+        { type: 'text', text: 'Done reading' },
+      ],
+    })
+    expect(message.segments.map((segment) => segment.kind)).toEqual(['thinking', 'tool', 'text'])
+    expect(message.segments[1].tool).toMatchObject({ id: 'call_abc', name: 'read', state: 'done' })
+    expect(message.segments[1].tool?.arg).toContain('D:/x')
+  })
+
+  test('turns a toolResult message into a tool card, not an assistant bubble', () => {
+    const message = normalizeTranscriptMessage({
+      id: 'res-1',
+      role: 'toolResult',
+      toolCallId: 'call_abc',
+      toolName: 'read',
+      content: [{ type: 'text', text: 'line1\nline2' }],
+    })
+    // Must NOT render as a raw AI bubble (that made tool output look like a
+    // reply from the model). It becomes a tool card with the result as body.
+    expect(message.role).toBe('assistant')
+    expect(message.content).toBe('')
+    expect(message.segments).toHaveLength(1)
+    expect(message.segments[0].kind).toBe('tool')
+    expect(message.segments[0].tool).toMatchObject({ name: 'read', state: 'done' })
+    expect(message.segments[0].tool?.body).toContain('line1\nline2')
+  })
 })
 
 describe('cleanIpcError', () => {

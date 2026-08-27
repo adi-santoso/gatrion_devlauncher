@@ -10,11 +10,15 @@ const contentText = (content: TranscriptContent): string => {
   return (content || []).map((part) => (typeof part?.text === 'string' ? part.text : '')).filter(Boolean).join('\n')
 }
 
-function messagesToMarkdown(messages: Array<{ role: string; content: TranscriptContent }> | null | undefined, title = 'Conversation'): string {
+function messagesToMarkdown(messages: Array<{ role: string; content: TranscriptContent; toolName?: unknown }> | null | undefined, title = 'Conversation'): string {
   const lines = [`# ${title}`, '', `_Exported ${new Date().toLocaleString()}_`, '', '---', '']
   for (const message of messages || []) {
     if (!message || typeof message !== 'object') continue
-    const label = message.role === 'user' ? '**User**' : '**Assistant**'
+    const label = message.role === 'user'
+      ? '**User**'
+      : message.role === 'toolResult'
+        ? `**Tool result${message.toolName ? ` — ${String(message.toolName)}` : ''}**`
+        : '**Assistant**'
     lines.push(`## ${label}`, '', contentText(message.content), '', '---', '')
   }
   return lines.join('\n')

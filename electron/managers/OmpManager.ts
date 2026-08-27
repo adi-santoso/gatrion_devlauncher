@@ -24,11 +24,15 @@ interface ContentPart {
 }
 
 interface NormalizedMessage {
-  role: 'user' | 'assistant'
+  role: 'user' | 'assistant' | 'toolResult'
   // String for plain text; kept as the original part array when the entry has
   // tool calls so the renderer can rebuild its tool cards on reload instead of
   // flattening them into invisible text.
   content: string | ContentPart[]
+  // toolResult entries carry the call they answer so the renderer can attach
+  // the result body to the matching tool card.
+  toolCallId?: unknown
+  toolName?: unknown
 }
 
 /**
@@ -354,6 +358,19 @@ class OmpManager extends EventEmitter {
       const msg = item as Record<string, unknown>
       const role = msg.role || msg.type || (msg.from === 'assistant' ? 'assistant' : 'user')
       const content = msg.content || msg.text || msg.message || ''
+      // omp tool results are their own role — collapsing them into "user"
+      // made every tool's raw output render as a message from the user.
+      if (role === 'toolResult') {
+        const parts = Array.isArray(content) ? content.filter((part) => Boolean(part && typeof part === 'object')) as ContentPart[] : []
+        const text = typeof content === 'string' ? content : parts.map((part) => (typeof part.text === 'string' ? part.text : '')).filter(Boolean).join('\n')
+        messages.push({
+          role: 'toolResult',
+          toolCallId: msg.toolCallId,
+          toolName: msg.toolName,
+          content: text,
+        })
+        continue
+      }
       if (typeof content === 'string' && content.trim()) {
         messages.push({ role: role === 'assistant' ? 'assistant' : 'user', content })
       } else if (Array.isArray(content)) {
