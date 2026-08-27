@@ -291,7 +291,6 @@ export default function AgentChatView(props: AgentChatViewProps) {
             )}
           </div>
         )}
-        <TodosPanel todos={todos} open={todosOpen} setOpen={setTodosOpen} />
         <HistoryStates
           historyError={historyError}
           historyLoading={historyLoading}
@@ -357,6 +356,15 @@ export default function AgentChatView(props: AgentChatViewProps) {
         onAbortRun={abortBashRun}
         onClear={() => setBashRuns([])}
       />
+
+      {/* Agent TODO progress — pinned just above the composer so it stays in
+          view next to the input instead of scrolling away at the top of the
+          history. */}
+      <div className="px-5 pt-2 pb-0">
+        <div className="max-w-[760px] mx-auto">
+          <TodosPanel todos={todos} open={todosOpen} setOpen={setTodosOpen} />
+        </div>
+      </div>
 
       {/* Input */}
       <ChatComposer

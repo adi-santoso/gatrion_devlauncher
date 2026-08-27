@@ -34,6 +34,9 @@ export default function AgentView({ projects, initialProjectId = null, initialSe
   const [sessionSearch, setSessionSearch] = useState('');
   const [pendingSessionId, setPendingSessionId] = useState<string | null>(null);
   const loadedRef = useRef<Record<string, boolean>>({});
+  // Live context usage (tokens/contextWindow) of the active session, bubbled up
+  // from AgentChat so the sidebar can show how much context is used right now.
+  const [activeContextUsage, setActiveContextUsage] = useState<{ tokens?: number; contextWindow?: number } | null>(null);
 
   const selectedProject = projects.find((project) => project.id === selectedProjectId) || null;
 
@@ -142,6 +145,26 @@ export default function AgentView({ projects, initialProjectId = null, initialSe
     setRenaming(null);
   };
 
+  // Adopt an omp auto-generated session title (from the first message) into the
+  // sidebar registry + disk, so it doesn't stay as the "Session N" placeholder.
+  const handleTitleGenerated = useCallback((title: string) => {
+    if (!activeSession || !selectedProjectId) return;
+    const clean = title.trim();
+    if (!clean || clean === activeSession.title) return;
+    const projectId = selectedProjectId;
+    setSessionsByProject((prev) => {
+      const current = (prev[projectId] || []).find((item) => item.id === activeSession.id);
+      if (current && current.title === clean) return prev;
+      return {
+        ...prev,
+        [projectId]: (prev[projectId] || []).map((item) =>
+          item.id === activeSession.id ? { ...item, title: clean } : item
+        ),
+      };
+    });
+    ipc.ompRenameSession(projectId, activeSession.id, clean).catch(() => {});
+  }, [activeSession, selectedProjectId]);
+
   const handleSessionCreated = (sessionId: string, session?: AgentSession) => {
     const created: AgentSession = session || { id: sessionId, title: sessionId, projectId: '' };
     setActiveSession(created);
@@ -184,13 +207,14 @@ export default function AgentView({ projects, initialProjectId = null, initialSe
           onStartRename={(projectId, sessionId) => setRenaming({ projectId, sessionId })}
           onCancelRename={() => setRenaming(null)}
           onRenameSession={handleRenameSession}
-          onTogglePin={handleTogglePin}
-          onRequestDelete={(project, session) => setConfirmDelete({ project, session })}
-          status={status}
-          statusLoading={statusLoading}
-          sessionCount={sessionCount}
-          onOpenSettings={onOpenSettings}
-        />
+            onTogglePin={handleTogglePin}
+            onRequestDelete={(project, session) => setConfirmDelete({ project, session })}
+            status={status}
+            statusLoading={statusLoading}
+            sessionCount={sessionCount}
+            activeContextUsage={activeContextUsage}
+            onOpenSettings={onOpenSettings}
+          />
 
         <ConfirmDialog
           isOpen={Boolean(confirmDelete)}
@@ -247,6 +271,8 @@ export default function AgentView({ projects, initialProjectId = null, initialSe
                   }
                 }
               }}
+              onContextUsage={setActiveContextUsage}
+              onTitleGenerated={handleTitleGenerated}
             />
           )}
         </div>

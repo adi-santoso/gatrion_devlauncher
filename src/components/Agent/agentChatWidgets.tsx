@@ -111,7 +111,7 @@ export function TodosPanel({ todos, open, setOpen }: TodosPanelProps) {
   );
   const progress = total > 0 ? Math.round((done / total) * 100) : 0;
   return (
-    <div className="max-w-[760px] mx-auto mb-3 rounded-xl border border-border bg-surface shadow-card overflow-hidden">
+    <div className="max-w-[760px] mx-auto mb-3 rounded-xl border border-border bg-base shadow-card overflow-hidden">
       <button
         type="button"
         onClick={() => setOpen((value) => !value)}

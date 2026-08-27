@@ -94,4 +94,45 @@ describe('ChatComposer', () => {
     render(<ChatComposer {...baseProps} lastTurn={null} />)
     expect(screen.queryByText(/last turn/)).not.toBeInTheDocument()
   })
+
+  it('arrow keys move the slash-command highlight and Enter inserts the selected one', () => {
+    const insertSlashCommand = vi.fn()
+    const slashMatches = [
+      { name: 'compact', description: 'Compact context' },
+      { name: 'model', description: 'Switch model' },
+      { name: 'help', description: 'Show help' },
+    ]
+    const { rerender } = render(
+      <ChatComposer
+        {...baseProps}
+        input="/"
+        slashOpen
+        slashMatches={slashMatches}
+        insertSlashCommand={insertSlashCommand}
+      />
+    )
+    const textarea = screen.getByPlaceholderText('Describe a task, ask a question...')
+
+    // First item is highlighted by default — Enter inserts it.
+    fireEvent.keyDown(textarea, { key: 'Enter' })
+    expect(insertSlashCommand).toHaveBeenLastCalledWith(slashMatches[0])
+
+    // ArrowDown moves to the second item.
+    fireEvent.keyDown(textarea, { key: 'ArrowDown' })
+    fireEvent.keyDown(textarea, { key: 'Enter' })
+    expect(insertSlashCommand).toHaveBeenLastCalledWith(slashMatches[1])
+
+    // ArrowUp wraps back to the first.
+    fireEvent.keyDown(textarea, { key: 'ArrowUp' })
+    fireEvent.keyDown(textarea, { key: 'Enter' })
+    expect(insertSlashCommand).toHaveBeenLastCalledWith(slashMatches[0])
+
+    // Tab also inserts the highlighted command.
+    fireEvent.keyDown(textarea, { key: 'Tab' })
+    expect(insertSlashCommand).toHaveBeenLastCalledWith(slashMatches[0])
+
+    // The palette is a controlled popup — re-render to confirm the list renders.
+    rerender(<ChatComposer {...baseProps} input="/" slashOpen slashMatches={slashMatches} insertSlashCommand={insertSlashCommand} />)
+    expect(screen.getByText('/compact')).toBeInTheDocument()
+  })
 })

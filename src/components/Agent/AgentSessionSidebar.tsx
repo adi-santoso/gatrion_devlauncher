@@ -36,6 +36,8 @@ export interface AgentSessionSidebarProps {
   status?: { installed: boolean; configured: boolean; version?: string | null };
   statusLoading?: boolean;
   sessionCount?: number;
+  /** Live context usage (tokens/contextWindow) of the active session. */
+  activeContextUsage?: { tokens?: number; contextWindow?: number } | null;
   onOpenSettings?: () => void;
 }
 
@@ -59,6 +61,7 @@ export default function AgentSessionSidebar({
   status,
   statusLoading,
   sessionCount = 0,
+  activeContextUsage,
   onOpenSettings,
 }: AgentSessionSidebarProps) {
   const selectedProject = projects.find((project) => project.id === selectedProjectId) || null;
@@ -184,6 +187,14 @@ export default function AgentSessionSidebar({
                       )}
                       <div className="flex items-center gap-2 mt-1">
                         <span className="text-[11px] text-ink-faint">{formatRelative(session.lastActive as number | undefined)}</span>
+                        {activeSession?.id === session.id && activeContextUsage && (activeContextUsage.tokens ?? 0) > 0 && (
+                          <span
+                            className="text-[11px] text-accent tabular-nums"
+                            title="Context used right now (tokens / context window)"
+                          >
+                            {(activeContextUsage.tokens || 0).toLocaleString()}/{activeContextUsage.contextWindow ? (activeContextUsage.contextWindow / 1000).toFixed(0) : '?'}k ctx
+                          </span>
+                        )}
                         {(session.tokens || 0) > 0 && <span className="text-[11px] text-warning tabular-nums">{((session.tokens || 0) / 1000).toFixed(1)}k tokens</span>}
                         {(session.cost || 0) > 0 && <span className="text-[11px] text-ink-soft tabular-nums" title="Estimated cost (list price of the active model)">≈{formatCost(session.cost || 0)}</span>}
                         <span className="ml-auto flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">

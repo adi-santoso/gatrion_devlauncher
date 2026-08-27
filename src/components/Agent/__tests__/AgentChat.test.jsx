@@ -671,6 +671,79 @@ describe('AgentChat', () => {
     expect(screen.queryByText(/Generation stopped/)).toBeInTheDocument()
   })
 
+  it('does not duplicate the user prompt when agent_end arrives after a stop', async () => {
+    // Regression: after stop the tail of the list is the preserved partial
+    // assistant reply, so the tail-only "is the last item the user message?"
+    // check failed and the turn's prompt was pushed AGAIN — the chat showed
+    // the same user bubble twice.
+    mocks.onOmpEvent.mockImplementation((callback) => { eventCb = callback; return () => {} })
+    mocks.ompGetMessages.mockResolvedValue({ success: true, messages: [] })
+    mocks.ompChat.mockResolvedValue({
+      success: true,
+      sessionId: 's15',
+      session: { id: 's15', title: 'StopDup', sessionPath: 'C:/sessions/s15.jsonl' },
+    })
+    mocks.ompAbort.mockResolvedValue({ success: true })
+
+    render(<Harness />)
+    const input = screen.getByPlaceholderText('Describe a task, ask a question...')
+    fireEvent.change(input, { target: { value: 'analisa project ini' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Send message' }))
+    await screen.findByText('analisa project ini')
+    await waitFor(() => expect(mocks.ompChat).toHaveBeenCalled())
+
+    await act(async () => {
+      eventCb({ projectId: 'p1', event: { type: 'agent_start' } })
+      eventCb({ projectId: 'p1', event: { type: 'message_update', assistantMessageEvent: { type: 'text_delta', delta: 'partial ' } } })
+      await new Promise((resolve) => setTimeout(resolve, 120))
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Stop' }))
+    expect(await screen.findByText(/partial reply kept/i)).toBeInTheDocument()
+
+    // agent_end after the abort — the transcript carries the same prompt.
+    await act(async () => {
+      eventCb({ projectId: 'p1', event: { type: 'agent_end', messages: [
+        { role: 'user', content: 'analisa project ini' },
+        { role: 'assistant', content: 'partial reply from transcript' },
+      ] } })
+    })
+
+    // The prompt must appear exactly once (no duplicate bubble).
+    expect(screen.getAllByText('analisa project ini')).toHaveLength(1)
+  })
+
+  it('ignores toolcall argument deltas streamed via message_update', async () => {
+    // Regression: omp streams the tool's JSON ARGUMENTS as toolcall_delta
+    // assistantMessageEvents. They are not reply text — rendering them put raw
+    // JSON like {"i": "...", "path": "."} into the chat above the tool card.
+    mocks.onOmpEvent.mockImplementation((callback) => { eventCb = callback; return () => {} })
+    mocks.ompGetMessages.mockResolvedValue({ success: true, messages: [] })
+    mocks.ompChat.mockResolvedValue({
+      success: true,
+      sessionId: 's16',
+      session: { id: 's16', title: 'ToolDelta', sessionPath: 'C:/sessions/s16.jsonl' },
+    })
+
+    render(<Harness />)
+    const input = screen.getByPlaceholderText('Describe a task, ask a question...')
+    fireEvent.change(input, { target: { value: 'read the project' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Send message' }))
+    await screen.findByText('read the project')
+    await waitFor(() => expect(mocks.ompChat).toHaveBeenCalled())
+
+    await act(async () => {
+      eventCb({ projectId: 'p1', event: { type: 'message_update', assistantMessageEvent: { type: 'text_delta', delta: 'Reading now. ' } } })
+      eventCb({ projectId: 'p1', event: { type: 'message_update', assistantMessageEvent: { type: 'toolcall_start', delta: '' } } })
+      eventCb({ projectId: 'p1', event: { type: 'message_update', assistantMessageEvent: { type: 'toolcall_delta', delta: '{"path": "."' } } })
+      eventCb({ projectId: 'p1', event: { type: 'message_update', assistantMessageEvent: { type: 'toolcall_end', delta: '}' } } })
+      await new Promise((resolve) => setTimeout(resolve, 120))
+    })
+
+    expect(await screen.findByText(/Reading now/)).toBeInTheDocument()
+    expect(screen.queryByText(/"path": "\."/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/"i": "Listing/)).not.toBeInTheDocument()
+  })
+
   it('lists discovery-based models from the running omp and switches the model from the chat header', async () => {
     mocks.onOmpEvent.mockImplementation((callback) => { eventCb = callback; return () => {} })
     mocks.ompGetMessages.mockResolvedValue({ success: true, messages: [] })
@@ -831,6 +904,56 @@ describe('AgentChat', () => {
     expect(await screen.findByText('45%')).toBeInTheDocument()
   })
 
+  it('bubbles the live context usage up to the sidebar via onContextUsage', async () => {
+    mocks.onOmpEvent.mockImplementation((callback) => { eventCb = callback; return () => {} })
+    mocks.ompGetMessages.mockResolvedValue({ success: true, messages: [] })
+    mocks.ompGetState.mockResolvedValue({ success: true, state: {
+      thinkingLevel: 'off',
+      contextUsage: { tokens: 12345, contextWindow: 128000, percent: 9.6 },
+    } })
+
+    const onContextUsage = vi.fn()
+    render(
+      <AgentChat
+        status={status}
+        project={project}
+        session={{ id: 's1', title: 'Session 1', sessionPath: 'C:/sessions/s1.jsonl' }}
+        onSessionCreated={() => {}}
+        onBusyChange={() => {}}
+        onOpenSettings={() => {}}
+        onTokensUsed={() => {}}
+        onContextUsage={onContextUsage}
+      />
+    )
+
+    await waitFor(() => expect(onContextUsage).toHaveBeenCalledWith(expect.objectContaining({ tokens: 12345, contextWindow: 128000 })))
+  })
+
+  it('adopts an omp auto-generated session title via onTitleGenerated', async () => {
+    mocks.onOmpEvent.mockImplementation((callback) => { eventCb = callback; return () => {} })
+    mocks.ompGetMessages.mockResolvedValue({ success: true, messages: [] })
+    mocks.ompGetState.mockResolvedValue({ success: true, state: {
+      thinkingLevel: 'off',
+      sessionName: 'Fix the login bug',
+    } })
+
+    const onTitleGenerated = vi.fn()
+    render(
+      <AgentChat
+        status={status}
+        project={project}
+        session={{ id: 's1', title: 'Session 1', sessionPath: 'C:/sessions/s1.jsonl' }}
+        onSessionCreated={() => {}}
+        onBusyChange={() => {}}
+        onOpenSettings={() => {}}
+        onTokensUsed={() => {}}
+        onTitleGenerated={onTitleGenerated}
+      />
+    )
+
+    await waitFor(() => expect(onTitleGenerated).toHaveBeenCalledWith('Fix the login bug'))
+  })
+
   it('normalizes context percent reported as a raw percentage (not a fraction)', async () => {
     mocks.onOmpEvent.mockImplementation((callback) => { eventCb = callback; return () => {} })
     mocks.ompGetMessages.mockResolvedValue({ success: true, messages: [] })
@@ -974,6 +1097,29 @@ describe('AgentChat', () => {
 
     expect(await screen.findByText('Map the tool surface')).toBeInTheDocument()
     expect(screen.getByText('Exercise edit operations')).toBeInTheDocument()
+  })
+
+  it('clears the todos plan when a new turn starts', async () => {
+    // Regression: todos were only cleared on a todo_auto_clear event, so a
+    // fresh turn (or a session switch) kept showing the previous turn's plan,
+    // making todos "stick" across sessions.
+    mocks.onOmpEvent.mockImplementation((callback) => { eventCb = callback; return () => {} })
+    mocks.ompGetMessages.mockResolvedValue({ success: true, messages: [] })
+
+    render(<Harness />)
+    eventCb({ projectId: 'p1', event: { type: 'todo_reminder', phases: [
+      { id: 'phase-1', name: 'Todos', tasks: [
+        { id: 'task-1', content: 'Map the tool surface', status: 'in_progress' },
+      ] },
+    ] } })
+    expect(await screen.findByText('Map the tool surface')).toBeInTheDocument()
+
+    // A new agent turn starts → the old plan must disappear (fresh reset).
+    eventCb({ projectId: 'p1', event: { type: 'agent_start' } })
+
+    await waitFor(() => {
+      expect(screen.queryByText('Map the tool surface')).not.toBeInTheDocument()
+    })
   })
 
   it('exports the conversation via the native save dialog', async () => {

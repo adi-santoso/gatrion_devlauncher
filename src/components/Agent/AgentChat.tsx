@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { ComposerAttachment } from './ChatComposer';
 import AgentChatView from './AgentChatView';
 import { computeContextPercent, currentModelInfo, filterSlashCommands } from './agentChatMessages';
@@ -30,6 +30,8 @@ export default function AgentChat({
   onSessionCreated,
   onBusyChange,
   onTokensUsed,
+  onContextUsage,
+  onTitleGenerated,
   onOpenSettings,
   // False while the user is browsing another menu — the view stays mounted
   // (hidden) so the conversation survives, but streaming must not keep
@@ -147,7 +149,14 @@ export default function AgentChat({
     setFastMode,
     setTodos,
     setTokensPerSecond,
+    onTitleGenerated,
   });
+
+  // Bubble the live context usage up so the session sidebar can show how much
+  // context the active session is using right now (not just lifetime tokens).
+  useEffect(() => {
+    onContextUsage?.(contextUsage);
+  }, [contextUsage, onContextUsage]);
 
   // Streaming-buffer flush (render rate cap) + scroll tracking.
   const { scrollToBottom, handleScroll } = useAgentStream({
@@ -179,6 +188,8 @@ export default function AgentChat({
     setMessages,
     setBlocks,
     setSubagents,
+    setTodos,
+    setTodosOpen,
     setError,
     setHistoryLoading,
     setHistoryError,
@@ -345,7 +356,7 @@ export default function AgentChat({
     : contextUsage;
   const contextPercent = computeContextPercent(contextUsageForPercent);
   // Slash-command palette: shown while typing a / command without a space.
-  const slashOpen = input.startsWith('/') && !input.includes(' ') && input.length > 1;
+  const slashOpen = input.startsWith('/') && !input.includes(' ');
   const slashQuery = slashOpen ? input.slice(1).toLowerCase() : '';
   const slashMatches = filterSlashCommands(commands, slashQuery);
 

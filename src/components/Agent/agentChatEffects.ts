@@ -42,6 +42,8 @@ export interface SessionHistoryOptions {
   setMessages: React.Dispatch<React.SetStateAction<ChatMessage[]>>;
   setBlocks: React.Dispatch<React.SetStateAction<TurnBlock[]>>;
   setSubagents: React.Dispatch<React.SetStateAction<SubagentInfo[]>>;
+  setTodos: React.Dispatch<React.SetStateAction<TodoPhase[]>>;
+  setTodosOpen: React.Dispatch<React.SetStateAction<boolean>>;
   setError: React.Dispatch<React.SetStateAction<string | null>>;
   setHistoryLoading: React.Dispatch<React.SetStateAction<boolean>>;
   setHistoryError: React.Dispatch<React.SetStateAction<string | null>>;
@@ -68,6 +70,8 @@ export function useAgentSessionHistory({
   setMessages,
   setBlocks,
   setSubagents,
+  setTodos,
+  setTodosOpen,
   setError,
   setHistoryLoading,
   setHistoryError,
@@ -108,6 +112,9 @@ export function useAgentSessionHistory({
     setBlocks([]);
     streamQueueRef.current = [];
     setSubagents([]);
+    // Switching sessions must not carry the previous session's TODO plan over.
+    setTodos([]);
+    setTodosOpen(true);
     setError(null);
     setHistoryError(null);
     setNearBottom(true);
@@ -292,6 +299,9 @@ export interface SessionStateOptions {
   setFastMode: React.Dispatch<React.SetStateAction<boolean>>;
   setTodos: React.Dispatch<React.SetStateAction<TodoPhase[]>>;
   setTokensPerSecond: React.Dispatch<React.SetStateAction<number | null>>;
+  /** Called when omp auto-generates a session title (sessionName) so the
+   * sidebar registry can adopt it instead of staying "Session N". */
+  onTitleGenerated?: (title: string) => void;
 }
 
 export interface SessionStateResult {
@@ -312,6 +322,7 @@ export function useAgentSessionState({
   setFastMode,
   setTodos,
   setTokensPerSecond,
+  onTitleGenerated,
 }: SessionStateOptions): SessionStateResult {
   const applyState = useCallback((state: Record<string, unknown>) => {
     if (!state) return;
@@ -321,7 +332,11 @@ export function useAgentSessionState({
     if (typeof state.fastModeEnabled === 'boolean') setFastMode(state.fastModeEnabled);
     if (Array.isArray(state.todoPhases)) setTodos(state.todoPhases as TodoPhase[]);
     if (typeof state.tokensPerSecond === 'number') setTokensPerSecond(state.tokensPerSecond);
-  }, [setThinkingLevel, setContextUsage, setAutoCompaction, setFastMode, setTodos, setTokensPerSecond]);
+    // omp auto-generates a session title from the first message (sessionName in
+    // get_state). Adopt it so the sidebar stops showing the placeholder.
+    const sessionName = state.sessionName;
+    if (typeof sessionName === 'string' && sessionName.trim()) onTitleGenerated?.(sessionName.trim());
+  }, [setThinkingLevel, setContextUsage, setAutoCompaction, setFastMode, setTodos, setTokensPerSecond, onTitleGenerated]);
 
   const refreshState = useCallback(() => {
     const currentProject = projectRef.current;

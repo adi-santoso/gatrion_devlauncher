@@ -150,6 +150,12 @@ export interface AgentChatProps {
   onSessionCreated?: (sessionId: string, session?: AgentSession) => void;
   onBusyChange?: (busy: boolean) => void;
   onTokensUsed?: (tokens: number, cost: number) => void;
+  /** Live context-usage report (tokens / contextWindow) of the active session,
+   * bubbled up so the sidebar can show how much context is used right now. */
+  onContextUsage?: (usage: ContextUsage | null) => void;
+  /** Called when omp auto-generates a title for the active session so the
+   * sidebar registry can adopt it instead of staying "Session N". */
+  onTitleGenerated?: (title: string) => void;
   onOpenSettings?: () => void;
   /** False while the user is browsing another menu — the view stays mounted
    * (hidden) so the conversation survives, but streaming must not keep

@@ -88,6 +88,13 @@ export default function ChatComposer({
   const [templateName, setTemplateName] = useState('');
   const templateInputRef = useRef<HTMLInputElement | null>(null);
 
+  // Index of the highlighted slash-command suggestion (arrow-key navigable).
+  const [slashIndex, setSlashIndex] = useState(0);
+  // Reset the highlight whenever the visible list changes (open/close/filter).
+  useEffect(() => {
+    setSlashIndex(0);
+  }, [slashOpen, slashMatches.length]);
+
   const saveCurrentAsTemplate = () => {
     const content = input.trim();
     if (!content) return;
@@ -198,6 +205,31 @@ export default function ChatComposer({
                 resizeInput(event.target);
               }}
               onKeyDown={(event) => {
+                // While the slash palette is open, arrow keys move the
+                // highlight and Enter/Tab inserts the selected command.
+                if (slashOpen && slashMatches.length > 0) {
+                  if (event.key === 'ArrowDown') {
+                    event.preventDefault();
+                    setSlashIndex((index) => (index + 1) % slashMatches.length);
+                    return;
+                  }
+                  if (event.key === 'ArrowUp') {
+                    event.preventDefault();
+                    setSlashIndex((index) => (index - 1 + slashMatches.length) % slashMatches.length);
+                    return;
+                  }
+                  if (event.key === 'Enter' || event.key === 'Tab') {
+                    event.preventDefault();
+                    insertSlashCommand(slashMatches[slashIndex]);
+                    return;
+                  }
+                  if (event.key === 'Escape') {
+                    event.preventDefault();
+                    setInput(input.slice(0, -1));
+                    saveDraftRef.current?.(input.slice(0, -1));
+                    return;
+                  }
+                }
                 if (event.key === 'Enter' && !event.shiftKey) {
                   event.preventDefault();
                   handleSend();
@@ -323,12 +355,15 @@ export default function ChatComposer({
         )}
         {slashOpen && slashMatches.length > 0 && (
           <div className="absolute bottom-full left-0 right-0 mb-1.5 max-h-56 overflow-auto rounded-xl border border-border bg-surface shadow-card z-30 py-1 dropdown-menu">
-            {slashMatches.map((command) => (
+            {slashMatches.map((command, index) => (
               <button
                 key={command.name}
                 type="button"
                 onClick={() => insertSlashCommand(command)}
-                className="w-full flex items-center gap-2 px-3 py-1.5 text-left text-xs text-ink-soft hover:bg-surface-3 hover:text-ink transition-colors"
+                onMouseEnter={() => setSlashIndex(index)}
+                className={`w-full flex items-center gap-2 px-3 py-1.5 text-left text-xs transition-colors ${
+                  index === slashIndex ? 'bg-surface-3 text-ink' : 'text-ink-soft hover:bg-surface-3 hover:text-ink'
+                }`}
               >
                 <span className="font-mono text-accent shrink-0">/{command.name}</span>
                 <span className="flex-1 min-w-0 truncate">{command.description || command.input?.hint || ''}</span>
