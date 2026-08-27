@@ -72,11 +72,22 @@ export function mergeFinishedTurn(
 
   const next = [...prev];
   if (turnUser) {
-    // The current user message is already in the list (appended on send);
-    // keep it in place, merging the canonical transcript text in without
-    // dropping locally-attached image previews.
-    if (next[next.length - 1]?.role === 'user') {
-      next[next.length - 1] = { ...next[next.length - 1], ...turnUser, id: next[next.length - 1].id };
+    // The current user message is usually already in the list (appended on
+    // send). After a stop the LAST item is the preserved partial assistant
+    // reply, so only checking the tail would push the prompt again — find the
+    // last user message instead and merge into it when it matches this turn.
+    const turnUserText = turnUser.content || '';
+    let mergeIndex = -1;
+    for (let i = next.length - 1; i >= 0; i -= 1) {
+      if (next[i].role === 'user') {
+        // Only merge when this trailing user message belongs to the finished
+        // turn (same text) — an older prompt must stay untouched.
+        if ((next[i].content || '') === turnUserText) mergeIndex = i;
+        break;
+      }
+    }
+    if (mergeIndex >= 0) {
+      next[mergeIndex] = { ...next[mergeIndex], ...turnUser, id: next[mergeIndex].id };
     } else {
       next.push(turnUser);
     }

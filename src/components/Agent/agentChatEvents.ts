@@ -117,6 +117,10 @@ export function createOmpEventHandler(context: OmpEventContext): (event: OmpEven
     if (type === 'message_update') {
       const assistantEvent = event.assistantMessageEvent;
       if (!assistantEvent) return;
+      // toolcall_* events stream the tool's JSON ARGUMENTS — they are not
+      // reply text. Rendering them produced raw JSON like {"path": "."} in the
+      // middle of the chat; the tool itself surfaces via tool_execution_*.
+      if (/^toolcall/i.test(assistantEvent.type || '')) return;
       if (typeof assistantEvent.delta !== 'string') return;
       // Both text and thinking deltas go into ONE ordered queue so the flush
       // consumes them in arrival order — a text delta arriving after a
@@ -131,6 +135,10 @@ export function createOmpEventHandler(context: OmpEventContext): (event: OmpEven
       setBlocks([]);
       setSubagents([]);
       setError(null);
+      // A new turn starts a fresh TODO plan — clear the previous turn's list so
+      // switching sessions or starting over doesn't show stale todos.
+      setTodos([]);
+      setTodosOpen(true);
       return;
     }
     // Live status notices surfaced inline instead of being swallowed.
