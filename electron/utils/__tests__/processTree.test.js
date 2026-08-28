@@ -1,5 +1,27 @@
 import { describe, test, expect, vi, beforeEach, afterEach } from 'vitest'
+import { EventEmitter } from 'events'
+import { PassThrough } from 'stream'
+
+const spawnMock = vi.hoisted(() => {
+  return { spawn: vi.fn() }
+})
+
+vi.mock('child_process', () => ({
+  default: { spawn: spawnMock.spawn, exec: vi.fn() },
+  spawn: spawnMock.spawn,
+  exec: vi.fn(),
+}))
+
 import { killProcessTree, computeCpuPercent } from '../processTree'
+
+/** Fake taskkill child: emits exit(0) on a microtask so listeners attach first. */
+function fakeKiller() {
+  const child = new EventEmitter()
+  queueMicrotask(() => child.emit('exit', 0))
+  child.stdout = new PassThrough()
+  child.stderr = new PassThrough()
+  return child
+}
 
 describe('killProcessTree — POSIX', () => {
   beforeEach(() => vi.useFakeTimers())
@@ -50,6 +72,52 @@ describe('killProcessTree — POSIX', () => {
 
   test('throws when the PID is unavailable', async () => {
     await expect(killProcessTree({}, false, 'linux')).rejects.toThrow(/PID/)
+  })
+})
+
+describe('killProcessTree — Windows graceful escalation', () => {
+  afterEach(() => {
+    vi.useRealTimers()
+    vi.restoreAllMocks()
+  })
+
+  test('graceful: taskkill without /F first, escalates to /F when still alive after the grace window', async () => {
+    // A FRESH emitter per spawn call — otherwise the second taskkill would
+    // attach to an already-exited child and never resolve.
+    spawnMock.spawn.mockImplementation(() => fakeKiller())
+    // The tree stays alive (signal 0 probe succeeds) until the grace window lapses.
+    vi.spyOn(process, 'kill').mockReturnValue(true)
+
+    await killProcessTree({ pid: 555 }, false, 'win32')
+
+    const taskkill = spawnMock.spawn.mock.calls.filter((call) => call[0] === 'taskkill')
+    expect(taskkill).toHaveLength(2)
+    expect(taskkill[0][1]).toEqual(['/pid', '555', '/T'])
+    expect(taskkill[1][1]).toEqual(['/pid', '555', '/T', '/F'])
+  }, 10000)
+
+  test('graceful: skips the /F escalation when the tree already exited', async () => {
+    spawnMock.spawn.mockReturnValue(fakeKiller())
+    vi.spyOn(process, 'kill').mockImplementation((_target, signal) => {
+      if (signal === 0) throw Object.assign(new Error('ESRCH'), { code: 'ESRCH' })
+    })
+
+    await killProcessTree({ pid: 777 }, false, 'win32')
+
+    const taskkill = spawnMock.spawn.mock.calls.filter((call) => call[0] === 'taskkill')
+    expect(taskkill).toHaveLength(1)
+    expect(taskkill[0][1]).toEqual(['/pid', '777', '/T'])
+  })
+
+  test('force: single taskkill with /F, no grace wait', async () => {
+    spawnMock.spawn.mockReturnValue(fakeKiller())
+    vi.spyOn(process, 'kill').mockReturnValue(true)
+
+    await killProcessTree({ pid: 888 }, true, 'win32')
+
+    const taskkill = spawnMock.spawn.mock.calls.filter((call) => call[0] === 'taskkill')
+    expect(taskkill).toHaveLength(1)
+    expect(taskkill[0][1]).toEqual(['/pid', '888', '/T', '/F'])
   })
 })
 

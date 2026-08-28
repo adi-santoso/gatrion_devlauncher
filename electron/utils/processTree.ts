@@ -1,7 +1,8 @@
-const { spawn, exec } = require('child_process')
-const os = require('os')
-const util = require('util')
-const execAsync = util.promisify(exec)
+﻿import { spawn, exec } from 'child_process'
+import { promisify } from 'util'
+import { cpus } from 'os'
+
+const execAsync = promisify(exec)
 
 interface ProcessResources {
   pid: number
@@ -28,13 +29,20 @@ function computeCpuPercent(key: string, cpuSec: number): number {
   if (!prev) return 0
   const elapsedSec = (now - prev.at) / 1000
   if (elapsedSec <= 0 || cpuSec < prev.cpuSec) return 0
-  return Math.min(100, Math.max(0, ((cpuSec - prev.cpuSec) / elapsedSec) * 100 / Math.max(1, os.cpus().length)))
+  return Math.min(100, Math.max(0, ((cpuSec - prev.cpuSec) / elapsedSec) * 100 / Math.max(1, cpus().length)))
 }
 
 /**
  * Kill a process tree. On Windows this uses taskkill /T (tree kill), on
  * POSIX it signals the process group (children are spawned detached, so the
  * group id equals the child pid).
+ *
+ * Graceful mode (force = false) mirrors SIGTERM:
+ *   - Windows: close the tree's top-level windows with `taskkill /T` (no /F),
+ *     then wait briefly for it to exit and escalate to /F only if it is still
+ *     alive. Hard-killing a dev server / database on quit risks corrupting
+ *     state, so running projects get a real chance to shut down first.
+ *   - POSIX: SIGTERM, then SIGKILL after a grace period (see killPosixTree).
  */
 async function killProcessTree(
   childProcess: import('child_process').ChildProcess,
@@ -50,26 +58,60 @@ async function killProcessTree(
     return
   }
 
-  await new Promise<void>((resolve, reject) => {
-    const args = ['/pid', String(childProcess.pid), '/T']
-    if (force) args.push('/F')
+  await killWindowsTree(childProcess.pid, force)
+}
 
+/** True when a PID is still in the process table. */
+function isPidAlive(pid: number): boolean {
+  try {
+    process.kill(pid, 0)
+    return true
+  } catch {
+    return false
+  }
+}
+
+/** Run taskkill against a PID (+ whole tree). Resolves false on failure. */
+function runTaskkill(pid: number, force: boolean): Promise<boolean> {
+  return new Promise<boolean>((resolve) => {
+    const args = ['/pid', String(pid), '/T']
+    if (force) args.push('/F')
     const killer = spawn('taskkill', args, { windowsHide: true })
-    let stderr = ''
-    killer.stderr.on('data', (data: Buffer) => {
-      stderr += data.toString()
-    })
-    killer.once('error', reject)
+    // Drain stderr so the pipe never fills; we only care about the exit code.
+    killer.stderr.on('data', () => {})
+    killer.once('error', () => resolve(false))
     killer.once('exit', (code: number | null) => {
-      if (code === 0) resolve(undefined)
-      else reject(new Error(stderr.trim() || `taskkill exited with code ${code}`))
+      resolve(code === 0)
     })
   })
 }
 
 /**
+ * Windows tree kill. Graceful = taskkill /T (no /F): posts a close to the
+ * tree's top-level windows, giving console/GUI apps a chance to clean up.
+ * Then wait up to ~2.2s for the root PID to exit and escalate to /F if it
+ * is still alive â€” the same grace-then-force escalation POSIX already had.
+ */
+async function killWindowsTree(pid: number, force: boolean): Promise<void> {
+  if (!force) {
+    // Graceful attempt first: close the tree's windows, then watch for exit.
+    await runTaskkill(pid, false)
+    if (!isPidAlive(pid)) return
+    const deadline = Date.now() + 2200
+    while (Date.now() < deadline) {
+      if (!isPidAlive(pid)) return
+      await new Promise((resolve) => setTimeout(resolve, 200))
+    }
+  }
+  // Escalate: if the tree (or its root) is still alive, force-kill it.
+  if (isPidAlive(pid)) {
+    await runTaskkill(pid, true)
+  }
+}
+
+/**
  * POSIX: signal the process group. A group that is already gone (ESRCH)
- * counts as success — the process simply died first. Graceful stops wait a
+ * counts as success â€” the process simply died first. Graceful stops wait a
  * short grace period and escalate to SIGKILL if the group is still alive.
  */
 async function killPosixTree(pid: number, force: boolean): Promise<void> {
@@ -77,11 +119,11 @@ async function killPosixTree(pid: number, force: boolean): Promise<void> {
   try {
     process.kill(-pid, signal)
   } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'ESRCH') return // already gone — success
+    if ((error as NodeJS.ErrnoException).code === 'ESRCH') return // already gone â€” success
     try {
       process.kill(pid, signal)
     } catch {
-      // also gone — success
+      // also gone â€” success
     }
   }
   if (force) return
@@ -92,7 +134,7 @@ async function killPosixTree(pid: number, force: boolean): Promise<void> {
     try {
       process.kill(-pid, 0)
     } catch {
-      return // group gone — done
+      return // group gone â€” done
     }
     await new Promise((resolve) => setTimeout(resolve, 200))
   }
