@@ -143,3 +143,28 @@ export const onConfigUpdated = (callback: (config: AppConfig) => void): (() => v
   }
   return subscribe('onConfigUpdated', (config) => callback(config as AppConfig))
 }
+
+export interface WindowCloseRequest {
+  busyCount: number
+}
+
+/** Close confirmation (minimize-to-tray OFF): main intercepted the first close
+ * and asks the modal to confirm quitting. */
+export const onWindowCloseRequest = (callback: (payload: WindowCloseRequest) => void): (() => void) => {
+  if (!isElectron() || typeof window.electron.onWindowCloseRequest !== 'function') {
+    return () => {}
+  }
+  return subscribe('onWindowCloseRequest', (payload) => callback((payload || {}) as WindowCloseRequest))
+}
+
+/** Approve the pending quit (close the window → app quits gracefully). */
+export const confirmWindowClose = async (): Promise<SimpleResult> => {
+  if (!isElectron()) return { success: true }
+  return invoke<SimpleResult>('confirmWindowClose')
+}
+
+/** Cancel the pending quit — keep the app open. */
+export const cancelWindowClose = async (): Promise<SimpleResult> => {
+  if (!isElectron()) return { success: true }
+  return invoke<SimpleResult>('cancelWindowClose')
+}

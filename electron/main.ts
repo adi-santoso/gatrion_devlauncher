@@ -35,6 +35,7 @@ import { registerCoreIpcHandlers } from './ipcHandlers'
 import { setupProjectNotifications } from './notifications'
 import { setupAutoUpdater } from './utils/updater'
 import { setupMcpManager, type McpManager as McpManagerType } from './mcp'
+import { installWindowCloseGuard, type CloseConfirmLatch } from './closeConfirm'
 import Logger from './utils/logger'
 import { applyPendingReset } from './utils/resetData'
 
@@ -86,6 +87,9 @@ let isQuitting = false
 // In-memory copy of the app config so window-close decisions (minimize to tray)
 // can be made synchronously — Electron does not await async close handlers.
 let currentConfig: AppConfig | null = null
+// Close-confirmation flow (minimize-to-tray OFF): decides in the synchronous
+// close event whether to hide, ask the renderer, or let the window close.
+let closeConfirmLatch: CloseConfirmLatch | null = null
 
 // Bring the main window to the front (used by notification click handlers).
 function focusAppWindow() {
@@ -206,15 +210,15 @@ function createWindow(windowBounds?: WindowBounds | null) {
     mainWindow.loadFile(path.join(__dirname, '../../dist-react/index.html'))
   }
 
-  // Handle minimize to tray when user closes window. This MUST be synchronous:
-  // Electron decides whether to close right after the close event dispatch, so
-  // an event.preventDefault() after an await (e.g. reading config from disk) is
-  // ignored and the window closes → app quits, breaking minimize-to-tray.
-  mainWindow.on('close', (event) => {
-    if (!isQuitting && currentConfig?.minimizeToTray) {
-      event.preventDefault()
-      mainWindow!.hide()
-    }
+  // Handle minimize to tray / confirm-quit when the user closes the window.
+  // This MUST be synchronous: Electron decides whether to close right after the
+  // close event dispatch, so an event.preventDefault() after an await (e.g.
+  // reading config from disk) is ignored and the window closes → app quits,
+  // breaking minimize-to-tray.
+  closeConfirmLatch = installWindowCloseGuard(mainWindow, {
+    isQuitting: () => isQuitting,
+    isMinimizeToTray: () => Boolean(currentConfig?.minimizeToTray),
+    getBusyCount: () => processManager?.getBusyProcessCount() ?? 0,
   })
 
   mainWindow.on('closed', () => {
@@ -406,6 +410,8 @@ async function initialize() {
     applyOSSettings,
     // Keep the synchronous close-handler cache in sync with Settings changes.
     onConfigChange: (config) => { currentConfig = config },
+    onWindowCloseConfirmed: () => closeConfirmLatch?.handleConfirmed(),
+    onWindowCloseCancelled: () => closeConfirmLatch?.handleCancelled(),
   })
 
   // Agent-control over the app is opt-in (Settings toggle, default off).

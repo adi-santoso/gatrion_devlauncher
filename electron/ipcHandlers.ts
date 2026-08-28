@@ -33,6 +33,13 @@ export interface IpcHandlersDeps {
   applyOSSettings: (config: AppConfig) => Promise<void>
   /** Fires with the merged config after every successful update-config save. */
   onConfigChange: (config: AppConfig) => void
+  /** Close-confirmation flow (minimize-to-tray OFF): called when the renderer
+   * approves the quit (window-close-confirmed). Main then allows the pending
+   * close to proceed. */
+  onWindowCloseConfirmed: () => void
+  /** Close-confirmation flow: called when the renderer cancels the quit
+   * (window-close-cancelled), releasing the pending-close latch. */
+  onWindowCloseCancelled?: () => void
 }
 
 /**
@@ -49,6 +56,8 @@ export function registerCoreIpcHandlers({
   getUpdater,
   applyOSSettings,
   onConfigChange,
+  onWindowCloseConfirmed,
+  onWindowCloseCancelled,
 }: IpcHandlersDeps) {
   ipcMain.handle('update-download', async (event) => {
     try {
@@ -237,6 +246,29 @@ export function registerCoreIpcHandlers({
     try {
       assertTrustedIpcEvent(event)
       getWindow()?.close()
+      return { success: true }
+    } catch (error) {
+      return { success: false, error: (error as Error).message }
+    }
+  })
+
+  // Close-confirmation flow (minimize-to-tray OFF). The renderer shows a modal
+  // after the main process intercepts the first close; these two channels let
+  // the modal approve (proceed with the pending close) or cancel (stay open).
+  ipcMain.handle('window-close-confirmed', (event) => {
+    try {
+      assertTrustedIpcEvent(event)
+      onWindowCloseConfirmed()
+      return { success: true }
+    } catch (error) {
+      return { success: false, error: (error as Error).message }
+    }
+  })
+
+  ipcMain.handle('window-close-cancelled', (event) => {
+    try {
+      assertTrustedIpcEvent(event)
+      onWindowCloseCancelled?.()
       return { success: true }
     } catch (error) {
       return { success: false, error: (error as Error).message }

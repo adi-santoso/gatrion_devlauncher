@@ -337,6 +337,17 @@ class ProcessManager extends ProcessMetricsBase {
     return result
   }
 
+  /** Number of projects that are currently starting/running (or errored), plus live custom commands. */
+  getBusyProcessCount(): number {
+    let count = 0
+    const busyStatuses: string[] = [this.STATUS.STARTING, this.STATUS.RUNNING, this.STATUS.ERROR]
+    this.processes.forEach((processData) => {
+      if (busyStatuses.includes(processData.status)) count += 1
+    })
+    count += this.customRuns.size
+    return count
+  }
+
   /**
    * Restart a project process
    * @param projectId Project ID

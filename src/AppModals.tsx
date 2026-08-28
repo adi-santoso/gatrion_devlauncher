@@ -5,6 +5,7 @@ import {
   ShortcutsModal,
   ToastContainer,
   PresetModal,
+  CloseConfirmModal,
 } from './components/Modals'
 import PortConflictModal from './components/Modals/PortConflictModal'
 import McpApprovalModal from './components/Modals/McpApprovalModal'
@@ -144,6 +145,9 @@ export default function AppModals({
 
       {/* Agent (MCP) destructive-tool approval — self-subscribes to the push channel */}
       <McpApprovalModal />
+
+      {/* Quit confirmation when minimize-to-tray is OFF — self-subscribes to the main's close intercept */}
+      <CloseConfirmModal />
     </>
   )
 }

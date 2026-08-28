@@ -39,7 +39,12 @@ export function invoke<T>(method: string, ...args: unknown[]): Promise<T> {
  * @returns an unsubscribe function; a no-op when the bridge is absent
  */
 export function subscribe(method: string, callback: (...args: unknown[]) => void): () => void {
-  const fn = window.electron[method] as (cb: (...args: unknown[]) => void) => unknown
+  const fn = window.electron[method] as ((cb: (...args: unknown[]) => void) => unknown) | undefined
+  if (typeof fn !== 'function') {
+    // Missing bridge method (e.g. stale preload during an upgrade/HMR): degrade
+    // to a no-op instead of crashing the whole React tree with a blank screen.
+    return () => {}
+  }
   const result = fn(callback)
   return typeof result === 'function' ? (result as () => void) : () => {}
 }

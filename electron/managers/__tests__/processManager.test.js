@@ -160,4 +160,27 @@ describe('ProcessManager', () => {
       ])).rejects.toThrow(/exactly one primary/)
     })
   })
+
+  describe('getBusyProcessCount', () => {
+    const makeData = (status) => ({ status, runId: Symbol('run'), commands: new Map(), logs: [] })
+
+    test('counts starting/running/error projects plus live custom commands', () => {
+      const pm = new ProcessManager()
+      pm.processes.set('a', makeData('RUNNING'))
+      pm.processes.set('b', makeData('STARTING'))
+      pm.processes.set('c', makeData('ERROR'))
+      pm.processes.set('d', makeData('STOPPED'))
+      pm.customRuns.set(1, { process: {} })
+      pm.customRuns.set(2, { process: {} })
+
+      // 3 busy projects (a,b,c) + 2 custom runs = 5. Stopped (d) not counted.
+      expect(pm.getBusyProcessCount()).toBe(5)
+    })
+
+    test('returns 0 when nothing is running', () => {
+      const pm = new ProcessManager()
+      pm.processes.set('d', makeData('STOPPED'))
+      expect(pm.getBusyProcessCount()).toBe(0)
+    })
+  })
 })

@@ -116,6 +116,11 @@ interface ElectronApi {
   maximizeWindow: () => Promise<unknown>
   closeWindow: () => Promise<unknown>
   onWindowMaximizedChange: (callback: (state: unknown) => void) => Unsub
+  // Close confirmation (minimize-to-tray OFF): main intercepts the first close
+  // and pushes a request here; the modal confirms/cancels via the channels below.
+  onWindowCloseRequest: (callback: (payload: { busyCount: number }) => void) => Unsub
+  confirmWindowClose: () => Promise<unknown>
+  cancelWindowClose: () => Promise<unknown>
 
   // Resource Monitoring (CPU/Memory)
   onResourceUpdate: (callback: (data: unknown) => void) => Unsub
@@ -364,6 +369,13 @@ const api: ElectronApi = {
     ipcRenderer.on('window-maximized-changed', listener)
     return () => ipcRenderer.removeListener('window-maximized-changed', listener)
   },
+  onWindowCloseRequest: (callback) => {
+    const listener = (_event: IpcRendererEvent, payload: unknown) => callback((payload || {}) as { busyCount: number })
+    ipcRenderer.on('window-close-request', listener)
+    return () => ipcRenderer.removeListener('window-close-request', listener)
+  },
+  confirmWindowClose: () => ipcRenderer.invoke('window-close-confirmed'),
+  cancelWindowClose: () => ipcRenderer.invoke('window-close-cancelled'),
 
   // Resource Monitoring (CPU/Memory)
   onResourceUpdate: (callback) => {
