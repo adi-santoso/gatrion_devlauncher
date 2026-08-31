@@ -23,4 +23,20 @@ describe('ProjectCard', () => {
     expect(screen.getByText('Stopping')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Start' })).not.toBeInTheDocument()
   })
+
+  it('compacts a stopped card: hides N/A metric boxes and the no-activity strip', () => {
+    render(<ProjectCard project={project} />)
+
+    expect(screen.queryByText('CPU Usage')).not.toBeInTheDocument()
+    expect(screen.queryByText('No live activity')).not.toBeInTheDocument()
+    expect(screen.queryByText('N/A')).not.toBeInTheDocument()
+  })
+
+  it('keeps the metric boxes for a starting project', () => {
+    render(<ProjectCard project={{ ...project, status: 'starting' }} />)
+
+    expect(screen.getByText('CPU Usage')).toBeInTheDocument()
+    expect(screen.getByText('Memory')).toBeInTheDocument()
+    expect(screen.getAllByText('N/A').length).toBeGreaterThan(0)
+  })
 })

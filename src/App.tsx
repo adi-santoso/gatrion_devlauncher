@@ -282,6 +282,7 @@ function App() {
                   onOpenModal={openModalHandler}
                   onStartAll={handleStartAll}
                   onStopAll={handleStopAll}
+                  onForceStop={(project) => handleStopProject(project, { force: true })}
                   onWorkspaceActionComplete={handleWorkspaceActionComplete}
                   presets={presets}
                   onStartPreset={handleStartPreset}

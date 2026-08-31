@@ -1,6 +1,6 @@
 import React from 'react'
 import { fireEvent, render, screen } from '@testing-library/react'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { ProjectsGrid } from '../dashboardWidgets'
 
 const makeProject = (i) => ({ id: `p${i}`, name: `Project ${i}`, status: 'stopped' })
@@ -78,5 +78,22 @@ describe('ProjectsGrid show more', () => {
     renderGrid([], { showAddAction: true })
     expect(screen.getByText('No projects found')).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Add Project' })).toBeTruthy()
+  })
+
+  it('list layout renders compact rows instead of cards', () => {
+    renderGrid(Array.from({ length: 3 }, (_, i) => makeProject(i + 1)), { layout: 'list', onForceStop: vi.fn() })
+
+    expect(screen.getByText('Project 1')).toBeTruthy()
+    expect(screen.getByText('Project 3')).toBeTruthy()
+    expect(document.querySelectorAll('article')).toHaveLength(0)
+    expect(screen.getByRole('button', { name: 'Start Project 1' })).toBeTruthy()
+  })
+
+  it('list layout keeps the Show all cap', () => {
+    renderGrid(Array.from({ length: 15 }, (_, i) => makeProject(i + 1)), { layout: 'list', onForceStop: vi.fn() })
+
+    expect(screen.getByText('Project 12')).toBeTruthy()
+    expect(screen.queryByText('Project 13')).toBeNull()
+    expect(screen.getByRole('button', { name: 'Show all (15 projects)' })).toBeTruthy()
   })
 })

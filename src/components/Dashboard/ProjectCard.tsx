@@ -73,6 +73,10 @@ export default function ProjectCard({ project, onStart, onStop, onRestart, onNav
   const isStopping = status === 'stopping';
   const isError = status === 'error';
   const hasLogs = (project.logs?.length ?? 0) > 0;
+  // A stopped card has no live data: its CPU/MEM boxes would only show "N/A"
+  // and the activity strip "No live activity", making a large workspace a wall
+  // of identical tall cards. Compact it to header + chips + actions instead.
+  const compact = !isRunning && !isStarting && !isStopping && !isError;
 
   return (
     <article className="group min-w-0 rounded-xl border border-border bg-surface/80 p-4 shadow-card transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg">
@@ -124,7 +128,7 @@ export default function ProjectCard({ project, onStart, onStop, onRestart, onNav
         </span>
       </div>
 
-      <div className="space-y-2.5">
+      <div className={compact ? '' : 'space-y-2.5'}>
         {(project.port || project.url) && (
           <div className="flex flex-wrap gap-2 font-mono text-[9px]">
             {project.port && (
@@ -159,7 +163,8 @@ export default function ProjectCard({ project, onStart, onStop, onRestart, onNav
           </div>
         )}
 
-        <div className="grid grid-cols-2 gap-2">
+        {!compact && (
+          <div className="grid grid-cols-2 gap-2">
             <div className="rounded-lg border border-border bg-surface-2 px-3 py-2.5">
               <div className="mb-1.5 flex items-center justify-between">
                 <span className="font-mono text-[7px] uppercase tracking-wider text-ink-faint">CPU Usage</span>
@@ -203,8 +208,9 @@ export default function ProjectCard({ project, onStart, onStop, onRestart, onNav
               {isRunning && <Sparkline samples={memorySamples} stroke="#60a5fa" />}
             </div>
           </div>
+        )}
 
-        {!hasLogs && !isRunning && !isStarting && !isStopping && (
+        {!compact && !hasLogs && !isRunning && !isStarting && !isStopping && (
           <div className="text-center rounded-lg border border-dashed border-border bg-surface/30 px-3 py-2">
             <span className="font-mono text-[9px] text-ink-faint">No live activity</span>
           </div>

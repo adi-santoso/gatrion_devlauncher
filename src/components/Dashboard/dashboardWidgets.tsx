@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import ProjectCard, { type ViewProject } from './ProjectCard';
+import ProjectListCompactRow from './ProjectListCompactRow';
 import { type FormattedLog } from './dashboardUtils';
 import type { FeedActivity } from './DashboardView';
 import type { MetricSample } from './DashboardView';
@@ -244,8 +245,10 @@ export interface ProjectsGridProps {
   onStop?: (project: ViewProject) => void;
   onStart?: (project: ViewProject) => unknown;
   onRestart?: (project: ViewProject) => void;
+  onForceStop?: (project: ViewProject) => void;
   onNavigate?: (projectOrView: ViewProject | string) => void;
   getMetricHistory?: (projectId: string) => MetricSample[];
+  layout?: 'grid' | 'list';
 }
 
 // Show at most this many project cards on the dashboard before offering a
@@ -254,7 +257,7 @@ export interface ProjectsGridProps {
 // fold. Search & filter keep running against the full list either way.
 const VISIBLE_LIMIT = 12;
 
-export function ProjectsGrid({ grouped, projects, emptyHeading, emptyHint, showAddAction, onOpenModal, onStop, onStart, onRestart, onNavigate, getMetricHistory }: ProjectsGridProps) {
+export function ProjectsGrid({ grouped, projects, emptyHeading, emptyHint, showAddAction, onOpenModal, onStop, onStart, onRestart, onForceStop, onNavigate, getMetricHistory, layout = 'grid' }: ProjectsGridProps) {
   // Flatten both modes into one ordered item list so the cap applies uniformly
   // (grouped mode can still wall up: untagged projects all land in one group).
   const flatItems = useMemo(() => {
@@ -288,6 +291,20 @@ export function ProjectsGrid({ grouped, projects, emptyHeading, emptyHint, showA
     />
   );
 
+  const renderRow = (project: ViewProject) => (
+    <ProjectListCompactRow
+      key={project.id || project.name}
+      project={project}
+      onNavigate={onNavigate}
+      onStart={onStart}
+      onStop={onStop}
+      onRestart={onRestart}
+      onForceStop={onForceStop}
+    />
+  );
+
+  const renderItem = (project: ViewProject) => (layout === 'list' ? renderRow(project) : renderCard(project));
+
   // Rebuild tag groups from the visible slice, preserving order.
   let rebuilt: Array<[string, ViewProject[]]> | null = null;
   if (grouped) {
@@ -319,19 +336,23 @@ export function ProjectsGrid({ grouped, projects, emptyHeading, emptyHint, showA
                 <span className="font-mono text-[9px] text-ink-faint">{tagProjects.length}</span>
                 <div className="h-px flex-1 bg-border" />
               </div>
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                {tagProjects.map((project) => renderCard(project))}
-              </div>
+              {layout === 'list' ? (
+                <div className="space-y-1">{tagProjects.map((project) => renderRow(project))}</div>
+              ) : (
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                  {tagProjects.map((project) => renderCard(project))}
+                </div>
+              )}
             </div>
           ))}
         </section>
       )}
       {!grouped && (
-        <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {visibleItems.map(({ project }) => renderCard(project))}
+        <section className={layout === 'list' ? 'space-y-1' : 'grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4'}>
+          {visibleItems.map(({ project }) => renderItem(project))}
 
           {total === 0 && (
-            <div className="col-span-full">
+            <div className={layout === 'list' ? '' : 'col-span-full'}>
               <div className="rounded-xl border border-dashed border-border bg-surface/60 py-12 text-center">
                 <svg className="mx-auto h-12 w-12 text-ink-faint" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
