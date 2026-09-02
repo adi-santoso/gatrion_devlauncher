@@ -3,6 +3,7 @@ import type { JSX } from 'react';
 import ProjectDetailHeader from './ProjectDetailHeader';
 import TabNavigation from './TabNavigation';
 import LogsTab from './LogsTab';
+import LaravelLogsTab from './LaravelLogsTab';
 import EnvironmentTab from './EnvironmentTab';
 import SettingsTab from './SettingsTab';
 import AppPreviewTab, { type PreviewProject } from './AppPreviewTab';
@@ -142,7 +143,7 @@ export default function ProjectDetailView({
               onRestart={onRestart}
             />
           )}
-          <TabNavigation activeTab={activeTab} onTabChange={setActiveTab}/>
+          <TabNavigation activeTab={activeTab} onTabChange={setActiveTab} showLogsTab={project?.type === 'LARAVEL'}/>
         </>
       )}
 
@@ -155,6 +156,9 @@ export default function ProjectDetailView({
           <div className={activeTab === 'terminal' ? 'block' : 'hidden'}>
             <CustomCommands project={project}/>
             <LogsTab logs={combinedLogs} autoScroll={autoScroll} onAutoScrollChange={onAutoScrollChange} onClear={onClearLogs} fontSize={terminalConfig?.fontSize}/>
+          </div>
+          <div className={activeTab === 'logs' ? 'block' : 'hidden'}>
+            {project?.path ? <LaravelLogsTab projectPath={project.path}/> : null}
           </div>
           <div className={activeTab === 'git' ? 'block' : 'hidden'}>
             <GitTab project={project}/>

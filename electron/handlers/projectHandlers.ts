@@ -360,6 +360,64 @@ function setupProjectHandlers(
     await fs.promises.writeFile(target, content, 'utf8')
     return { success: true, fileName }
   })
+
+  // Laravel application logs — the framework writes to storage/logs/*.log.
+  // The tail is read directly from the project folder so the user can see
+  // framework-level errors (queue jobs, queries, exceptions) that never hit
+  // the process stdout buffer.
+
+  // List Laravel log files in storage/logs (sorted newest first).
+  handle('list-laravel-logs', async (_event, projectPath) => {
+    assertProjectDirectory(projectPath)
+    const logsDir = path.join(path.resolve(projectPath), 'storage', 'logs')
+    let entries
+    try {
+      entries = await fs.promises.readdir(logsDir, { withFileTypes: true })
+    } catch {
+      // No storage/logs directory — nothing to show.
+      return { success: true, files: [] }
+    }
+    const stats = await Promise.all(entries
+      .filter((entry: { isFile(): boolean; name: string }) => entry.isFile() && /\.log$/i.test(entry.name))
+      .map(async (entry: { isFile(): boolean; name: string }) => {
+        const filePath = path.join(logsDir, entry.name)
+        const stat = await fs.promises.stat(filePath).catch(() => null)
+        return { name: entry.name, size: stat?.size ?? 0, modifiedAt: stat?.mtimeMs ?? 0 }
+      }))
+    const files = stats
+      .sort((a, b) => b.modifiedAt - a.modifiedAt)
+      .map(({ name, size, modifiedAt }) => ({ name, size, modifiedAt }))
+    return { success: true, files }
+  })
+
+  // Read the tail of a Laravel log file (newest lines last). The file must
+  // live inside storage/logs so the renderer can never read arbitrary paths.
+  handle('read-laravel-log', async (_event, projectPath, fileName, maxLines) => {
+    assertProjectDirectory(projectPath)
+    if (typeof fileName !== 'string' || !/^[\w.-]+\.log$/i.test(fileName)) {
+      throw new Error('Log file name must be a .log file inside storage/logs')
+    }
+    const logsDir = path.join(path.resolve(projectPath), 'storage', 'logs')
+    const target = path.resolve(logsDir, fileName)
+    if (path.dirname(target) !== logsDir) throw new Error('Log file must be inside storage/logs')
+
+    let content
+    try {
+      content = await fs.promises.readFile(target, 'utf8')
+    } catch (error) {
+      if (error && (error as NodeJS.ErrnoException).code === 'ENOENT') {
+        throw new Error(`Log file ${fileName} does not exist`)
+      }
+      throw error
+    }
+
+    const limit = typeof maxLines === 'number' && Number.isInteger(maxLines) && maxLines > 0
+      ? Math.min(maxLines, 100000)
+      : 5000
+    const lines = content.split(/\r?\n/).slice(-limit)
+    const stats = await fs.promises.stat(target).catch(() => null)
+    return { success: true, fileName, content: lines.join('\n'), lineCount: lines.length, modifiedAt: stats?.mtimeMs ?? null }
+  })
 }
 
 export { setupProjectHandlers }

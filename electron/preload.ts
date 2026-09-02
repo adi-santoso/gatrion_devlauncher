@@ -49,6 +49,10 @@ interface ElectronApi {
   readEnvFile: (projectPath: string, fileName: string) => Promise<unknown>
   writeEnvFile: (projectPath: string, fileName: string, content: string) => Promise<unknown>
 
+  // Laravel Logs
+  listLaravelLogs: (projectPath: string) => Promise<unknown>
+  readLaravelLog: (projectPath: string, fileName: string, maxLines?: number) => Promise<unknown>
+
   // Git
   gitStatus: (projectPath: string) => Promise<unknown>
   gitLog: (projectPath: string, limit?: number) => Promise<unknown>
@@ -278,6 +282,10 @@ const api: ElectronApi = {
   listEnvFiles: (projectPath) => ipcRenderer.invoke('list-env-files', projectPath),
   readEnvFile: (projectPath, fileName) => ipcRenderer.invoke('read-env-file', projectPath, fileName),
   writeEnvFile: (projectPath, fileName, content) => ipcRenderer.invoke('write-env-file', projectPath, fileName, content),
+
+  // Laravel Logs
+  listLaravelLogs: (projectPath) => ipcRenderer.invoke('list-laravel-logs', projectPath),
+  readLaravelLog: (projectPath, fileName, maxLines) => ipcRenderer.invoke('read-laravel-log', projectPath, fileName, maxLines),
 
   // Git
   gitStatus: (projectPath) => ipcRenderer.invoke('git-status', projectPath),

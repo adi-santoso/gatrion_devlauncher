@@ -125,6 +125,12 @@ const CHANNEL_RULES: Record<string, ArgRule[]> = {
     ['fileName', 'string', { minLength: 1, maxLength: 120 }],
     ['content', 'string', { maxLength: 2 * 1024 * 1024 }],
   ],
+  'list-laravel-logs': [['projectPath', 'string', { minLength: 1 }]],
+  'read-laravel-log': [
+    ['projectPath', 'string', { minLength: 1 }],
+    ['fileName', 'string', { minLength: 1, maxLength: 160 }],
+    ['maxLines', 'integer', { optional: true, min: 1, max: 100000 }],
+  ],
 
   // --- git + package tooling -------------------------------------------
   'git-status': [['projectPath', 'string', { minLength: 1 }]],

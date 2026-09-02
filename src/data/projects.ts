@@ -74,6 +74,26 @@ export interface EnvFileResult {
   error?: string
 }
 
+export interface LaravelLogFile {
+  name: string
+  size: number
+  modifiedAt: number
+}
+
+export interface LaravelLogsResult {
+  success: boolean
+  files?: LaravelLogFile[]
+  error?: string
+}
+
+export interface LaravelLogResult {
+  success: boolean
+  content?: string
+  lineCount?: number
+  modifiedAt?: number | null
+  error?: string
+}
+
 // Mock data for browser development mode
 const buildMockProject = (overrides: Partial<Project> & Pick<Project, 'id' | 'name' | 'path'>): Project => ({
   type: 'CUSTOM',
@@ -218,6 +238,20 @@ export const writeEnvFile = async (projectPath: string, fileName: string, conten
     return { success: true }
   }
   return invoke<SimpleResult>('writeEnvFile', projectPath, fileName, content)
+}
+
+export const listLaravelLogs = async (projectPath: string): Promise<LaravelLogsResult> => {
+  if (!isElectron()) {
+    return { success: true, files: [] }
+  }
+  return invoke<LaravelLogsResult>('listLaravelLogs', projectPath)
+}
+
+export const readLaravelLog = async (projectPath: string, fileName: string, maxLines?: number): Promise<LaravelLogResult> => {
+  if (!isElectron()) {
+    return { success: true, content: '' }
+  }
+  return invoke<LaravelLogResult>('readLaravelLog', projectPath, fileName, maxLines)
 }
 
 export const detectProjectType = async (projectPath: string): Promise<DetectTypeResult> => {

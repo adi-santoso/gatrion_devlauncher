@@ -231,6 +231,54 @@ describe('projectHandlers', () => {
     expect(traversal.success).toBe(false)
   })
 
+  test('list-laravel-logs returns .log files from storage/logs sorted newest first', async () => {
+    const logsDir = path.join(tempRoot, 'storage', 'logs')
+    fs.mkdirSync(logsDir, { recursive: true })
+    const old = new Date(Date.now() - 100000)
+    const recent = new Date(Date.now())
+    fs.writeFileSync(path.join(logsDir, 'laravel.log'), 'old')
+    fs.utimesSync(path.join(logsDir, 'laravel.log'), old, old)
+    fs.writeFileSync(path.join(logsDir, 'queue.log'), 'new')
+    fs.utimesSync(path.join(logsDir, 'queue.log'), recent, recent)
+    fs.writeFileSync(path.join(logsDir, 'notes.txt'), 'not a log')
+    setupProjectHandlers(makeStorageManager(), makeProcessManager(), makeWindow())
+    const handler = ipcMain._handlers.get('list-laravel-logs')
+
+    const result = await handler(fakeEvent, tempRoot)
+    expect(result.success).toBe(true)
+    expect(result.files.map((f) => f.name)).toEqual(['queue.log', 'laravel.log'])
+    expect(result.files[0].modifiedAt).toBeGreaterThanOrEqual(result.files[1].modifiedAt)
+  })
+
+  test('list-laravel-logs returns empty when storage/logs is absent', async () => {
+    setupProjectHandlers(makeStorageManager(), makeProcessManager(), makeWindow())
+    const result = await ipcMain._handlers.get('list-laravel-logs')(fakeEvent, tempRoot)
+    expect(result).toEqual({ success: true, files: [] })
+  })
+
+  test('read-laravel-log tails the newest lines and rejects traversal', async () => {
+    const logsDir = path.join(tempRoot, 'storage', 'logs')
+    fs.mkdirSync(logsDir, { recursive: true })
+    const lines = Array.from({ length: 30 }, (_, i) => `[2026-01-01 00:00:0${i % 10}] production.ERROR: line ${i}`)
+    fs.writeFileSync(path.join(logsDir, 'laravel.log'), lines.join('\n') + '\n')
+    setupProjectHandlers(makeStorageManager(), makeProcessManager(), makeWindow())
+    const handler = ipcMain._handlers.get('read-laravel-log')
+
+    const result = await handler(fakeEvent, tempRoot, 'laravel.log', 10)
+    expect(result.success).toBe(true)
+    expect(result.lineCount).toBe(10)
+    expect(result.content.split('\n')).toHaveLength(10)
+    expect(result.content).toContain('line 29')
+    expect(typeof result.modifiedAt).toBe('number')
+
+    const missing = await handler(fakeEvent, tempRoot, 'nope.log')
+    expect(missing.success).toBe(false)
+    expect(missing.error).toMatch(/does not exist/)
+
+    const traversal = await handler(fakeEvent, tempRoot, '..\\..\\secret.log')
+    expect(traversal.success).toBe(false)
+  })
+
   test('export-projects writes the bundle via the save dialog; cancel is reported', async () => {
     const storage = makeStorageManager([{ ...projectTemplate(tempRoot), id: 'p1' }])
     setupProjectHandlers(storage, makeProcessManager(), makeWindow())

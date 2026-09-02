@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 
-const tabs = [
+const baseTabs = [
   { id: 'app', label: 'App' },
   { id: 'terminal', label: 'Terminal' },
   { id: 'git', label: 'Git' },
@@ -11,14 +11,16 @@ const tabs = [
   { id: 'settings', label: 'Settings' }
 ];
 
-export type ProjectTabId = typeof tabs[number]['id'];
+export type ProjectTabId = typeof baseTabs[number]['id'] | 'logs';
 
 interface TabNavigationProps {
   activeTab: string;
   onTabChange?: (tab: string) => void;
+  /** When true the "Logs" tab (Laravel storage logs) is included. */
+  showLogsTab?: boolean;
 }
 
-export default function TabNavigation({ activeTab, onTabChange }: TabNavigationProps) {
+export default function TabNavigation({ activeTab, onTabChange, showLogsTab = false }: TabNavigationProps) {
   const listRef = useRef<HTMLDivElement>(null);
   const [indicator, setIndicator] = useState({ left: 0, width: 0 });
 
@@ -30,6 +32,14 @@ export default function TabNavigation({ activeTab, onTabChange }: TabNavigationP
       setIndicator({ left: element.offsetLeft, width: element.offsetWidth });
     }
   }, [activeTab]);
+
+  const tabs = showLogsTab
+    ? [
+        ...baseTabs.slice(0, 1),
+        { id: 'logs', label: 'Logs' },
+        ...baseTabs.slice(1),
+      ]
+    : baseTabs;
 
   return (
     <div
