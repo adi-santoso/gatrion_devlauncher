@@ -9,6 +9,7 @@ import {
 } from './components/Modals'
 import PortConflictModal from './components/Modals/PortConflictModal'
 import McpApprovalModal from './components/Modals/McpApprovalModal'
+import OmpExtensionUiModal from './components/Modals/OmpExtensionUiModal'
 import type { PresetFormData } from './components/Modals/PresetModal'
 import type { Project, Preset } from './types/shared'
 import type { ProjectRuntime } from './hooks/useProjects'
@@ -145,6 +146,9 @@ export default function AppModals({
 
       {/* Agent (MCP) destructive-tool approval — self-subscribes to the push channel */}
       <McpApprovalModal />
+
+      {/* omp extension UI dialogs (select/confirm/input/editor) — self-subscribes */}
+      <OmpExtensionUiModal />
 
       {/* Quit confirmation when minimize-to-tray is OFF — self-subscribes to the main's close intercept */}
       <CloseConfirmModal />

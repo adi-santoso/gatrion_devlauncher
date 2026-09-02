@@ -371,6 +371,45 @@ const CHANNEL_RULES: Record<string, ArgRule[]> = {
   'omp-config-set-default': [['modelRef', 'string', { minLength: 1, maxLength: 120 }]],
   'omp-run-setup': [],
   'omp-open-docs': [],
+
+  // ── Enhanced interaction & robustness channels ──
+  'omp-follow-up': [
+    ['projectId', 'string', { minLength: 1 }],
+    ['cwd', 'string', { minLength: 1 }],
+    ['message', 'string', { minLength: 1, maxLength: 20000 }],
+  ],
+  'omp-abort-and-prompt': [
+    ['projectId', 'string', { minLength: 1 }],
+    ['cwd', 'string', { minLength: 1 }],
+    ['message', 'string', { minLength: 1, maxLength: 20000 }],
+  ],
+  'omp-set-session-name': [
+    ['projectId', 'string', { minLength: 1 }],
+    OMP_CWD,
+    ['name', 'string', { minLength: 1, maxLength: 200 }],
+  ],
+  'omp-set-host-tools': [
+    ['projectId', 'string', { minLength: 1 }],
+    OMP_CWD,
+    ['tools', 'array'],
+  ],
+  'omp-get-session-stats': [
+    ['projectId', 'string', { minLength: 1 }],
+    OMP_CWD,
+  ],
+  'omp-set-todos': [
+    ['projectId', 'string', { minLength: 1 }],
+    OMP_CWD,
+    ['phases', 'array'],
+  ],
+  'omp-set-auto-restart': [
+    ['projectId', 'string', { minLength: 1 }],
+    ['enabled', 'boolean'],
+  ],
+  'omp-extension-ui-respond': [
+    ['projectId', 'string', { minLength: 1 }],
+    ['response', 'object'],
+  ],
 }
 
 interface ArgRuleOpts {

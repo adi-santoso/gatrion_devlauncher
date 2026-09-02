@@ -72,7 +72,12 @@ class OmpManager extends EventEmitter {
     this.version = null
     this.registryPath = path.join(userDataDir, 'agent-sessions.json')
     this.registry = { projects: {} }
-    this.rpc = new OmpRpcTransport((projectId, event) => this._emit(projectId, event))
+    this.rpc = new OmpRpcTransport(
+      (projectId, event) => this._emit(projectId, event),
+      // Notify the renderer when an RPC process crashed and was auto-restarted
+      // so the UI can refresh state (model, session file) on the new process.
+      (projectId) => this._emit(projectId, { type: 'rpc_restarted', projectId }),
+    )
     // Short timeout for read-only RPC calls (get_messages etc.): they only
     // read local session files, so a stall means the RPC process is wedged
     // (e.g. a dead proxy holds it up at startup). Fail fast instead of
@@ -253,6 +258,9 @@ class OmpManager extends EventEmitter {
 
   /** @returns a live RPC entry for the project, spawning the process if needed. */
   ensureRpc(projectId: string, cwd: string): Promise<RpcEntry> {
+    // Auto-restart is on by default so a crashed RPC process recovers
+    // transparently instead of dropping the conversation.
+    this.rpc.setAutoRestart(projectId, true)
     return this.rpc.ensureRpc(projectId, cwd, this.binaryPath, this.rpcMockScript)
   }
 
@@ -482,6 +490,62 @@ class OmpManager extends EventEmitter {
   async abortBash(projectId: string, cwd: string) {
     await this.ensureRpc(projectId, cwd)
     return this.rpc._send(projectId, { type: 'abort_bash' })
+  }
+
+  // ── Enhanced interaction & robustness (follow_up, host tools, stats) ──
+
+  /**
+   * Send a follow-up message that is inserted as a continuation of the
+   * current turn (not queued like `steer`). Use for short "continue/next"
+   * prompts while the agent is still mid-turn.
+   */
+  async followUp(projectId: string, cwd: string, message: string) {
+    await this.ensureRpc(projectId, cwd)
+    return this.rpc._send(projectId, { type: 'follow_up', message })
+  }
+
+  /** Abort the current turn and immediately prompt with a new message. */
+  async abortAndPrompt(projectId: string, cwd: string, message: string) {
+    await this.ensureRpc(projectId, cwd)
+    return this.rpc._send(projectId, { type: 'abort_and_prompt', message })
+  }
+
+  /** Set the session name on the omp session file (keeps metadata in sync). */
+  async setSessionName(projectId: string, cwd: string, name: string) {
+    await this.ensureRpc(projectId, cwd)
+    return this.rpc._send(projectId, { type: 'set_session_name', name: String(name).slice(0, 200) })
+  }
+
+  /**
+   * Register host-side tools (e.g. DevLauncher project control) directly on
+   * the omp session via the RPC host-tool bridge, so omp can call them as
+   * native tool calls without an HTTP MCP round-trip.
+   */
+  async setHostTools(projectId: string, cwd: string, tools: Array<Record<string, unknown>>) {
+    await this.ensureRpc(projectId, cwd)
+    return this.rpc._send(projectId, { type: 'set_host_tools', tools })
+  }
+
+  /** Authoritative session stats (token/cost/context) from omp. */
+  async getSessionStats(projectId: string, cwd: string) {
+    await this.ensureRpc(projectId, cwd)
+    return this.rpc._send(projectId, { type: 'get_session_stats' })
+  }
+
+  /** Sync todo phases to the omp session. */
+  async setTodos(projectId: string, cwd: string, phases: Array<Record<string, unknown>>) {
+    await this.ensureRpc(projectId, cwd)
+    return this.rpc._send(projectId, { type: 'set_todos', phases })
+  }
+
+  /** Respond to a pending extension UI dialog (select/confirm/input/editor). */
+  respondExtensionUi(projectId: string, response: Record<string, unknown>): boolean {
+    return this.rpc.respondExtensionUi(projectId, response)
+  }
+
+  /** Enable/disable auto-restart of the RPC process on crash. */
+  setAutoRestart(projectId: string, enabled: boolean) {
+    this.rpc.setAutoRestart(projectId, enabled)
   }
 
   // ── RPC transport passthroughs (kept for tests + the app quit path) ──

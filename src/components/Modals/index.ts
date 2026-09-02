@@ -6,4 +6,5 @@ export { default as PortConflictModal } from './PortConflictModal';
 export { default as ToastContainer } from './ToastContainer';
 export { default as PresetModal } from './PresetModal';
 export { default as McpApprovalModal } from './McpApprovalModal';
+export { default as OmpExtensionUiModal } from './OmpExtensionUiModal';
 export { default as CloseConfirmModal } from './CloseConfirmModal';

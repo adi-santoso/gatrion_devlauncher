@@ -22,10 +22,18 @@ export interface RpcEntry {
   cwd: string
   nextId: number
   pending: Map<string, PendingRequest>
+  pendingExtensionRequests: Map<string, PendingRequest>
   sessionFile: string | null
   idleTimer: ReturnType<typeof setTimeout> | null
   lastActive: number
   buffer: string
+  protocolVersion: number
+  autoRestart: boolean
+  restartBackoff: number
+  projectId: string
+  binaryPath: string | null
+  rpcMockScript: string | null
+  spawnArgs: string[]
 }
 
 /**
@@ -38,9 +46,107 @@ export class OmpRpcTransport {
   rpcs = new Map<string, RpcEntry>()
   IDLE_TIMEOUT_MS = 5 * 60 * 1000
   private onEvent: (projectId: string, event: unknown) => void
+  private onCrash?: (projectId: string) => void
 
-  constructor(onEvent: (projectId: string, event: unknown) => void) {
+  constructor(onEvent: (projectId: string, event: unknown) => void, onCrash?: (projectId: string) => void) {
     this.onEvent = onEvent
+    this.onCrash = onCrash
+  }
+
+  /**
+   * Best-effort negotiation of the RPC protocol version. v2 enables chunked
+   * frames so large payloads (get_state, get_available_models) do not hit the
+   * v1 1 MiB per-frame limit. `negotiate_protocol` is not in the JSON-lines
+   * command set on every build; the response `data.protocolVersion` tells us
+   * what the peer accepted, and we silently stay on v1 when it errors or is
+   * absent (mock scripts, older binaries).
+   */
+  private async negotiateProtocol(entry: RpcEntry, projectId: string): Promise<void> {
+    if (entry.rpcMockScript) return
+    try {
+      const res = (await this._send(
+        projectId,
+        { type: 'negotiate_protocol', protocolVersion: 2 },
+        5000,
+      )) as { protocolVersion?: number } | null
+      if (res && typeof res.protocolVersion === 'number') {
+        entry.protocolVersion = res.protocolVersion
+      }
+    } catch {
+      entry.protocolVersion = 1
+    }
+  }
+
+  /** Spawn the omp RPC child process and wire up stdout/stderr/exit handlers. */
+  private spawnRpcChild(entry: RpcEntry, projectId: string) {
+    const isElectron = Boolean(process.versions && process.versions.electron)
+    const nodeBinary = isElectron ? (process.env.npm_node_execpath || 'node') : process.execPath
+    const binary = entry.rpcMockScript ? nodeBinary : entry.binaryPath!
+    const args = entry.rpcMockScript ? [entry.rpcMockScript, '--mode', 'rpc'] : ['--mode', 'rpc']
+    const child = spawn(binary, args, {
+      cwd: entry!.cwd,
+      env: process.env,
+      windowsHide: true,
+      stdio: ['pipe', 'pipe', 'pipe'],
+    })
+    entry.proc = child
+    const fail = () => {
+      entry.ready = false
+      entry.proc = null
+    }
+    // A request that was already in flight must never hang until its own
+    // timeout — the process is gone, so settle it immediately.
+    const rejectPending = (message: string) => {
+      for (const pending of [...entry!.pending.values()]) pending.reject(new Error(message))
+      entry!.pending.clear()
+      for (const pending of [...entry!.pendingExtensionRequests.values()]) pending.reject(new Error(message))
+      entry!.pendingExtensionRequests.clear()
+    }
+    child.on('error', (error: Error) => {
+      this.onEvent(projectId, { type: 'rpc_error', error: error.message })
+      rejectPending('omp process failed to start')
+      fail()
+      this.maybeRestart(projectId)
+    })
+    child.stdout.on('data', (chunk: Buffer) => {
+      this._onData(projectId, chunk)
+    })
+    child.stderr.on('data', (chunk: Buffer) => {
+      this._onData(projectId, chunk, true)
+    })
+    child.on('exit', (code: number | null) => {
+      entry.ready = false
+      entry.proc = null
+      rejectPending(`omp process exited${code === null ? '' : ` (code ${code})`} before responding`)
+      this.onEvent(projectId, { type: 'rpc_exit', code })
+      this.maybeRestart(projectId)
+    })
+  }
+
+  /** Restart a crashed RPC process with backoff, preserving the active session. */
+  private maybeRestart(projectId: string) {
+    const entry = this.rpcs.get(projectId)
+    if (!entry || !entry.autoRestart || entry.proc) return
+    const backoff = Math.min(entry.restartBackoff, 15000)
+    entry.restartBackoff = Math.min(backoff * 2, 30000)
+    this.onEvent(projectId, { type: 'rpc_restarting', delayMs: backoff })
+    setTimeout(() => {
+      const current = this.rpcs.get(projectId)
+      if (!current || !current.autoRestart || current.proc) return
+      this.spawnRpcChild(current, projectId)
+      // Re-ready the session after restart so a running conversation can resume.
+      const waitReady = () => {
+        if (!this.rpcs.get(projectId)?.ready) {
+          setTimeout(waitReady, 100)
+          return
+        }
+        if (current.sessionFile) {
+          this._send(projectId, { type: 'switch_session', sessionPath: current.sessionFile }).catch(() => {})
+        }
+        this.onCrash?.(projectId)
+      }
+      waitReady()
+    }, backoff)
   }
 
   ensureRpc(projectId: string, cwd: string, binaryPath: string | null, rpcMockScript: string | null): Promise<RpcEntry> {
@@ -59,14 +165,22 @@ export class OmpRpcTransport {
       cwd: cwd || os.homedir(),
       nextId: 1,
       pending: new Map(),
+      pendingExtensionRequests: new Map(),
       sessionFile: null,
       idleTimer: null,
       lastActive: Date.now(),
       buffer: '',
+      protocolVersion: 1,
+      autoRestart: false,
+      restartBackoff: 1000,
+      projectId,
+      binaryPath,
+      rpcMockScript,
+      spawnArgs: ['--mode', 'rpc'],
     }
     this.rpcs.set(projectId, entry)
     this._touch(projectId)
-    return new Promise((resolve, reject) => {
+    return new Promise<RpcEntry>((resolve, reject) => {
       let settled = false
       let startupError: string | null = null
       // Mock mode: a Node process runs the fixture script and ignores the real
@@ -141,12 +255,17 @@ export class OmpRpcTransport {
         }
       }
       checkReady()
+    }).then((entry: RpcEntry) => {
+      this.negotiateProtocol(entry, projectId)
+      return entry
     })
   }
 
   _onData(projectId: string, chunk: Buffer, isStderr = false) {
     const entry = this.rpcs.get(projectId)
     if (!entry) return
+    // Reset idle timer on every incoming data event to prevent mid-stream kill
+    this._touch(projectId)
     entry.buffer += chunk.toString('utf8')
     let newlineIndex: number
     while ((newlineIndex = entry.buffer.indexOf('\n')) !== -1) {
@@ -171,6 +290,15 @@ export class OmpRpcTransport {
       entry.ready = true
       return
     }
+    // Extension UI requests (select, confirm, input, editor, notify, etc.) are
+    // forwarded to the host so it can show a dialog and respond with an
+    // extension_ui_response frame. The response is dispatched via
+    // dispatchRpcControlFrame at the omp process, so it must be sent as a raw
+    // JSON line on stdin, not through the command queue.
+    if (frame.type === 'extension_ui_request') {
+      this.onEvent(projectId, frame)
+      return
+    }
     // Command response → resolve pending promise
     if (frame.type === 'response' && frame.id && entry.pending.has(frame.id)) {
       const { resolve, reject } = entry.pending.get(frame.id)!
@@ -183,6 +311,33 @@ export class OmpRpcTransport {
     if (frame.type && frame.type !== 'response') {
       this.onEvent(projectId, frame)
     }
+  }
+
+  /** Send an extension_ui_response frame to the omp RPC stdin (not a command). */
+  respondExtensionUi(projectId: string, response: Record<string, unknown>): boolean {
+    const entry = this.rpcs.get(projectId)
+    if (!entry || !entry.proc || entry.proc.killed) return false
+    response.type = 'extension_ui_response'
+    try {
+      entry.proc.stdin!.write(JSON.stringify(response) + '\n')
+      return true
+    } catch {
+      return false
+    }
+  }
+
+  /** Check whether the protocol supports chunked frames (v2). */
+  isV2Protocol(projectId: string): boolean {
+    const entry = this.rpcs.get(projectId)
+    return entry?.protocolVersion === 2
+  }
+
+  /** Enable or disable auto-restart on crash. */
+  setAutoRestart(projectId: string, enabled: boolean) {
+    const entry = this.rpcs.get(projectId)
+    if (!entry) return
+    entry.autoRestart = enabled
+    entry.restartBackoff = 1000
   }
 
   // TODO(ts): RPC responses are external dynamic JSON — callers narrow the

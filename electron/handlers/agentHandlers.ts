@@ -41,6 +41,12 @@ function setupAgentHandlers(
   // Forward omp RPC events (streaming text, tool cards, approvals) to the renderer
   ompManager.on('event', ({ projectId, event }: { projectId: string; event: unknown }) => {
     safeSend('omp-event', { projectId, event })
+    // Extension UI requests (select, confirm, input, editor, notify, open_url)
+    // need a dedicated push channel so the global modal handles them without
+    // being tied to a specific chat view's event subscription.
+    if (event && typeof event === 'object' && (event as Record<string, unknown>).type === 'extension_ui_request') {
+      safeSend('omp-extension-ui-request', { projectId, request: event })
+    }
   })
   installer.on('progress', (state: InstallState) => {
     safeSend('omp-install-progress', state)
@@ -307,6 +313,77 @@ function setupAgentHandlers(
     if (customInstructions.length > MAX_INSTRUCTIONS) throw new Error('Instructions are too long')
     await ompManager.handoff(projectId, cwd || process.env.USERPROFILE || '', customInstructions)
     return { success: true }
+  })
+
+  // --- Enhanced interaction (follow_up, abort+prompt, session name, host tools) ---
+
+  secureHandle('omp-follow-up', async (_event, projectId, cwd, message) => {
+    assertSessionId(projectId)
+    assertProjectPath(cwd)
+    if (typeof message !== 'string' || !message.trim() || message.length > MAX_MESSAGE) throw new Error('Invalid message')
+    await ompManager.followUp(projectId, cwd, message.slice(0, MAX_MESSAGE))
+    return { success: true }
+  })
+
+  secureHandle('omp-abort-and-prompt', async (_event, projectId, cwd, message) => {
+    assertSessionId(projectId)
+    assertProjectPath(cwd)
+    if (typeof message !== 'string' || !message.trim() || message.length > MAX_MESSAGE) throw new Error('Invalid message')
+    await ompManager.abortAndPrompt(projectId, cwd, message.slice(0, MAX_MESSAGE))
+    return { success: true }
+  })
+
+  secureHandle('omp-set-session-name', async (_event, projectId, cwd, name) => {
+    assertSessionId(projectId)
+    if (cwd) assertProjectPath(cwd)
+    const clean = String(name || '').trim().slice(0, 200)
+    if (!clean) throw new Error('Session name is required')
+    await ompManager.setSessionName(projectId, cwd || process.env.USERPROFILE || '', clean)
+    return { success: true }
+  })
+
+  secureHandle('omp-set-host-tools', async (_event, projectId, cwd, tools) => {
+    assertSessionId(projectId)
+    if (cwd) assertProjectPath(cwd)
+    if (!Array.isArray(tools)) throw new Error('Tools must be an array')
+    const clean = tools.map((t) => {
+      const tool = (t || {}) as Record<string, unknown>
+      return {
+        name: String(tool.name || '').slice(0, 100),
+        description: String(tool.description || '').slice(0, 500),
+        parameters: tool.parameters && typeof tool.parameters === 'object' ? tool.parameters : { type: 'object', properties: {} },
+      }
+    }).filter((t) => t.name)
+    await ompManager.setHostTools(projectId, cwd || process.env.USERPROFILE || '', clean)
+    return { success: true }
+  })
+
+  secureHandle('omp-get-session-stats', async (_event, projectId, cwd) => {
+    assertSessionId(projectId)
+    if (cwd) assertProjectPath(cwd)
+    const stats = await ompManager.getSessionStats(projectId, cwd || process.env.USERPROFILE || '')
+    return { success: true, stats }
+  })
+
+  secureHandle('omp-set-todos', async (_event, projectId, cwd, phases) => {
+    assertSessionId(projectId)
+    if (cwd) assertProjectPath(cwd)
+    if (!Array.isArray(phases)) throw new Error('Phases must be an array')
+    await ompManager.setTodos(projectId, cwd || process.env.USERPROFILE || '', phases)
+    return { success: true }
+  })
+
+  secureHandle('omp-set-auto-restart', async (_event, projectId, enabled) => {
+    assertSessionId(projectId)
+    ompManager.setAutoRestart(projectId, Boolean(enabled))
+    return { success: true }
+  })
+
+  secureHandle('omp-extension-ui-respond', async (_event, projectId, response) => {
+    assertSessionId(projectId)
+    if (typeof response !== 'object' || response === null || typeof response.id !== 'string') throw new Error('Invalid response')
+    const ok = ompManager.respondExtensionUi(projectId, response as Record<string, unknown>)
+    return { success: ok, error: ok ? undefined : 'omp process is not running' }
   })
 
   const MAX_BASH_COMMAND = 2000

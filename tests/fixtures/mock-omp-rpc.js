@@ -9,10 +9,25 @@
 //        { type: 'ready' }                        (startup frame)
 //        { type: 'message_update', assistantMessageEvent: { type: 'text_delta', delta } }
 //        { type: 'agent_start' } / { type: 'agent_end', messages }
+//        { type: 'extension_ui_request', id, method, ... }  (dialog)
+//
+// Behaviour switches (via prompt keywords, so e2e can drive them):
+//   - prompt containing "CONFIRM" -> emit a confirm extension_ui_request before
+//     completing the turn; the turn only finishes after the host responds with
+//     extension_ui_response { confirmed: true }.
+//   - prompt containing "INPUT"   -> emit an input extension_ui_request before
+//     completing the turn; the turn uses the returned value in its reply.
+//   - prompt containing "CRASH"   -> emit agent_start then exit(1) so the host's
+//     auto-restart path is exercised.
 
 const readline = require('readline')
 
 const rl = readline.createInterface({ input: process.stdin })
+
+// Pending extension UI requests keyed by their request id -> method. The mock
+// records the response it receives so tests can assert on the round-trip.
+const pendingExtUi = new Map()
+const extensionUiResponses = []
 
 function send(frame) {
   process.stdout.write(JSON.stringify(frame) + '\n')
@@ -22,11 +37,19 @@ function respond(id, data = {}) {
   send({ type: 'response', id, success: true, data })
 }
 
-function echoMessages(prompt) {
+function echoMessages(prompt, extra = '') {
   return [
     { role: 'user', content: prompt },
-    { role: 'assistant', content: `Mock reply to: ${prompt}`, usage: { promptTokens: 100, completionTokens: 234, totalTokens: 334 } },
+    { role: 'assistant', content: `Mock reply to: ${prompt}${extra}`, usage: { promptTokens: 100, completionTokens: 234, totalTokens: 334 } },
   ]
+}
+
+function streamTurn(prompt, extra = '') {
+  send({ type: 'agent_start' })
+  send({ type: 'message_update', assistantMessageEvent: { type: 'text_delta', delta: 'Mock reply to: ' } })
+  send({ type: 'message_update', assistantMessageEvent: { type: 'text_delta', delta: prompt } })
+  if (extra) send({ type: 'message_update', assistantMessageEvent: { type: 'text_delta', delta: extra } })
+  send({ type: 'agent_end', messages: echoMessages(prompt, extra) })
 }
 
 rl.on('line', (line) => {
@@ -37,6 +60,24 @@ rl.on('line', (line) => {
     return
   }
   const { type, id } = frame
+
+  // Extension UI responses arrive as side-channel frames (no request id).
+  if (type === 'extension_ui_response') {
+    extensionUiResponses.push(frame)
+    const pending = pendingExtUi.get(frame.id)
+    if (pending) {
+      pendingExtUi.delete(frame.id)
+      if (pending.method === 'confirm' && frame.confirmed) {
+        streamTurn(pending.prompt, ' (confirmed)')
+      } else if (pending.method === 'input') {
+        streamTurn(pending.prompt, ` (input=${frame.value})`)
+      } else {
+        // Cancelled or unknown: complete with a cancelled marker.
+        streamTurn(pending.prompt, ' (cancelled)')
+      }
+    }
+    return
+  }
 
   switch (type) {
     case 'get_messages_page':
@@ -75,19 +116,43 @@ rl.on('line', (line) => {
     case 'abort':
     case 'compact':
     case 'get_session_commands':
+    case 'follow_up':
+    case 'set_session_name':
+    case 'set_host_tools':
+    case 'set_todos':
       respond(id, { ok: true })
+      break
+    case 'get_session_stats':
+      respond(id, { tokens: 334, cost: 0.01, model: 'mock-1', contextUsage: { tokens: 128, contextWindow: 200000 } })
       break
     case 'prompt': {
       respond(id, { ok: true })
       const prompt = String(frame.message || '')
+      if (prompt.includes('CRASH')) {
+        send({ type: 'agent_start' })
+        // Exit abruptly so the host's auto-restart path is exercised.
+        setTimeout(() => process.exit(1), 100)
+        break
+      }
+      if (prompt.includes('CONFIRM') || prompt.includes('INPUT')) {
+        // Ask for user input before completing the turn. The turn resumes when
+        // the host answers with extension_ui_response.
+        const method = prompt.includes('INPUT') ? 'input' : 'confirm'
+        const extId = `ext-${Date.now()}-${Math.floor(Math.random() * 1000)}`
+        pendingExtUi.set(extId, { method, prompt })
+        send({
+          type: 'extension_ui_request',
+          id: extId,
+          method,
+          title: method === 'input' ? 'Mock input request' : 'Mock confirm request',
+          message: method === 'input' ? 'Enter a value' : 'Do you approve this action?',
+          placeholder: 'Type something…',
+        })
+        break
+      }
       // Stream the turn after a short delay so renderer-side streaming paths
       // (buffers, flush interval, token badge) are exercised for real.
-      setTimeout(() => {
-        send({ type: 'agent_start' })
-        send({ type: 'message_update', assistantMessageEvent: { type: 'text_delta', delta: 'Mock reply to: ' } })
-        send({ type: 'message_update', assistantMessageEvent: { type: 'text_delta', delta: prompt } })
-        send({ type: 'agent_end', messages: echoMessages(prompt) })
-      }, 150)
+      setTimeout(() => streamTurn(prompt), 150)
       break
     }
     default:

@@ -230,6 +230,46 @@ export const ompHandoff = async (projectId: string, cwd: string, customInstructi
   return invoke<SimpleResult>('ompHandoff', projectId, cwd, customInstructions)
 }
 
+export const ompFollowUp = async (projectId: string, cwd: string, message: string): Promise<SimpleResult> => {
+  if (!isElectron()) return { success: true }
+  return invoke<SimpleResult>('ompFollowUp', projectId, cwd, message)
+}
+
+export const ompAbortAndPrompt = async (projectId: string, cwd: string, message: string): Promise<SimpleResult> => {
+  if (!isElectron()) return { success: true }
+  return invoke<SimpleResult>('ompAbortAndPrompt', projectId, cwd, message)
+}
+
+export const ompSetSessionName = async (projectId: string, cwd: string, name: string): Promise<SimpleResult> => {
+  if (!isElectron()) return { success: true }
+  return invoke<SimpleResult>('ompSetSessionName', projectId, cwd, name)
+}
+
+export const ompSetHostTools = async (projectId: string, cwd: string, tools: Array<Record<string, unknown>>): Promise<SimpleResult> => {
+  if (!isElectron()) return { success: true }
+  return invoke<SimpleResult>('ompSetHostTools', projectId, cwd, tools)
+}
+
+export const ompGetSessionStats = async (projectId: string, cwd: string): Promise<SimpleResult & { stats?: unknown }> => {
+  if (!isElectron()) return { success: true, stats: null }
+  return invoke<SimpleResult & { stats?: unknown }>('ompGetSessionStats', projectId, cwd)
+}
+
+export const ompSetTodos = async (projectId: string, cwd: string, phases: Array<Record<string, unknown>>): Promise<SimpleResult> => {
+  if (!isElectron()) return { success: true }
+  return invoke<SimpleResult>('ompSetTodos', projectId, cwd, phases)
+}
+
+export const ompSetAutoRestart = async (projectId: string, enabled: boolean): Promise<SimpleResult> => {
+  if (!isElectron()) return { success: true }
+  return invoke<SimpleResult>('ompSetAutoRestart', projectId, enabled)
+}
+
+export const respondExtensionUi = async (projectId: string, response: Record<string, unknown>): Promise<SimpleResult> => {
+  if (!isElectron()) return { success: false, error: 'Electron not available' }
+  return invoke<SimpleResult>('ompExtensionUiRespond', projectId, response)
+}
+
 export const ompBash = async (projectId: string, cwd: string, command: string): Promise<SimpleResult> => {
   if (!isElectron()) return { success: false, error: 'Electron not available' }
   return invoke<SimpleResult>('ompBash', projectId, cwd, command)
@@ -289,6 +329,12 @@ export const ompRunSetup = async (): Promise<SimpleResult> => {
 export const onOmpEvent = (callback: (event: unknown) => void): (() => void) => {
   if (!isElectron()) return () => {}
   return subscribe('onOmpEvent', (event) => callback(event))
+}
+
+/** Push channel — omp extension UI dialogs (select/confirm/input/editor/notify). */
+export const onOmpExtensionUiRequest = (callback: (payload: unknown) => void): (() => void) => {
+  if (!isElectron()) return () => {}
+  return subscribe('onOmpExtensionUiRequest', (payload) => callback(payload))
 }
 
 /** Push channel — agent installer progress. */

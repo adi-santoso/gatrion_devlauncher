@@ -201,6 +201,14 @@ export const translations: { en: TranslationTable; id: TranslationTable } = {
     'mcp.approval.denyAll': 'Deny all',
     'mcp.approval.approve': 'Approve',
     'mcp.approval.deny': 'Deny',
+
+    // Agent extension UI dialogs (select/confirm/input/editor)
+    'agent.extUi.title': 'Agent needs your input',
+    'agent.extUi.submit': 'Submit',
+    'agent.extUi.cancel': 'Cancel',
+    'agent.extUi.confirm': 'Confirm',
+    'agent.extUi.cancelAll': 'Cancel all ({count})',
+    'agent.extUi.dismiss': 'Dismiss',
   },
   id: {
     // Navigation
@@ -397,6 +405,14 @@ export const translations: { en: TranslationTable; id: TranslationTable } = {
     'mcp.approval.denyAll': 'Tolak semua',
     'mcp.approval.approve': 'Setujui',
     'mcp.approval.deny': 'Tolak',
+
+    // Agent extension UI dialogs (select/confirm/input/editor)
+    'agent.extUi.title': 'Agen butuh input Anda',
+    'agent.extUi.submit': 'Kirim',
+    'agent.extUi.cancel': 'Batal',
+    'agent.extUi.confirm': 'Konfirmasi',
+    'agent.extUi.cancelAll': 'Batalkan semua ({count})',
+    'agent.extUi.dismiss': 'Tutup',
   },
 };
 

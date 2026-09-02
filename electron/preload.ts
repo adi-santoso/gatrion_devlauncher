@@ -217,6 +217,14 @@ interface ElectronApi {
   ompHandoff: (projectId: string, cwd: string, customInstructions: string) => Promise<unknown>
   ompBash: (projectId: string, cwd: string, command: string) => Promise<unknown>
   ompAbortBash: (projectId: string, cwd: string) => Promise<unknown>
+  ompFollowUp: (projectId: string, cwd: string, message: string) => Promise<unknown>
+  ompAbortAndPrompt: (projectId: string, cwd: string, message: string) => Promise<unknown>
+  ompSetSessionName: (projectId: string, cwd: string, name: string) => Promise<unknown>
+  ompSetHostTools: (projectId: string, cwd: string, tools: unknown) => Promise<unknown>
+  ompGetSessionStats: (projectId: string, cwd: string) => Promise<unknown>
+  ompSetTodos: (projectId: string, cwd: string, phases: unknown) => Promise<unknown>
+  ompSetAutoRestart: (projectId: string, enabled: boolean) => Promise<unknown>
+  ompExtensionUiRespond: (projectId: string, response: unknown) => Promise<unknown>
   ompInstall: () => Promise<unknown>
   ompInstallState: () => Promise<unknown>
   ompCheckUpdate: () => Promise<unknown>
@@ -227,6 +235,7 @@ interface ElectronApi {
   ompConfigSetDefault: (modelRef: string) => Promise<unknown>
   ompRunSetup: () => Promise<unknown>
   onOmpEvent: (callback: (data: unknown) => void) => Unsub
+  onOmpExtensionUiRequest: (callback: (data: unknown) => void) => Unsub
   onOmpInstallProgress: (callback: (state: unknown) => void) => Unsub
 }
 
@@ -493,6 +502,14 @@ const api: ElectronApi = {
   ompHandoff: (projectId, cwd, customInstructions) => ipcRenderer.invoke('omp-handoff', projectId, cwd, customInstructions),
   ompBash: (projectId, cwd, command) => ipcRenderer.invoke('omp-bash', projectId, cwd, command),
   ompAbortBash: (projectId, cwd) => ipcRenderer.invoke('omp-abort-bash', projectId, cwd),
+  ompFollowUp: (projectId, cwd, message) => ipcRenderer.invoke('omp-follow-up', projectId, cwd, message),
+  ompAbortAndPrompt: (projectId, cwd, message) => ipcRenderer.invoke('omp-abort-and-prompt', projectId, cwd, message),
+  ompSetSessionName: (projectId, cwd, name) => ipcRenderer.invoke('omp-set-session-name', projectId, cwd, name),
+  ompSetHostTools: (projectId, cwd, tools) => ipcRenderer.invoke('omp-set-host-tools', projectId, cwd, tools),
+  ompGetSessionStats: (projectId, cwd) => ipcRenderer.invoke('omp-get-session-stats', projectId, cwd),
+  ompSetTodos: (projectId, cwd, phases) => ipcRenderer.invoke('omp-set-todos', projectId, cwd, phases),
+  ompSetAutoRestart: (projectId, enabled) => ipcRenderer.invoke('omp-set-auto-restart', projectId, enabled),
+  ompExtensionUiRespond: (projectId, response) => ipcRenderer.invoke('omp-extension-ui-respond', projectId, response),
   ompInstall: () => ipcRenderer.invoke('omp-install'),
   ompInstallState: () => ipcRenderer.invoke('omp-install-state'),
   ompCheckUpdate: () => ipcRenderer.invoke('omp-check-update'),
@@ -506,6 +523,11 @@ const api: ElectronApi = {
     const listener = (_event: IpcRendererEvent, data: unknown) => callback(data)
     ipcRenderer.on('omp-event', listener)
     return () => ipcRenderer.removeListener('omp-event', listener)
+  },
+  onOmpExtensionUiRequest: (callback) => {
+    const listener = (_event: IpcRendererEvent, data: unknown) => callback(data)
+    ipcRenderer.on('omp-extension-ui-request', listener)
+    return () => ipcRenderer.removeListener('omp-extension-ui-request', listener)
   },
   onOmpInstallProgress: (callback) => {
     const listener = (_event: IpcRendererEvent, state: unknown) => callback(state)

@@ -284,6 +284,17 @@ export function createOmpEventHandler(context: OmpEventContext): (event: OmpEven
       refreshStateRef.current?.();
       return;
     }
+    if (type === 'rpc_restarting') {
+      const delay = typeof event.delayMs === 'number' ? event.delayMs : 1000;
+      showNoticeRef.current?.(`Agent process crashed — restarting in ${Math.round(delay / 1000)}s…`);
+      return;
+    }
+    if (type === 'rpc_restarted') {
+      showNoticeRef.current?.('Agent process restarted');
+      setBusyState(false);
+      refreshStateRef.current?.();
+      return;
+    }
     if (type === 'rpc_error' || type === 'rpc_exit') {
       setBusyState(false);
       if (type === 'rpc_error') setError(event.error || 'Agent process failed');

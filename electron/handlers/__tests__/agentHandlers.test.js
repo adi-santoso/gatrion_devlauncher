@@ -45,6 +45,14 @@ function makeOmpManager(sessions = []) {
     handoff: vi.fn(async () => true),
     bash: vi.fn(async () => ({ exitCode: 0, stdout: 'ok' })),
     abortBash: vi.fn(async () => true),
+    followUp: vi.fn(async () => true),
+    abortAndPrompt: vi.fn(async () => true),
+    setSessionName: vi.fn(async () => true),
+    setHostTools: vi.fn(async () => true),
+    getSessionStats: vi.fn(async () => ({ tokens: 334, cost: 0.01 })),
+    setTodos: vi.fn(async () => true),
+    setAutoRestart: vi.fn(),
+    respondExtensionUi: vi.fn(() => true),
     getBinaryPath: vi.fn(() => null),
   }
 }
@@ -277,6 +285,80 @@ describe('agentHandlers — chat & RPC', () => {
     dialog.showSaveDialog = vi.fn(async () => ({ canceled: true }))
     const canceled = await ipcMain._handlers.get('omp-export-conversation')(fakeEvent, 'p1', tempDir)
     expect(canceled).toEqual({ success: true, canceled: true })
+  })
+
+  test('omp-follow-up and omp-abort-and-prompt validate and delegate', async () => {
+    const { ompManager } = register()
+    const h = ipcMain._handlers
+    await h.get('omp-follow-up')(fakeEvent, 'p1', tempDir, 'continue please')
+    expect(ompManager.followUp).toHaveBeenCalledWith('p1', tempDir, 'continue please')
+
+    expect((await h.get('omp-follow-up')(fakeEvent, 'p1', tempDir, '   ')).error).toMatch(/Invalid message/)
+
+    await h.get('omp-abort-and-prompt')(fakeEvent, 'p1', tempDir, 'new direction')
+    expect(ompManager.abortAndPrompt).toHaveBeenCalledWith('p1', tempDir, 'new direction')
+  })
+
+  test('omp-set-session-name and omp-set-host-tools validate and delegate', async () => {
+    const { ompManager } = register()
+    const h = ipcMain._handlers
+    await h.get('omp-set-session-name')(fakeEvent, 'p1', tempDir, 'Tidy title')
+    expect(ompManager.setSessionName).toHaveBeenCalledWith('p1', tempDir, 'Tidy title')
+
+    expect((await h.get('omp-set-session-name')(fakeEvent, 'p1', tempDir, '   ')).error).toMatch(/required/)
+
+    const tools = [{ name: 'devlauncher', description: 'Control projects', parameters: { type: 'object', properties: {} } }]
+    await h.get('omp-set-host-tools')(fakeEvent, 'p1', tempDir, tools)
+    expect(ompManager.setHostTools).toHaveBeenCalledWith('p1', tempDir, tools)
+
+    expect((await h.get('omp-set-host-tools')(fakeEvent, 'p1', tempDir, 'nope')).error).toMatch(/array/)
+  })
+
+  test('omp-get-session-stats, omp-set-todos, omp-set-auto-restart delegate', async () => {
+    const { ompManager } = register()
+    const h = ipcMain._handlers
+    const stats = await h.get('omp-get-session-stats')(fakeEvent, 'p1', tempDir)
+    expect(stats.success).toBe(true)
+    expect(stats.stats.tokens).toBe(334)
+    expect(ompManager.getSessionStats).toHaveBeenCalledWith('p1', tempDir)
+
+    await h.get('omp-set-todos')(fakeEvent, 'p1', tempDir, [{ phase: 1, name: 'Research' }])
+    expect(ompManager.setTodos).toHaveBeenCalledWith('p1', tempDir, [{ phase: 1, name: 'Research' }])
+
+    await h.get('omp-set-auto-restart')(fakeEvent, 'p1', true)
+    expect(ompManager.setAutoRestart).toHaveBeenCalledWith('p1', true)
+  })
+
+  test('omp-extension-ui-respond forwards a valid response frame', async () => {
+    const { ompManager } = register()
+    const h = ipcMain._handlers
+    const ok = await h.get('omp-extension-ui-respond')(fakeEvent, 'p1', { id: 'ext-1', confirmed: true })
+    expect(ok.success).toBe(true)
+    expect(ompManager.respondExtensionUi).toHaveBeenCalledWith('p1', { id: 'ext-1', confirmed: true })
+
+    // When the RPC process is gone, the manager returns false → error surfaced.
+    ompManager.respondExtensionUi.mockReturnValueOnce(false)
+    const gone = await h.get('omp-extension-ui-respond')(fakeEvent, 'p1', { id: 'ext-2', cancelled: true })
+    expect(gone.success).toBe(false)
+    expect(gone.error).toMatch(/not running/)
+
+    expect((await h.get('omp-extension-ui-respond')(fakeEvent, 'p1', null)).error).toMatch(/response must be an object/)
+  })
+
+  test('extension UI requests are forwarded on a dedicated push channel', async () => {
+    const window = makeWindow()
+    const { ompManager } = register({ window })
+    const listener = ompManager.on.mock.calls.find(([channel]) => channel === 'event')
+    expect(listener).toBeTruthy()
+    const onEventCb = listener[1]
+    const request = { type: 'extension_ui_request', id: 'ext-9', method: 'confirm', title: 'T', message: 'M' }
+    onEventCb({ projectId: 'p1', event: request })
+    const sends = window.webContents.send.mock.calls
+    expect(sends.some(([channel, payload]) => channel === 'omp-extension-ui-request' && payload.projectId === 'p1' && payload.request.id === 'ext-9')).toBe(true)
+    // Non-extension events only go to the generic omp-event channel.
+    window.webContents.send.mockClear()
+    onEventCb({ projectId: 'p1', event: { type: 'agent_start' } })
+    expect(window.webContents.send.mock.calls.some(([channel]) => channel === 'omp-extension-ui-request')).toBe(false)
   })
 })
 
