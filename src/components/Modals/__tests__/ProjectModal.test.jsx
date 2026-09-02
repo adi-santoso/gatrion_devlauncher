@@ -190,4 +190,42 @@ describe('ProjectModal folder detection', () => {
     await waitFor(() => expect(onSave).toHaveBeenCalled())
     expect(onSave.mock.calls[0][0].tags).toContain('backend')
   })
+
+  test('additional process can be removed, keeping only the primary command', async () => {
+    const onSave = vi.fn(async () => ({ success: true }))
+    vi.mocked(ipc.detectProjectType).mockResolvedValue({
+      success: true,
+      type: 'LARAVEL',
+      name: 'Laravel',
+      projectName: 'laravel-app',
+      packageManager: 'npm',
+      defaultCommand: 'php artisan serve',
+      defaultPort: 8000,
+      commands: [
+        { id: 'app', name: 'Laravel', command: 'php artisan serve', port: 8000, primary: true },
+        { id: 'assets', name: 'Frontend assets', command: 'npm run dev', port: 5173, primary: false },
+      ],
+      icon: '🔴',
+      color: '#FF2D20',
+      warnings: [],
+    })
+    renderModal({ onSave })
+    fireEvent.click(screen.getByRole('button', { name: /browse project folder/i }))
+    await waitFor(() => expect(screen.getByText('Detected as Laravel')).toBeTruthy())
+    fireEvent.click(screen.getByRole('button', { name: /advanced settings/i }))
+
+    // The additional process is shown in the detection summary.
+    expect(screen.getAllByText('Frontend assets').length).toBeGreaterThanOrEqual(1)
+    const remove = screen.getByRole('button', { name: /remove additional process/i })
+    expect(remove).toBeTruthy()
+    fireEvent.click(remove)
+    expect(screen.queryByText('Frontend assets')).toBeNull()
+
+    fireEvent.click(screen.getByRole('button', { name: /add project/i }))
+    await waitFor(() => expect(onSave).toHaveBeenCalled())
+    const commands = onSave.mock.calls[0][0].commands
+    expect(commands).toHaveLength(1)
+    expect(commands[0].id).toBe('app')
+    expect(commands[0].primary).toBe(true)
+  })
 })

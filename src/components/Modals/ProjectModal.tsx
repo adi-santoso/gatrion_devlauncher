@@ -377,7 +377,10 @@ const ProjectModal = ({ isOpen, onClose, onSave, project = null, droppedProject 
                   <div key={item.id} className="rounded-lg border border-border bg-surface-2 p-3 space-y-3">
                     <div className="flex items-center justify-between">
                       <p className="text-xs font-semibold text-ink">{item.name}</p>
-                      <span className="text-[10px] uppercase tracking-wider text-accent">Additional process</span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] uppercase tracking-wider text-accent">Additional process</span>
+                        <button type="button" onClick={() => setFormData((previous) => ({ ...previous, commands: previous.commands.filter((cmd) => cmd.id !== item.id) }))} className="w-6 h-6 flex items-center justify-center rounded-md text-ink-faint hover:text-danger hover:bg-danger/10 transition-colors" aria-label="Remove additional process" title="Remove">✕</button>
+                      </div>
                     </div>
                     <input type="text" value={item.command} onChange={(event) => setFormData((previous) => ({ ...previous, commands: previous.commands.map((command) => command.id === item.id ? { ...command, command: event.target.value } : command) }))} className="w-full bg-surface-3 border border-border rounded-lg px-3 py-2 text-sm font-mono text-ink focus:outline-none focus:ring-2 focus:ring-accent/40" />
                     <input type="text" placeholder="No port monitoring" value={item.port ?? ''} onChange={(event) => setFormData((previous) => ({ ...previous, commands: previous.commands.map((command) => command.id === item.id ? { ...command, port: event.target.value } : command) }))} className="w-full bg-surface-3 border border-border rounded-lg px-3 py-2 text-sm font-mono text-ink focus:outline-none focus:ring-2 focus:ring-accent/40" />
