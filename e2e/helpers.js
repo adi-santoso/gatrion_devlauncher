@@ -61,6 +61,36 @@ async function writeFixtureProject(dir) {
   return dir;
 }
 
+/**
+ * Create a Laravel fixture the ProjectDetector can classify as LARAVEL.
+ * `options.wireVite` controls whether the frontend is genuinely wired to
+ * Laravel (laravel-vite-plugin in devDependencies) vs a bare vite dependency —
+ * the case where no separate "Frontend assets" process should be detected.
+ */
+async function writeLaravelFixture(dir, { wireVite = false, name = 'e2e-laravel' } = {}) {
+  const devDependencies = { vite: '^6.0.0', ...(wireVite ? { 'laravel-vite-plugin': '^1.2.0' } : {}) };
+  await fs.promises.writeFile(path.join(dir, 'artisan'), '<?php\n');
+  await fs.promises.writeFile(
+    path.join(dir, 'composer.json'),
+    JSON.stringify({ name: `e2e/${name}`, require: { 'laravel/framework': '^10.0' } }, null, 2),
+  );
+  await fs.promises.writeFile(
+    path.join(dir, 'package.json'),
+    JSON.stringify({
+      name,
+      private: true,
+      scripts: { dev: 'vite', build: 'vite build' },
+      devDependencies,
+    }, null, 2),
+  );
+  return dir;
+}
+
+/** Create a minimal Laravel fixture dir, either bare-vite or plugin-wired. */
+async function writeLaravelViteFixture(dir, options) {
+  return writeLaravelFixture(dir, options);
+}
+
 /** Pre-seed an isolated userData dir (projects.json / config.json). */
 async function seedUserData(userDataDir, { projects = [], config = null } = {}) {
   await fs.promises.mkdir(userDataDir, { recursive: true });
@@ -96,6 +126,8 @@ module.exports = {
   launchApp,
   makeTempDir,
   writeFixtureProject,
+  writeLaravelFixture,
+  writeLaravelViteFixture,
   seedUserData,
   fixtureProject,
   FIXTURE_START_JS,

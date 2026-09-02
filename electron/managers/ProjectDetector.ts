@@ -300,11 +300,19 @@ class ProjectDetector {
       : dependencies['@inertiajs/react'] || devDependencies['@inertiajs/react']
         ? 'Inertia React assets'
         : 'Frontend assets'
-    const hasFrontendSignal = Boolean(
-      dependencies.vite || devDependencies.vite ||
+    // Only add a frontend slot when vite is genuinely wired to Laravel:
+    // the official `laravel-vite-plugin` (or Inertia adapter) is present,
+    // or the vite config references Laravel's resources directory.
+    // A bare `vite` in package.json is not enough — many Laravel projects
+    // include it as a transitive dependency without using it for assets.
+    const hasLaravelPlugin = Boolean(
+      devDependencies['laravel-vite-plugin'] ||
       dependencies['@inertiajs/vue3'] || devDependencies['@inertiajs/vue3'] ||
-      dependencies.vue || devDependencies.vue
+      dependencies['@inertiajs/react'] || devDependencies['@inertiajs/react']
     )
+    const hasFrontendSignal = hasLaravelPlugin
+      ? true
+      : await this.viteConfigReferencesLaravel(projectPath)
     if (!frontend || !hasFrontendSignal) return [primaryCommand]
 
     return [
@@ -342,6 +350,27 @@ class ProjectDetector {
       }
     }
     return 5173
+  }
+
+  /**
+   * Whether a vite config actually targets Laravel's frontend resources.
+   * The official `laravel-vite-plugin` writes `input` pointing at
+   * `resources/js/app.js` / `resources/css/app.css`, so the config
+   * references a `resources/` path (or imports the plugin from a
+   * `vendor/laravel/vite-plugin`-flavoured path). A bare vite project
+   * (no resources dir) does not qualify.
+   */
+  async viteConfigReferencesLaravel(projectPath: string): Promise<boolean> {
+    for (const viteFile of ['vite.config.js', 'vite.config.ts', 'vite.config.mjs']) {
+      try {
+        const content = await fs.readFile(path.join(projectPath, viteFile), 'utf8')
+        if (/resources\/(?:js|css|ts)\//.test(content)) return true
+        if (/laravel-vite-plugin/.test(content)) return true
+      } catch {
+        // Missing and unreadable optional files are ignored.
+      }
+    }
+    return false
   }
 
   async detectActualPort(projectPath: string, defaultPort: number | null): Promise<number | null> {

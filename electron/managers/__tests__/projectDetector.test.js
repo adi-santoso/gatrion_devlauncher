@@ -148,6 +148,37 @@ describe('ProjectDetector', () => {
     expect(result.commands[1].command).toBe('npm run dev')
   })
 
+  test('Laravel 10 with bare vite (no laravel-vite-plugin, no Inertia, no resources) yields single command', async () => {
+    await write('laravel-bare-vite/artisan', '<?php //')
+    await write('laravel-bare-vite/composer.json', JSON.stringify({
+      require: { 'laravel/framework': '^10.10' },
+    }))
+    await write('laravel-bare-vite/package.json', JSON.stringify({
+      scripts: { dev: 'vite' },
+      dependencies: { vite: '^6' },
+    }))
+    const result = await detector.detectProjectType(path.join(tempDir, 'laravel-bare-vite'))
+    expect(result.type).toBe('LARAVEL')
+    expect(result.commands).toHaveLength(1)
+    expect(result.commands[0].command).toBe('php artisan serve')
+    expect(result.commands[0].primary).toBe(true)
+  })
+
+  test('Laravel 10 with vite + laravel-vite-plugin yields two slots', async () => {
+    await write('laravel-plugin/artisan', '<?php //')
+    await write('laravel-plugin/composer.json', JSON.stringify({
+      require: { 'laravel/framework': '^10.10' },
+    }))
+    await write('laravel-plugin/package.json', JSON.stringify({
+      scripts: { dev: 'vite' },
+      devDependencies: { vite: '^6', 'laravel-vite-plugin': '^1' },
+    }))
+    const result = await detector.detectProjectType(path.join(tempDir, 'laravel-plugin'))
+    expect(result.type).toBe('LARAVEL')
+    expect(result.commands).toHaveLength(2)
+    expect(result.commands[1].command).toBe('npm run dev')
+  })
+
   test('Laravel reads APP_PORT from .env for defaultPort', async () => {
     await write('laravel-port/artisan', '<?php //')
     await write('laravel-port/composer.json', JSON.stringify({
