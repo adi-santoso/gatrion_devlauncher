@@ -54,34 +54,62 @@ describe('ProjectDetailView preview mounting', () => {
     expect(screen.getByTestId('preview-a')).toHaveAttribute('data-active', 'true')
   })
 
-  it('spawns an interactive terminal into the project folder from the Terminal tab', () => {
+  it('requires an explicit Start shell click; nothing auto-spawns on tab open', () => {
     const { rerender } = render(
       <ProjectDetailView project={projectA} keepPreviewAlive={false} projects={[projectA]} />
     )
     fireEvent.click(screen.getByRole('tab', { name: 'Terminal' }))
     rerender(<ProjectDetailView project={projectA} keepPreviewAlive={false} projects={[projectA]} />)
+    expect(screen.queryByTestId('interactive-terminal')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Start shell' })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Start shell' }))
+    rerender(<ProjectDetailView project={projectA} keepPreviewAlive={false} projects={[projectA]} />)
     expect(screen.getAllByTestId('interactive-terminal')).toHaveLength(1)
     expect(screen.getAllByTestId('interactive-terminal')[0]).toHaveAttribute('data-cwd', 'C:/alpha')
   })
 
-  it('skips the interactive terminal when the project has no path', () => {
+  it('hides the shell UI when the project has no path', () => {
     const { rerender } = render(
       <ProjectDetailView project={{ id: 'c', name: 'Gamma', type: 'NODEJS' }} keepPreviewAlive={false} projects={[]} />
     )
     fireEvent.click(screen.getByRole('tab', { name: 'Terminal' }))
     rerender(<ProjectDetailView project={{ id: 'c', name: 'Gamma', type: 'NODEJS' }} keepPreviewAlive={false} projects={[]} />)
     expect(screen.queryByTestId('interactive-terminal')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Start shell' })).not.toBeInTheDocument()
     expect(screen.getByTestId('logs-tab')).toBeInTheDocument()
   })
 
-  it('persists each project shell independently across navigation', () => {
+  it('presents Close/Start shell per project and un-mounts on close', () => {
+    const { rerender } = render(
+      <ProjectDetailView project={projectA} keepPreviewAlive={false} projects={[projectA]} />
+    )
+    fireEvent.click(screen.getByRole('tab', { name: 'Terminal' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Start shell' }))
+    rerender(<ProjectDetailView project={projectA} keepPreviewAlive={false} projects={[projectA]} />)
+    expect(screen.getAllByTestId('interactive-terminal')).toHaveLength(1)
+    expect(screen.getByRole('button', { name: 'Close shell' })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Close shell' }))
+    rerender(<ProjectDetailView project={projectA} keepPreviewAlive={false} projects={[projectA]} />)
+    expect(screen.queryByTestId('interactive-terminal')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Start shell' })).toBeInTheDocument()
+  })
+
+  it('persists each started project shell independently across navigation', () => {
     const { rerender } = render(
       <ProjectDetailView project={projectA} keepPreviewAlive projects={[projectA, projectB]} />
     )
     fireEvent.click(screen.getByRole('tab', { name: 'Terminal' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Start shell' }))
     rerender(<ProjectDetailView project={projectA} keepPreviewAlive projects={[projectA, projectB]} />)
     expect(screen.getAllByTestId('interactive-terminal')).toHaveLength(1)
 
+    // Switch to B: A's shell stays mounted (hidden); B has not been started.
+    rerender(<ProjectDetailView project={projectB} keepPreviewAlive projects={[projectA, projectB]} />)
+    expect(screen.getAllByTestId('interactive-terminal')).toHaveLength(1)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Start shell' }))
     rerender(<ProjectDetailView project={projectB} keepPreviewAlive projects={[projectA, projectB]} />)
     const cwds = screen.getAllByTestId('interactive-terminal').map((el) => el.dataset.cwd)
     expect(cwds).toContain('C:/alpha')

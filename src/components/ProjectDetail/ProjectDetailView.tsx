@@ -14,6 +14,7 @@ import ScriptsTab from './ScriptsTab';
 import DependenciesTab from './DependenciesTab';
 import AnalyticsTab from './AnalyticsTab';
 import InteractiveTerminal from '../Terminal/InteractiveTerminal';
+import Icon from '../Common/Icon';
 import type { ViewProject } from '../Dashboard/ProjectCard';
 import type { ProcessLogLine } from '../../data/processes';
 import type { AppConfig } from '../../types/shared';
@@ -79,15 +80,16 @@ export default function ProjectDetailView({
     }
   }, [keepPreviewAlive, project?.id]);
 
-  // Persistent per-project shells: once a project's Terminal tab is opened,
-  // its InteractiveTerminal stays mounted (hidden for other projects) so the
-  // underlying PTY keeps running even when navigating between projects.
+  // Persistent per-project shells: the user explicitly starts/stop a shell per
+  // project. Once started, its InteractiveTerminal stays mounted (hidden for
+  // other projects) so the underlying PTY keeps running across navigation.
   const [openTerminals, setOpenTerminals] = useState<string[]>([]);
-  useEffect(() => {
-    if (activeTab === 'terminal' && project?.id && project?.path) {
-      setOpenTerminals((prev) => (prev.includes(project.id) ? prev : [...prev, project.id]));
-    }
-  }, [activeTab, project?.id, project?.path]);
+  const startTerminal = (id: string): void => {
+    setOpenTerminals((prev) => (prev.includes(id) ? prev : [...prev, id]));
+  };
+  const closeTerminal = (id: string): void => {
+    setOpenTerminals((prev) => prev.filter((p) => p !== id));
+  };
 
   // Sync local fullscreen state when prop changes (functional updater keeps
   // the effect free of a `fullscreen` reference so it only runs on prop change).
@@ -165,6 +167,38 @@ export default function ProjectDetailView({
       {!fullscreen && (
         <>
           <div className={activeTab === 'terminal' ? 'block space-y-5' : 'hidden'}>
+            {project?.path ? (
+              <div className="flex items-center justify-between gap-3 rounded-xl border border-border bg-surface p-3">
+                <div className="flex items-center gap-2 min-w-0">
+                  <Icon name="terminal" size={16} className="text-accent" />
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-ink">Interactive shell</p>
+                    <p className="text-xs text-ink-faint truncate">{project.path}</p>
+                  </div>
+                </div>
+                {openTerminals.includes(project.id) ? (
+                  <button
+                    type="button"
+                    onClick={() => closeTerminal(project.id)}
+                    title="Close shell for this project"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-surface-3 hover:bg-surface-2 text-xs font-medium text-ink-soft hover:text-ink border border-border transition-colors"
+                  >
+                    <Icon name="x" size={13} />
+                    Close shell
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => startTerminal(project.id)}
+                    title="Open a shell in the project folder"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-accent hover:bg-accent-hover text-white text-xs font-semibold shadow-glow transition-colors"
+                  >
+                    <Icon name="play" size={13} />
+                    Start shell
+                  </button>
+                )}
+              </div>
+            ) : null}
             {openTerminals.map((id) => {
               const tProject = projects.find((p) => p.id === id);
               const active = activeTab === 'terminal' && id === project?.id;
