@@ -228,4 +228,25 @@ describe('ProjectModal folder detection', () => {
     expect(commands[0].id).toBe('app')
     expect(commands[0].primary).toBe(true)
   })
+
+  test('preview host selector defaults to localhost and can switch to 127.0.0.1', async () => {
+    const onSave = vi.fn(async () => ({ success: true }))
+    renderModal({ onSave })
+    await openAdvancedAfterBrowse()
+
+    // Both buttons exist
+    expect(screen.getByText('localhost')).toBeTruthy()
+    expect(screen.getByText('127.0.0.1')).toBeTruthy()
+
+    // Default is localhost (active state)
+    const localhost = screen.getByRole('button', { name: 'localhost' })
+    expect(localhost.className).toContain('bg-accent/15')
+
+    // Switch to 127.0.0.1
+    fireEvent.click(screen.getByRole('button', { name: '127.0.0.1' }))
+
+    fireEvent.click(screen.getByRole('button', { name: /add project/i }))
+    await waitFor(() => expect(onSave).toHaveBeenCalled())
+    expect(onSave.mock.calls[0][0].previewHost).toBe('127.0.0.1')
+  })
 })

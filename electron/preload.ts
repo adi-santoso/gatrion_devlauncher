@@ -142,6 +142,11 @@ interface ElectronApi {
   previewDestroy: (projectId: string) => Promise<unknown>
   onPreviewConsole: (callback: (data: unknown) => void) => Unsub
 
+  // Preview credential vault (password autofill for the embedded preview)
+  previewGetCredentials: (origin: string) => Promise<unknown>
+  previewSaveCredential: (origin: string, username: string, password: string) => Promise<unknown>
+  previewRemoveCredential: (origin: string, username: string) => Promise<unknown>
+
   // Interactive PTY terminal
   terminalCreate: (options: unknown) => Promise<unknown>
   terminalInput: (id: string, data: string) => Promise<unknown>
@@ -412,6 +417,9 @@ const api: ElectronApi = {
   previewToggleDevTools: (projectId) => ipcRenderer.invoke('preview-toggle-devtools', projectId),
   previewNudge: (projectId) => ipcRenderer.invoke('preview-nudge', projectId),
   previewDestroy: (projectId) => ipcRenderer.invoke('preview-destroy', projectId),
+  previewGetCredentials: (origin) => ipcRenderer.invoke('preview-get-credentials', origin),
+  previewSaveCredential: (origin, username, password) => ipcRenderer.invoke('preview-save-credential', origin, username, password),
+  previewRemoveCredential: (origin, username) => ipcRenderer.invoke('preview-remove-credential', origin, username),
   onPreviewConsole: (callback) => {
     const listener = (_event: IpcRendererEvent, data: unknown) => callback(data)
     ipcRenderer.on('preview-console-message', listener)

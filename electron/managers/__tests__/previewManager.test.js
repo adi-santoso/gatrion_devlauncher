@@ -161,6 +161,49 @@ describe('PreviewManager', () => {
     expect(sessions.has('persist:preview-p1')).toBe(true)
   })
 
+  test('registers the credential preload once per partition and injects the content script on load', () => {
+    const manager = new PreviewManager({})
+    manager.setWindow(makeWindow())
+    manager.setPreloadScriptPath('C:/previews/previewPreload.js')
+    manager.setCredentialContentScript('(() => {})()')
+    manager.show({ projectId: 'p1', url: 'http://localhost:3000', bounds })
+
+    const view = manager.getView('p1')
+    // Preload registered on the partition session.
+    const ses = view.options.webPreferences.session
+    expect(ses._preloads).toHaveLength(1)
+    expect(ses._preloads[0].filePath).toBe('C:/previews/previewPreload.js')
+    expect(ses._preloads[0].type).toBe('frame')
+
+    // Content script runs when the page finishes loading.
+    view.emitLoad()
+    expect(view.executedScripts).toContain('(() => {})()')
+  })
+
+  test('credential preload is not re-registered across projects in the same partition', () => {
+    // Different partition per project (persist:preview-<id>), so each gets its
+    // own session and its own registration; re-showing the same project is a no-op.
+    const manager = new PreviewManager({})
+    manager.setWindow(makeWindow())
+    manager.setPreloadScriptPath('C:/previews/previewPreload.js')
+
+    manager.show({ projectId: 'p1', url: 'http://localhost:3000', bounds })
+    manager.show({ projectId: 'p1', url: 'http://localhost:3000', bounds })
+    const ses = manager.getView('p1').options.webPreferences.session
+    expect(ses._preloads).toHaveLength(1)
+  })
+
+  test('skips credential wiring when the preload path or manager is absent', () => {
+    const manager = new PreviewManager() // no credential manager
+    manager.setWindow(makeWindow())
+    manager.setCredentialContentScript('(() => {})()')
+    manager.show({ projectId: 'p1', url: 'http://localhost:3000', bounds })
+
+    const ses = manager.getView('p1').options.webPreferences.session
+    expect(ses._preloads).toHaveLength(0)
+    expect(manager.getView('p1').executedScripts).toHaveLength(0)
+  })
+
   test('destroy removes from window and map; destroyAll cleans everything', () => {
     const manager = new PreviewManager()
     const win = makeWindow()

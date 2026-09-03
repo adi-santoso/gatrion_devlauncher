@@ -78,12 +78,15 @@ class FakeWebContentsView {
     this.consoleHandlers = {}
     this.reloadCount = 0
     this.invalidateCount = 0
+    this.executedScripts = []
     this.webContents = {
       loadURL: (url) => { this.loadedUrls.push(url); return Promise.resolve() },
       reload: () => { this.reloadCount += 1 },
       setZoomFactor: (f) => { this.zoomFactor = f },
       setWindowOpenHandler: () => {},
       on: (event, cb) => { this.consoleHandlers[event] = cb },
+      once: (event, cb) => { this.consoleHandlers[event] = cb },
+      executeJavaScript: (script) => { this.executedScripts.push(script); return Promise.resolve() },
       isDevToolsOpened: () => this.devtoolsOpen,
       openDevTools: () => { this.devtoolsOpen = true },
       closeDevTools: () => { this.devtoolsOpen = false },
@@ -98,6 +101,15 @@ class FakeWebContentsView {
   emitConsole(level, message, sourceId, line) {
     this.consoleHandlers['console-message']?.({}, level, message, line, sourceId)
   }
+  emitLoad() {
+    // Fires the registered did-finish-load handler (if any); for the credential
+    // path this triggers executeJavaScript with the content script.
+    this.consoleHandlers['did-finish-load']?.()
+  }
+  emitNavigate(url) {
+    const handler = this.consoleHandlers['did-navigate']
+    if (handler) handler(null, url)
+  }
 }
 
 const session = {
@@ -109,6 +121,11 @@ const session = {
         clearCache: async () => {},
         clearAuthCache: async () => {},
         cookies: { flushStore: async () => {} },
+        _preloads: [],
+        registerPreloadScript(script) {
+          this._preloads.push(script)
+          return 'mock-preload-id'
+        },
       })
     }
     return sessions.get(partition)
@@ -141,6 +158,13 @@ const contextBridge = {
   exposeInMainWorld(key, api) {
     this._exposed = { key, api }
   },
+}
+
+// In-memory safeStorage for tests — encrypt/decrypt round-trips with a no-op.
+const safeStorage = {
+  encryptString: (plain) => Buffer.from(`enc:${plain}`, 'utf-8'),
+  decryptString: (buffer) => buffer.toString('utf-8').replace(/^enc:/, ''),
+  isEncryptionAvailable: () => true,
 }
 
 function __reset() {
@@ -176,6 +200,7 @@ module.exports = {
   contextBridge,
   WebContentsView,
   session,
+  safeStorage,
   __reset,
   __previewState,
   TEMP_USER_DATA,

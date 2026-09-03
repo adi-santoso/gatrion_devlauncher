@@ -1,6 +1,7 @@
 import type { BrowserWindow, WebContentsView as WebContentsViewType } from 'electron'
 
 const { WebContentsView, session } = require('electron') as typeof import('electron')
+import type { CredentialManager } from './CredentialManager'
 
 interface PreviewEntry {
   view: WebContentsViewType
@@ -43,11 +44,29 @@ class PreviewManager {
   /** Recent console messages per project (MCP preview_read_console). */
   private consoleBuffer = new Map<string, ConsoleInfo[]>()
   private pendingNudges = new WeakSet<WebContentsViewType>()
+  /** Optional credential vault; enables password autofill for the preview. */
+  private credentialManager: CredentialManager | null
+  /** Preload script path registered per preview partition (autofill bridge). */
+  private preloadScriptPath = ''
+  /** Preloaded credential content script (IIFE string) injected on load. */
+  private credentialContentScript = ''
+  private preloadRegistered = new Set<string>()
 
-  constructor() {
+  constructor(credentialManager?: CredentialManager) {
     this.win = null
     this.views = new Map() // projectId -> { view, url }
     this.onConsoleMessage = null
+    this.credentialManager = credentialManager || null
+  }
+
+  /** Configure the preload path so each preview partition gets the autofill bridge. */
+  setPreloadScriptPath(preloadPath: string) {
+    this.preloadScriptPath = preloadPath
+  }
+
+  /** Set the content script (form detection / dropdown / save) injected on load. */
+  setCredentialContentScript(script: string) {
+    this.credentialContentScript = script
   }
 
   setWindow(win: BrowserWindow) {
@@ -84,6 +103,8 @@ class PreviewManager {
 
     if (!this.win || this.win.isDestroyed()) return null
 
+    const ses = session.fromPartition(this.partitionFor(projectId))
+
     const view = new WebContentsView({
       webPreferences: {
         sandbox: true,
@@ -91,9 +112,36 @@ class PreviewManager {
         nodeIntegration: false,
         // Per-project persistent partition: cookies/storage survive restarts
         // and are isolated between projects.
-        session: session.fromPartition(this.partitionFor(projectId)),
+        session: ses,
       },
     })
+
+    // Register the credential autofill preload bridge once per partition.
+    if (this.preloadScriptPath && this.credentialManager) {
+      const key = this.partitionFor(projectId)
+      if (!this.preloadRegistered.has(key)) {
+        try {
+          ses.registerPreloadScript({
+            type: 'frame',
+            filePath: this.preloadScriptPath,
+          })
+          this.preloadRegistered.add(key)
+        } catch (error) {
+          console.error('[Preview] Failed to register preview preload:', error)
+        }
+      }
+      // Inject the form-detection / dropdown / save content script on load.
+      const contentScript = this.credentialContentScript
+      if (contentScript) {
+        const onLoaded = (): void => {
+          view.webContents
+            .executeJavaScript(contentScript, true)
+            .catch((error) => console.error('[Preview] Credential script injection failed:', error))
+        }
+        view.webContents.once('did-finish-load', onLoaded)
+        view.webContents.on('did-navigate', onLoaded)
+      }
+    }
 
     // Project apps are local dev servers; block window.open to the outside and
     // route external links to the OS browser instead of another embedded view.

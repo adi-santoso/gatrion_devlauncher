@@ -109,6 +109,7 @@ const buildMockProject = (overrides: Partial<Project> & Pick<Project, 'id' | 'na
   tags: [],
   customCommands: [],
   dependsOn: [],
+  previewHost: 'localhost',
   schemaVersion: 0,
   ...overrides,
 })

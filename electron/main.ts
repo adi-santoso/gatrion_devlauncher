@@ -21,11 +21,14 @@ import OmpConfig from './managers/OmpConfig'
 import ProjectDetector from './managers/ProjectDetector'
 import TrayManager from './managers/TrayManager'
 import PreviewManager from './managers/PreviewManager'
+import CredentialManager from './managers/CredentialManager'
+import { CREDENTIAL_CONTENT_SCRIPT } from './previewCredentialContent'
 import { setupProcessHandlers } from './handlers/processHandlers'
 import { setupProjectHandlers } from './handlers/projectHandlers'
 import { setupDesktopHandlers } from './handlers/desktopHandlers'
 import { setupTerminalHandlers, killAllTerminals } from './handlers/terminalHandlers'
 import { setupPreviewHandlers } from './handlers/previewHandlers'
+import { setupPreviewCredentialHandlers } from './handlers/previewCredentialHandlers'
 import { setupRepoHandlers } from './handlers/repoHandlers'
 import { setupDependencyHandlers } from './handlers/dependencyHandlers'
 import { setupSystemHandlers } from './handlers/systemHandlers'
@@ -78,6 +81,7 @@ let storageManager!: StorageManagerType
 let projectDetector!: ProjectDetectorType
 let trayManager!: TrayManagerType
 let previewManager!: PreviewManagerType
+let credentialManager!: CredentialManager
 let healthManager!: HealthManagerType
 let ompManager!: OmpManagerType
 let ompInstaller!: OmpInstallerType
@@ -115,7 +119,7 @@ app.setAppUserModelId(APP_ID)
 // so the Vite react-refresh preamble and injected styles keep working.
 function applyContentSecurityPolicy() {
   const scriptSrc = app.isPackaged ? "'self'" : "'self' 'unsafe-inline'"
-  const CSP = `default-src 'self'; script-src ${scriptSrc}; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' ws://localhost:* http://localhost:*; frame-src http://localhost:* https://localhost:*; object-src 'none'; base-uri 'self'; form-action 'self'`
+  const CSP = `default-src 'self'; script-src ${scriptSrc}; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' ws://localhost:* http://localhost:* http://127.0.0.1:*; frame-src http://localhost:* https://localhost:* http://127.0.0.1:*; object-src 'none'; base-uri 'self'; form-action 'self'`
 
   session.defaultSession.webRequest.onHeadersReceived((details: Electron.OnHeadersReceivedListenerDetails, callback: (response: Electron.HeadersReceivedResponse) => void) => {
     callback({
@@ -368,8 +372,17 @@ async function initialize() {
   }
 
   // Embedded preview (WebContentsView) manager
-  previewManager = new PreviewManager()
+  credentialManager = new CredentialManager()
+  previewManager = new PreviewManager(credentialManager)
   previewManager.setWindow(mainWindow!)
+  // Autofill preload + content script for password management.
+  try {
+    const preloadPath = path.join(__dirname, '../preload/previewPreload.js')
+    previewManager.setPreloadScriptPath(preloadPath)
+    previewManager.setCredentialContentScript(CREDENTIAL_CONTENT_SCRIPT)
+  } catch (error) {
+    console.warn('[Preview] Credential content script not found, autofill disabled:', (error as Error).message)
+  }
   previewManager.setConsoleListener(({ projectId, level, message, source, line }) => {
     mainWindow?.webContents.send('preview-console-message', { projectId, level, message, source, line })
   })
@@ -394,6 +407,7 @@ async function initialize() {
   setupDesktopHandlers()
   setupTerminalHandlers(mainWindow)
   setupPreviewHandlers(previewManager)
+  setupPreviewCredentialHandlers(credentialManager)
   setupRepoHandlers(storageManager, processManager, mainWindow)
   setupDependencyHandlers()
   setupSystemHandlers()

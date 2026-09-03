@@ -73,6 +73,18 @@ const CHANNEL_RULES: Record<string, ArgRule[]> = {
   'preview-nudge': [['projectId', 'string', { minLength: 1 }]],
   'preview-destroy': [['projectId', 'string', { minLength: 1 }]],
 
+  // --- preview credential vault (safeStorage) ---------------------------
+  'preview-get-credentials': [['origin', 'string', { minLength: 1, maxLength: 2048 }]],
+  'preview-save-credential': [
+    ['origin', 'string', { minLength: 1, maxLength: 2048 }],
+    ['username', 'string', { minLength: 1, maxLength: 512 }],
+    ['password', 'string', { minLength: 1, maxLength: 4096 }],
+  ],
+  'preview-remove-credential': [
+    ['origin', 'string', { minLength: 1, maxLength: 2048 }],
+    ['username', 'string', { minLength: 1, maxLength: 512 }],
+  ],
+
   // --- process lifecycle -----------------------------------------------
   'start-project': [['projectId', 'string', { minLength: 1 }]],
   'stop-project': [

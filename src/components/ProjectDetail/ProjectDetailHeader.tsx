@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import * as ipc from '../../utils/ipcRenderer';
 import StackLogo from '../Common/StackLogo';
 import Icon from '../Common/Icon';
+import { previewUrl } from '../../utils/previewUrl';
 import type { ViewProject } from '../Dashboard/ProjectCard';
 
 const statusClasses: Record<string, string> = {
@@ -41,8 +42,7 @@ interface ProjectDetailHeaderProps {
 export default function ProjectDetailHeader({ project, onStart, onStop, onRestart, onEdit, onDuplicate, onOpenAgent }: ProjectDetailHeaderProps) {
   const status = (project?.status || 'stopped').toLowerCase();
   const busy = status === 'starting' || status === 'stopping';
-  const port = project?.port;
-  const appUrl = port != null && Number.isInteger(port) ? `http://localhost:${port}` : null;
+  const appUrl = previewUrl(project?.port, project?.previewHost);
 
   // Overflow menu (⋯) holds the rare actions (Explorer / Open in Editor /
   // Edit / Duplicate) so the primary row stays short: quick actions on the

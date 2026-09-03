@@ -3,6 +3,7 @@ import * as ipc from '../../utils/ipcRenderer';
 import DropdownMenu, { DropdownItem, DropdownSeparator } from '../Common/DropdownMenu';
 import StackLogo from '../Common/StackLogo';
 import Tooltip from '../Common/Tooltip';
+import { previewUrl } from '../../utils/previewUrl';
 import type { ViewProject } from '../Dashboard/ProjectCard';
 
 const statusClasses: Record<string, string> = {
@@ -134,7 +135,8 @@ export default function ProjectListRow({
   }, [status]);
 
   const handleOpenBrowser = (): void => {
-    if (project?.port) ipc.openExternalUrl(`http://localhost:${project.port}`);
+    const url = previewUrl(project?.port, project?.previewHost);
+    if (url) ipc.openExternalUrl(url);
   };
 
   const handleRevealExplorer = (): void => {
@@ -142,8 +144,8 @@ export default function ProjectListRow({
   };
 
   const handleCopyUrl = async (): Promise<void> => {
-    if (!project?.port) return;
-    const url = `http://localhost:${project.port}`;
+    const url = previewUrl(project?.port, project?.previewHost);
+    if (!url) return;
     try {
       await navigator.clipboard.writeText(url);
     } catch {
@@ -268,7 +270,7 @@ export default function ProjectListRow({
             <button
               type="button"
               onClick={handleOpenBrowser}
-              title={`Open http://localhost:${project.port}`}
+              title={`Open ${previewUrl(project.port, project.previewHost) || ''}`}
               className="text-xs font-mono text-accent hover:text-accent-hover underline decoration-dotted underline-offset-2"
             >
               :{project.port}

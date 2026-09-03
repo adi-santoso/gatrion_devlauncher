@@ -64,6 +64,7 @@ const ProjectModal = ({ isOpen, onClose, onSave, project = null, droppedProject 
         tags: (source.tags as string[]) || [],
         customCommands: (source.customCommands as ProjectFormData['customCommands']) || [],
         dependsOn: (source.dependsOn as string[]) || [],
+        previewHost: (source.previewHost as ProjectFormData['previewHost']) || 'localhost',
       });
       setShowAdvanced(true);
       if (droppedProject && !project) {
@@ -367,6 +368,26 @@ const ProjectModal = ({ isOpen, onClose, onSave, project = null, droppedProject 
                     <input type="text" placeholder="No port monitoring" value={formData.port} onChange={(event) => handleChange('port', event.target.value)} className={`w-full bg-surface-3 border rounded-lg px-3 py-2 text-sm font-mono text-ink focus:outline-none focus:ring-2 focus:ring-accent/40 ${errors.port ? 'border-danger' : 'border-border'}`} />
                     {errors.port && <p className="text-[11px] text-danger mt-1">{errors.port}</p>}
                   </div>
+                </div>
+                <div>
+                  <label className="text-xs text-ink-soft mb-1.5 block">Preview host</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => handleChange('previewHost', 'localhost')}
+                      className={`px-3 py-2 rounded-lg text-xs font-medium border transition-colors ${formData.previewHost === 'localhost' ? 'bg-accent/15 text-ink border-accent/30' : 'bg-surface-3 hover:bg-surface-2 text-ink-soft hover:text-ink border-border'}`}
+                    >
+                      localhost
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleChange('previewHost', '127.0.0.1')}
+                      className={`px-3 py-2 rounded-lg text-xs font-medium border transition-colors ${formData.previewHost === '127.0.0.1' ? 'bg-accent/15 text-ink border-accent/30' : 'bg-surface-3 hover:bg-surface-2 text-ink-soft hover:text-ink border-border'}`}
+                    >
+                      127.0.0.1
+                    </button>
+                  </div>
+                  <p className="text-[11px] text-ink-faint mt-1">Host used to reach the dev server for embedded preview &amp; &quot;Open in browser&quot;.</p>
                 </div>
                 <div>
                   <label className="text-xs text-ink-soft mb-1.5 block">Start command <span className="text-danger">*</span></label>

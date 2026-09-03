@@ -93,6 +93,32 @@ describe('project schema v3 (tags / customCommands / dependsOn)', () => {
   })
 })
 
+describe('preview host (localhost / 127.0.0.1)', () => {
+  test('normalizeProject defaults to localhost when absent', () => {
+    expect(normalizeProject({ ...base }).previewHost).toBe('localhost')
+    expect(normalizeProject({ ...base, previewHost: undefined }).previewHost).toBe('localhost')
+    expect(normalizeProject({ ...base, previewHost: '127.0.0.1' }).previewHost).toBe('127.0.0.1')
+  })
+
+  test('normalizeProject coerces invalid preview hosts to localhost', () => {
+    expect(normalizeProject({ ...base, previewHost: 'example.com' }).previewHost).toBe('localhost')
+    expect(normalizeProject({ ...base, previewHost: 123 }).previewHost).toBe('localhost')
+  })
+
+  test('sanitizeProjectChanges accepts both valid hosts and rejects others', () => {
+    expect(sanitizeProjectChanges({ previewHost: 'localhost' })).toEqual({ previewHost: 'localhost' })
+    expect(sanitizeProjectChanges({ previewHost: '127.0.0.1' })).toEqual({ previewHost: '127.0.0.1' })
+    expect(() => sanitizeProjectChanges({ previewHost: '0.0.0.0' })).toThrow(/Preview host/)
+    expect(() => sanitizeProjectChanges({ previewHost: 42 })).toThrow(/Preview host/)
+  })
+
+  test('validateProject requires a valid preview host', () => {
+    expect(validateProject(normalizeProject({ ...base, previewHost: '127.0.0.1' })).previewHost).toBe('127.0.0.1')
+    expect(() => validateProject({ ...normalizeProject({ ...base }), previewHost: '0.0.0.0' }))
+      .toThrow(/Preview host/)
+  })
+})
+
 describe('legacy migration (pre-v3 shapes)', () => {
   test('migrates a legacy project with emoji type, env object and string port', () => {
     const migrated = validateProject(normalizeProject({

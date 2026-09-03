@@ -12,6 +12,7 @@ export interface ProjectFormData {
   tags: string[];
   customCommands: Array<{ id: string; label: string; command: string }>;
   dependsOn: string[];
+  previewHost: 'localhost' | '127.0.0.1';
 }
 
 export const EMPTY_PROJECT: ProjectFormData = {
@@ -28,6 +29,7 @@ export const EMPTY_PROJECT: ProjectFormData = {
   tags: [],
   customCommands: [],
   dependsOn: [],
+  previewHost: 'localhost',
 };
 
 export const TYPE_METADATA: Record<string, { emoji: string; color: string }> = {

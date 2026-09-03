@@ -18,6 +18,7 @@ const { ipcMain, __reset } = createRequire(import.meta.url)('electron')
 import { setupAgentHandlers } from '../agentHandlers'
 import { setupDesktopHandlers } from '../desktopHandlers'
 import { setupPreviewHandlers } from '../previewHandlers'
+import { setupPreviewCredentialHandlers } from '../previewCredentialHandlers'
 import { setupProcessHandlers } from '../processHandlers'
 import { setupProjectHandlers } from '../projectHandlers'
 import { setupRepoHandlers } from '../repoHandlers'
@@ -34,6 +35,7 @@ function registerAll() {
   setupDesktopHandlers()
   setupTerminalHandlers(null)
   setupPreviewHandlers({})
+  setupPreviewCredentialHandlers({ getCredentials: async () => [], saveCredential: async () => {}, removeCredential: async () => {} })
   setupRepoHandlers(emitter, emitter, null)
   setupDependencyHandlers()
   setupSystemHandlers()

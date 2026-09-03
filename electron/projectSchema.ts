@@ -20,7 +20,7 @@ const PROJECT_TYPES: Record<ProjectType, ProjectTypeMeta> = {
 
 const PROJECT_FIELDS = new Set([
   'name', 'path', 'type', 'port', 'startCommand', 'commands', 'envVars', 'emoji', 'color', 'autoStart', 'schemaVersion',
-  'tags', 'customCommands', 'dependsOn',
+  'tags', 'customCommands', 'dependsOn', 'previewHost',
 ])
 
 const PROJECT_SCHEMA_VERSION = 3
@@ -136,6 +136,7 @@ function normalizeProject(project: unknown, createId?: () => string): Project {
     tags: normalizeTags(raw.tags),
     customCommands: normalizeCustomCommands(raw.customCommands),
     dependsOn: normalizeDependsOn(raw.dependsOn),
+    previewHost: raw.previewHost === '127.0.0.1' ? '127.0.0.1' : 'localhost',
     schemaVersion: Math.max(normalizedVersion, PROJECT_SCHEMA_VERSION),
   }
 }
@@ -163,6 +164,7 @@ function sanitizeProjectChanges(input: unknown): Record<string, unknown> {
   }
   if (changes.type !== undefined && !(PROJECT_TYPES as Record<string, ProjectTypeMeta>)[changes.type as string]) throw new Error('Project type is invalid')
   if (changes.port !== undefined && changes.port !== null && !Number.isInteger(changes.port)) throw new Error('Port must be an integer or null')
+  if (changes.previewHost !== undefined && changes.previewHost !== 'localhost' && changes.previewHost !== '127.0.0.1') throw new Error('Preview host must be "localhost" or "127.0.0.1"')
   if (changes.commands !== undefined && !Array.isArray(changes.commands)) throw new Error('Project commands must be an array')
   if (Array.isArray(changes.commands)) {
     for (const item of changes.commands) {
@@ -258,6 +260,7 @@ function validateProject(project: Project): Project {
   }
 
   if (!/^#[0-9a-f]{6}$/i.test(project.color)) throw new Error('Project color must be a hex color')
+  if (project.previewHost !== 'localhost' && project.previewHost !== '127.0.0.1') throw new Error('Preview host must be "localhost" or "127.0.0.1"')
   return project
 }
 

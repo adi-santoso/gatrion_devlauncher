@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import StackLogo from '../Common/StackLogo';
 import Icon from '../Common/Icon';
 import * as ipc from '../../utils/ipcRenderer';
+import { previewUrl } from '../../utils/previewUrl';
 import type { ViewProject } from '../Dashboard/ProjectCard';
 
 const statusClasses: Record<string, string> = {
@@ -50,7 +51,7 @@ export default function AppPreviewTab({
   const wasInactiveRef = useRef(false);
   const status = ((project as ViewProject)?.status || 'stopped').toLowerCase();
   const isRunning = status === 'running';
-  const appUrl = Number.isInteger((project as ViewProject)?.port) ? `http://localhost:${(project as ViewProject).port}` : null;
+  const appUrl = previewUrl((project as ViewProject)?.port, (project as ViewProject)?.previewHost);
   const projectId = project?.id;
 
   const useNative = nativeMode && !nativeFailed && isRunning && appUrl != null;

@@ -57,7 +57,7 @@ export function createWriteMiscTools(): McpTool[] {
       permission: 'write',
       handler: async (args, d) => {
         const p = await resolveProject(d, args.projectId)
-        const url = typeof args.url === 'string' && args.url ? args.url : p.port ? `http://localhost:${p.port}` : ''
+        const url = typeof args.url === 'string' && args.url ? args.url : p.port ? `http://${p.previewHost || 'localhost'}:${p.port}` : ''
         if (!url) throw new Error('Project has no port; pass an explicit url')
         d.previewManager.show({ projectId: p.id, url })
         return { success: true, url }

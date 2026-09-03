@@ -88,6 +88,9 @@ export type DeepPartial<T> = {
 
 export type ProjectType = 'LARAVEL' | 'NEXTJS' | 'REACT_VITE' | 'REACT' | 'VUE' | 'GOLANG' | 'PYTHON' | 'NODEJS' | 'CUSTOM'
 
+/** Loopback host used to reach a project's dev server for preview/open. */
+export type PreviewHost = 'localhost' | '127.0.0.1'
+
 export interface ProjectCommand {
   id: string
   name: string
@@ -126,6 +129,7 @@ export interface Project {
   tags: string[]
   customCommands: CustomCommand[]
   dependsOn: string[]
+  previewHost: PreviewHost
   schemaVersion: number
 }
 
