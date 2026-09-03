@@ -204,7 +204,7 @@ export default function ProjectDetailView({
               const active = activeTab === 'terminal' && id === project?.id;
               if (!tProject?.path) return null;
               return (
-                <div key={id} className={active ? 'block' : 'hidden'}>
+                <div key={id} className={active ? 'block h-80 rounded-xl border border-border bg-surface shadow-card p-2' : 'hidden'}>
                   <InteractiveTerminal cwd={tProject.path} fontSize={terminalConfig?.fontSize} />
                 </div>
               );
