@@ -135,12 +135,16 @@ interface ElectronApi {
   previewSetBounds: (projectId: string, bounds: unknown) => Promise<unknown>
   previewNavigate: (projectId: string, url: string) => Promise<unknown>
   previewReload: (projectId: string) => Promise<unknown>
+  previewGetState: (projectId: string) => Promise<unknown>
+  previewBack: (projectId: string) => Promise<unknown>
+  previewForward: (projectId: string) => Promise<unknown>
   previewZoom: (projectId: string, zoomLevel: number) => Promise<unknown>
   previewClearData: (projectId: string) => Promise<unknown>
   previewToggleDevTools: (projectId: string) => Promise<unknown>
   previewNudge: (projectId: string) => Promise<unknown>
   previewDestroy: (projectId: string) => Promise<unknown>
   onPreviewConsole: (callback: (data: unknown) => void) => Unsub
+  onPreviewUrlUpdated: (callback: (data: unknown) => void) => Unsub
 
   // Preview credential vault (password autofill for the embedded preview)
   previewGetCredentials: (origin: string) => Promise<unknown>
@@ -412,6 +416,9 @@ const api: ElectronApi = {
   previewSetBounds: (projectId, bounds) => ipcRenderer.invoke('preview-set-bounds', projectId, bounds),
   previewNavigate: (projectId, url) => ipcRenderer.invoke('preview-navigate', projectId, url),
   previewReload: (projectId) => ipcRenderer.invoke('preview-reload', projectId),
+  previewGetState: (projectId) => ipcRenderer.invoke('preview-get-state', projectId),
+  previewBack: (projectId) => ipcRenderer.invoke('preview-back', projectId),
+  previewForward: (projectId) => ipcRenderer.invoke('preview-forward', projectId),
   previewZoom: (projectId, zoomLevel) => ipcRenderer.invoke('preview-zoom', projectId, zoomLevel),
   previewClearData: (projectId) => ipcRenderer.invoke('preview-clear-data', projectId),
   previewToggleDevTools: (projectId) => ipcRenderer.invoke('preview-toggle-devtools', projectId),
@@ -424,6 +431,11 @@ const api: ElectronApi = {
     const listener = (_event: IpcRendererEvent, data: unknown) => callback(data)
     ipcRenderer.on('preview-console-message', listener)
     return () => ipcRenderer.removeListener('preview-console-message', listener)
+  },
+  onPreviewUrlUpdated: (callback) => {
+    const listener = (_event: IpcRendererEvent, data: unknown) => callback(data)
+    ipcRenderer.on('preview-url-updated', listener)
+    return () => ipcRenderer.removeListener('preview-url-updated', listener)
   },
 
   // Interactive PTY terminal

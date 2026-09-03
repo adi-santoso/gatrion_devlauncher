@@ -18,6 +18,14 @@ export interface PreviewConsoleEntry {
   [key: string]: unknown
 }
 
+export interface PreviewNavState {
+  projectId: string
+  url: string
+  canGoBack: boolean
+  canGoForward: boolean
+  title?: string
+}
+
 export const previewShow = async (payload: { projectId: string; url?: string; [key: string]: unknown }): Promise<SimpleResult> => {
   if (!isElectron()) return { success: false, error: 'Preview requires desktop app' }
   return invoke<SimpleResult>('previewShow', payload)
@@ -36,6 +44,27 @@ export const previewSetBounds = async (projectId: string, bounds: PreviewBounds)
 export const previewNavigate = async (projectId: string, url: string): Promise<SimpleResult> => {
   if (!isElectron()) return { success: false, error: 'Preview requires desktop app' }
   return invoke<SimpleResult>('previewNavigate', projectId, url)
+}
+
+export const previewGetState = async (projectId: string): Promise<{ success: boolean; data?: PreviewNavState; error?: string }> => {
+  if (!isElectron()) return { success: false, error: 'Preview requires desktop app' }
+  return invoke<{ success: boolean; data?: PreviewNavState; error?: string }>('previewGetState', projectId)
+}
+
+export const previewBack = async (projectId: string): Promise<SimpleResult> => {
+  if (!isElectron()) return { success: false, error: 'Preview requires desktop app' }
+  return invoke<SimpleResult>('previewBack', projectId)
+}
+
+export const previewForward = async (projectId: string): Promise<SimpleResult> => {
+  if (!isElectron()) return { success: false, error: 'Preview requires desktop app' }
+  return invoke<SimpleResult>('previewForward', projectId)
+}
+
+/** Push channel — live URL/navigation state pushed from the embedded preview. */
+export const onPreviewUrlUpdated = (callback: (state: PreviewNavState) => void): (() => void) => {
+  if (!isElectron()) return () => {}
+  return subscribe('onPreviewUrlUpdated', (state) => callback(state as PreviewNavState))
 }
 
 export const previewReload = async (projectId: string): Promise<SimpleResult> => {

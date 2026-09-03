@@ -6,6 +6,18 @@ import type { CredentialManager } from './CredentialManager'
 interface PreviewEntry {
   view: WebContentsViewType
   url: string | null
+  canGoBack: boolean
+  canGoForward: boolean
+  title: string
+}
+
+/** Snapshot pushed to the renderer whenever the preview URL/state changes. */
+export interface PreviewNavState {
+  projectId: string
+  url: string
+  canGoBack: boolean
+  canGoForward: boolean
+  title: string
 }
 
 interface PreviewBounds {
@@ -184,9 +196,50 @@ class PreviewManager {
 
     this.win.contentView.addChildView(view)
     view.setVisible(false)
-    entry = { view, url: null }
+    entry = { view, url: null, canGoBack: false, canGoForward: false, title: '' }
+
+    // Keep the renderer's mini-browser in sync with the actual page state so
+    // the address bar reflects the URL currently being viewed and can offer
+    // back/forward. `did-navigate` covers cross-document navigations (including
+    // the initial load after loadURL/navigate); `did-navigate-in-page` covers
+    // hash/spa changes that don't hit the document.
+    const pushState = (): void => {
+      const url = view.webContents.getURL() || entry!.url || ''
+      entry!.url = url
+      entry!.title = view.webContents.getTitle?.() || ''
+      this.pushNavState(projectId)
+    }
+    view.webContents.on('did-navigate', pushState)
+    view.webContents.on('did-navigate-in-page', pushState)
+    view.webContents.on('page-title-updated', (_e: Electron.Event, title: string) => {
+      entry!.title = title
+      this.pushNavState(projectId)
+    })
+
     this.views.set(projectId, entry)
     return entry
+  }
+
+  /**
+   * Push the current navigation state of a preview to the renderer so it can
+   * mirror the live URL, title and back/forward capability.
+   */
+  pushNavState(projectId: string) {
+    const entry = this.views.get(projectId)
+    if (!entry) return
+    const canGoBack = entry.view.webContents.navigationHistory?.canGoBack?.() ?? false
+    const canGoForward = entry.view.webContents.navigationHistory?.canGoForward?.() ?? false
+    entry.canGoBack = canGoBack
+    entry.canGoForward = canGoForward
+    if (this.win && !this.win.isDestroyed()) {
+      this.win.webContents.send('preview-url-updated', {
+        projectId,
+        url: entry.url || '',
+        title: entry.title,
+        canGoBack,
+        canGoForward,
+      } satisfies PreviewNavState)
+    }
   }
 
   /**
@@ -255,6 +308,37 @@ class PreviewManager {
     entry.view.webContents.loadURL(url).catch((error) => {
       console.error(`[Preview] Navigate failed:`, error)
     })
+    return { success: true }
+  }
+
+  /** Return the current navigation state (url, title, back/forward) of a preview. */
+  getState(projectId: string): { success: boolean; data?: PreviewNavState; error?: string } {
+    const entry = this.views.get(projectId)
+    if (!entry) return { success: false, error: 'Preview not created yet' }
+    this.pushNavState(projectId)
+    return {
+      success: true,
+      data: {
+        projectId,
+        url: entry.url || '',
+        title: entry.title,
+        canGoBack: entry.canGoBack,
+        canGoForward: entry.canGoForward,
+      },
+    }
+  }
+
+  back(projectId: string): { success: boolean; error?: string } {
+    const view = this.getView(projectId)
+    if (!view) return { success: false, error: 'Preview not created yet' }
+    view.webContents.goBack?.()
+    return { success: true }
+  }
+
+  forward(projectId: string): { success: boolean; error?: string } {
+    const view = this.getView(projectId)
+    if (!view) return { success: false, error: 'Preview not created yet' }
+    view.webContents.goForward?.()
     return { success: true }
   }
 

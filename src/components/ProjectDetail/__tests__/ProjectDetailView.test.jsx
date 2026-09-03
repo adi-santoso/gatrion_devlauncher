@@ -14,6 +14,7 @@ vi.mock('../AppPreviewTab', () => ({
 
 vi.mock('../LogsTab', () => ({ default: () => <div data-testid="logs-tab">Logs</div> }))
 vi.mock('../CustomCommands', () => ({ default: () => null }))
+vi.mock('../../Terminal/InteractiveTerminal', () => ({ default: ({ cwd }) => <div data-testid="interactive-terminal" data-cwd={cwd}>Terminal</div> }))
 vi.mock('../EnvironmentTab', () => ({ default: () => <div data-testid="env-tab">Env</div> }))
 vi.mock('../SettingsTab', () => ({ default: () => <div data-testid="settings-tab">Settings</div> }))
 vi.mock('../ProjectDetailHeader', () => ({ default: () => <div>Header</div> }))
@@ -51,6 +52,43 @@ describe('ProjectDetailView preview mounting', () => {
 
     rerender(<ProjectDetailView project={projectA} keepPreviewAlive visible projects={[projectA]} />)
     expect(screen.getByTestId('preview-a')).toHaveAttribute('data-active', 'true')
+  })
+
+  it('spawns an interactive terminal into the project folder from the Terminal tab', () => {
+    const { rerender } = render(
+      <ProjectDetailView project={projectA} keepPreviewAlive={false} projects={[projectA]} />
+    )
+    fireEvent.click(screen.getByRole('tab', { name: 'Terminal' }))
+    rerender(<ProjectDetailView project={projectA} keepPreviewAlive={false} projects={[projectA]} />)
+    expect(screen.getAllByTestId('interactive-terminal')).toHaveLength(1)
+    expect(screen.getAllByTestId('interactive-terminal')[0]).toHaveAttribute('data-cwd', 'C:/alpha')
+  })
+
+  it('skips the interactive terminal when the project has no path', () => {
+    const { rerender } = render(
+      <ProjectDetailView project={{ id: 'c', name: 'Gamma', type: 'NODEJS' }} keepPreviewAlive={false} projects={[]} />
+    )
+    fireEvent.click(screen.getByRole('tab', { name: 'Terminal' }))
+    rerender(<ProjectDetailView project={{ id: 'c', name: 'Gamma', type: 'NODEJS' }} keepPreviewAlive={false} projects={[]} />)
+    expect(screen.queryByTestId('interactive-terminal')).not.toBeInTheDocument()
+    expect(screen.getByTestId('logs-tab')).toBeInTheDocument()
+  })
+
+  it('persists each project shell independently across navigation', () => {
+    const { rerender } = render(
+      <ProjectDetailView project={projectA} keepPreviewAlive projects={[projectA, projectB]} />
+    )
+    fireEvent.click(screen.getByRole('tab', { name: 'Terminal' }))
+    rerender(<ProjectDetailView project={projectA} keepPreviewAlive projects={[projectA, projectB]} />)
+    expect(screen.getAllByTestId('interactive-terminal')).toHaveLength(1)
+
+    rerender(<ProjectDetailView project={projectB} keepPreviewAlive projects={[projectA, projectB]} />)
+    const cwds = screen.getAllByTestId('interactive-terminal').map((el) => el.dataset.cwd)
+    expect(cwds).toContain('C:/alpha')
+    expect(cwds).toContain('C:/beta')
+
+    rerender(<ProjectDetailView project={projectA} keepPreviewAlive projects={[projectA, projectB]} />)
+    expect(screen.getAllByTestId('interactive-terminal')).toHaveLength(2)
   })
 
   it('keep-alive mode keeps previous projects previews mounted when switching projects', () => {

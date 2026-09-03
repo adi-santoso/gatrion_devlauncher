@@ -19,6 +19,9 @@ function makePreviewManager() {
     clearSiteData: vi.fn(async () => ({ success: true })),
     nudge: vi.fn(async () => ({ success: true })),
     destroy: vi.fn(async () => ({ success: true })),
+    getState: vi.fn(async () => ({ success: true, data: { projectId: 'p1', url: 'http://localhost:5173/' } })),
+    back: vi.fn(async () => ({ success: true })),
+    forward: vi.fn(async () => ({ success: true })),
   }
 }
 
@@ -71,6 +74,15 @@ describe('previewHandlers', () => {
 
     await ipcMain._handlers.get('preview-destroy')(fakeEvent, 'p1')
     expect(pm.destroy).toHaveBeenCalledWith('p1')
+
+    await ipcMain._handlers.get('preview-get-state')(fakeEvent, 'p1')
+    expect(pm.getState).toHaveBeenCalledWith('p1')
+
+    await ipcMain._handlers.get('preview-back')(fakeEvent, 'p1')
+    expect(pm.back).toHaveBeenCalledWith('p1')
+
+    await ipcMain._handlers.get('preview-forward')(fakeEvent, 'p1')
+    expect(pm.forward).toHaveBeenCalledWith('p1')
   })
 
   test('preview-nudge rejects an empty project id at the validation layer', async () => {

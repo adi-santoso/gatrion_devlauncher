@@ -13,6 +13,7 @@ import GitTab from './GitTab';
 import ScriptsTab from './ScriptsTab';
 import DependenciesTab from './DependenciesTab';
 import AnalyticsTab from './AnalyticsTab';
+import InteractiveTerminal from '../Terminal/InteractiveTerminal';
 import type { ViewProject } from '../Dashboard/ProjectCard';
 import type { ProcessLogLine } from '../../data/processes';
 import type { AppConfig } from '../../types/shared';
@@ -77,6 +78,16 @@ export default function ProjectDetailView({
       setVisitedIds((prev) => (prev.includes(project.id) ? prev : [...prev, project.id]));
     }
   }, [keepPreviewAlive, project?.id]);
+
+  // Persistent per-project shells: once a project's Terminal tab is opened,
+  // its InteractiveTerminal stays mounted (hidden for other projects) so the
+  // underlying PTY keeps running even when navigating between projects.
+  const [openTerminals, setOpenTerminals] = useState<string[]>([]);
+  useEffect(() => {
+    if (activeTab === 'terminal' && project?.id && project?.path) {
+      setOpenTerminals((prev) => (prev.includes(project.id) ? prev : [...prev, project.id]));
+    }
+  }, [activeTab, project?.id, project?.path]);
 
   // Sync local fullscreen state when prop changes (functional updater keeps
   // the effect free of a `fullscreen` reference so it only runs on prop change).
@@ -153,7 +164,17 @@ export default function ProjectDetailView({
 
       {!fullscreen && (
         <>
-          <div className={activeTab === 'terminal' ? 'block' : 'hidden'}>
+          <div className={activeTab === 'terminal' ? 'block space-y-5' : 'hidden'}>
+            {openTerminals.map((id) => {
+              const tProject = projects.find((p) => p.id === id);
+              const active = activeTab === 'terminal' && id === project?.id;
+              if (!tProject?.path) return null;
+              return (
+                <div key={id} className={active ? 'block' : 'hidden'}>
+                  <InteractiveTerminal cwd={tProject.path} fontSize={terminalConfig?.fontSize} />
+                </div>
+              );
+            })}
             <CustomCommands project={project}/>
             <LogsTab logs={combinedLogs} autoScroll={autoScroll} onAutoScrollChange={onAutoScrollChange} onClear={onClearLogs} fontSize={terminalConfig?.fontSize}/>
           </div>

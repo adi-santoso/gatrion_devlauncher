@@ -64,6 +64,9 @@ const CHANNEL_RULES: Record<string, ArgRule[]> = {
     ['url', 'string', { minLength: 1, maxLength: 8192 }],
   ],
   'preview-reload': [['projectId', 'string', { minLength: 1 }]],
+  'preview-get-state': [['projectId', 'string', { minLength: 1 }]],
+  'preview-back': [['projectId', 'string', { minLength: 1 }]],
+  'preview-forward': [['projectId', 'string', { minLength: 1 }]],
   'preview-zoom': [
     ['projectId', 'string', { minLength: 1 }],
     ['zoomLevel', 'number'],

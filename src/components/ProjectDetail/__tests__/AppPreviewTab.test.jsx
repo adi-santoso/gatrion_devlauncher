@@ -1,5 +1,5 @@
 import React from 'react'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 // AppPreviewTab drives the native WebContentsView through the IPC layer; stub
@@ -14,6 +14,11 @@ vi.mock('../../../utils/ipcRenderer', () => ({
   previewClearData: vi.fn(async () => ({ success: true })),
   previewToggleDevTools: vi.fn(async () => ({ success: true })),
   previewDestroy: vi.fn(async () => ({ success: true })),
+  previewNavigate: vi.fn(async () => ({ success: true })),
+  previewGetState: vi.fn(async () => ({ success: true, data: { url: 'http://localhost:3000', canGoBack: false, canGoForward: false } })),
+  previewBack: vi.fn(async () => ({ success: true })),
+  previewForward: vi.fn(async () => ({ success: true })),
+  onPreviewUrlUpdated: vi.fn(() => () => {}),
   openExternalUrl: vi.fn(async () => ({ success: true })),
 }))
 
@@ -100,5 +105,54 @@ describe('AppPreviewTab native view focus handling', () => {
     fireEvent.focus(window)
     expect(ipc.previewNudge).not.toHaveBeenCalled()
     expect(ipc.previewShow).not.toHaveBeenCalled()
+  })
+})
+
+describe('AppPreviewTab editable address bar', () => {
+  it('reads the initial URL from the native view state', async () => {
+    render(<AppPreviewTab project={project} />)
+    await waitFor(() => {
+      expect(screen.getByLabelText('Preview address')).toHaveValue('http://localhost:3000')
+    })
+  })
+
+  it('navigates to a bare path resolved onto the app origin on Enter', async () => {
+    render(<AppPreviewTab project={project} />)
+    const input = screen.getByLabelText('Preview address')
+
+    fireEvent.change(input, { target: { value: 'login' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+
+    expect(ipc.previewNavigate).toHaveBeenCalledWith('p1', 'http://localhost:3000/login')
+  })
+
+  it('navigates to a bare host:port with an http scheme on Enter', async () => {
+    render(<AppPreviewTab project={project} />)
+    const input = screen.getByLabelText('Preview address')
+
+    fireEvent.change(input, { target: { value: 'localhost:9999' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+
+    expect(ipc.previewNavigate).toHaveBeenCalledWith('p1', 'http://localhost:9999')
+  })
+
+  it('reverts to the live URL when the input loses focus without submitting', async () => {
+    render(<AppPreviewTab project={project} />)
+    await waitFor(() => {
+      expect(screen.getByLabelText('Preview address')).toHaveValue('http://localhost:3000')
+    })
+    const input = screen.getByLabelText('Preview address')
+
+    fireEvent.change(input, { target: { value: 'garbage' } })
+    fireEvent.blur(input)
+
+    expect(input).toHaveValue('http://localhost:3000')
+    expect(ipc.previewNavigate).not.toHaveBeenCalled()
+  })
+
+  it('disables the address input for a stopped project (iframe fallback)', async () => {
+    render(<AppPreviewTab project={{ ...project, status: 'stopped' }} />)
+    await act(async () => {})
+    expect(screen.getByLabelText('Preview address')).toHaveProperty('readOnly', true)
   })
 })

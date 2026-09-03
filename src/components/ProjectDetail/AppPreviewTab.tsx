@@ -15,6 +15,27 @@ const statusClasses: Record<string, string> = {
 
 const nativeAvailable = (): boolean => typeof window !== 'undefined' && window.electron?.previewShow !== undefined;
 
+/**
+ * Resolve a user-typed address into an absolute URL for the preview, tolerant
+ * of the shorthand commonly typed in browsers: a bare relative path is joined
+ * onto the app's origin, a bare host (or host:port) is given an http scheme.
+ */
+function resolvePreviewAddress(raw: string, base: string): string {
+  const s = (raw || '').trim();
+  if (!s) return base || '';
+  if (/^https?:\/\//i.test(s)) return s;
+  let baseUrl: URL | null = null;
+  try { baseUrl = new URL(base); } catch { baseUrl = null; }
+  const origin = baseUrl?.origin || '';
+  // A string that looks like a host (has a port, or starts with a known local
+  // hostname) is treated as a full URL; otherwise it's a path on the app origin.
+  const looksHost = /:\d{1,5}(\/|$)/.test(s) || s.startsWith('localhost') || s.startsWith('127.0.0.1') || s.startsWith('0.0.0.0');
+  if (!looksHost && origin) {
+    return `${origin}${s.startsWith('/') ? s : `/${s}`}`;
+  }
+  return `http://${s}`;
+}
+
 /** Project may be a placeholder `{ id }` while keep-alive previews are mounted. */
 export type PreviewProject = ViewProject | { id: string };
 
@@ -53,6 +74,13 @@ export default function AppPreviewTab({
   const isRunning = status === 'running';
   const appUrl = previewUrl((project as ViewProject)?.port, (project as ViewProject)?.previewHost);
   const projectId = project?.id;
+
+  // Editable address bar + live navigation state (native WebContentsView only).
+  const [address, setAddress] = useState<string>(appUrl || '');
+  const [navUrl, setNavUrl] = useState<string>(appUrl || '');
+  const [canGoBack, setCanGoBack] = useState(false);
+  const [canGoForward, setCanGoForward] = useState(false);
+  const editingRef = useRef(false);
 
   const useNative = nativeMode && !nativeFailed && isRunning && appUrl != null;
 
@@ -164,6 +192,57 @@ export default function AppPreviewTab({
     }
   }, [useNative, zoomLevel, projectId]);
 
+  // Mirror the live URL/back-forward state of the embedded preview into the
+  // address bar, and read the initial state once a native view exists.
+  useEffect(() => {
+    if (!useNative || !projectId) return undefined;
+    let disposed = false;
+    const unsub = ipc.onPreviewUrlUpdated(({ projectId: pid, url, canGoBack: b, canGoForward: f }) => {
+      if (disposed || pid !== projectId) return;
+      setNavUrl(url);
+      setCanGoBack(b);
+      setCanGoForward(f);
+      if (!editingRef.current) setAddress(url);
+    });
+    void ipc.previewGetState(projectId).then((res) => {
+      if (disposed || !res?.success || !res.data) return;
+      const url = res.data.url || appUrl || '';
+      setNavUrl(url);
+      setCanGoBack(res.data.canGoBack);
+      setCanGoForward(res.data.canGoForward);
+      if (!editingRef.current) setAddress(url);
+    });
+    return () => {
+      disposed = true;
+      unsub();
+    };
+  }, [useNative, projectId, appUrl]);
+
+  const handleAddressSubmit = (): void => {
+    editingRef.current = false;
+    const current = navUrl || appUrl || '';
+    const target = resolvePreviewAddress(address, current);
+    if (!target) { setAddress(current); return; }
+    if (useNative) {
+      setNavUrl(target);
+      void ipc.previewNavigate(projectId, target);
+    }
+    setAddress(target);
+  };
+
+  const handleAddressBlur = (): void => {
+    editingRef.current = false;
+    setAddress(navUrl || appUrl || '');
+  };
+
+  const handleBack = (): void => {
+    if (useNative) void ipc.previewBack(projectId);
+  };
+
+  const handleForward = (): void => {
+    if (useNative) void ipc.previewForward(projectId);
+  };
+
   const handleReload = (): void => {
     if (useNative) {
       ipc.previewReload(projectId);
@@ -173,8 +252,9 @@ export default function AppPreviewTab({
   };
 
   const handleOpenExternally = (): void => {
-    if (appUrl) {
-      ipc.openExternalUrl(appUrl);
+    const url = navUrl || appUrl;
+    if (url) {
+      ipc.openExternalUrl(url);
     }
   };
 
@@ -215,6 +295,39 @@ export default function AppPreviewTab({
   const projectName = 'name' in project ? project.name : project.id;
   const projectType = 'type' in project ? project.type : 'CUSTOM';
 
+  // Editable address input shared by the normal and fullscreen mini-browser
+  // bars. Read-only when a native view is unavailable (iframe fallback).
+  const addressEditable = useNative && isRunning;
+  const addressInputEl = (
+    <input
+      value={address}
+      readOnly={!addressEditable}
+      onChange={(e) => {
+        editingRef.current = true;
+        setAddress(e.target.value);
+      }}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') handleAddressSubmit();
+      }}
+      onBlur={handleAddressBlur}
+      aria-label="Preview address"
+      className="flex-1 min-w-0 bg-transparent text-xs font-mono text-ink focus:outline-none placeholder:text-ink-faint"
+      placeholder={appUrl || 'No app port configured'}
+    />
+  );
+
+  const navButtonClass = 'w-7 h-7 rounded-md flex items-center justify-center text-ink-faint hover:text-ink hover:bg-surface-3 disabled:opacity-30 disabled:cursor-not-allowed transition-colors shrink-0';
+  const backBtn = useNative ? (
+    <button type="button" onClick={handleBack} disabled={!canGoBack} title="Back" className={navButtonClass}>
+      <Icon name="chevronLeft" size={14} />
+    </button>
+  ) : null;
+  const forwardBtn = useNative ? (
+    <button type="button" onClick={handleForward} disabled={!canGoForward} title="Forward" className={navButtonClass}>
+      <Icon name="chevronRight" size={14} />
+    </button>
+  ) : null;
+
   return (
     <div
       className={
@@ -247,6 +360,14 @@ export default function AppPreviewTab({
             <span className="text-ink-faint truncate hidden sm:inline">
               {projectType} {'port' in project && project.port != null ? `· :${project.port}` : ''} {'pid' in project && project.pid != null ? `· PID ${project.pid}` : ''}
             </span>
+          </div>
+
+          {/* Editable Address Bar (fullscreen) */}
+          <div className="flex-1 min-w-0 mx-2 h-7 bg-base border border-border rounded-md px-2 flex items-center gap-1.5 text-xs font-mono">
+            {backBtn}
+            {forwardBtn}
+            <span className={`w-2 h-2 rounded-full ${isRunning ? 'bg-success' : 'bg-ink-faint'} shrink-0`} />
+            {addressInputEl}
           </div>
 
           {/* Right Action Buttons */}
@@ -324,6 +445,8 @@ export default function AppPreviewTab({
         /* Normal Mode Mini Browser Bar */
         <div className="flex items-center justify-between gap-3 px-4 py-2 bg-surface-2 border-b border-border flex-wrap">
           <div className="flex items-center gap-1">
+            {backBtn}
+            {forwardBtn}
             <button
               type="button"
               onClick={handleReload}
@@ -335,10 +458,10 @@ export default function AppPreviewTab({
             </button>
           </div>
 
-          {/* Address Bar */}
+          {/* Editable Address Bar */}
           <div className="flex-1 min-w-[200px] max-w-xl h-7 bg-base border border-border rounded-md px-3 flex items-center gap-2 text-xs font-mono">
-            <span className={`w-2 h-2 rounded-full ${isRunning ? 'bg-success' : 'bg-ink-faint'}`} />
-            <span className="text-ink-soft truncate">{appUrl || 'No app port configured'}</span>
+            <span className={`w-2 h-2 rounded-full ${isRunning ? 'bg-success' : 'bg-ink-faint'} shrink-0`} />
+            {addressInputEl}
           </div>
 
           {/* Right Controls (Zoom + Open externally + Toggle Fullscreen) */}

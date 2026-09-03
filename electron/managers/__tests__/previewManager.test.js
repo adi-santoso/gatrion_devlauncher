@@ -8,14 +8,19 @@ import PreviewManager from '../PreviewManager'
 
 function makeWindow() {
   const state = new Map()
-  return {
+  const win = {
     isDestroyed: () => false,
     contentView: {
       addChildView: (view) => state.set(view, true),
       removeChildView: (view) => state.delete(view),
     },
+    pushes: [],
+    webContents: {
+      send: (channel, payload) => { win.pushes.push({ channel, payload }) },
+    },
     __state: state,
   }
+  return win
 }
 
 const bounds = { x: 10, y: 20, width: 800, height: 600 }
@@ -227,6 +232,59 @@ describe('PreviewManager', () => {
     manager.setWindow(makeWindow())
     expect(manager.destroy('ghost').success).toBe(true)
     expect(manager.reload('ghost').success).toBe(false)
+  })
+
+  test('navigation events push live URL/back-forward state to the renderer', () => {
+    const manager = new PreviewManager()
+    const win = makeWindow()
+    manager.setWindow(win)
+    manager.show({ projectId: 'p1', url: 'http://localhost:3000', bounds })
+    const view = manager.getView('p1')
+
+    view.navBack = true
+    view.emitNavigate('http://localhost:3000/login')
+    const push = win.pushes.find((p) => p.channel === 'preview-url-updated')
+    expect(push.payload).toMatchObject({
+      projectId: 'p1',
+      url: 'http://localhost:3000/login',
+      canGoBack: true,
+    })
+
+    // In-page navigation (hash/SPA) also refreshes the address.
+    view.emitNavigateInPage('http://localhost:3000/login#/settings')
+    expect(win.pushes.at(-1).payload.url).toBe('http://localhost:3000/login#/settings')
+
+    // Title updates flow through as well.
+    view.emitTitle('Login — MyApp')
+    expect(win.pushes.at(-1).payload.title).toBe('Login — MyApp')
+  })
+
+  test('getState returns the current navigation snapshot and errors for unknown projects', () => {
+    const manager = new PreviewManager()
+    const win = makeWindow()
+    manager.setWindow(win)
+    manager.show({ projectId: 'p1', url: 'http://localhost:3000', bounds })
+
+    const got = manager.getState('p1')
+    expect(got.success).toBe(true)
+    expect(got.data).toMatchObject({ projectId: 'p1', url: 'http://localhost:3000' })
+
+    expect(manager.getState('ghost').success).toBe(false)
+  })
+
+  test('back and forward drive the underlying webContents and error on unknown projects', () => {
+    const manager = new PreviewManager()
+    manager.setWindow(makeWindow())
+    manager.show({ projectId: 'p1', url: 'http://localhost:3000', bounds })
+    const view = manager.getView('p1')
+
+    expect(manager.back('p1').success).toBe(true)
+    expect(view.goBackCalled).toBe(true)
+    expect(manager.forward('p1').success).toBe(true)
+    expect(view.goForwardCalled).toBe(true)
+
+    expect(manager.back('ghost').success).toBe(false)
+    expect(manager.forward('ghost').success).toBe(false)
   })
 })
 

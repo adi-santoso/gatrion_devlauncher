@@ -80,7 +80,7 @@ class FakeWebContentsView {
     this.invalidateCount = 0
     this.executedScripts = []
     this.webContents = {
-      loadURL: (url) => { this.loadedUrls.push(url); return Promise.resolve() },
+      loadURL: (url) => { this.loadedUrls.push(url); this.currentUrl = url; return Promise.resolve() },
       reload: () => { this.reloadCount += 1 },
       setZoomFactor: (f) => { this.zoomFactor = f },
       setWindowOpenHandler: () => {},
@@ -93,6 +93,14 @@ class FakeWebContentsView {
       isDestroyed: () => false,
       close: () => {},
       invalidate: () => { this.invalidateCount += 1 },
+      getURL: () => this.currentUrl || '',
+      getTitle: () => this.currentTitle || '',
+      goBack: () => { this.goBackCalled = true },
+      goForward: () => { this.goForwardCalled = true },
+      navigationHistory: {
+        canGoBack: () => Boolean(this.navBack),
+        canGoForward: () => Boolean(this.navForward),
+      },
     }
   }
   setVisible(v) { this.visible = v }
@@ -107,8 +115,20 @@ class FakeWebContentsView {
     this.consoleHandlers['did-finish-load']?.()
   }
   emitNavigate(url) {
+    this.currentUrl = url
     const handler = this.consoleHandlers['did-navigate']
     if (handler) handler(null, url)
+  }
+  emitNavigateInPage(url) {
+    this.currentUrl = url
+    this.currentTitle = url
+    const handler = this.consoleHandlers['did-navigate-in-page']
+    if (handler) handler(null, url, true, 1, 2)
+  }
+  emitTitle(title) {
+    this.currentTitle = title
+    const handler = this.consoleHandlers['page-title-updated']
+    if (handler) handler(null, title)
   }
 }
 
