@@ -135,7 +135,7 @@ export default function OmpExtensionUiModal() {
           </div>
           <div className="min-w-0 flex-1">
             <h3 className="font-display font-bold text-sm">{active.title || t('agent.extUi.title')}</h3>
-            {active.message && !['input', 'editor', 'select', 'notify'].includes(active.method) && (
+            {active.message && !['input', 'editor', 'select', 'notify', 'confirm'].includes(active.method) && (
               <p className="text-xs text-ink-faint mt-1 leading-relaxed">{active.message}</p>
             )}
           </div>

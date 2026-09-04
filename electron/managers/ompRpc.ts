@@ -45,6 +45,11 @@ export interface RpcEntry {
 export class OmpRpcTransport {
   rpcs = new Map<string, RpcEntry>()
   IDLE_TIMEOUT_MS = 5 * 60 * 1000
+  // Desired auto-restart state per project, applied when the RPC entry is
+  // created. `setAutoRestart` can be called before the first spawn (e.g. by
+  // OmpManager.ensureRpc, which enables it by default) — without this the flag
+  // would silently no-op and crashes of the initial process would never restart.
+  private autoRestartDefaults = new Map<string, boolean>()
   private onEvent: (projectId: string, event: unknown) => void
   private onCrash?: (projectId: string) => void
 
@@ -103,10 +108,11 @@ export class OmpRpcTransport {
       entry!.pendingExtensionRequests.clear()
     }
     child.on('error', (error: Error) => {
+      const wasReady = entry.ready
       this.onEvent(projectId, { type: 'rpc_error', error: error.message })
       rejectPending('omp process failed to start')
       fail()
-      this.maybeRestart(projectId)
+      this.maybeRestart(projectId, wasReady)
     })
     child.stdout.on('data', (chunk: Buffer) => {
       this._onData(projectId, chunk)
@@ -115,18 +121,24 @@ export class OmpRpcTransport {
       this._onData(projectId, chunk, true)
     })
     child.on('exit', (code: number | null) => {
+      const wasReady = entry.ready
       entry.ready = false
       entry.proc = null
       rejectPending(`omp process exited${code === null ? '' : ` (code ${code})`} before responding`)
       this.onEvent(projectId, { type: 'rpc_exit', code })
-      this.maybeRestart(projectId)
+      this.maybeRestart(projectId, wasReady)
     })
   }
 
-  /** Restart a crashed RPC process with backoff, preserving the active session. */
-  private maybeRestart(projectId: string) {
+  /**
+   * Restart a crashed RPC process with backoff, preserving the active session.
+   * Only processes that were previously ready are restarted — a process that
+   * never reached `ready` (broken binary, bad provider config) must fail fast
+   * instead of looping forever.
+   */
+  private maybeRestart(projectId: string, wasReady: boolean) {
     const entry = this.rpcs.get(projectId)
-    if (!entry || !entry.autoRestart || entry.proc) return
+    if (!entry || !entry.autoRestart || entry.proc || !wasReady) return
     const backoff = Math.min(entry.restartBackoff, 15000)
     entry.restartBackoff = Math.min(backoff * 2, 30000)
     this.onEvent(projectId, { type: 'rpc_restarting', delayMs: backoff })
@@ -171,7 +183,7 @@ export class OmpRpcTransport {
       lastActive: Date.now(),
       buffer: '',
       protocolVersion: 1,
-      autoRestart: false,
+      autoRestart: this.autoRestartDefaults.get(projectId) || false,
       restartBackoff: 1000,
       projectId,
       binaryPath,
@@ -213,9 +225,11 @@ export class OmpRpcTransport {
         entry!.pending.clear()
       }
       child.on('error', (error: Error) => {
+        const wasReady = entry!.ready
         this.onEvent(projectId, { type: 'rpc_error', error: error.message })
         rejectPending('omp process failed to start')
         fail(error)
+        this.maybeRestart(projectId, wasReady)
       })
       child.stdout.on('data', (chunk: Buffer) => {
         if (!entry!.ready && !startupError) {
@@ -234,11 +248,13 @@ export class OmpRpcTransport {
         this._onData(projectId, chunk, true)
       })
       child.on('exit', (code: number | null) => {
+        const wasReady = entry!.ready
         entry!.ready = false
         entry!.proc = null
         if (!settled) fail(new Error(startupError || `omp exited with code ${code} before starting`))
         rejectPending(`omp process exited${code === null ? '' : ` (code ${code})`} before responding`)
         this.onEvent(projectId, { type: 'rpc_exit', code })
+        this.maybeRestart(projectId, wasReady)
       })
       // Wait for the ready frame before resolving.
       const timeout = setTimeout(() => {
@@ -334,6 +350,9 @@ export class OmpRpcTransport {
 
   /** Enable or disable auto-restart on crash. */
   setAutoRestart(projectId: string, enabled: boolean) {
+    // Remember for the next spawn — callers may set this before the entry
+    // exists (OmpManager.ensureRpc enables it by default on every ensure).
+    this.autoRestartDefaults.set(projectId, enabled)
     const entry = this.rpcs.get(projectId)
     if (!entry) return
     entry.autoRestart = enabled

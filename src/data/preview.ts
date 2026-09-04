@@ -26,6 +26,20 @@ export interface PreviewNavState {
   title?: string
 }
 
+/**
+ * Device-emulation override applied to the native preview view via CDP
+ * (`Emulation.setDeviceMetricsOverride` + touch + user agent). `mobile`
+ * switches the viewport semantics to a touch device; `deviceScaleFactor`
+ * emulates the device pixel ratio (e.g. 3 for modern phones).
+ */
+export interface DeviceEmulationConfig {
+  width: number
+  height: number
+  deviceScaleFactor: number
+  mobile: boolean
+  userAgent?: string
+}
+
 export const previewShow = async (payload: { projectId: string; url?: string; [key: string]: unknown }): Promise<SimpleResult> => {
   if (!isElectron()) return { success: false, error: 'Preview requires desktop app' }
   return invoke<SimpleResult>('previewShow', payload)
@@ -95,6 +109,15 @@ export const previewDestroy = async (projectId: string): Promise<SimpleResult> =
 export const previewToggleDevTools = async (projectId: string): Promise<SimpleResult> => {
   if (!isElectron()) return { success: false, error: 'Preview requires desktop app' }
   return invoke<SimpleResult>('previewToggleDevTools', projectId)
+}
+
+/**
+ * Apply (or clear, when `null`) CDP device emulation on the native preview
+ * view: viewport metrics, touch support and user agent.
+ */
+export const previewSetDevice = async (projectId: string, config: DeviceEmulationConfig | null): Promise<SimpleResult> => {
+  if (!isElectron()) return { success: true }
+  return invoke<SimpleResult>('previewSetDevice', projectId, config)
 }
 
 /** Push channel — console output forwarded from the preview webview. */

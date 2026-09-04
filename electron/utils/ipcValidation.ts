@@ -71,6 +71,10 @@ const CHANNEL_RULES: Record<string, ArgRule[]> = {
     ['projectId', 'string', { minLength: 1 }],
     ['zoomLevel', 'number'],
   ],
+  'preview-set-device': [
+    ['projectId', 'string', { minLength: 1 }],
+    ['config', 'object', { optional: true }],
+  ],
   'preview-toggle-devtools': [['projectId', 'string', { minLength: 1 }]],
   'preview-clear-data': [['projectId', 'string', { minLength: 1 }]],
   'preview-nudge': [['projectId', 'string', { minLength: 1 }]],

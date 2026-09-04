@@ -400,3 +400,99 @@ describe('PreviewManager.nudge', () => {
     expect(manager.nudge('p1')).toEqual({ success: false, error: 'view detached' })
   })
 })
+
+describe('PreviewManager.setDevice (CDP emulation)', () => {
+  const commands = (view) => view.webContents.debugger.commands || []
+  const commandNames = (view) => commands(view).map((c) => c.method)
+
+  test('applies metrics + touch + UA overrides through the debugger', async () => {
+    const manager = new PreviewManager()
+    manager.setWindow(makeWindow())
+    manager.show({ projectId: 'p1', url: 'http://localhost:3000', bounds })
+    const view = manager.getView('p1')
+
+    const result = await manager.setDevice('p1', {
+      width: 393,
+      height: 852,
+      deviceScaleFactor: 3,
+      mobile: true,
+      userAgent: 'Mozilla/5.0 (iPhone…)',
+    })
+    expect(result.success).toBe(true)
+    expect(view.webContents.debugger.isAttached()).toBe(true)
+    expect(commandNames(view)).toEqual([
+      'Emulation.setDeviceMetricsOverride',
+      'Emulation.setTouchEmulationEnabled',
+      'Network.setUserAgentOverride',
+    ])
+    const [metrics] = commands(view)
+    expect(metrics.params).toMatchObject({
+      width: 393,
+      height: 852,
+      deviceScaleFactor: 3,
+      mobile: true,
+      screenWidth: 393,
+      screenHeight: 852,
+    })
+  })
+
+  test('non-mobile configs skip the UA override but still attach', async () => {
+    const manager = new PreviewManager()
+    manager.setWindow(makeWindow())
+    manager.show({ projectId: 'p1', url: 'http://localhost:3000', bounds })
+    const view = manager.getView('p1')
+
+    const result = await manager.setDevice('p1', { width: 768, height: 1024, deviceScaleFactor: 2, mobile: false })
+    expect(result.success).toBe(true)
+    expect(commandNames(view)).not.toContain('Network.setUserAgentOverride')
+    expect(commands(view)[1].params).toEqual({ enabled: false, maxTouchPoints: 1 })
+  })
+
+  test('null clears every override and detaches the debugger', async () => {
+    const manager = new PreviewManager()
+    manager.setWindow(makeWindow())
+    manager.show({ projectId: 'p1', url: 'http://localhost:3000', bounds })
+    const view = manager.getView('p1')
+
+    await manager.setDevice('p1', { width: 393, height: 852, deviceScaleFactor: 3, mobile: true })
+    const result = await manager.setDevice('p1', null)
+    expect(result.success).toBe(true)
+    expect(commandNames(view)).toEqual([
+      'Emulation.setDeviceMetricsOverride',
+      'Emulation.setTouchEmulationEnabled',
+      'Emulation.clearDeviceMetricsOverride',
+      'Emulation.setTouchEmulationEnabled',
+    ])
+    expect(view.webContents.debugger.isAttached()).toBe(false)
+  })
+
+  test('clear without an attached debugger is a no-op success', async () => {
+    const manager = new PreviewManager()
+    manager.setWindow(makeWindow())
+    manager.show({ projectId: 'p1', url: 'http://localhost:3000', bounds })
+    const view = manager.getView('p1')
+
+    const result = await manager.setDevice('p1', null)
+    expect(result.success).toBe(true)
+    expect(view.webContents.debugger.isAttached()).toBe(false)
+  })
+
+  test('rejects out-of-range dimensions without attaching the debugger', async () => {
+    const manager = new PreviewManager()
+    manager.setWindow(makeWindow())
+    manager.show({ projectId: 'p1', url: 'http://localhost:3000', bounds })
+    const view = manager.getView('p1')
+
+    const result = await manager.setDevice('p1', { width: 99999, height: 10, deviceScaleFactor: 1, mobile: false })
+    expect(result.success).toBe(false)
+    expect(result.error).toMatch(/Invalid device dimensions/)
+    expect(view.webContents.debugger.isAttached()).toBe(false)
+  })
+
+  test('errors gracefully for unknown projects', async () => {
+    const manager = new PreviewManager()
+    manager.setWindow(makeWindow())
+    const result = await manager.setDevice('ghost', { width: 1, height: 1, deviceScaleFactor: 1, mobile: false })
+    expect(result).toEqual({ success: false, error: 'Preview not created yet' })
+  })
+})

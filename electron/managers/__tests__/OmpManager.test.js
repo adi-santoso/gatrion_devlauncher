@@ -118,6 +118,27 @@ describe('OmpManager (mock omp RPC)', () => {
     await expect(request).rejects.toThrow(/exited/)
   }, 15000)
 
+  test('auto-restarts the RPC process after a mid-turn crash', async () => {
+    await manager.init()
+    const events = []
+    manager.on('event', ({ projectId, event }) => {
+      if (projectId === PROJECT_ID) events.push(event)
+    })
+
+    // The mock replies ok, streams agent_start, then exits(1) ~100ms later.
+    await manager.chat(PROJECT_ID, PROJECT_CWD, 'Trigger CRASH now')
+    await new Promise((resolve) => setTimeout(resolve, 300))
+    expect(events.some((event) => event.type === 'rpc_exit')).toBe(true)
+    expect(events.some((event) => event.type === 'rpc_restarting')).toBe(true)
+
+    // After the 1s backoff the process respawns and reaches ready again.
+    await new Promise((resolve) => setTimeout(resolve, 2500))
+    expect(events.some((event) => event.type === 'rpc_restarted')).toBe(true)
+    const entry = manager.rpcs.get(PROJECT_ID)
+    expect(entry?.ready).toBe(true)
+    expect(entry?.proc).toBeTruthy()
+  }, 20000)
+
   test('ensureRpc spawns the mock agent and reports ready', async () => {
     await manager.init()
     const entry = await manager.ensureRpc(PROJECT_ID, PROJECT_CWD)

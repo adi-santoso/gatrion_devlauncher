@@ -4,7 +4,7 @@ Semua perubahan penting pada project ini dicatat di file ini.
 
 Format mengikuti [Keep a Changelog](https://keepachangelog.com/id-ID/1.1.0/), dan project ini mengikuti [Semantic Versioning](https://semver.org/spec/v2.0.0.html) begitu versi rilis resmi ditetapkan.
 
-## [Unreleased]
+## [0.2.9] - 2026-09-04
 
 ### Added
 
@@ -14,6 +14,7 @@ Format mengikuti [Keep a Changelog](https://keepachangelog.com/id-ID/1.1.0/), da
 - **Password manager untuk embedded preview** — preview kini bisa menyimpan & mengisi otomatis kredensial login `layaknya browser`. Content script (di-inject tiap load) mendeteksi form login (tepat 1 password + 1 username, non-signup), menampilkan **dropdown "Saved accounts"** saat field username difokus (mendukung banyak akun per origin), menyimpan saat submit, dan mengisi otomatis saat akun dipilih. Kredensial di-encrypt dengan `safeStorage` ke `userData/preview-credentials.json` (tidak ikut backup/export). Bridge baru: preload sandboxed per-partition (`previewPreload`) + `CredentialManager` + 3 channel IPC (`preview-get-credentials` / `preview-save-credential` / `preview-remove-credential`) yang ter-wire ke validasi IPC terpusat.
 - **Browser-like address bar untuk preview** — address bar di Project Detail kini berperilaku seperti browser: menampilkan **URL yang sedang diakses secara live** (mengikuti `did-navigate` / `did-navigate-in-page`), **bisa diedit** untuk navigasi (Enter), dengan tombol **Back/Forward** dan resolve pintasan (path `login` → `http://localhost:3000/login`, `localhost:9999` → `http://localhost:9999`). Didukung channel baru `preview-get-state` / `preview-back` / `preview-forward` + push channel `preview-url-updated` (via `navigationHistory`), diberlakukan pada mode normal maupun fullscreen.
 - **Terminal interaktif per-project di Project Detail** — tab Terminal kini punya **shell interaktif sungguhan** (node-pty + xterm) yang ter-spawn di folder project, selain log read-only. Shell **tidak auto-spawn** saat tab dibuka — ada tombol **Start shell / Close shell** yang eksplisit, dan sekali di-start, shell persist per project saat berpindah antar project (hidden untuk project lain, PTY tetap hidup).
+- **Device simulator untuk embedded preview** — dropdown **Device** di address bar preview (mode normal & fullscreen) untuk menguji responsiveness: pilih preset (iPhone SE/14 Pro, Android Pixel 7, iPad, iPad Pro, Laptop) atau **Custom W×H** + tombol **rotate**, dan preview dirender di dalam **bezel perangkat** dengan viewport seukuran perangkat sungguhan (media query/breakpoint akurat). Lapisan CDP (`preview-set-device`) menambahkan emulasi `devicePixelRatio`, **touch**, dan **user-agent** mobile; pilihan tersimpan per project. Selama emulasi aktif tombol DevTools disembunyikan.
 
 ### Changed
 
@@ -36,6 +37,8 @@ Format mengikuti [Keep a Changelog](https://keepachangelog.com/id-ID/1.1.0/), da
 - **Dashboard project list lebih padat** — card project yang stopped/startable diringkas: box CPU/Memory "N/A" dan strip "No live activity" tidak dirender lagi (hanya muncul saat project jalan/starting/error), jadi workspace besar tidak lagi jadi dinding card tinggi. Ditambah **toggle Grid ⇄ List** di toolbar filter: mode List merender 1 baris kompak per project (logo, nama+tag, type/port, status pill, Start/Stop/Restart) — reuses logic force-stop delay yang sama, dan tetap hormati filter/sort/grouping + cap "Show all (N)".
 - **Crash blank screen saat bridge preload tertinggal** — `subscribe()` di `ipcCore` kini menahan diri bila method bridge tidak tersedia (mis. preload lama saat upgrade/HMR) alih-alih melempar `fn is not a function` yang menurunkan seluruh React tree menjadi layar putih; `onWindowCloseRequest` juga di-guard sama di layer data.
 - **Terminal interaktif di Project Detail tak terlihat** — `InteractiveTerminal` memakai `h-full` tanpa parent ber-tinggi tetap, sehingga tinggi wadah collapse ke 0 dan xterm tak tampil. Kontainer terminal kini dibungkus dengan tinggi tetap (`h-80` + border/card), selaras dengan Terminal Workspace.
+- **Auto-restart proses omp tidak pernah jalan** — flag `autoRestart` diset sebelum entry RPC dibuat sehingga `setAutoRestart` menjadi no-op; akibatnya proses omp yang crash di tengah turn tidak pernah di-restart (user harus memulai ulang sendiri) dan notice "restarting" tidak pernah muncul. Flag kini diingat per project dan diterapkan saat spawn, dengan guard `wasReady` agar binary yang gagal start tidak restart-loop.
+- **Pesan dialog extension UI (confirm) dirender dua kali** — judul area header dan body sama-sama menampilkan `message`, jadi teks "Do you approve this action?" tampil ganda. Pesan kini hanya dirender sekali (di body); judul tetap menampilkan title request.
 
 ## [0.2.7] - 2026-08-21
 

@@ -26,6 +26,7 @@ function setupPreviewHandlers(previewManager: PreviewManager) {
   handle('preview-forward', (_event, projectId: string) => previewManager.forward(projectId))
   handle('preview-reload', (_event, projectId: string) => previewManager.reload(projectId))
   handle('preview-zoom', (_event, projectId: string, zoomLevel: number) => previewManager.setZoom(projectId, zoomLevel))
+  handle('preview-set-device', (_event, projectId: string, config: unknown) => previewManager.setDevice(projectId, config))
   handle('preview-toggle-devtools', (_event, projectId: string) => previewManager.toggleDevTools(projectId))
   handle('preview-clear-data', (_event, projectId: string) => previewManager.clearSiteData(projectId))
   handle('preview-nudge', (_event, projectId: string) => previewManager.nudge(projectId))

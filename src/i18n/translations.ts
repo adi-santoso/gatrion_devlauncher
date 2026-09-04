@@ -209,6 +209,18 @@ export const translations: { en: TranslationTable; id: TranslationTable } = {
     'agent.extUi.confirm': 'Confirm',
     'agent.extUi.cancelAll': 'Cancel all ({count})',
     'agent.extUi.dismiss': 'Dismiss',
+
+    // Preview device simulator
+    'preview.device': 'Device',
+    'preview.fitWindow': 'Fit to window',
+    'preview.custom': 'Custom…',
+    'preview.rotate': 'Rotate (portrait/landscape)',
+    'preview.width': 'Width',
+    'preview.height': 'Height',
+    'preview.apply': 'Apply',
+    'preview.groupPhones': 'Phones',
+    'preview.groupTablets': 'Tablets',
+    'preview.groupLaptops': 'Laptops',
   },
   id: {
     // Navigation
@@ -413,6 +425,18 @@ export const translations: { en: TranslationTable; id: TranslationTable } = {
     'agent.extUi.confirm': 'Konfirmasi',
     'agent.extUi.cancelAll': 'Batalkan semua ({count})',
     'agent.extUi.dismiss': 'Tutup',
+
+    // Preview device simulator
+    'preview.device': 'Perangkat',
+    'preview.fitWindow': 'Sesuaikan jendela',
+    'preview.custom': 'Kustom…',
+    'preview.rotate': 'Putar (potret/lanskap)',
+    'preview.width': 'Lebar',
+    'preview.height': 'Tinggi',
+    'preview.apply': 'Terapkan',
+    'preview.groupPhones': 'Ponsel',
+    'preview.groupTablets': 'Tablet',
+    'preview.groupLaptops': 'Laptop',
   },
 };
 

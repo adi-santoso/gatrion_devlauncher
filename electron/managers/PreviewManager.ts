@@ -2,6 +2,7 @@ import type { BrowserWindow, WebContentsView as WebContentsViewType } from 'elec
 
 const { WebContentsView, session } = require('electron') as typeof import('electron')
 import type { CredentialManager } from './CredentialManager'
+import { applyDeviceEmulation, clearDeviceEmulation, sanitizeEmulationConfig } from './previewDeviceEmulation'
 
 interface PreviewEntry {
   view: WebContentsViewType
@@ -355,6 +356,27 @@ class PreviewManager {
     const factor = Math.max(0.25, Math.min(3, (zoomLevel || 100) / 100))
     view.webContents.setZoomFactor(factor)
     return { success: true }
+  }
+
+  /**
+   * Apply (or clear, when null) CDP device emulation on a project's view:
+   * device pixel ratio, touch support and user agent. The view is already
+   * resized by the renderer; this adds the emulation fidelity on top.
+   */
+  async setDevice(projectId: string, config: unknown) {
+    const view = this.getView(projectId)
+    if (!view) return { success: false, error: 'Preview not created yet' }
+    try {
+      const params = sanitizeEmulationConfig((config || null) as Record<string, unknown> | null)
+      if (!params) {
+        await clearDeviceEmulation(view.webContents)
+      } else {
+        await applyDeviceEmulation(view.webContents, params)
+      }
+      return { success: true }
+    } catch (error) {
+      return { success: false, error: (error as Error).message }
+    }
   }
 
   toggleDevTools(projectId: string) {

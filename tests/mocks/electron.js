@@ -93,6 +93,17 @@ class FakeWebContentsView {
       isDestroyed: () => false,
       close: () => {},
       invalidate: () => { this.invalidateCount += 1 },
+      debugger: {
+        isAttached: () => this.debuggerAttached === true,
+        attach: (version) => { this.debuggerAttached = true; this.debuggerVersion = version },
+        detach: () => { this.debuggerAttached = false },
+        sendCommand: async (method, params) => {
+          if (!this.debuggerAttached) throw new Error('Debugger is not attached')
+          const dbg = this.webContents.debugger
+          if (!dbg.commands) dbg.commands = []
+          dbg.commands.push({ method, params })
+        },
+      },
       getURL: () => this.currentUrl || '',
       getTitle: () => this.currentTitle || '',
       goBack: () => { this.goBackCalled = true },

@@ -18,12 +18,14 @@ vi.mock('../../../utils/ipcRenderer', () => ({
   previewGetState: vi.fn(async () => ({ success: true, data: { url: 'http://localhost:3000', canGoBack: false, canGoForward: false } })),
   previewBack: vi.fn(async () => ({ success: true })),
   previewForward: vi.fn(async () => ({ success: true })),
+  previewSetDevice: vi.fn(async () => ({ success: true })),
   onPreviewUrlUpdated: vi.fn(() => () => {}),
   openExternalUrl: vi.fn(async () => ({ success: true })),
 }))
 
 import * as ipc from '../../../utils/ipcRenderer'
 import AppPreviewTab from '../AppPreviewTab'
+import { I18nProvider } from '../../../i18n/I18nContext'
 
 const project = { id: 'p1', name: 'Alpha', type: 'NODEJS', port: 3000, status: 'running' }
 
@@ -36,6 +38,7 @@ const originalGetBoundingClientRect = window.Element.prototype.getBoundingClient
 
 beforeEach(() => {
   vi.clearAllMocks()
+  window.localStorage.clear()
   window.ResizeObserver = class {
     observe() {}
     unobserve() {}
@@ -154,5 +157,113 @@ describe('AppPreviewTab editable address bar', () => {
     render(<AppPreviewTab project={{ ...project, status: 'stopped' }} />)
     await act(async () => {})
     expect(screen.getByLabelText('Preview address')).toHaveProperty('readOnly', true)
+  })
+})
+
+describe('AppPreviewTab device simulator', () => {
+  // PreviewDeviceBar strings come from the i18n dictionary — provide the real
+  // EN translations so queries can use the visible labels.
+  const renderApp = (el) => render(<I18nProvider language="en">{el}</I18nProvider>)
+
+  const screenEl = () => {
+    const placeholder = screen.getByLabelText('Native preview of Alpha')
+    return placeholder.parentElement
+  }
+
+  const deviceSelect = () => screen.getByLabelText('Device')
+
+  it('starts in Fit to window mode with no device screen or zoom lock', async () => {
+    renderApp(<AppPreviewTab project={project} />)
+    expect(deviceSelect()).toHaveValue('')
+    expect(ipc.previewSetDevice).toHaveBeenCalledWith('p1', null)
+    const zoom = screen.getByRole('combobox', { name: /zoom/i })
+    expect(zoom).not.toBeDisabled()
+  })
+
+  it('resizes the viewport to the selected preset and applies CDP emulation', async () => {
+    renderApp(<AppPreviewTab project={project} />)
+    fireEvent.change(deviceSelect(), { target: { value: 'iphone-15' } })
+
+    await waitFor(() => expect(ipc.previewSetDevice).toHaveBeenLastCalledWith(
+      'p1',
+      expect.objectContaining({ width: 393, height: 852, mobile: true, deviceScaleFactor: 3 }),
+    ))
+    expect(screenEl().style.width).toBe('393px')
+    expect(screenEl().style.height).toBe('852px')
+    // Zoom is fixed while a device screen is sized.
+    expect(screen.getByRole('combobox', { name: /zoom/i })).toBeDisabled()
+  })
+
+  it('rotate swaps the viewport dimensions and re-applies emulation', async () => {
+    renderApp(<AppPreviewTab project={project} />)
+    fireEvent.change(deviceSelect(), { target: { value: 'iphone-15' } })
+    await waitFor(() => expect(screenEl().style.width).toBe('393px'))
+
+    fireEvent.click(screen.getByLabelText('Rotate (portrait/landscape)'))
+    await waitFor(() => expect(screenEl().style.width).toBe('852px'))
+    expect(ipc.previewSetDevice).toHaveBeenLastCalledWith(
+      'p1',
+      expect.objectContaining({ width: 852, height: 393 }),
+    )
+  })
+
+  it('laptop presets resize the viewport without CDP emulation (null config)', async () => {
+    renderApp(<AppPreviewTab project={project} />)
+    fireEvent.change(deviceSelect(), { target: { value: 'laptop-1366' } })
+
+    await waitFor(() => expect(screenEl().style.width).toBe('1366px'))
+    expect(ipc.previewSetDevice).toHaveBeenLastCalledWith('p1', null)
+  })
+
+  it('custom size: entering W×H applies a clamped custom viewport', async () => {
+    renderApp(<AppPreviewTab project={project} />)
+    fireEvent.change(deviceSelect(), { target: { value: 'custom' } })
+
+    const width = screen.getByLabelText('Width')
+    const height = screen.getByLabelText('Height')
+    fireEvent.change(width, { target: { value: '500' } })
+    fireEvent.change(height, { target: { value: '99999' } })
+    fireEvent.keyDown(height, { key: 'Enter' })
+
+    await waitFor(() => expect(screenEl().style.width).toBe('500px'))
+    expect(screenEl().style.height).toBe('4096px')
+    // Custom sizes are viewport-only: no CDP override.
+    expect(ipc.previewSetDevice).toHaveBeenLastCalledWith('p1', null)
+  })
+
+  it('returning to Fit to window clears emulation and restores the full area', async () => {
+    renderApp(<AppPreviewTab project={project} />)
+    fireEvent.change(deviceSelect(), { target: { value: 'iphone-15' } })
+    await waitFor(() => expect(screenEl().style.width).toBe('393px'))
+
+    fireEvent.change(deviceSelect(), { target: { value: '' } })
+    await waitFor(() => expect(ipc.previewSetDevice).toHaveBeenLastCalledWith('p1', null))
+    expect(screenEl().style.width).toBe('')
+  })
+
+  it('persists the selection per project and restores it on remount', async () => {
+    const { unmount } = renderApp(<AppPreviewTab project={project} />)
+    fireEvent.change(deviceSelect(), { target: { value: 'pixel-8' } })
+    await waitFor(() => expect(screenEl().style.width).toBe('412px'))
+    unmount()
+
+    expect(window.localStorage.getItem('devlauncher:preview-device:p1')).toContain('"mode":"preset"')
+
+    renderApp(<AppPreviewTab project={project} />)
+    expect(deviceSelect()).toHaveValue('pixel-8')
+    await waitFor(() => expect(screenEl().style.width).toBe('412px'))
+  })
+
+  it('shows a device pill above the simulated screen with name and dimensions', async () => {
+    renderApp(<AppPreviewTab project={project} />)
+    fireEvent.change(deviceSelect(), { target: { value: 'iphone-15' } })
+    await waitFor(() => expect(screen.getByText('iPhone 15 · 393 × 852')).toBeInTheDocument())
+  })
+
+  it('does not touch the native view or CDP for a stopped project', async () => {
+    renderApp(<AppPreviewTab project={{ ...project, status: 'stopped' }} />)
+    fireEvent.change(deviceSelect(), { target: { value: 'iphone-15' } })
+    expect(ipc.previewSetDevice).not.toHaveBeenCalled()
+    expect(ipc.previewShow).not.toHaveBeenCalled()
   })
 })

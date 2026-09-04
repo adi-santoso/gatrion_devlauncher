@@ -5,7 +5,7 @@ const { launchApp, makeTempDir, writeFixtureProject, seedUserData, fixtureProjec
 const MOCK_RPC = path.join(__dirname, '..', 'tests', 'fixtures', 'mock-omp-rpc.js');
 
 /** Shared setup: launch with the mock agent, navigate to Agent view, start a session. */
-async function openAgentChat({ userData, projectDir }) {
+async function openAgentChat({ userData }) {
   const { app, window } = await launchApp({
     DEVLAUNCHER_USER_DATA: userData,
     OMP_RPC_MOCK_SCRIPT: MOCK_RPC,
@@ -72,15 +72,20 @@ test.describe('agent chat (mock omp)', () => {
     await expect(window.getByText('Mock confirm request').first()).toBeVisible({ timeout: 15000 });
     await expect(window.getByText('Do you approve this action?').first()).toBeVisible({ timeout: 10000 });
 
+    // The modal's buttons are matched scoped + exact: `getByText('Confirm')`
+    // un-scoped would also match the user's "Approve CONFIRM ..." chat bubble
+    // (case-insensitive substring), which sits behind the modal overlay.
+    const modal = window.locator('#ompExtensionUiModal');
+
     // Cancel first: the turn completes with a "(cancelled)" marker.
-    await window.getByText('Cancel').first().click();
+    await modal.getByText('Cancel', { exact: true }).click();
     await expect(window.getByText('(cancelled)').first()).toBeVisible({ timeout: 15000 });
 
     // Ask again and this time Confirm — the turn completes with "(confirmed)".
     await composer.fill('Approve CONFIRM again');
     await composer.press('Enter');
     await expect(window.getByText('Mock confirm request').first()).toBeVisible({ timeout: 15000 });
-    await window.getByText('Confirm').first().click();
+    await modal.getByText('Confirm', { exact: true }).click();
     await expect(window.getByText('(confirmed)').first()).toBeVisible({ timeout: 15000 });
 
     await app.close();
@@ -102,7 +107,7 @@ test.describe('agent chat (mock omp)', () => {
     const textarea = window.locator('#ompExtensionUiModal textarea').first();
     await expect(textarea).toBeVisible({ timeout: 10000 });
     await textarea.fill('my-value');
-    await window.getByText('Submit').first().click();
+    await window.locator('#ompExtensionUiModal').getByText('Submit', { exact: true }).click();
 
     // The mock's reply echoes the submitted value.
     await expect(window.getByText('(input=my-value)').first()).toBeVisible({ timeout: 15000 });
