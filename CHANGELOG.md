@@ -4,6 +4,15 @@ Semua perubahan penting pada project ini dicatat di file ini.
 
 Format mengikuti [Keep a Changelog](https://keepachangelog.com/id-ID/1.1.0/), dan project ini mengikuti [Semantic Versioning](https://semver.org/spec/v2.0.0.html) begitu versi rilis resmi ditetapkan.
 
+## [Unreleased]
+
+### Fixed
+
+- **Terminal interaktif kini benar-benar menyesuaikan ukuran wadahnya (fit)** — sebelumnya xterm mempertahankan grid awal (~80×24) berapa pun ukuran window: di layar lebar terminal tampil sebagai strip sempit, baris terbawah terpotong oleh kontainer (`overflow-hidden`) sehingga output tampak "kepotong", dan pembungkusan baris tidak pernah cocok dengan yang terlihat. Kini viewport xterm di-`fit` tepat ke kontainer (via `@xterm/addon-fit`) saat mount, setiap kontainer berubah ukuran, dan lewat pengecekan periodik; dimensi asli barulah direlay ke PTY (hanya saat berubah), sehingga wrapping, scrollback, dan perilaku scroll sama seperti terminal sungguhan. Scrollback dinaikkan `1000 → 5000` baris, terminal otomatis refocus saat kembali ke tab (bisa langsung ketik), dan navigasi riwayat shell dengan panah atas/bawah bekerja normal.
+- **Copy/paste terminal (Ctrl+C / Ctrl+V) diperbaiki** — Ctrl+V tidak pernah menyalurkan isi clipboard ke shell: textarea bantu xterm tersembunyi di `z-index:-5`, sehingga aksi paste bawaan Chromium melewatinya (aplikasi tanpa menu tidak punya fallback role Paste). Kini `Ctrl+V`/`Shift+Insert` di-intercept di renderer dan di-paste lewat API xterm (`term.paste`), `Ctrl+C` tetap mengirim interrupt (ETX) — kecuali ada teks terseleksi, maka `Ctrl+C` menyalin seleksi ke clipboard seperti Windows Terminal. Terverifikasi e2e (paste + interrupt).
+- **Tab Logs Laravel memenuhi tinggi layar** — area log aplikasi Laravel (`storage/logs`) sebelumnya tingginya tetap `h-72` (288px); kini `h-[calc(100dvh-320px)]` dengan fallback `min-h-[320px]` sehingga memanfaatkan sisa tinggi window.
+- **Port dev server dapat dikonfigurasi (`VITE_DEV_PORT`)** — URL dev + pemeriksaan kepercayaan IPC (dev-only) kini memakai port dari env, sehingga e2e/dev bisa berjalan di port selain 5173 tanpa konflik dengan dev server lain.
+
 ## [0.2.9] - 2026-09-04
 
 ### Added

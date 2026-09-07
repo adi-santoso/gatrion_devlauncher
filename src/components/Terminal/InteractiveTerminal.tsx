@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Terminal } from 'xterm';
+import { FitAddon } from '@xterm/addon-fit';
 import 'xterm/css/xterm.css';
 import * as ipc from '../../utils/ipcRenderer';
 
@@ -12,6 +13,14 @@ interface TerminalSessionProps {
 /**
  * One PTY-backed terminal session. Remounted (via `key`) when the shell exits
  * so a fresh session can be started from the restart overlay in the parent.
+ *
+ * Sizing contract: the xterm viewport ALWAYS matches the container exactly
+ * (FitAddon on mount, on every container resize, and on a light periodic
+ * re-check), and only then are the real cols/rows relayed to the PTY. This is
+ * what makes the shell behave like a real terminal — without it, xterm keeps
+ * its initial 80x24 grid no matter the window size, so wide windows show a
+ * narrow strip, tall output gets clipped by the container, and shell wrapping
+ * never matches what is visible.
  */
 function TerminalSession({ cwd, fontSize = 14, onExited }: TerminalSessionProps) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -39,14 +48,86 @@ function TerminalSession({ cwd, fontSize = 14, onExited }: TerminalSessionProps)
         foreground: '#e6e6e6',
         cursor: '#7c6df2',
       },
-      scrollback: 1000,
+      scrollback: 5000,
       convertEol: false,
     });
+    const fitAddon = new FitAddon();
+    term.loadAddon(fitAddon);
     termRef.current = term;
 
+    // Real-terminal clipboard. Chromium's default Ctrl+V does not reach xterm's
+    // helper textarea (it sits at z-index:-5 behind the screen, so the renderer's
+    // default paste action skips it — apps with a native menu Paste role work
+    // around this, but this app runs menu-less). Intercept the keys here and
+    // paste through xterm's own API instead. Ctrl+C keeps xterm's default
+    // (ETX interrupt), unless there is a selection — then it copies, like
+    // Windows Terminal.
+    const readClipboard = (): void => {
+      if (!navigator.clipboard) return;
+      navigator.clipboard.readText()
+        .then((text) => { if (text) term.paste(text); })
+        .catch(() => {});
+    };
+    term.attachCustomKeyEventHandler((event) => {
+      const mod = event.ctrlKey || event.metaKey;
+      if (mod && !event.shiftKey && !event.altKey) {
+        const key = event.key.toLowerCase();
+        if (key === 'v') {
+          event.preventDefault();
+          readClipboard();
+          return false;
+        }
+        if (key === 'c' && term.hasSelection()) {
+          event.preventDefault();
+          navigator.clipboard?.writeText(term.getSelection()).catch(() => {});
+          term.clearSelection();
+          return false;
+        }
+      }
+      if (event.shiftKey && event.key === 'Insert') {
+        event.preventDefault();
+        readClipboard();
+        return false;
+      }
+      return true;
+    });
+
+    // Last dims relayed to the PTY — relay only on real changes so spurious
+    // container reflows never churn the pty size.
+    let lastCols = 0;
+    let lastRows = 0;
+    let wasVisible = true;
+
+    const syncSize = (): void => {
+      const container = containerRef.current;
+      if (!container || disposed) return;
+      const visible = container.clientWidth > 0 && container.clientHeight > 0;
+      // Refocus when the shell becomes visible again (e.g. switching back to
+      // the Terminal tab) so the user can type right away, like a real terminal.
+      if (visible && !wasVisible) term.focus();
+      wasVisible = visible;
+      if (!visible) return;
+      try {
+        fitAddon.fit();
+      } catch {
+        return;
+      }
+      const { cols, rows } = term;
+      if (cols === lastCols && rows === lastRows) return;
+      lastCols = cols;
+      lastRows = rows;
+      if (termIdRef.current) ipc.terminalResize(termIdRef.current, cols, rows);
+    };
+
     const mount = async (): Promise<void> => {
-      if (!containerRef.current || disposed) return;
-      term.open(containerRef.current);
+      const container = containerRef.current;
+      if (!container || disposed) return;
+      term.open(container);
+      // Fit right away so the PTY spawns at the true viewport size. FitAddon
+      // no-ops until the renderer has measured cell dimensions, so the rAF
+      // retry and the ResizeObserver cover the first layout pass.
+      syncSize();
+      requestAnimationFrame(syncSize);
       term.focus();
 
       const result = await ipc.terminalCreate({
@@ -67,6 +148,8 @@ function TerminalSession({ cwd, fontSize = 14, onExited }: TerminalSessionProps)
       }
 
       termIdRef.current = result.id || null;
+      // Now that the session exists, push the definitive size.
+      syncSize();
 
       cleanupData = ipc.onTerminalData((id, data) => {
         if (id === termIdRef.current) term.write(data);
@@ -82,14 +165,16 @@ function TerminalSession({ cwd, fontSize = 14, onExited }: TerminalSessionProps)
         if (termIdRef.current) ipc.terminalInput(termIdRef.current, data);
       });
 
-      const resizeObserver = new ResizeObserver(() => {
-        if (!termIdRef.current || !containerRef.current) return;
-        const { cols, rows } = term;
-        ipc.terminalResize(termIdRef.current, cols, rows);
-      });
-      resizeObserver.observe(containerRef.current);
+      const resizeObserver = new ResizeObserver(syncSize);
+      resizeObserver.observe(container);
+
+      // Periodic re-check: the shell can shrink its own console size (e.g.
+      // cmd's `mode con`) without notifying xterm; re-asserting our viewport
+      // size keeps the PTY in sync with what is actually visible.
+      const resyncTimer = window.setInterval(syncSize, 2000);
 
       (termRef.current as Terminal & { _resizeObserver?: ResizeObserver })._resizeObserver = resizeObserver;
+      (termRef.current as Terminal & { _resyncTimer?: number })._resyncTimer = resyncTimer;
     };
 
     mount();
@@ -98,7 +183,9 @@ function TerminalSession({ cwd, fontSize = 14, onExited }: TerminalSessionProps)
       disposed = true;
       cleanupData();
       cleanupExit();
-      (termRef.current as (Terminal & { _resizeObserver?: ResizeObserver }) | null)?._resizeObserver?.disconnect();
+      const self = termRef.current as (Terminal & { _resizeObserver?: ResizeObserver; _resyncTimer?: number }) | null;
+      self?._resizeObserver?.disconnect();
+      if (self?._resyncTimer) window.clearInterval(self._resyncTimer);
       if (termIdRef.current) {
         ipc.terminalKill(termIdRef.current);
         termIdRef.current = null;
@@ -113,7 +200,9 @@ function TerminalSession({ cwd, fontSize = 14, onExited }: TerminalSessionProps)
     }
   }, [fontSize]);
 
-  return <div ref={containerRef} className="h-full w-full bg-[#08090C] rounded-lg overflow-hidden p-1" />;
+  // No padding: FitAddon measures the parent box and xterm must fill it
+  // exactly, otherwise the last row/column gets clipped by the container.
+  return <div ref={containerRef} className="h-full w-full bg-[#08090C] rounded-lg overflow-hidden" />;
 }
 
 interface InteractiveTerminalProps {

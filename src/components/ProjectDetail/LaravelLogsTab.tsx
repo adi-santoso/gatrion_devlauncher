@@ -190,7 +190,7 @@ export default function LaravelLogsTab({ projectPath }: LaravelLogsTabProps) {
         <div
           ref={outputRef}
           onScroll={handleScroll}
-          className="scan-line bg-[#08090C] px-5 py-4 font-mono text-[12.5px] leading-relaxed h-72 overflow-y-auto"
+          className="scan-line bg-[#08090C] px-5 py-4 font-mono text-[12.5px] leading-relaxed h-[calc(100dvh-320px)] min-h-[320px] overflow-y-auto"
         >
           {loading ? (
             <p className="text-ink-faint italic">Loading log...</p>

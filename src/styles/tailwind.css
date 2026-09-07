@@ -382,9 +382,16 @@ html.theme-transition *::after {
   .stack-logo-nodejs { color: #5FA04E; }
 [data-theme="light"] .stack-logo-nextjs { color: #000000; }
 
-/* Light theme overrides */
+/* Theme overrides */
 [data-theme="light"] {
   color-scheme: light;
+}
+/* Dark mode must declare color-scheme: dark explicitly, otherwise Chromium
+   renders native controls (select popups, date pickers, autofill) with the
+   OS color scheme — a white dropdown list on a light-OS machine becomes
+   unreadable in the dark app theme. */
+[data-theme="dark"] {
+  color-scheme: dark;
 }
 [data-theme="light"] .bg-base {
   background: #F3F4F6 !important;

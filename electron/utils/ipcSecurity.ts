@@ -4,7 +4,10 @@ const { app } = require('electron') as typeof import('electron')
 const path = require('path')
 const { pathToFileURL } = require('url')
 
-const DEV_SERVER_URL = 'http://localhost:5173/'
+// Dev-only trust rule: the renderer is trusted when it came from the Vite dev
+// server. The port is configurable (VITE_DEV_PORT) so e2e runs can avoid
+// clashing with other dev servers on 5173; packaged builds never use it.
+const DEV_SERVER_URL = `http://localhost:${process.env.VITE_DEV_PORT || '5173'}/`
 
 function getPackagedIndexUrl(): string {
   return pathToFileURL(path.join(__dirname, '../../dist-react/index.html')).href

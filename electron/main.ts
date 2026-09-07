@@ -133,6 +133,7 @@ function applyContentSecurityPolicy() {
 
 function createWindow(windowBounds?: WindowBounds | null) {
   const defaults = { width: 1280, height: 800, minWidth: 1024, minHeight: 600 }
+  const devPort = Number(process.env.VITE_DEV_PORT) || 5173
   const bounds = windowBounds && Number.isFinite(windowBounds.width) && Number.isFinite(windowBounds.height)
     ? {
         width: Math.max(defaults.minWidth, Math.round(windowBounds.width)),
@@ -183,7 +184,7 @@ function createWindow(windowBounds?: WindowBounds | null) {
   mainWindow.webContents.on('will-navigate', (event, url) => {
     const trusted = app.isPackaged
       ? url === `file://${path.join(__dirname, '../../dist-react/index.html').replace(/\\/g, '/')}`
-      : url.startsWith('http://localhost:5173/')
+      : url.startsWith(`http://localhost:${devPort}/`)
     if (!trusted) event.preventDefault()
   })
   mainWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
@@ -205,7 +206,6 @@ function createWindow(windowBounds?: WindowBounds | null) {
   // Load the app
   const isDev = !app.isPackaged
   if (isDev) {
-    const devPort = Number(process.env.VITE_DEV_PORT) || 5173
     mainWindow.loadURL(`http://localhost:${devPort}`)
     if (process.env.GATRION_DEVTOOLS === '1') {
       mainWindow.webContents.openDevTools()

@@ -1,6 +1,4 @@
 const { test, expect } = require('@playwright/test');
-const fs = require('fs');
-const path = require('path');
 const { launchApp, makeTempDir, seedUserData, fixtureProject, writeFixtureProject } = require('./helpers');
 
 /**
@@ -51,6 +49,68 @@ test.describe('project detail interactive shell', () => {
       await window.getByRole('button', { name: 'Close shell' }).click();
       await expect(window.getByRole('button', { name: 'Start shell' })).toBeVisible({ timeout: 10000 });
       await expect(window.locator('.xterm')).toHaveCount(0, { timeout: 10000 });
+    } finally {
+      // Hard-kill the whole tree: a leaked PTY child keeps stdio pipes open and
+      // would hang Playwright's worker teardown (same reasoning as the preview
+      // fullscreen spec).
+      if (app) {
+        const pid = app.process().pid;
+        if (pid && process.platform === 'win32') {
+          try { require('child_process').execSync(`taskkill /PID ${pid} /T /F`, { stdio: 'ignore' }); } catch { /* already dead */ }
+        }
+        try { app.process().kill('SIGKILL'); } catch { /* already dead */ }
+      }
+    }
+  });
+
+  test('real-terminal clipboard: Ctrl+V pastes, Ctrl+C interrupts', async () => {
+    const projectDir = await writeFixtureProject(await makeTempDir('devlauncher-termclip-'));
+    const userData = await makeTempDir('devlauncher-termclip-ud-');
+    const project = fixtureProject('term-clip', projectDir, { name: 'e2e-term-clip' });
+    await seedUserData(userData, { projects: [project], config: { minimizeToTray: false } });
+
+    let app = null;
+    try {
+      const launched = await launchApp({ DEVLAUNCHER_USER_DATA: userData });
+      app = launched.app;
+      const { window } = launched;
+
+      await window.getByText('e2e-term-clip').first().click();
+      await window.getByRole('tab', { name: 'Terminal' }).click();
+      await window.getByRole('button', { name: 'Start shell' }).click();
+      const xterm = window.locator('.xterm-screen').first();
+      await expect(xterm).toBeVisible({ timeout: 10000 });
+      await expect.poll(async () => (await xterm.innerText().catch(() => '')).trim().length, { timeout: 15000 }).toBeGreaterThan(0);
+      await xterm.click();
+
+      // Skip if the sandbox blocks clipboard access entirely.
+      const usable = await window.evaluate(async () => {
+        try {
+          await navigator.clipboard.writeText('e2e-clip-probe');
+          return (await navigator.clipboard.readText()) === 'e2e-clip-probe';
+        } catch {
+          return false;
+        }
+      });
+      test.skip(!usable, 'clipboard API unavailable in this environment');
+
+      // Ctrl+V pastes the clipboard into the shell, Enter runs it.
+      await window.evaluate(() => navigator.clipboard.writeText('echo PASTED-42'));
+      await window.keyboard.press('Control+v');
+      await window.keyboard.press('Enter');
+      await expect.poll(async () => (await xterm.innerText()).includes('PASTED-42'), { timeout: 8000 }).toBe(true);
+
+      // Ctrl+C interrupts a long-running command and returns to the prompt.
+      const hangCmd = process.platform === 'win32' ? 'ping -t 127.0.0.1' : 'sleep 30';
+      await window.keyboard.type(hangCmd);
+      await window.keyboard.press('Enter');
+      await window.waitForTimeout(1200);
+      await window.keyboard.press('Control+c');
+      await window.waitForTimeout(600);
+      // The shell is responsive again: a fresh command runs to completion.
+      await window.keyboard.type('echo AFTER-INTERRUPT');
+      await window.keyboard.press('Enter');
+      await expect.poll(async () => (await xterm.innerText()).includes('AFTER-INTERRUPT'), { timeout: 8000 }).toBe(true);
     } finally {
       // Hard-kill the whole tree: a leaked PTY child keeps stdio pipes open and
       // would hang Playwright's worker teardown (same reasoning as the preview
