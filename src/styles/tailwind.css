@@ -393,6 +393,23 @@ html.theme-transition *::after {
 [data-theme="dark"] {
   color-scheme: dark;
 }
+/* The native select popup can still render the OS light style even with
+   color-scheme: dark (some Chromium builds ignore it for the dropdown list).
+   Paint <option>/<optgroup> rows explicitly in both themes so the list never
+   appears white-on-white in the dark app. */
+[data-theme="dark"] option,
+[data-theme="dark"] optgroup {
+  background-color: #191D24;
+  color: #EDEFF2;
+}
+[data-theme="dark"] optgroup {
+  color: #A8B0BC;
+}
+[data-theme="light"] option,
+[data-theme="light"] optgroup {
+  background-color: #FFFFFF;
+  color: #14171C;
+}
 [data-theme="light"] .bg-base {
   background: #F3F4F6 !important;
 }
