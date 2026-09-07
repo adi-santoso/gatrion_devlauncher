@@ -340,6 +340,18 @@ function toRendererProject(project: Project): Project {
   return { ...project, envVars: redactSensitiveEnv(project.envVars) as EnvVar[] }
 }
 
+/**
+ * Return a project list with `lastRun` stamped for `projectId` (kept unchanged
+ * when the project is not found, and idempotent for the same timestamp so
+ * repeated 'running' status events don't rewrite storage).
+ */
+function applyLastRun(projects: Project[], projectId: string, timestamp = new Date().toISOString()): Project[] {
+  return projects.map((project) => {
+    if (project.id !== projectId || project.lastRun === timestamp) return project
+    return { ...project, lastRun: timestamp }
+  })
+}
+
 export {
   PROJECT_TYPES,
   PROJECT_SCHEMA_VERSION,
@@ -356,5 +368,6 @@ export {
   redactSensitiveEnv,
   isSensitiveKey,
   toRendererProject,
+  applyLastRun,
 }
 

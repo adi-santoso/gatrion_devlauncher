@@ -76,7 +76,7 @@ export default function DashboardView({
 }: DashboardViewProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
-  const [sortBy, setSortBy] = useState('name');
+  const [sortBy, setSortBy] = useState('lastRun');
   const [groupByTag, setGroupByTag] = useState(false);
   const [layout, setLayout] = useState<'grid' | 'list'>('grid');
   const [presetRunning, setPresetRunning] = useState<string | null>(null); // presetId currently starting
@@ -114,6 +114,14 @@ export default function DashboardView({
       .filter((project) => statusFilter === 'all' || (project.status || '').toLowerCase() === statusFilter)
       .sort((left, right) => {
         if (sortBy === 'cpu' || sortBy === 'memory') return (Number(right[sortBy]) || 0) - (Number(left[sortBy]) || 0);
+        // "Last Run" sorts by most-recently-run (nulls sink to the bottom),
+        // falling back to creation date so never-run projects keep a stable order.
+        if (sortBy === 'lastRun') {
+          const leftTime = left.lastRun ? new Date(left.lastRun).getTime() : -Infinity;
+          const rightTime = right.lastRun ? new Date(right.lastRun).getTime() : -Infinity;
+          if (leftTime !== rightTime) return rightTime - leftTime;
+          return String(left.name || '').localeCompare(String(right.name || ''));
+        }
         return String(left[sortBy as keyof ViewProject] || '').localeCompare(String(right[sortBy as keyof ViewProject] || ''));
       });
   }, [projects, searchQuery, statusFilter, sortBy]);
@@ -310,6 +318,7 @@ export default function DashboardView({
             >
               <option value="name">Sort by Name</option>
               <option value="status">Sort by Status</option>
+              <option value="lastRun">Sort by Last Run</option>
               <option value="cpu">Sort by CPU</option>
               <option value="memory">Sort by Memory</option>
             </select>

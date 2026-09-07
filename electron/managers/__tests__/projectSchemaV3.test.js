@@ -7,6 +7,7 @@ import {
   isSensitiveKey,
   toRendererProject,
   envVarsToObject,
+  applyLastRun,
 } from '../../projectSchema'
 
 const base = {
@@ -213,5 +214,23 @@ describe('sensitive env redaction', () => {
     const secret = rendererProject.envVars.find((item) => item.key === 'SECRET_TOKEN')
     expect(secret.value).toBe('')
     expect(secret.secret).toBe(true)
+  })
+
+  test('applyLastRun stamps lastRun only on the matching project', () => {
+    const projects = [
+      validateProject(normalizeProject({ ...base, id: 'p1' })),
+      validateProject(normalizeProject({ ...base, id: 'p2' })),
+    ]
+    const stamped = applyLastRun(projects, 'p2', '2024-01-01T00:00:00.000Z')
+    expect(stamped.find((p) => p.id === 'p1').lastRun).toBeNull()
+    expect(stamped.find((p) => p.id === 'p2').lastRun).toBe('2024-01-01T00:00:00.000Z')
+  })
+
+  test('applyLastRun is idempotent for the same timestamp and unknown projects', () => {
+    const projects = [validateProject(normalizeProject({ ...base, id: 'p1', lastRun: '2024-01-01T00:00:00.000Z' }))]
+    // Same timestamp -> element reference preserved (no spurious storage rewrite).
+    expect(applyLastRun(projects, 'p1', '2024-01-01T00:00:00.000Z')[0]).toBe(projects[0])
+    // Unknown project -> unchanged.
+    expect(applyLastRun(projects, 'ghost', '2024-05-01T00:00:00.000Z')[0]).toBe(projects[0])
   })
 })

@@ -24,6 +24,7 @@ import PreviewManager from './managers/PreviewManager'
 import CredentialManager from './managers/CredentialManager'
 import { CREDENTIAL_CONTENT_SCRIPT } from './previewCredentialContent'
 import { setupProcessHandlers } from './handlers/processHandlers'
+import { applyLastRun, toRendererProject } from './projectSchema'
 import { setupProjectHandlers } from './handlers/projectHandlers'
 import { setupDesktopHandlers } from './handlers/desktopHandlers'
 import { setupTerminalHandlers, killAllTerminals } from './handlers/terminalHandlers'
@@ -300,6 +301,18 @@ async function initialize() {
       healthManager.recordRunEnd(data.projectId, info.exitCode ?? null)
     } else if (data.status === 'running') {
       healthManager.recordRunStart(data.projectId)
+      // Persist the last-run timestamp so the dashboard can sort projects by
+      // most-recently-started. Fire-and-forget: a storage failure here must
+      // never affect process supervision.
+      const now = new Date().toISOString()
+      storageManager.updateProjects((projects) => ({
+        projects: applyLastRun(projects, data.projectId, now),
+        value: null,
+      })).then(({ projects }) => {
+        mainWindow?.webContents.send('projects-updated', projects.map(toRendererProject))
+      }).catch((error) => {
+        console.error('[main] Failed to persist lastRun:', error)
+      })
     } else if (data.status === 'stopped') {
       const info = processManager.getProcessStatus(data.projectId) || {}
       healthManager.recordRunEnd(data.projectId, info.exitCode ?? null)
