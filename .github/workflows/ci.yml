@@ -1,4 +1,4 @@
-name: CI
+name: Quick checks
 
 on:
   push:
@@ -7,14 +7,12 @@ on:
     branches: [master, main]
 
 jobs:
-  test:
-    name: ${{ matrix.os }} (lint, test, build, e2e)
-    runs-on: ${{ matrix.os }}
-    timeout-minutes: 30
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [windows-latest, macos-latest, ubuntu-latest]
+  checks:
+    # Keep ordinary pushes inexpensive. The release workflow performs the
+    # complete test, coverage, audit, and build pipeline for v* tags.
+    name: Lint and typecheck
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
 
     steps:
       - name: Checkout
@@ -32,25 +30,5 @@ jobs:
       - name: Lint
         run: npm run lint
 
-      - name: Dependency audit
-        run: npm audit --audit-level=high
-
       - name: Typecheck
         run: npm run typecheck
-
-      - name: Regression tests (vitest)
-        run: npm test
-
-      - name: Unit tests + coverage gate
-        run: npm run test:coverage
-
-      - name: Build main + preload + renderer (electron-vite)
-        run: npx electron-vite build
-
-      - name: E2E smoke (Electron + Playwright)
-        run: npm run test:e2e
-        if: runner.os != 'Linux'
-      # Electron needs a virtual display on headless Linux runners.
-      - name: E2E smoke (Electron + Playwright, xvfb)
-        run: xvfb-run -a npm run test:e2e
-        if: runner.os == 'Linux'
