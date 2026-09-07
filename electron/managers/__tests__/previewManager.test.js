@@ -63,6 +63,62 @@ describe('PreviewManager', () => {
     expect(manager.getView('p2').visible).toBe(true)
   })
 
+  test('re-showing the same base URL preserves the current page after navigation', () => {
+    // Regression: the user navigates away (address bar / in-app links), then
+    // anything re-runs preview-show (tab switch, fullscreen toggle, device
+    // change, returning to the project). The view must NOT be bounced back to
+    // the app root — the page they were looking at stays mounted.
+    const manager = new PreviewManager()
+    manager.setWindow(makeWindow())
+    manager.show({ projectId: 'p1', url: 'http://localhost:3000', bounds })
+    const view = manager.getView('p1')
+
+    // User navigates within the app (e.g. to /login).
+    view.emitNavigate('http://localhost:3000/login')
+    expect(manager.getState('p1').data.url).toBe('http://localhost:3000/login')
+
+    // Re-show with the SAME base URL must NOT call loadURL again.
+    manager.show({ projectId: 'p1', url: 'http://localhost:3000', bounds })
+    expect(view.loadedUrls).toEqual(['http://localhost:3000'])
+    expect(manager.getState('p1').data.url).toBe('http://localhost:3000/login')
+  })
+
+  test('re-showing after an address-bar navigation keeps the navigated URL', () => {
+    const manager = new PreviewManager()
+    manager.setWindow(makeWindow())
+    manager.show({ projectId: 'p1', url: 'http://localhost:3000', bounds })
+    const view = manager.getView('p1')
+
+    // Address-bar navigation drives the view to a deeper route.
+    manager.navigate('p1', 'http://localhost:3000/admin')
+    expect(view.loadedUrls).toEqual([
+      'http://localhost:3000',
+      'http://localhost:3000/admin',
+    ])
+
+    // Later tab/fullscreen re-show with the base app URL must not reload.
+    manager.show({ projectId: 'p1', url: 'http://localhost:3000', bounds })
+    expect(view.loadedUrls).toEqual([
+      'http://localhost:3000',
+      'http://localhost:3000/admin',
+    ])
+    expect(manager.getState('p1').data.url).toBe('http://localhost:3000/admin')
+  })
+
+  test('changing the base URL (port/host) still reloads the view', () => {
+    const manager = new PreviewManager()
+    manager.setWindow(makeWindow())
+    manager.show({ projectId: 'p1', url: 'http://localhost:3000', bounds })
+    const view = manager.getView('p1')
+
+    // Port change (dev server restarted, project edited): must force a reload.
+    manager.show({ projectId: 'p1', url: 'http://localhost:4000', bounds })
+    expect(view.loadedUrls).toEqual([
+      'http://localhost:3000',
+      'http://localhost:4000',
+    ])
+  })
+
   test('hide keeps the view mounted and bounds update', () => {
     const manager = new PreviewManager()
     manager.setWindow(makeWindow())

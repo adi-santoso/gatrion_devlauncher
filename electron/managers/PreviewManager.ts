@@ -7,6 +7,8 @@ import { applyDeviceEmulation, clearDeviceEmulation, sanitizeEmulationConfig } f
 interface PreviewEntry {
   view: WebContentsViewType
   url: string | null
+  /** Base app URL the view was (re)loaded with — reload only when it changes. */
+  baseUrl: string | null
   canGoBack: boolean
   canGoForward: boolean
   title: string
@@ -197,7 +199,7 @@ class PreviewManager {
 
     this.win.contentView.addChildView(view)
     view.setVisible(false)
-    entry = { view, url: null, canGoBack: false, canGoForward: false, title: '' }
+    entry = { view, url: null, baseUrl: null, canGoBack: false, canGoForward: false, title: '' }
 
     // Keep the renderer's mini-browser in sync with the actual page state so
     // the address bar reflects the URL currently being viewed and can offer
@@ -244,15 +246,24 @@ class PreviewManager {
   }
 
   /**
-   * Show a project's preview. Loads the URL on first use, keeps the view
-   * mounted afterwards (navigate() is used for manual URL changes).
+   * Show a project's preview. Loads the URL only on first use or when the
+   * project's base URL changes (port/host edited); afterwards keeps the view
+   * mounted so the user's current page — including any navigation made via the
+   * address bar — is preserved when re-showing (tab switch, fullscreen toggle,
+   * device change). navigate() is used for manual URL changes.
    */
   show({ projectId, url, bounds }: { projectId: string; url: string; bounds?: PreviewBounds }) {
     if (!projectId) return { success: false, error: 'Missing project id' }
     const entry = this.ensureView(projectId)
     if (!entry) return { success: false, error: 'Preview unavailable' }
 
-    if (entry.url !== url) {
+    if (entry.baseUrl !== url) {
+      // Only reload when the project's base URL changed (port/host edited, or
+      // the very first load). Re-showing a mounted view (tab switch, fullscreen
+      // toggle, device change) resets to the same base URL, so the user's
+      // current page — including any navigation made via the address bar —
+      // is preserved instead of being bounced back to the app root.
+      entry.baseUrl = url
       entry.url = url
       entry.view.webContents.loadURL(url).catch((error) => {
         console.error(`[Preview] Failed to load ${url}:`, error)
