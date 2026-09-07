@@ -1,7 +1,7 @@
 /**
- * Gatrion app icon generator — zero dependencies (Node + zlib only).
+ * DevLauncher app icon generator — zero dependencies (Node + zlib only).
  *
- * Renders a rounded-square purple gradient tile with a white "G" monogram,
+ * Renders the workspace-grid mark: three project tiles and one launch tile,
  * then writes:
  *   - build/icon.png        (512x512, window icon)
  *   - build/icon.ico        (256x256 PNG-embedded ICO, Windows packaging)
@@ -80,20 +80,30 @@ function hexToRgb(hex) {
   return [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
 }
 
-const GRADIENT_TOP = hexToRgb('#7D6FFF');
-const GRADIENT_BOTTOM = hexToRgb('#4E3ED8');
-const GLYPH = hexToRgb('#FFFFFF');
+const PROJECT_TOP = hexToRgb('#786BFF');
+const PROJECT_BOTTOM = hexToRgb('#5B45E8');
+const LAUNCH_TOP = hexToRgb('#20E0E8');
+const LAUNCH_BOTTOM = hexToRgb('#0BC4D4');
 
-// Glyph geometry (unit coordinates, center at 0.5/0.5)
-const RING_OUTER = 0.335;
-const RING_INNER = 0.19;
-const GAP_HALF = 0.42; // radians of opening on the right side
-const BAR_HALF_H = 0.0525;
-const BAR_X1 = 0.40;
-const BAR_X2 = 0.5 + RING_OUTER;
-const BAR_CX = (BAR_X1 + BAR_X2) / 2;
-const BAR_HALF_W = (BAR_X2 - BAR_X1) / 2;
-const CORNER_RADIUS = 0.22;
+function gradientColor(top, bottom, t) {
+  return top.map((channel, index) => Math.round(channel + (bottom[index] - channel) * t));
+}
+
+function insideRoundedRect(x, y, cx, cy, halfWidth, halfHeight, radius) {
+  const qx = Math.abs(x - cx) - (halfWidth - radius);
+  const qy = Math.abs(y - cy) - (halfHeight - radius);
+  const ox = Math.max(qx, 0);
+  const oy = Math.max(qy, 0);
+  return Math.hypot(ox, oy) + Math.min(Math.max(qx, qy), 0) <= radius;
+}
+
+function insideTriangle(px, py, ax, ay, bx, by, cx, cy) {
+  const sign = (x1, y1, x2, y2, x3, y3) => (x1 - x3) * (y2 - y3) - (x2 - x3) * (y1 - y3);
+  const d1 = sign(px, py, ax, ay, bx, by);
+  const d2 = sign(px, py, bx, by, cx, cy);
+  const d3 = sign(px, py, cx, cy, ax, ay);
+  return !((d1 < 0 || d2 < 0 || d3 < 0) && (d1 > 0 || d2 > 0 || d3 > 0));
+}
 
 /**
  * Render the icon at `size` px with `ss`x supersampling.
@@ -108,43 +118,59 @@ function renderIcon(size, ss = 4) {
     for (let px = 0; px < S; px++) {
       const u = (px + 0.5) / S;
 
-      // Rounded-square background mask
-      const dx = Math.abs(u - 0.5);
-      const dy = Math.abs(v - 0.5);
-      const qx = dx - (0.5 - CORNER_RADIUS);
-      const qy = dy - (0.5 - CORNER_RADIUS);
-      const ox = Math.max(qx, 0);
-      const oy = Math.max(qy, 0);
-      const rectDist = Math.hypot(ox, oy) + Math.min(Math.max(qx, qy), 0) - CORNER_RADIUS;
-      if (rectDist > 0) continue; // outside the tile → transparent
+      const padding = 0.125;
+      const gap = 0.035;
+      const cell = (1 - padding * 2 - gap) / 2;
+      const radius = cell * 0.22;
+      const left = padding;
+      const right = padding + cell + gap;
+      const top = padding;
+      const bottom = padding + cell + gap;
+      const half = cell / 2;
 
-      // Vertical gradient background
-      const t = Math.min(1, Math.max(0, v));
-      const r = GRADIENT_TOP[0] + (GRADIENT_BOTTOM[0] - GRADIENT_TOP[0]) * t;
-      const g = GRADIENT_TOP[1] + (GRADIENT_BOTTOM[1] - GRADIENT_TOP[1]) * t;
-      const b = GRADIENT_TOP[2] + (GRADIENT_BOTTOM[2] - GRADIENT_TOP[2]) * t;
+      const inProjectTile =
+        insideRoundedRect(u, v, left + half, top + half, half, half, radius) ||
+        insideRoundedRect(u, v, right + half, top + half, half, half, radius) ||
+        insideRoundedRect(u, v, left + half, bottom + half, half, half, radius);
 
-      // "G" = ring with a gap on the right + middle bar
-      const dist = Math.hypot(u - 0.5, v - 0.5);
-      const ringMid = (RING_INNER + RING_OUTER) / 2;
-      const inRing = Math.abs(dist - ringMid) <= (RING_OUTER - RING_INNER) / 2;
-      const angle = Math.atan2(v - 0.5, u - 0.5);
-      const inGap = Math.abs(angle) <= GAP_HALF;
-      const inBar = Math.abs(u - BAR_CX) <= BAR_HALF_W && Math.abs(v - 0.5) <= BAR_HALF_H;
-      const glyphOn = (inRing && !inGap) || inBar;
+      // The launch tile occupies the fourth grid cell. A short rounded body
+      // keeps it visually related to the project tiles; the triangle gives it
+      // forward motion without relying on a letter or interior glyph.
+      const launchBody = insideRoundedRect(
+        u,
+        v,
+        right + cell * 0.22,
+        bottom + half,
+        cell * 0.22,
+        half,
+        radius,
+      );
+      const launchWedge = insideTriangle(
+        u,
+        v,
+        right + cell * 0.16,
+        bottom,
+        right + cell,
+        bottom + half,
+        right + cell * 0.16,
+        bottom + cell,
+      );
+      const inLaunchTile = launchBody || launchWedge;
+
+      if (!inProjectTile && !inLaunchTile) continue;
+
+      const localT = inLaunchTile
+        ? Math.min(1, Math.max(0, (v - bottom) / cell))
+        : Math.min(1, Math.max(0, (v - top) / (cell * 2 + gap)));
+      const color = inLaunchTile
+        ? gradientColor(LAUNCH_TOP, LAUNCH_BOTTOM, localT)
+        : gradientColor(PROJECT_TOP, PROJECT_BOTTOM, localT);
 
       const idx = (py * S + px) * 4;
-      if (glyphOn) {
-        rgba[idx] = GLYPH[0];
-        rgba[idx + 1] = GLYPH[1];
-        rgba[idx + 2] = GLYPH[2];
-        rgba[idx + 3] = 255;
-      } else {
-        rgba[idx] = Math.round(r);
-        rgba[idx + 1] = Math.round(g);
-        rgba[idx + 2] = Math.round(b);
-        rgba[idx + 3] = 255;
-      }
+      rgba[idx] = color[0];
+      rgba[idx + 1] = color[1];
+      rgba[idx + 2] = color[2];
+      rgba[idx + 3] = 255;
     }
   }
   return downsamplePremultiplied(rgba, S, size);

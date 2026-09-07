@@ -1,8 +1,12 @@
-# DevLauncher
+<p align="center">
+  <img src="docs/branding/devlauncher-logo-workspace-grid.png" width="104" alt="Logo DevLauncher">
+</p>
+
+<h1 align="center">DevLauncher</h1>
+
+<p align="center"><strong>Command center untuk semua project development lokal-mu.</strong></p>
 
 > [English](README.md) | **Bahasa Indonesia**
-
-**Command center untuk semua project development lokal-mu.**
 
 DevLauncher adalah aplikasi Windows gratis dan open-source yang start, pantau, preview, dan chat dengan semua project dari satu jendela — Laravel, Next.js, Vite, Vue, Go, Node.js, atau command custom apa pun.
 
@@ -13,6 +17,10 @@ DevLauncher adalah aplikasi Windows gratis dan open-source yang start, pantau, p
 Karena workflow development-mu seharusnya tidak seperti chaos theory.
 
 Tiap hari kamu melakukan tarian yang sama: buka lima terminal, jalankan `npm run dev` di masing-masing, mengingat port mana milik service mana, alt-tab antara browser dan editor, lalu berdoa log crash-nya masih ada di scrollback saat ada yang mati. DevLauncher menghilangkan pekerjaan itu — satu jendela untuk seluruh workspace, plus agent AI yang benar-benar bisa bertindak, bukan cuma bicara.
+
+<p align="center">
+  <img src="docs/branding/devlauncher-brand-illustration-v1.png" width="420" alt="DevLauncher menyatukan beberapa terminal dan project development ke dalam satu alur peluncuran">
+</p>
 
 - **Satu jendela, semuanya.** Start, stop, pantau, dan lihat semua project — status, CPU, RAM, port, dan PID sekilas. Tidak perlu lagi berburu di task manager.
 - **Agent yang bisa bertindak.** Chat dengan agent bertenaga omp per project. Ia membaca kode-mu dan — dengan izinmu — mengontrol aplikasinya sendiri lewat lapisan MCP dengan permission matrix (44 tool: start/stop project, git, `.env`, terminal, backup, update). Aksi destruktif selalu menunggu persetujuan eksplisit darimu.

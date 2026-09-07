@@ -6,6 +6,10 @@ Format mengikuti [Keep a Changelog](https://keepachangelog.com/id-ID/1.1.0/), da
 
 ## [Unreleased]
 
+### Changed
+
+- **Identitas visual baru untuk DevLauncher** — icon huruf “G” dan simbol play sederhana diganti dengan workspace grid: tiga tile project dan satu tile launch, konsisten di window, installer, tray, dan sidebar aplikasi.
+
 ### Fixed
 
 - **Terminal interaktif kini benar-benar menyesuaikan ukuran wadahnya (fit)** — sebelumnya xterm mempertahankan grid awal (~80×24) berapa pun ukuran window: di layar lebar terminal tampil sebagai strip sempit, baris terbawah terpotong oleh kontainer (`overflow-hidden`) sehingga output tampak "kepotong", dan pembungkusan baris tidak pernah cocok dengan yang terlihat. Kini viewport xterm di-`fit` tepat ke kontainer (via `@xterm/addon-fit`) saat mount, setiap kontainer berubah ukuran, dan lewat pengecekan periodik; dimensi asli barulah direlay ke PTY (hanya saat berubah), sehingga wrapping, scrollback, dan perilaku scroll sama seperti terminal sungguhan. Scrollback dinaikkan `1000 → 5000` baris, terminal otomatis refocus saat kembali ke tab (bisa langsung ketik), dan navigasi riwayat shell dengan panah atas/bawah bekerja normal.

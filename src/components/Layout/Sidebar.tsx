@@ -139,8 +139,23 @@ const Sidebar = ({
       aria-label={t('nav.main')}
     >
       <div className="h-[66px] flex items-center gap-2.5 px-4 border-b border-border overflow-hidden" style={dragRegion}>
-        <div className="w-[34px] h-[34px] rounded-[10px] bg-accent flex items-center justify-center shadow-glow shrink-0" role="img" aria-label="Gatrion logo">
-          <svg width="15" height="15" viewBox="0 0 24 24"><path d="M5 3l14 9-14 9z" fill="white" /></svg>
+        <div className="w-[34px] h-[34px] flex items-center justify-center shrink-0" role="img" aria-label="Gatrion logo">
+          <svg width="30" height="30" viewBox="0 0 32 32" aria-hidden="true">
+            <defs>
+              <linearGradient id="gatrion-project" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0" stopColor="#786BFF" />
+                <stop offset="1" stopColor="#5B45E8" />
+              </linearGradient>
+              <linearGradient id="gatrion-launch" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0" stopColor="#20E0E8" />
+                <stop offset="1" stopColor="#0BC4D4" />
+              </linearGradient>
+            </defs>
+            <rect x="2" y="2" width="13" height="13" rx="3" fill="url(#gatrion-project)" />
+            <rect x="17" y="2" width="13" height="13" rx="3" fill="url(#gatrion-project)" />
+            <rect x="2" y="17" width="13" height="13" rx="3" fill="url(#gatrion-project)" />
+            <path d="M19.5 17.2c-1.4-.8-2.5 0-2.5 1.6v10.4c0 1.6 1.1 2.4 2.5 1.6l10.7-5.2c1.5-.8 1.5-2.4 0-3.2z" fill="url(#gatrion-launch)" />
+          </svg>
         </div>
         {!collapsed && <div className="min-w-0"><strong className="block font-display font-extrabold text-sm">Gatrion</strong><span className="block text-[8px] font-mono uppercase tracking-[0.12em] text-ink-faint">Local workspace</span></div>}
       </div>

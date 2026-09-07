@@ -1,8 +1,12 @@
-# DevLauncher
+<p align="center">
+  <img src="docs/branding/devlauncher-logo-workspace-grid.png" width="104" alt="DevLauncher logo">
+</p>
+
+<h1 align="center">DevLauncher</h1>
+
+<p align="center"><strong>Command center for local dev projects.</strong></p>
 
 > **English** | [Bahasa Indonesia](README.id.md)
-
-**Command center for local dev projects.**
 
 DevLauncher is a free, open-source Windows app that starts, monitors, previews, and chats with every local project from a single window — Laravel, Next.js, Vite, Vue, Go, Node.js, or any custom command.
 
@@ -13,6 +17,10 @@ DevLauncher is a free, open-source Windows app that starts, monitors, previews, 
 Because your dev workflow shouldn't look like chaos theory.
 
 Every day you juggle the same dance: open five terminals, run `npm run dev` in each, remember which port belongs to which service, alt-tab between the browser and the editor, and pray the crash logs are still in scrollback when something dies. DevLauncher removes the juggling — one window for the whole workspace, plus an AI agent that can actually do things, not just talk.
+
+<p align="center">
+  <img src="docs/branding/devlauncher-brand-illustration-v1.png" width="420" alt="DevLauncher brings multiple terminals and development projects into one connected launch workflow">
+</p>
 
 - **One window, everything.** Start, stop, monitor, and see every project — status, CPU, RAM, port, and PID at a glance. No more hunting through task managers.
 - **An agent that can act.** Chat with an omp-powered agent per project. It reads your code and, with your permission, controls the app itself through a permission-gated MCP layer (44 tools: start/stop projects, git, .env, terminal, backup, update). Destructive actions always wait for your explicit approval.
