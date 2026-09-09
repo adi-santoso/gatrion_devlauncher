@@ -161,57 +161,60 @@ export default function ProjectDetailView({
       )}
 
       <div className={keepPreviewAlive || activeTab === 'app' ? (fullscreen ? 'h-full flex-1 flex flex-col' : 'block') : 'hidden'}>
-        {keepPreviewAlive ? previewProjects.map(renderPreview) : (activeTab === 'app' && project ? renderPreview(project) : null)}
+        {keepPreviewAlive ? previewProjects.map(renderPreview) : (visible && activeTab === 'app' && project ? renderPreview(project) : null)}
+      </div>
+
+      {/* Keep PTYs mounted even while the app preview is fullscreen. Hiding the
+          container preserves the real shell process, history and screen state. */}
+      <div className={!fullscreen && activeTab === 'terminal' ? 'block space-y-5' : 'hidden'}>
+        {project?.path ? (
+          <div className="flex items-center justify-between gap-3 rounded-xl border border-border bg-surface p-3">
+            <div className="flex items-center gap-2 min-w-0">
+              <Icon name="terminal" size={16} className="text-accent" />
+              <div className="min-w-0">
+                <p className="text-sm font-semibold text-ink">Interactive shell</p>
+                <p className="text-xs text-ink-faint truncate">{project.path}</p>
+              </div>
+            </div>
+            {openTerminals.includes(project.id) ? (
+              <button
+                type="button"
+                onClick={() => closeTerminal(project.id)}
+                title="Close shell for this project"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-surface-3 hover:bg-surface-2 text-xs font-medium text-ink-soft hover:text-ink border border-border transition-colors"
+              >
+                <Icon name="x" size={13} />
+                Close shell
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => startTerminal(project.id)}
+                title="Open a shell in the project folder"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-accent hover:bg-accent-hover text-white text-xs font-semibold shadow-glow transition-colors"
+              >
+                <Icon name="play" size={13} />
+                Start shell
+              </button>
+            )}
+          </div>
+        ) : null}
+        {openTerminals.map((id) => {
+          const tProject = projects.find((p) => p.id === id);
+          const active = id === project?.id;
+          if (!tProject?.path) return null;
+          return (
+            <div key={id} className={active ? 'block h-80 rounded-xl border border-border bg-surface shadow-card p-2' : 'hidden'}>
+              <InteractiveTerminal cwd={tProject.path} fontSize={terminalConfig?.fontSize} />
+            </div>
+          );
+        })}
+        <CustomCommands project={project}/>
+        <LogsTab logs={combinedLogs} autoScroll={autoScroll} onAutoScrollChange={onAutoScrollChange} onClear={onClearLogs} fontSize={terminalConfig?.fontSize}/>
       </div>
 
       {!fullscreen && (
         <>
-          <div className={activeTab === 'terminal' ? 'block space-y-5' : 'hidden'}>
-            {project?.path ? (
-              <div className="flex items-center justify-between gap-3 rounded-xl border border-border bg-surface p-3">
-                <div className="flex items-center gap-2 min-w-0">
-                  <Icon name="terminal" size={16} className="text-accent" />
-                  <div className="min-w-0">
-                    <p className="text-sm font-semibold text-ink">Interactive shell</p>
-                    <p className="text-xs text-ink-faint truncate">{project.path}</p>
-                  </div>
-                </div>
-                {openTerminals.includes(project.id) ? (
-                  <button
-                    type="button"
-                    onClick={() => closeTerminal(project.id)}
-                    title="Close shell for this project"
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-surface-3 hover:bg-surface-2 text-xs font-medium text-ink-soft hover:text-ink border border-border transition-colors"
-                  >
-                    <Icon name="x" size={13} />
-                    Close shell
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => startTerminal(project.id)}
-                    title="Open a shell in the project folder"
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-accent hover:bg-accent-hover text-white text-xs font-semibold shadow-glow transition-colors"
-                  >
-                    <Icon name="play" size={13} />
-                    Start shell
-                  </button>
-                )}
-              </div>
-            ) : null}
-            {openTerminals.map((id) => {
-              const tProject = projects.find((p) => p.id === id);
-              const active = activeTab === 'terminal' && id === project?.id;
-              if (!tProject?.path) return null;
-              return (
-                <div key={id} className={active ? 'block h-80 rounded-xl border border-border bg-surface shadow-card p-2' : 'hidden'}>
-                  <InteractiveTerminal cwd={tProject.path} fontSize={terminalConfig?.fontSize} />
-                </div>
-              );
-            })}
-            <CustomCommands project={project}/>
-            <LogsTab logs={combinedLogs} autoScroll={autoScroll} onAutoScrollChange={onAutoScrollChange} onClear={onClearLogs} fontSize={terminalConfig?.fontSize}/>
-          </div>
           <div className={activeTab === 'logs' ? 'block' : 'hidden'}>
             {project?.path ? <LaravelLogsTab projectPath={project.path}/> : null}
           </div>

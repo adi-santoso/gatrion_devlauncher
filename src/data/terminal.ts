@@ -18,6 +18,31 @@ export interface TerminalCreateResult extends SimpleResult {
   [key: string]: unknown
 }
 
+type TerminalDataListener = (id: string, data: string) => void
+type TerminalExitListener = (id: string, code?: number | null) => void
+
+// Multiplex both push channels through one preload/ipcRenderer listener. A
+// Project Detail can keep many shells mounted; registering one Electron
+// EventEmitter listener per shell eventually produces MaxListeners warnings.
+const terminalDataListeners = new Set<TerminalDataListener>()
+const terminalExitListeners = new Set<TerminalExitListener>()
+let stopDataBridge: (() => void) | null = null
+let stopExitBridge: (() => void) | null = null
+
+const ensureDataBridge = (): void => {
+  if (stopDataBridge || !isElectron()) return
+  stopDataBridge = subscribe('onTerminalData', (id, data) => {
+    for (const listener of terminalDataListeners) listener(id as string, data as string)
+  })
+}
+
+const ensureExitBridge = (): void => {
+  if (stopExitBridge || !isElectron()) return
+  stopExitBridge = subscribe('onTerminalExit', (id, code) => {
+    for (const listener of terminalExitListeners) listener(id as string, code as number | null | undefined)
+  })
+}
+
 export const terminalCreate = async (options: TerminalCreateOptions): Promise<TerminalCreateResult> => {
   if (!isElectron()) return { success: false, error: 'Electron not available' }
   return invoke<TerminalCreateResult>('terminalCreate', options)
@@ -41,11 +66,27 @@ export const terminalKill = async (id: string): Promise<SimpleResult> => {
 /** Push channel — terminal output data. */
 export const onTerminalData = (callback: (id: string, data: string) => void): (() => void) => {
   if (!isElectron()) return () => {}
-  return subscribe('onTerminalData', (id, data) => callback(id as string, data as string))
+  terminalDataListeners.add(callback)
+  ensureDataBridge()
+  return () => {
+    terminalDataListeners.delete(callback)
+    if (terminalDataListeners.size === 0 && stopDataBridge) {
+      stopDataBridge()
+      stopDataBridge = null
+    }
+  }
 }
 
 /** Push channel — terminal session exit. */
 export const onTerminalExit = (callback: (id: string, code?: number | null) => void): (() => void) => {
   if (!isElectron()) return () => {}
-  return subscribe('onTerminalExit', (id, code) => callback(id as string, code as number | null | undefined))
+  terminalExitListeners.add(callback)
+  ensureExitBridge()
+  return () => {
+    terminalExitListeners.delete(callback)
+    if (terminalExitListeners.size === 0 && stopExitBridge) {
+      stopExitBridge()
+      stopExitBridge = null
+    }
+  }
 }

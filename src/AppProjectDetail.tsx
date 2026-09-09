@@ -30,9 +30,9 @@ export interface AppProjectDetailProps {
 }
 
 /**
- * Project detail view with keep-alive semantics: while the app shows another
- * view the component stays mounted (hidden) so the preview iframe keeps its
- * page state. When keep-alive is off it unmounts like the old behavior.
+ * Project detail stays mounted while the app shows another view so interactive
+ * shells keep their PTY state. Preview mounting is controlled independently by
+ * `keepAlive` inside ProjectDetailView.
  */
 export default function AppProjectDetail({
   project,
@@ -63,7 +63,6 @@ export default function AppProjectDetail({
   const liveProject = projects.find((p) => p.id === project.id) || project
   fullscreenRef.current = liveProject
 
-  if (!keepAlive && currentView !== 'project-detail') return null
   const hidden = currentView !== 'project-detail'
 
   return (

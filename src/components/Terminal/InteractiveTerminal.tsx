@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
-import { Terminal } from 'xterm';
+import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
-import 'xterm/css/xterm.css';
+import '@xterm/xterm/css/xterm.css';
 import * as ipc from '../../utils/ipcRenderer';
 
 interface TerminalSessionProps {
@@ -26,6 +26,7 @@ function TerminalSession({ cwd, fontSize = 14, onExited }: TerminalSessionProps)
   const containerRef = useRef<HTMLDivElement>(null);
   const termRef = useRef<Terminal | null>(null);
   const termIdRef = useRef<string | null>(null);
+  const syncSizeRef = useRef<() => void>(() => {});
   // Mount-time snapshot + latest values via refs so the one-shot mount effect
   // never needs to depend on `fontSize`/`onExited` identities (which would
   // recreate the PTY session on every parent re-render).
@@ -38,6 +39,12 @@ function TerminalSession({ cwd, fontSize = 14, onExited }: TerminalSessionProps)
     let disposed = false;
     let cleanupData: () => void = () => {};
     let cleanupExit: () => void = () => {};
+    let inputDisposable: { dispose(): void } | null = null;
+    let removeContextMenu: () => void = () => {};
+    let pendingInput = '';
+    const startupData: Array<{ id: string; data: string }> = [];
+    const startupExits = new Map<string, number | null | undefined>();
+    let startupDataBytes = 0;
 
     const term = new Terminal({
       cursorBlink: true,
@@ -70,19 +77,30 @@ function TerminalSession({ cwd, fontSize = 14, onExited }: TerminalSessionProps)
     };
     term.attachCustomKeyEventHandler((event) => {
       const mod = event.ctrlKey || event.metaKey;
-      if (mod && !event.shiftKey && !event.altKey) {
+      if (mod && !event.altKey) {
         const key = event.key.toLowerCase();
         if (key === 'v') {
           event.preventDefault();
           readClipboard();
           return false;
         }
-        if (key === 'c' && term.hasSelection()) {
+        // Ctrl+C without a selection is deliberately left alone: xterm emits
+        // ETX (\x03), which lets the real shell interrupt the foreground job.
+        // Ctrl+Shift+C always behaves as Copy, matching modern terminals.
+        if (key === 'c' && (event.shiftKey || term.hasSelection())) {
           event.preventDefault();
-          navigator.clipboard?.writeText(term.getSelection()).catch(() => {});
-          term.clearSelection();
+          if (term.hasSelection()) {
+            navigator.clipboard?.writeText(term.getSelection()).catch(() => {});
+            term.clearSelection();
+          }
           return false;
         }
+      }
+      if (event.ctrlKey && event.key === 'Insert' && term.hasSelection()) {
+        event.preventDefault();
+        navigator.clipboard?.writeText(term.getSelection()).catch(() => {});
+        term.clearSelection();
+        return false;
       }
       if (event.shiftKey && event.key === 'Insert') {
         event.preventDefault();
@@ -90,6 +108,46 @@ function TerminalSession({ cwd, fontSize = 14, onExited }: TerminalSessionProps)
         return false;
       }
       return true;
+    });
+
+    // Subscribe before spawning the PTY. Shells can print a prompt (or exit)
+    // immediately; subscribing after terminalCreate resolved left a small gap
+    // where those startup events could be lost.
+    const handleExit = (exitCode: number | null | undefined): void => {
+      term.writeln(`\r\n\x1b[33m[process exited with code ${exitCode}]\x1b[0m`);
+      onExitedRef.current?.(exitCode);
+    };
+    cleanupData = ipc.onTerminalData((id, data) => {
+      const terminalId = termIdRef.current;
+      if (terminalId) {
+        if (id === terminalId) term.write(data);
+        return;
+      }
+      // Only needed during the very short create handshake. Keep it bounded in
+      // case another already-running terminal is producing heavy output.
+      if (startupDataBytes < 256 * 1024) {
+        startupData.push({ id, data });
+        startupDataBytes += data.length;
+      }
+    });
+    cleanupExit = ipc.onTerminalExit((id, exitCode) => {
+      if (termIdRef.current) {
+        if (id === termIdRef.current) handleExit(exitCode);
+      } else {
+        startupExits.set(id, exitCode);
+      }
+    });
+
+    // xterm translates arrows, Home/End, Tab and control keys to terminal
+    // escape sequences. Forward them untouched to node-pty so history and line
+    // editing are provided by the user's actual shell. Buffer keystrokes made
+    // during startup instead of silently dropping them.
+    inputDisposable = term.onData((data) => {
+      if (termIdRef.current) {
+        void ipc.terminalInput(termIdRef.current, data);
+      } else if (pendingInput.length < 65536) {
+        pendingInput += data.slice(0, 65536 - pendingInput.length);
+      }
     });
 
     // Last dims relayed to the PTY — relay only on real changes so spurious
@@ -118,11 +176,19 @@ function TerminalSession({ cwd, fontSize = 14, onExited }: TerminalSessionProps)
       lastRows = rows;
       if (termIdRef.current) ipc.terminalResize(termIdRef.current, cols, rows);
     };
+    syncSizeRef.current = syncSize;
 
     const mount = async (): Promise<void> => {
       const container = containerRef.current;
       if (!container || disposed) return;
       term.open(container);
+      const handleContextMenu = (event: MouseEvent): void => {
+        event.preventDefault();
+        term.focus();
+        readClipboard();
+      };
+      container.addEventListener('contextmenu', handleContextMenu);
+      removeContextMenu = () => container.removeEventListener('contextmenu', handleContextMenu);
       // Fit right away so the PTY spawns at the true viewport size. FitAddon
       // no-ops until the renderer has measured cell dimensions, so the rAF
       // retry and the ResizeObserver cover the first layout pass.
@@ -148,22 +214,25 @@ function TerminalSession({ cwd, fontSize = 14, onExited }: TerminalSessionProps)
       }
 
       termIdRef.current = result.id || null;
+      if (!termIdRef.current) {
+        term.writeln('\x1b[31mFailed to start terminal: missing terminal id\x1b[0m');
+        return;
+      }
+
+      for (const event of startupData) {
+        if (event.id === termIdRef.current) term.write(event.data);
+      }
+      const startupExit = startupExits.get(termIdRef.current);
+      if (startupExits.has(termIdRef.current)) handleExit(startupExit);
+      startupData.length = 0;
+      startupExits.clear();
+
+      if (pendingInput) {
+        void ipc.terminalInput(termIdRef.current, pendingInput);
+        pendingInput = '';
+      }
       // Now that the session exists, push the definitive size.
       syncSize();
-
-      cleanupData = ipc.onTerminalData((id, data) => {
-        if (id === termIdRef.current) term.write(data);
-      });
-      cleanupExit = ipc.onTerminalExit((id, exitCode) => {
-        if (id === termIdRef.current) {
-          term.writeln(`\r\n\x1b[33m[process exited with code ${exitCode}]\x1b[0m`);
-          onExitedRef.current?.(exitCode);
-        }
-      });
-
-      term.onData((data) => {
-        if (termIdRef.current) ipc.terminalInput(termIdRef.current, data);
-      });
 
       const resizeObserver = new ResizeObserver(syncSize);
       resizeObserver.observe(container);
@@ -183,6 +252,9 @@ function TerminalSession({ cwd, fontSize = 14, onExited }: TerminalSessionProps)
       disposed = true;
       cleanupData();
       cleanupExit();
+      inputDisposable?.dispose();
+      removeContextMenu();
+      syncSizeRef.current = () => {};
       const self = termRef.current as (Terminal & { _resizeObserver?: ResizeObserver; _resyncTimer?: number }) | null;
       self?._resizeObserver?.disconnect();
       if (self?._resyncTimer) window.clearInterval(self._resyncTimer);
@@ -197,6 +269,7 @@ function TerminalSession({ cwd, fontSize = 14, onExited }: TerminalSessionProps)
   useEffect(() => {
     if (termRef.current && fontSize) {
       termRef.current.options.fontSize = fontSize;
+      requestAnimationFrame(syncSizeRef.current);
     }
   }, [fontSize]);
 

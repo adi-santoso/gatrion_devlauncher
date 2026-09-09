@@ -63,7 +63,7 @@ test.describe('project detail interactive shell', () => {
     }
   });
 
-  test('real-terminal clipboard: Ctrl+V pastes, Ctrl+C interrupts', async () => {
+  test('real-terminal keys: paste, command history arrows, and Ctrl+C interrupt', async () => {
     const projectDir = await writeFixtureProject(await makeTempDir('devlauncher-termclip-'));
     const userData = await makeTempDir('devlauncher-termclip-ud-');
     const project = fixtureProject('term-clip', projectDir, { name: 'e2e-term-clip' });
@@ -99,6 +99,24 @@ test.describe('project detail interactive shell', () => {
       await window.keyboard.press('Control+v');
       await window.keyboard.press('Enter');
       await expect.poll(async () => (await xterm.innerText()).includes('PASTED-42'), { timeout: 8000 }).toBe(true);
+
+      // The PTY shell owns history. xterm must forward ArrowUp/ArrowDown escape
+      // sequences untouched so commands can be recalled exactly as in a native
+      // PowerShell/cmd terminal.
+      await window.keyboard.type('echo HISTORY-ALPHA-42');
+      await window.keyboard.press('Enter');
+      await expect.poll(async () => (await xterm.innerText()).includes('HISTORY-ALPHA-42'), { timeout: 8000 }).toBe(true);
+      await window.keyboard.type('echo HISTORY-BETA-42');
+      await window.keyboard.press('Enter');
+      await expect.poll(async () => (await xterm.innerText()).includes('HISTORY-BETA-42'), { timeout: 8000 }).toBe(true);
+      const betaCountBefore = ((await xterm.innerText()).match(/HISTORY-BETA-42/g) || []).length;
+      await window.keyboard.press('ArrowUp');
+      await window.keyboard.press('ArrowUp');
+      await window.keyboard.press('ArrowDown');
+      await window.keyboard.press('Enter');
+      await expect.poll(async () => {
+        return ((await xterm.innerText()).match(/HISTORY-BETA-42/g) || []).length;
+      }, { timeout: 8000 }).toBeGreaterThan(betaCountBefore);
 
       // Ctrl+C interrupts a long-running command and returns to the prompt.
       const hangCmd = process.platform === 'win32' ? 'ping -t 127.0.0.1' : 'sleep 30';

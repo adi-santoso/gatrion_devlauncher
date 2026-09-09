@@ -119,6 +119,27 @@ describe('ProjectDetailView preview mounting', () => {
     expect(screen.getAllByTestId('interactive-terminal')).toHaveLength(2)
   })
 
+  it('keeps a started shell mounted while the app preview enters fullscreen', () => {
+    render(
+      <ProjectDetailView project={projectA} keepPreviewAlive projects={[projectA]} />
+    )
+    fireEvent.click(screen.getByRole('tab', { name: 'Terminal' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Start shell' }))
+    const terminal = screen.getByTestId('interactive-terminal')
+
+    fireEvent.click(screen.getByRole('tab', { name: 'App' }))
+    fireEvent.click(screen.getByRole('button', { name: 'toggle-fullscreen' }))
+
+    expect(screen.getByTestId('interactive-terminal')).toBe(terminal)
+  })
+
+  it('unmounts a non-keep-alive preview while Project Detail is hidden', () => {
+    render(
+      <ProjectDetailView project={projectA} keepPreviewAlive={false} visible={false} projects={[projectA]} />
+    )
+    expect(screen.queryByTestId('preview-a')).not.toBeInTheDocument()
+  })
+
   it('keep-alive mode keeps previous projects previews mounted when switching projects', () => {
     const { rerender } = render(
       <ProjectDetailView project={projectA} keepPreviewAlive projects={[projectA, projectB]} />
