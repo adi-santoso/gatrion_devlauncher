@@ -22,7 +22,6 @@ export interface RpcEntry {
   cwd: string
   nextId: number
   pending: Map<string, PendingRequest>
-  pendingExtensionRequests: Map<string, PendingRequest>
   sessionFile: string | null
   idleTimer: ReturnType<typeof setTimeout> | null
   lastActive: number
@@ -104,8 +103,6 @@ export class OmpRpcTransport {
     const rejectPending = (message: string) => {
       for (const pending of [...entry!.pending.values()]) pending.reject(new Error(message))
       entry!.pending.clear()
-      for (const pending of [...entry!.pendingExtensionRequests.values()]) pending.reject(new Error(message))
-      entry!.pendingExtensionRequests.clear()
     }
     child.on('error', (error: Error) => {
       const wasReady = entry.ready
@@ -177,7 +174,6 @@ export class OmpRpcTransport {
       cwd: cwd || os.homedir(),
       nextId: 1,
       pending: new Map(),
-      pendingExtensionRequests: new Map(),
       sessionFile: null,
       idleTimer: null,
       lastActive: Date.now(),

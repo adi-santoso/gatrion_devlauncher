@@ -41,6 +41,7 @@ export interface AppModalsProps {
   onSubmitPreset: (data: PresetFormData) => void
   toasts: Toast[]
   onDismissToast: (id: number) => void
+  onShowToast: (type: string, message: string) => void
 }
 
 /** All app-global modal dialogs, rendered outside the layout chrome. */
@@ -68,6 +69,7 @@ export default function AppModals({
   onSubmitPreset,
   toasts,
   onDismissToast,
+  onShowToast,
 }: AppModalsProps) {
   return (
     <>
@@ -148,7 +150,7 @@ export default function AppModals({
       <McpApprovalModal />
 
       {/* omp extension UI dialogs (select/confirm/input/editor) — self-subscribes */}
-      <OmpExtensionUiModal />
+      <OmpExtensionUiModal onNotify={onShowToast} />
 
       {/* Quit confirmation when minimize-to-tray is OFF — self-subscribes to the main's close intercept */}
       <CloseConfirmModal />

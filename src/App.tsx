@@ -417,6 +417,7 @@ function App() {
             onSubmitPreset={presetModalInitial ? (data) => handleUpdatePreset(presetModalInitial.id, data) : handleCreatePreset}
             toasts={toasts}
             onDismissToast={dismissToast}
+            onShowToast={showToast}
           />
         </>
       )}

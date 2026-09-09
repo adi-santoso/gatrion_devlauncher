@@ -115,6 +115,44 @@ test.describe('agent chat (mock omp)', () => {
     await app.close();
   });
 
+  test('passive extension UI frames do not interrupt chat with an input dialog', async () => {
+    const userData = await makeTempDir('devlauncher-agent-passive-');
+    const projectDir = await writeFixtureProject(await makeTempDir('devlauncher-agentproj-'));
+    await seedUserData(userData, { projects: [fixtureProject('proj-passive', projectDir)] });
+
+    const { app, window, composer } = await openAgentChat({ userData, projectDir });
+
+    await composer.fill('Run PASSIVE events');
+    await composer.press('Enter');
+
+    await expect(window.getByText('Mock passive notification').first()).toBeVisible({ timeout: 10000 });
+    await expect(window.locator('#ompExtensionUiModal')).toHaveCount(0);
+    await expect(window.getByText('Mock reply to: Run PASSIVE events').first()).toBeVisible({ timeout: 15000 });
+
+    await app.close();
+  });
+
+  test('stopping an agent closes a pending request without opening a cancel dialog', async () => {
+    const userData = await makeTempDir('devlauncher-agent-stop-ui-');
+    const projectDir = await writeFixtureProject(await makeTempDir('devlauncher-agentproj-'));
+    await seedUserData(userData, { projects: [fixtureProject('proj-stop-ui', projectDir)] });
+
+    const { app, window, composer } = await openAgentChat({ userData, projectDir });
+
+    await composer.fill('Wait for CONFIRM before stop');
+    await composer.press('Enter');
+    await expect(window.getByText('Mock confirm request').first()).toBeVisible({ timeout: 15000 });
+
+    // The modal intentionally covers the header, so invoke the same Stop
+    // button handler directly to reproduce an abort racing with a UI request.
+    await window.getByRole('button', { name: 'Stop', exact: true }).evaluate((button) => button.click());
+
+    await expect(window.locator('#ompExtensionUiModal')).toHaveCount(0, { timeout: 10000 });
+    await expect(window.getByText('Agent needs your input')).toHaveCount(0);
+
+    await app.close();
+  });
+
   test('auto-restarts the RPC process when it crashes mid-turn and recovers', async () => {
     const userData = await makeTempDir('devlauncher-agent-crash-');
     const projectDir = await writeFixtureProject(await makeTempDir('devlauncher-agentproj-'));

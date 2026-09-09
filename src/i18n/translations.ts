@@ -209,6 +209,10 @@ export const translations: { en: TranslationTable; id: TranslationTable } = {
     'agent.extUi.confirm': 'Confirm',
     'agent.extUi.cancelAll': 'Cancel all ({count})',
     'agent.extUi.dismiss': 'Dismiss',
+    'agent.extUi.responseFailed': 'Could not send the response to the agent. Please try again.',
+    'agent.extUi.openLinkTitle': 'Open link in your browser?',
+    'agent.extUi.openLink': 'Open link',
+    'agent.extUi.invalidLink': 'The agent provided an invalid link.',
 
     // Preview device simulator
     'preview.device': 'Device',
@@ -425,6 +429,10 @@ export const translations: { en: TranslationTable; id: TranslationTable } = {
     'agent.extUi.confirm': 'Konfirmasi',
     'agent.extUi.cancelAll': 'Batalkan semua ({count})',
     'agent.extUi.dismiss': 'Tutup',
+    'agent.extUi.responseFailed': 'Respons tidak dapat dikirim ke agen. Silakan coba lagi.',
+    'agent.extUi.openLinkTitle': 'Buka tautan di browser?',
+    'agent.extUi.openLink': 'Buka tautan',
+    'agent.extUi.invalidLink': 'Agen memberikan tautan yang tidak valid.',
 
     // Preview device simulator
     'preview.device': 'Perangkat',

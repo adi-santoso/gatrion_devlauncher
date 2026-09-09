@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import AnimatedModal from '../Common/AnimatedModal'
-import { onOmpExtensionUiRequest, respondExtensionUi } from '../../data/agent'
+import { onOmpEvent, onOmpExtensionUiRequest, respondExtensionUi } from '../../data/agent'
+import { openExternalUrl } from '../../data/config'
 import { useI18n } from '../../i18n/I18nContext'
 
 /**
@@ -19,26 +20,86 @@ export interface OmpExtensionUiRequest {
   placeholder?: string
   prefill?: string
   options?: string[]
-  optionDetails?: Array<{ label?: string; detail?: string }>
+  optionDetails?: Array<{ label?: string; description?: string; detail?: string }>
   url?: string
+  launchUrl?: string
+  instructions?: string
   notifyType?: string
   timeout?: number
   targetId?: string
+  statusKey?: string
+  statusText?: string
+  widgetKey?: string
+  widgetLines?: string[]
+  widgetPlacement?: string
+  text?: string
   [key: string]: unknown
 }
 
-type PendingRequest = OmpExtensionUiRequest & { projectId: string }
+type PendingRequest = OmpExtensionUiRequest & { projectId: string; receivedAt: number }
+type NotifyType = 'info' | 'warning' | 'error'
 
-export default function OmpExtensionUiModal() {
+interface OmpExtensionUiModalProps {
+  onNotify?: (type: NotifyType, message: string) => void
+}
+
+const INTERACTIVE_METHODS = new Set(['select', 'confirm', 'input', 'editor', 'open_url'])
+const PASSIVE_METHODS = new Set(['notify', 'setStatus', 'setWidget', 'setTitle', 'set_editor_text'])
+const requestKey = (request: Pick<PendingRequest, 'projectId' | 'id'>): string => `${request.projectId}:${request.id}`
+const processGone = (error?: string): boolean => /omp process is not running/i.test(error || '')
+
+export default function OmpExtensionUiModal({ onNotify }: OmpExtensionUiModalProps) {
   const { t } = useI18n()
   const [queue, setQueue] = useState<PendingRequest[]>([])
   const [inputValue, setInputValue] = useState('')
+  const [respondingKey, setRespondingKey] = useState<string | null>(null)
+  const [responseError, setResponseError] = useState<string | null>(null)
 
   useEffect(() => onOmpExtensionUiRequest((payload) => {
     const p = payload as { projectId?: string; request?: OmpExtensionUiRequest }
     const request = p?.request
     if (!request || typeof request.id !== 'string') return
-    setQueue((current) => [...current, { ...request, projectId: p.projectId || '' }])
+    const projectId = p.projectId || ''
+
+    // `cancel` is an outbound control frame from omp. It tells the host to
+    // close an existing request after abort/timeout; it is never a new dialog.
+    if (request.method === 'cancel') {
+      if (typeof request.targetId !== 'string') return
+      setQueue((current) => current.filter((item) => !(item.projectId === projectId && item.id === request.targetId)))
+      return
+    }
+
+    // Passive extension UI frames never require an extension_ui_response.
+    // A notification maps naturally to the app toast; the other passive
+    // surfaces have no DevLauncher equivalent and are intentionally ignored.
+    if (PASSIVE_METHODS.has(request.method)) {
+      if (request.method === 'notify' && typeof request.message === 'string' && request.message.trim()) {
+        const type: NotifyType = request.notifyType === 'warning' || request.notifyType === 'error'
+          ? request.notifyType
+          : 'info'
+        onNotify?.(type, request.message.trim())
+      }
+      return
+    }
+
+    // Unknown protocol additions must not block the whole app with an empty
+    // fallback dialog. Add support explicitly when omp introduces one.
+    if (!INTERACTIVE_METHODS.has(request.method)) return
+
+    const pending: PendingRequest = { ...request, projectId, receivedAt: Date.now() }
+    setQueue((current) => current.some((item) => requestKey(item) === requestKey(pending))
+      ? current
+      : [...current, pending])
+  }), [onNotify])
+
+  // A completed/terminated turn cannot still own an actionable dialog. This
+  // also cleans up stale requests when an older omp build exits without first
+  // emitting the dedicated `method: cancel` frame.
+  useEffect(() => onOmpEvent((payload) => {
+    const p = payload as { projectId?: string; event?: { type?: string } }
+    const eventType = p.event?.type
+    if (!p.projectId || !['agent_end', 'rpc_exit', 'rpc_error', 'rpc_restarting'].includes(eventType || '')) return
+    setQueue((current) => current.filter((item) => item.projectId !== p.projectId))
   }), [])
 
   // Reset input when the active request changes to an input/editor dialog.
@@ -51,21 +112,81 @@ export default function OmpExtensionUiModal() {
     }
   }, [active?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const respond = useCallback((projectId: string, response: Record<string, unknown>) => {
-    setQueue((current) => current.slice(1))
-    void respondExtensionUi(projectId, { ...response })
+  useEffect(() => {
+    setResponseError(null)
+    setRespondingKey(null)
+  }, [active?.projectId, active?.id])
+
+  const removeRequest = useCallback((request: PendingRequest) => {
+    const key = requestKey(request)
+    setQueue((current) => current.filter((item) => requestKey(item) !== key))
   }, [])
 
-  const cancelAll = useCallback(() => {
-    setQueue((current) => {
-      for (const item of current) void respondExtensionUi(item.projectId, { id: item.id, cancelled: true })
-      return []
-    })
-  }, [])
+  const respond = useCallback(async (request: PendingRequest, response: Record<string, unknown>) => {
+    const key = requestKey(request)
+    setRespondingKey(key)
+    setResponseError(null)
+    try {
+      const result = await respondExtensionUi(request.projectId, { ...response })
+      if (result.success || processGone(result.error)) {
+        removeRequest(request)
+        if (!result.success && result.error) onNotify?.('warning', result.error)
+        return
+      }
+      setResponseError(result.error || t('agent.extUi.responseFailed'))
+    } catch (error) {
+      setResponseError(error instanceof Error ? error.message : t('agent.extUi.responseFailed'))
+    } finally {
+      setRespondingKey((current) => current === key ? null : current)
+    }
+  }, [onNotify, removeRequest, t])
+
+  const cancelAll = useCallback(async () => {
+    const snapshot = queue.filter((item) => item.method !== 'open_url')
+    const localOnly = queue.filter((item) => item.method === 'open_url')
+    if (snapshot.length === 0) {
+      for (const item of localOnly) removeRequest(item)
+      return
+    }
+    setRespondingKey('all')
+    setResponseError(null)
+    const settled = await Promise.all(snapshot.map(async (item) => {
+      try {
+        const result = await respondExtensionUi(item.projectId, { id: item.id, cancelled: true })
+        return { item, remove: result.success || processGone(result.error), error: result.error }
+      } catch (error) {
+        return { item, remove: false, error: error instanceof Error ? error.message : t('agent.extUi.responseFailed') }
+      }
+    }))
+    const removeKeys = new Set([
+      ...localOnly.map(requestKey),
+      ...settled.filter((item) => item.remove).map(({ item }) => requestKey(item)),
+    ])
+    setQueue((current) => current.filter((item) => !removeKeys.has(requestKey(item))))
+    const failure = settled.find((item) => !item.remove)
+    if (failure) setResponseError(failure.error || t('agent.extUi.responseFailed'))
+    setRespondingKey(null)
+  }, [queue, removeRequest, t])
+
+  // omp resolves timed-out requests server-side but does not emit a matching
+  // cancel frame. Mirror the deadline so a stale modal cannot outlive it.
+  useEffect(() => {
+    if (!active || active.method === 'open_url' || typeof active.timeout !== 'number' || active.timeout <= 0) return
+    const remaining = Math.max(0, active.receivedAt + active.timeout - Date.now())
+    const timer = window.setTimeout(() => {
+      void respond(active, { id: active.id, cancelled: true, timedOut: true })
+    }, remaining)
+    return () => window.clearTimeout(timer)
+  }, [active, respond])
 
   if (!active) return null
 
-  const respondCancel = () => respond(active.projectId, { id: active.id, cancelled: true })
+  const isResponding = respondingKey === 'all' || respondingKey === requestKey(active)
+  const respondCancel = () => {
+    if (isResponding) return
+    if (active.method === 'open_url') removeRequest(active)
+    else void respond(active, { id: active.id, cancelled: true })
+  }
   const waiting = Math.max(queue.length - 1, 0)
 
   const renderBody = () => {
@@ -75,8 +196,9 @@ export default function OmpExtensionUiModal() {
     }
     if (method === 'open_url') {
       return (
-        <div className="mt-2 rounded-lg bg-surface-3 border border-border p-3">
-          <p className="text-xs text-ink-faint break-all">{active.url}</p>
+        <div className="mt-2 space-y-2 rounded-lg bg-surface-3 border border-border p-3">
+          {active.instructions && <p className="text-xs text-ink-soft">{active.instructions}</p>}
+          <p className="text-xs text-ink-faint break-all">{active.launchUrl || active.url}</p>
         </div>
       )
     }
@@ -87,9 +209,10 @@ export default function OmpExtensionUiModal() {
           value={inputValue}
           onChange={(e) => setInputValue(e.target.value)}
           onKeyDown={(e) => {
+            if (isResponding) return
             if (e.key === 'Enter' && !e.shiftKey) {
               e.preventDefault()
-              respond(active.projectId, { id: active.id, value: inputValue })
+              void respond(active, { id: active.id, value: inputValue })
             }
             if (e.key === 'Escape') respondCancel()
           }}
@@ -107,11 +230,12 @@ export default function OmpExtensionUiModal() {
             return (
               <button
                 key={index}
-                onClick={() => respond(active.projectId, { id: active.id, value: option })}
+                onClick={() => { void respond(active, { id: active.id, value: option }) }}
+                disabled={isResponding}
                 className="w-full text-left rounded-lg bg-surface-3 border border-border px-3 py-2 hover:bg-surface-2 hover:border-accent transition-colors"
               >
                 <span className="text-sm text-ink">{option}</span>
-                {detail?.label && <span className="block text-xs text-ink-faint mt-0.5">{detail.label}</span>}
+                {(detail?.description || detail?.detail || detail?.label) && <span className="block text-xs text-ink-faint mt-0.5">{detail.description || detail.detail || detail.label}</span>}
               </button>
             )
           })}
@@ -121,8 +245,8 @@ export default function OmpExtensionUiModal() {
     return <p className="text-sm text-ink-soft leading-relaxed">{active.message}</p>
   }
 
-  const isFireAndForget = active.method === 'notify' || active.method === 'setStatus' || active.method === 'setWidget' || active.method === 'setTitle' || active.method === 'set_editor_text'
   const isSelect = active.method === 'select'
+  const isOpenUrl = active.method === 'open_url'
 
   return (
     <AnimatedModal id="ompExtensionUiModal" isOpen onClose={respondCancel}>
@@ -134,7 +258,7 @@ export default function OmpExtensionUiModal() {
             </svg>
           </div>
           <div className="min-w-0 flex-1">
-            <h3 className="font-display font-bold text-sm">{active.title || t('agent.extUi.title')}</h3>
+            <h3 className="font-display font-bold text-sm">{active.title || (isOpenUrl ? t('agent.extUi.openLinkTitle') : t('agent.extUi.title'))}</h3>
             {active.message && !['input', 'editor', 'select', 'notify', 'confirm'].includes(active.method) && (
               <p className="text-xs text-ink-faint mt-1 leading-relaxed">{active.message}</p>
             )}
@@ -143,39 +267,62 @@ export default function OmpExtensionUiModal() {
 
         {renderBody()}
 
-        {!isSelect && !isFireAndForget && (
+        {responseError && (
+          <p role="alert" className="mt-3 text-xs text-danger">{responseError}</p>
+        )}
+
+        {!isSelect && (
           <div className="flex items-center justify-end gap-2 mt-5">
             {waiting > 0 && (
-              <button onClick={cancelAll} className="mr-auto px-3 py-2 rounded-lg text-xs text-ink-faint hover:text-danger hover:bg-surface-3 transition-colors">
+              <button disabled={isResponding} onClick={() => { void cancelAll() }} className="mr-auto px-3 py-2 rounded-lg text-xs text-ink-faint hover:text-danger hover:bg-surface-3 transition-colors disabled:opacity-50">
                 {t('agent.extUi.cancelAll')} ({queue.length})
               </button>
             )}
-            {active.method === 'input' || active.method === 'editor' ? (
-              <button onClick={() => respond(active.projectId, { id: active.id, value: inputValue })} className="px-3.5 py-2 rounded-lg text-sm font-semibold bg-accent hover:bg-accent/90 text-white transition-colors">
+            {isOpenUrl ? (
+              <>
+                <button disabled={isResponding} onClick={respondCancel} className="px-3.5 py-2 rounded-lg text-sm font-semibold bg-surface-3 text-ink-soft hover:text-ink transition-colors disabled:opacity-50">
+                  {t('agent.extUi.dismiss')}
+                </button>
+                <button
+                  disabled={isResponding}
+                  onClick={async () => {
+                    const url = active.launchUrl || active.url
+                    if (!url) return setResponseError(t('agent.extUi.invalidLink'))
+                    setRespondingKey(requestKey(active))
+                    setResponseError(null)
+                    try {
+                      const result = await openExternalUrl(url)
+                      if (result.success) removeRequest(active)
+                      else setResponseError(result.error || t('agent.extUi.invalidLink'))
+                    } catch (error) {
+                      setResponseError(error instanceof Error ? error.message : t('agent.extUi.invalidLink'))
+                    } finally {
+                      setRespondingKey(null)
+                    }
+                  }}
+                  className="px-3.5 py-2 rounded-lg text-sm font-semibold bg-accent hover:bg-accent/90 text-white transition-colors disabled:opacity-50"
+                >
+                  {t('agent.extUi.openLink')}
+                </button>
+              </>
+            ) : active.method === 'input' || active.method === 'editor' ? (
+              <button disabled={isResponding} onClick={() => { void respond(active, { id: active.id, value: inputValue }) }} className="px-3.5 py-2 rounded-lg text-sm font-semibold bg-accent hover:bg-accent/90 text-white transition-colors disabled:opacity-50">
                 {t('agent.extUi.submit')}
               </button>
             ) : active.method === 'confirm' ? (
               <>
-                <button onClick={respondCancel} className="px-3.5 py-2 rounded-lg text-sm font-semibold bg-surface-3 text-ink-soft hover:text-ink transition-colors">
+                <button disabled={isResponding} onClick={respondCancel} className="px-3.5 py-2 rounded-lg text-sm font-semibold bg-surface-3 text-ink-soft hover:text-ink transition-colors disabled:opacity-50">
                   {t('agent.extUi.cancel')}
                 </button>
-                <button onClick={() => respond(active.projectId, { id: active.id, confirmed: true })} className="px-3.5 py-2 rounded-lg text-sm font-semibold bg-accent hover:bg-accent/90 text-white transition-colors">
+                <button disabled={isResponding} onClick={() => { void respond(active, { id: active.id, confirmed: true }) }} className="px-3.5 py-2 rounded-lg text-sm font-semibold bg-accent hover:bg-accent/90 text-white transition-colors disabled:opacity-50">
                   {t('agent.extUi.confirm')}
                 </button>
               </>
             ) : (
-              <button onClick={respondCancel} className="px-3.5 py-2 rounded-lg text-sm font-semibold bg-surface-3 text-ink-soft hover:text-ink transition-colors">
+              <button disabled={isResponding} onClick={respondCancel} className="px-3.5 py-2 rounded-lg text-sm font-semibold bg-surface-3 text-ink-soft hover:text-ink transition-colors disabled:opacity-50">
                 {t('agent.extUi.cancel')}
               </button>
             )}
-          </div>
-        )}
-
-        {isFireAndForget && (
-          <div className="flex items-center justify-end gap-2 mt-5">
-            <button onClick={() => respond(active.projectId, { id: active.id, cancelled: true })} className="px-3.5 py-2 rounded-lg text-sm font-semibold bg-surface-3 text-ink-soft hover:text-ink transition-colors">
-              {t('agent.extUi.dismiss')}
-            </button>
           </div>
         )}
       </div>

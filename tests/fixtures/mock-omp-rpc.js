@@ -19,6 +19,8 @@
 //     completing the turn; the turn uses the returned value in its reply.
 //   - prompt containing "CRASH"   -> emit agent_start then exit(1) so the host's
 //     auto-restart path is exercised.
+//   - prompt containing "PASSIVE" -> emit passive UI frames that must never
+//     block the turn or open an input dialog.
 
 const readline = require('readline')
 
@@ -113,7 +115,6 @@ rl.on('line', (line) => {
     case 'set_auto_retry':
     case 'set_fast_mode':
     case 'steer':
-    case 'abort':
     case 'compact':
     case 'get_session_commands':
     case 'follow_up':
@@ -121,6 +122,15 @@ rl.on('line', (line) => {
     case 'set_host_tools':
     case 'set_todos':
       respond(id, { ok: true })
+      break
+    case 'abort':
+      respond(id, { ok: true })
+      // Real omp tells the host to close pending extension UI by emitting a
+      // fresh cancel control frame that points at the original request ID.
+      for (const targetId of pendingExtUi.keys()) {
+        pendingExtUi.delete(targetId)
+        send({ type: 'extension_ui_request', id: `cancel-${targetId}`, method: 'cancel', targetId })
+      }
       break
     case 'get_session_stats':
       respond(id, { tokens: 334, cost: 0.01, model: 'mock-1', contextUsage: { tokens: 128, contextWindow: 200000 } })
@@ -132,6 +142,13 @@ rl.on('line', (line) => {
         send({ type: 'agent_start' })
         // Exit abruptly so the host's auto-restart path is exercised.
         setTimeout(() => process.exit(1), 100)
+        break
+      }
+      if (prompt.includes('PASSIVE')) {
+        send({ type: 'extension_ui_request', id: `notify-${Date.now()}`, method: 'notify', message: 'Mock passive notification', notifyType: 'info' })
+        send({ type: 'extension_ui_request', id: `status-${Date.now()}`, method: 'setStatus', statusKey: 'mock', statusText: 'Working' })
+        send({ type: 'extension_ui_request', id: `widget-${Date.now()}`, method: 'setWidget', widgetKey: 'mock', widgetLines: ['Working'] })
+        setTimeout(() => streamTurn(prompt), 50)
         break
       }
       if (prompt.includes('CONFIRM') || prompt.includes('INPUT')) {
