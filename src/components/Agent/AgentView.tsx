@@ -8,6 +8,7 @@ import useAgentSessions from './useAgentSessions';
 import { cleanIpcError } from './agentChatUtils';
 import type { AgentSession, Project } from '../../types/shared';
 import type { OmpStatusResult } from '../../data/agent';
+import { useAgentI18n } from './useAgentI18n';
 
 interface AgentViewProps {
   projects: Project[];
@@ -25,6 +26,7 @@ interface SessionStatus {
 }
 
 export default function AgentView({ projects, initialProjectId = null, initialSessionId = null, onOpenProject, onOpenSettings, visible = true }: AgentViewProps) {
+  const t = useAgentI18n();
   const [status, setStatus] = useState<SessionStatus>({ installed: false, configured: false });
   const [statusLoading, setStatusLoading] = useState(true);
   const { sessionsByProject, setSessionsByProject, loading: sessionsLoading, errors: sessionErrors, loadSessions } = useAgentSessions(projects);
@@ -229,7 +231,7 @@ export default function AgentView({ projects, initialProjectId = null, initialSe
   const sessionCount = projects.reduce((sum, project) => sum + (sessionsByProject[project.id]?.length || 0), 0);
 
   return (
-    <div className="flex flex-col h-full min-h-0">
+    <div className="agent-chat flex flex-col h-full min-h-0">
       <div className="flex-1 min-h-0 flex border border-border rounded-xl bg-surface shadow-card overflow-hidden">
         <AgentSessionSidebar
           projects={projects}
@@ -266,9 +268,9 @@ export default function AgentView({ projects, initialProjectId = null, initialSe
           isOpen={Boolean(confirmDelete)}
           onClose={() => setConfirmDelete(null)}
           onConfirm={() => confirmDelete && handleDeleteSession(confirmDelete.project, confirmDelete.session)}
-          title="Delete session?"
-          message={`“${confirmDelete?.session?.title || 'This session'}” and its local chat history will be deleted. This cannot be undone.`}
-          confirmLabel="Delete"
+          title={t('Delete session?')}
+          message={t('“{title}” and its local chat history will be deleted. This cannot be undone.', { title: confirmDelete?.session?.title || t('This session') })}
+          confirmLabel={t('Delete')}
         />
 
         {/* Chat */}
@@ -276,7 +278,7 @@ export default function AgentView({ projects, initialProjectId = null, initialSe
           {actionError && (
             <div role="alert" className="flex items-start gap-2 px-4 py-3 text-sm text-danger bg-danger/10 border-b border-danger/25">
               <span className="flex-1 min-w-0 break-words">{actionError}</span>
-              <button type="button" onClick={() => setActionError(null)} aria-label="Dismiss session error"><Icon name="x" size={16} /></button>
+              <button type="button" onClick={() => setActionError(null)} aria-label={t('Dismiss session error')}><Icon name="x" size={16} /></button>
             </div>
           )}
           {!selectedProject || !activeSession ? (
@@ -285,12 +287,12 @@ export default function AgentView({ projects, initialProjectId = null, initialSe
                 <Icon name="messageSquare" size={26} />
               </div>
               <p className="text-base font-semibold text-ink-soft">
-                {!selectedProject ? 'Select a project to start chatting' : 'Select a session to continue'}
+                {t(!selectedProject ? 'Select a project to start chatting' : 'Select a session to continue')}
               </p>
               <p className="text-sm text-ink-faint max-w-sm text-center leading-relaxed">
-                {!selectedProject
+                {t(!selectedProject
                   ? 'Sessions are grouped per project — pick one from the list to begin a conversation with the coding agent.'
-                  : 'Pick an existing session from the list, or start a new one — a conversation always belongs to a session.'}
+                  : 'Pick an existing session from the list, or start a new one — a conversation always belongs to a session.')}
               </p>
             </div>
           ) : (

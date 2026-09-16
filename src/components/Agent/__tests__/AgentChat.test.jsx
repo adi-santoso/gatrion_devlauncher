@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import AgentChat from '../AgentChat'
+import { I18nProvider } from '../../../i18n/I18nContext'
 
 beforeAll(() => {
   // jsdom does not implement scrollIntoView
@@ -1018,10 +1019,11 @@ describe('AgentChat', () => {
     await waitFor(() => expect(mocks.ompChat).toHaveBeenCalled())
 
     // While busy the input stays enabled and the composer shows the working indicator
-    expect(await screen.findByText(/working · \d{2}:\d{2}/)).toBeInTheDocument()
+    expect(screen.getByRole('status', { name: 'Agent activity' })).toHaveTextContent('Preparing response')
+    expect(input).toHaveAttribute('placeholder', 'Ask or add guidance while the agent works…')
 
     fireEvent.change(input, { target: { value: 'no wait, do it differently' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Steer agent' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Send to working agent' }))
 
     await waitFor(() => expect(mocks.ompSteer).toHaveBeenCalledWith('p1', 'C:/demo', 'no wait, do it differently'))
     expect(screen.getByText('no wait, do it differently')).toBeInTheDocument()
@@ -1041,7 +1043,7 @@ describe('AgentChat', () => {
     expect(await screen.findByText(/Context compacted/)).toBeInTheDocument()
   })
 
-  it('restores a rejected steering message instead of showing it as delivered', async () => {
+  it('keeps failed guidance inline, preserves a new draft, and retries without starting another task', async () => {
     mocks.ompChat.mockResolvedValue({ success: true, sessionId: 's-steer', session: { id: 's-steer', title: 'Steer' } })
     mocks.ompSteer.mockResolvedValueOnce({ success: false, error: 'Agent is restarting' })
     render(<Harness />)
@@ -1050,10 +1052,130 @@ describe('AgentChat', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Send message' }))
     await waitFor(() => expect(mocks.ompChat).toHaveBeenCalled())
     fireEvent.change(input, { target: { value: 'change direction' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Steer agent' }))
-    expect(await screen.findByRole('alert')).toHaveTextContent('Agent is restarting')
-    expect(input).toHaveValue('change direction')
-    expect(screen.queryByText('change direction', { selector: 'p' })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Send to working agent' }))
+    fireEvent.change(input, { target: { value: 'my next draft' } })
+    expect(await screen.findByText('Failed to send')).toBeInTheDocument()
+    expect(screen.getByText('Agent is restarting')).toBeInTheDocument()
+    expect(input).toHaveValue('my next draft')
+    expect(screen.getByText('change direction', { selector: 'p' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Try again' }))
+    expect(await screen.findByText('Sent to agent')).toBeInTheDocument()
+    expect(mocks.ompSteer).toHaveBeenCalledTimes(2)
+    expect(mocks.ompChat).toHaveBeenCalledTimes(1)
+    expect(input).toHaveValue('my next draft')
+  })
+
+  it('keeps guidance between streamed segments through tool completion, Stop and agent_end', async () => {
+    mocks.onOmpEvent.mockImplementation(callback => { eventCb = callback; return () => {} })
+    mocks.ompChat.mockResolvedValue({ success: true, sessionId: 'ordered', session: { id: 'ordered' } })
+    let acknowledge
+    mocks.ompSteer.mockImplementationOnce(() => new Promise(resolve => { acknowledge = resolve }))
+    render(<Harness />)
+    const input = screen.getByLabelText('Message to agent')
+    fireEvent.change(input, { target: { value: 'original task' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+    await waitFor(() => expect(mocks.ompChat).toHaveBeenCalled())
+    act(() => {
+      eventCb({ projectId: 'p1', event: { type: 'agent_start' } })
+      eventCb({ projectId: 'p1', event: { type: 'message_update', assistantMessageEvent: { type: 'text_delta', delta: 'Before guidance' } } })
+      eventCb({ projectId: 'p1', event: { type: 'tool_execution_start', toolCallId: 'tool1', toolName: 'bash' } })
+    })
+    expect(screen.getByRole('status', { name: 'Agent activity' })).toHaveTextContent('Running command')
+    fireEvent.change(input, { target: { value: 'Please explain first' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+    expect(screen.getByText('Sending…')).toBeInTheDocument()
+    act(() => {
+      eventCb({ projectId: 'p1', event: { type: 'tool_execution_end', toolCallId: 'tool1', toolName: 'bash', result: { content: [{ text: 'done' }] } } })
+      eventCb({ projectId: 'p1', event: { type: 'message_update', assistantMessageEvent: { type: 'text_delta', delta: 'After guidance' } } })
+    })
+    await screen.findByText('After guidance')
+    const ordered = () => {
+      const before = screen.getByText('Before guidance'), user = screen.getByText('Please explain first'), after = screen.getByText('After guidance')
+      expect(before.compareDocumentPosition(user) & window.Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+      expect(user.compareDocumentPosition(after) & window.Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+      expect(screen.getAllByText('original task', { selector: 'p' })).toHaveLength(1)
+    }
+    ordered()
+    mocks.ompAbort.mockResolvedValue({ success: true })
+    fireEvent.click(screen.getByRole('button', { name: 'Stop', exact: true }))
+    ordered()
+    act(() => eventCb({ projectId: 'p1', event: { type: 'agent_end', messages: [
+      { role: 'user', content: 'original task' }, { role: 'assistant', content: 'Before guidance' },
+      { role: 'user', content: 'Please explain first' }, { role: 'assistant', content: 'After guidance' },
+    ] } }))
+    await act(async () => acknowledge({ success: true }))
+    ordered()
+    expect(screen.getByText('Sent to agent')).toBeInTheDocument()
+    expect(screen.getByRole('status', { name: 'Agent activity' })).toHaveTextContent('Completed')
+  })
+
+  it('shows new response navigation without pulling readers down and translates an active draft', async () => {
+    mocks.onOmpEvent.mockImplementation(callback => { eventCb = callback; return () => {} })
+    mocks.ompChat.mockResolvedValue({ success: true, sessionId: 'scroll', session: { id: 'scroll' } })
+    const { rerender } = render(<I18nProvider language="en"><Harness /></I18nProvider>)
+    const input = screen.getByLabelText('Message to agent')
+    fireEvent.change(input, { target: { value: 'task' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+    await waitFor(() => expect(mocks.ompChat).toHaveBeenCalled())
+    const region = screen.getByRole('region', { name: 'Conversation' })
+    Object.defineProperties(region, { scrollHeight: { configurable: true, value: 2000 }, clientHeight: { configurable: true, value: 400 } })
+    fireEvent.scroll(region, { target: { scrollTop: 100 } })
+    window.Element.prototype.scrollIntoView.mockClear()
+    act(() => eventCb({ projectId: 'p1', event: { type: 'message_update', assistantMessageEvent: { type: 'text_delta', delta: 'New answer' } } }))
+    await screen.findByText('New answer')
+    expect(await screen.findByRole('button', { name: /New response/ })).toBeInTheDocument()
+    expect(window.Element.prototype.scrollIntoView).not.toHaveBeenCalled()
+    fireEvent.change(input, { target: { value: 'draft remains' } })
+    rerender(<I18nProvider language="id"><Harness /></I18nProvider>)
+    expect(screen.getByLabelText('Pesan ke Agent')).toHaveValue('draft remains')
+    expect(screen.getByRole('button', { name: 'Kirim ke Agent yang sedang bekerja' })).toBeEnabled()
+    expect(screen.getByRole('status', { name: 'Aktivitas Agent' })).toHaveTextContent('Menulis respons')
+    fireEvent.click(screen.getByRole('button', { name: /Ada respons baru/ }))
+    expect(window.Element.prototype.scrollIntoView).toHaveBeenCalled()
+    expect(mocks.ompChat).toHaveBeenCalledTimes(1)
+  })
+
+  it('retains a delivery failure across a process exit and retries in the same idle session', async () => {
+    mocks.onOmpEvent.mockImplementation(callback => { eventCb = callback; return () => {} })
+    mocks.ompChat.mockResolvedValue({ success: true, sessionId: 'exit', session: { id: 'exit' } })
+    let rejectDelivery
+    mocks.ompSteer.mockImplementationOnce(() => new Promise((_, reject) => { rejectDelivery = reject }))
+    render(<Harness />)
+    const input = screen.getByLabelText('Message to agent')
+    fireEvent.change(input, { target: { value: 'task' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+    await waitFor(() => expect(mocks.ompChat).toHaveBeenCalled())
+    fireEvent.change(input, { target: { value: 'keep my question' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+    await act(async () => {
+      eventCb({ projectId: 'p1', event: { type: 'rpc_exit' } })
+      rejectDelivery(new Error('Process exited'))
+    })
+    expect(screen.getByText('keep my question')).toBeInTheDocument()
+    expect(screen.getByText('Failed to send')).toBeInTheDocument()
+    expect(screen.getByRole('status', { name: 'Agent activity' })).toHaveTextContent('Agent unavailable')
+    fireEvent.click(screen.getByRole('button', { name: 'Try again' }))
+    await screen.findByText('Sent to agent')
+    expect(mocks.ompChat).toHaveBeenLastCalledWith('p1', 'C:/demo', 'keep my question', expect.objectContaining({ sessionId: 'exit' }))
+    expect(mocks.ompSteer).toHaveBeenCalledTimes(1)
+    expect(screen.getAllByText('keep my question', { selector: 'p' })).toHaveLength(1)
+  })
+
+  it('distinguishes interactive requests from passive notifications and clears waiting on response', async () => {
+    mocks.onOmpEvent.mockImplementation(callback => { eventCb = callback; return () => {} })
+    mocks.ompChat.mockResolvedValue({ success: true, sessionId: 'wait', session: { id: 'wait' } })
+    render(<Harness />)
+    const input = screen.getByLabelText('Message to agent')
+    fireEvent.change(input, { target: { value: 'task' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+    await waitFor(() => expect(mocks.ompChat).toHaveBeenCalled())
+    const activity = screen.getByRole('status', { name: 'Agent activity' })
+    act(() => eventCb({ projectId: 'p1', event: { type: 'extension_ui_request', method: 'notify', id: 'notice' } }))
+    expect(activity).toHaveTextContent('Preparing response')
+    act(() => eventCb({ projectId: 'p1', event: { type: 'extension_ui_request', method: 'confirm', id: 'question' } }))
+    expect(activity).toHaveTextContent('Waiting for your answer')
+    act(() => eventCb({ projectId: 'p1', event: { type: 'extension_ui_responded', id: 'question' } }))
+    expect(activity).toHaveTextContent('Preparing response')
   })
 
   it('renders an auto-compaction notice entry in the chat list', async () => {

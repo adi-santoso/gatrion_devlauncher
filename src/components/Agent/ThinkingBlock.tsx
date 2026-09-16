@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useId, useState } from 'react';
 import Icon from '../Common/Icon';
+import { useAgentI18n } from './useAgentI18n';
 
 interface ThinkingBlockProps {
   content: string;
@@ -10,6 +11,8 @@ interface ThinkingBlockProps {
 // auto-opens while the model is streaming, and shows a short preview of the
 // reasoning (instead of nothing) when collapsed.
 export default function ThinkingBlock({ content, isStreaming = false }: ThinkingBlockProps) {
+  const t = useAgentI18n();
+  const contentId = useId();
   const [open, setOpen] = useState(true);
   useEffect(() => {
     if (isStreaming) setOpen(true);
@@ -24,11 +27,12 @@ export default function ThinkingBlock({ content, isStreaming = false }: Thinking
         onClick={() => setOpen((value) => !value)}
         className="group flex items-center gap-1.5 text-[12px] text-ink-faint hover:text-ink-soft transition-colors cursor-pointer select-none"
         aria-expanded={open}
+        aria-controls={contentId}
       >
         <span className="flex items-center justify-center w-3.5 h-3.5 rounded-[4px] bg-surface-2 border border-border text-ink-faint group-hover:text-ink-soft transition-colors">
           <Icon name="chevronRight" size={9} strokeWidth={2.5} className={`transform transition-transform duration-200 ${open ? 'rotate-90' : ''}`} />
         </span>
-        <span className="font-medium">Thought process</span>
+        <span className="font-medium">{t('Thought process')}</span>
         {!open && hasContent && (
           <span className="text-[10.5px] text-ink-faint opacity-60 truncate ml-1 max-w-[300px]">
             {trimmed.slice(0, 120)}{trimmed.length > 120 ? '...' : ''}
@@ -42,16 +46,16 @@ export default function ThinkingBlock({ content, isStreaming = false }: Thinking
           </span>
         )}
       </button>
-      {open && (
-        <div className="mt-1.5 pl-[22px]">
+        <div id={contentId} hidden={!open} className="mt-1.5 pl-[22px]">
+          {open && (
           <div className="relative">
             <div className="absolute left-0 top-1 bottom-1 w-px bg-border" />
             <div className="pl-4 text-[12.5px] leading-relaxed text-ink-soft whitespace-pre-wrap select-text">
-              {hasContent ? content : 'Thinking...'}
+              {hasContent ? content : t('Thinking...')}
             </div>
           </div>
+          )}
         </div>
-      )}
     </div>
   );
 }

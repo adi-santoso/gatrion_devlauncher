@@ -1,4 +1,4 @@
-import { useCallback, useEffect } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { appendStreamedBlock, updateToolBlock } from './agentChatUtils';
 import type { StreamedPart, TurnBlock } from './agentChatTypes';
 
@@ -39,6 +39,10 @@ export function useAgentStream({
   setScrollTop,
   setNearBottom,
 }: AgentStreamOptions) {
+  const [hasNewResponse, setHasNewResponse] = useState(false);
+  const followRef = useRef(nearBottom);
+  followRef.current = nearBottom;
+  const seen = useRef({ messages, blocks });
   const isNearBottom = useCallback(() => {
     const el = scrollRef.current;
     if (!el) return true;
@@ -46,12 +50,17 @@ export function useAgentStream({
   }, [scrollRef]);
 
   const scrollToBottom = useCallback((behavior: ScrollBehavior = 'smooth') => {
-    bottomRef.current?.scrollIntoView({ behavior, block: 'end' });
+    const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    followRef.current = true;
+    setHasNewResponse(false);
+    bottomRef.current?.scrollIntoView({ behavior: reduced ? 'auto' : behavior, block: 'end' });
   }, [bottomRef]);
 
   const handleScroll = () => {
     setScrollTop(scrollRef.current?.scrollTop || 0);
-    setNearBottom(isNearBottom());
+    followRef.current = isNearBottom();
+    setNearBottom(followRef.current);
+    if (followRef.current) setHasNewResponse(false);
   };
 
   // Push whatever accumulated in the streaming queue into the turn timeline.
@@ -91,8 +100,12 @@ export function useAgentStream({
   }, [visible, flushBuffers]);
 
   useEffect(() => {
-    if (nearBottom) scrollToBottom('auto');
-  }, [messages, blocks, nearBottom, scrollToBottom]);
+    const changed = seen.current.messages !== messages || seen.current.blocks !== blocks;
+    if (visible && nearBottom && followRef.current) scrollToBottom('auto');
+    else if (changed && (blocks.some(block => block.kind !== 'user') || messages.length > seen.current.messages.length)) setHasNewResponse(true);
+    seen.current = { messages, blocks };
+    if (nearBottom) setHasNewResponse(false);
+  }, [messages, blocks, nearBottom, visible, scrollToBottom]);
 
-  return { isNearBottom, scrollToBottom, handleScroll };
+  return { isNearBottom, scrollToBottom, handleScroll, hasNewResponse };
 }

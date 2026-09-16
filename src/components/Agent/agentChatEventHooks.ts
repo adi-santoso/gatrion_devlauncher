@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import * as ipc from '../../utils/ipcRenderer';
 import { createOmpEventHandler, type OmpEvent } from './agentChatEvents';
 import type { ChatMessage, LastTurnInfo, SlashCommand, StreamedPart, SubagentInfo, TodoPhase, TurnBlock } from './agentChatTypes';
@@ -62,6 +62,7 @@ export function useAgentEvents({
   setBusyState,
   setLastTurn,
 }: AgentEventsOptions) {
+  const [activityEvent, setActivityEvent] = useState<OmpEvent | null>(null);
   const showNotice = useCallback((text: string) => {
     setNotice(text);
     setTimeout(() => setNotice(null), 3000);
@@ -105,11 +106,12 @@ export function useAgentEvents({
     return ipc.onOmpEvent((payload) => {
       const { projectId, event } = payload as { projectId?: string; event?: OmpEvent };
       if (projectId !== projectRef.current?.id) return;
+      if (['extension_ui_request', 'extension_ui_responded', 'agent_start', 'agent_end', 'rpc_exit', 'rpc_error', 'rpc_restarting'].includes(event?.type || '')) setActivityEvent(event || null);
       handleEventRef.current?.(event as OmpEvent);
     });
   }, [projectRef, handleEventRef]);
 
-  return { showNotice };
+  return { showNotice, activityEvent };
 }
 
 export interface ChromeEffectsOptions {

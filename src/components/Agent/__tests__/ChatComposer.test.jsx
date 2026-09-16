@@ -80,8 +80,10 @@ describe('ChatComposer', () => {
   it('shows a spinner with an elapsed timer while the agent is working', () => {
     render(<ChatComposer {...baseProps} busy />)
     // The busy line shows a spinner + "working" + a live mm:ss count-up.
-    const busyLine = screen.getByText(/working · \d{2}:\d{2}/).closest('p')
+    const busyLine = screen.getByRole('status', { name: 'Agent activity' }).parentElement
     expect(busyLine).toBeInTheDocument()
+    expect(busyLine).toHaveTextContent('Preparing response')
+    expect(busyLine).toHaveTextContent('00:00')
     expect(busyLine?.querySelector('.animate-spin')).toBeTruthy()
     expect(screen.queryByText(/Agent is working/)).not.toBeInTheDocument()
   })

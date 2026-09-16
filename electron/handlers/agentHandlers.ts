@@ -383,6 +383,7 @@ function setupAgentHandlers(
     assertSessionId(projectId)
     if (typeof response !== 'object' || response === null || typeof response.id !== 'string') throw new Error('Invalid response')
     const ok = ompManager.respondExtensionUi(projectId, response as Record<string, unknown>)
+    if (ok) safeSend('omp-event', { projectId, event: { type: 'extension_ui_responded', id: response.id } })
     return { success: ok, error: ok ? undefined : 'omp process is not running' }
   })
 
@@ -479,4 +480,3 @@ function setupAgentHandlers(
 }
 
 export { setupAgentHandlers }
-

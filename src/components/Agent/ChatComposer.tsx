@@ -4,6 +4,8 @@ import ComposerFooter from './ComposerFooter';
 import { MAX_ATTACHMENTS } from './imageAttachment';
 import type { ChatImage, LastTurnInfo, SlashCommand } from './agentChatTypes';
 import type { Project } from '../../types/shared';
+import { useAgentI18n } from './useAgentI18n';
+import AgentActivity from './AgentActivity';
 
 const TEMPLATES_KEY = 'devlauncher:promptTemplates';
 
@@ -27,6 +29,7 @@ const loadTemplates = (): PromptTemplate[] => {
 
 interface ChatComposerProps {
   busy: boolean;
+  activity?: string;
   notConfigured: boolean;
   unavailableReason?: string;
   project: Project;
@@ -59,6 +62,7 @@ interface ChatComposerProps {
  */
 export default function ChatComposer({
   busy,
+  activity = '',
   notConfigured,
   unavailableReason,
   project,
@@ -83,6 +87,7 @@ export default function ChatComposer({
   currentModelVision,
   lastTurn,
 }: ChatComposerProps) {
+  const t = useAgentI18n();
   // Saved prompt templates (name + content), persisted in localStorage so
   // they survive restarts without touching the config/registry schema.
   const [templates, setTemplates] = useState<PromptTemplate[]>(loadTemplates);
@@ -148,32 +153,10 @@ export default function ChatComposer({
     requestAnimationFrame(() => inputRef.current?.focus());
   };
 
-  // Elapsed time of the current agent turn, ticking every second while busy.
-  const [workElapsed, setWorkElapsed] = useState(0);
-  useEffect(() => {
-    if (!busy) return undefined;
-    setWorkElapsed(0);
-    const startedAt = Date.now();
-    const timer = setInterval(() => {
-      setWorkElapsed(Math.floor((Date.now() - startedAt) / 1000));
-    }, 1000);
-    return () => clearInterval(timer);
-  }, [busy]);
-  const formatElapsed = (totalSeconds: number): string => {
-    const minutes = Math.floor(totalSeconds / 60);
-    const seconds = totalSeconds % 60;
-    return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
-  };
-
   return (
     <div className="shrink-0 border-t border-border bg-base px-5 py-3.5">
       <div className="relative max-w-[760px] mx-auto">
-        {busy && (
-          <p className="text-[11px] text-accent mb-1.5 flex items-center gap-1.5 tabular-nums">
-            <Icon name="spinner" size={11} className="animate-spin" />
-            working · {formatElapsed(workElapsed)}
-          </p>
-        )}
+        <AgentActivity activity={activity || (busy ? 'Preparing response' : '')} busy={busy} />
         <div className={`relative rounded-[13px] border bg-surface-2 px-4 py-2.5 transition-all ${busy ? 'border-border' : 'border-border hover:border-border-hover focus-within:border-border-hover'}`}>
           {attachments.length > 0 && (
             <div className="flex flex-wrap items-center gap-2 pb-2.5">
@@ -188,8 +171,8 @@ export default function ChatComposer({
                     type="button"
                     onClick={() => setAttachments((prev) => prev.filter((item) => item.id !== attachment.id))}
                     className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-surface border border-border shadow-sm flex items-center justify-center text-ink-soft hover:text-danger transition-colors"
-                    title="Remove image"
-                    aria-label="Remove image"
+                    title={t('Remove image')}
+                    aria-label={t('Remove image')}
                   >
                     <Icon name="x" size={10} />
                   </button>
@@ -210,8 +193,8 @@ export default function ChatComposer({
                   if (event.key === 'Enter' && !busy && !disabled) { event.preventDefault(); runBash(bashCommand); }
                   if (event.key === 'Escape') setBashInputOpen(false);
                 }}
-                placeholder="Run command in project..."
-                aria-label="Command to run in project"
+                placeholder={t('Run command in project...')}
+                aria-label={t('Command to run in project')}
                 disabled={busy || disabled}
                 className="flex-1 min-w-0 bg-transparent text-sm font-mono text-ink placeholder:text-ink-faint focus:outline-none"
               />
@@ -221,7 +204,7 @@ export default function ChatComposer({
                 disabled={busy || disabled || !bashCommand.trim()}
                 className="shrink-0 inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-accent hover:bg-accent-hover text-white text-[11px] font-semibold transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
               >
-                Run
+                {t('Run')}
               </button>
             </div>
           )}
@@ -275,8 +258,9 @@ export default function ChatComposer({
                 }
               }}
               rows={1}
-              aria-label="Message to agent"
-              placeholder={unavailableReason || (notConfigured ? 'Configure a provider to start chatting...' : 'Describe a task, ask a question...')}
+              aria-label={t('Message to agent')}
+              aria-describedby={busy ? 'agent-composer-hint' : undefined}
+              placeholder={unavailableReason || t(notConfigured ? 'Configure a provider to start chatting...' : busy ? 'Ask or add guidance while the agent works…' : 'Describe a task, ask a question...')}
               disabled={disabled}
               className="w-full bg-transparent text-sm text-ink placeholder:text-ink-faint focus:outline-none resize-none max-h-[130px] py-0.5 disabled:opacity-50"
               style={{ overflowY: 'auto' }}
@@ -287,8 +271,8 @@ export default function ChatComposer({
                 onClick={() => setBashInputOpen((value) => !value)}
                 disabled={busy || disabled}
                 className="w-7 h-7 shrink-0 rounded-md text-ink-faint hover:text-ink hover:bg-surface-3 flex items-center justify-center transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                title="Run command in project"
-                aria-label="Run command in project"
+                title={t('Run command in project')}
+                aria-label={t('Run command in project')}
               >
                 <Icon name="terminal" size={14} />
               </button>
@@ -299,8 +283,8 @@ export default function ChatComposer({
                 disabled={busy || disabled}
                 aria-expanded={templateOpen}
                 className="w-7 h-7 shrink-0 rounded-md text-ink-faint hover:text-ink hover:bg-surface-3 flex items-center justify-center transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                title="Prompt templates"
-                aria-label="Prompt templates"
+                title={t('Prompt templates')}
+                aria-label={t('Prompt templates')}
               >
                 <Icon name="fileText" size={14} />
               </button>
@@ -309,8 +293,8 @@ export default function ChatComposer({
                 onClick={() => fileInputRef.current?.click()}
                 disabled={busy || disabled || attachments.length >= MAX_ATTACHMENTS}
                 className="w-7 h-7 shrink-0 rounded-md text-ink-faint hover:text-ink hover:bg-surface-3 flex items-center justify-center transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                title="Attach image"
-                aria-label="Attach image"
+                title={t('Attach image')}
+                aria-label={t('Attach image')}
               >
                 <Icon name="paperclip" size={14} />
               </button>
@@ -330,8 +314,8 @@ export default function ChatComposer({
                 onClick={() => handleSend()}
                 disabled={(!input.trim() && attachments.length === 0) || disabled || (busy && attachments.length > 0)}
                 className="w-[34px] h-[34px] shrink-0 rounded-lg bg-accent hover:bg-accent-hover text-white flex items-center justify-center transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                aria-label={busy ? 'Steer agent' : 'Send message'}
-                title={busy ? 'Send an instruction to the current turn (Enter)' : 'Send (Enter)'}
+                aria-label={t(busy ? 'Send to working agent' : 'Send message')}
+                title={t(busy ? 'Send to working agent (Enter)' : 'Send (Enter)')}
               >
                 <Icon name="upload" size={14} />
               </button>
@@ -339,10 +323,10 @@ export default function ChatComposer({
           </div>
         </div>
         {templateOpen && (
-          <div ref={templatePanelRef} role="region" aria-label="Prompt templates" className="absolute bottom-full left-0 right-0 mb-1.5 max-h-64 overflow-auto rounded-xl border border-border bg-surface shadow-card z-30 py-1.5 px-1.5 dropdown-menu">
-            <p className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-ink-faint">Templates</p>
+          <div ref={templatePanelRef} role="region" aria-label={t('Prompt templates')} className="absolute bottom-full left-0 right-0 mb-1.5 max-h-64 overflow-auto rounded-xl border border-border bg-surface shadow-card z-30 py-1.5 px-1.5 dropdown-menu">
+            <p className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-ink-faint">{t('Templates')}</p>
             {templates.length === 0 && (
-              <p className="px-2 py-1.5 text-[11px] text-ink-faint">No templates yet — save the current prompt below.</p>
+              <p className="px-2 py-1.5 text-[11px] text-ink-faint">{t('No templates yet — save the current prompt below.')}</p>
             )}
             {templates.map((template) => (
               <div key={template.id} className="flex items-center gap-1">
@@ -358,7 +342,7 @@ export default function ChatComposer({
                   type="button"
                   onClick={() => deleteTemplate(template.id)}
                   className="text-ink-faint hover:text-danger px-1 py-1 shrink-0 rounded-md transition-colors"
-                  aria-label={`Delete template ${template.name}`}
+                  aria-label={t('Delete template {name}', { name: template.name })}
                 >
                   <Icon name="x" size={11} />
                 </button>
@@ -372,8 +356,8 @@ export default function ChatComposer({
                 onKeyDown={(event) => {
                   if (event.key === 'Enter' && !event.nativeEvent.isComposing) { event.preventDefault(); saveCurrentAsTemplate(); }
                 }}
-                placeholder="Template name (optional)"
-                aria-label="Template name"
+                placeholder={t('Template name (optional)')}
+                aria-label={t('Template name')}
                 className="flex-1 min-w-0 bg-surface-3 border border-border rounded-md px-2 py-1 text-xs text-ink placeholder:text-ink-faint focus:outline-none focus:border-accent/50"
               />
               <button
@@ -383,7 +367,7 @@ export default function ChatComposer({
                 className="shrink-0 inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-accent hover:bg-accent-hover text-white text-[11px] font-semibold transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 <Icon name="plus" size={11} />
-                Save current prompt
+                {t('Save current prompt')}
               </button>
             </div>
           </div>
@@ -409,10 +393,10 @@ export default function ChatComposer({
         {attachments.length > 0 && currentModelVision === false && (
           <p className="text-[11px] text-warning flex items-center gap-1.5 mt-2">
             <Icon name="warn" size={11} />
-            The active model may not support images — switch to a vision-capable model from the header.
+            {t('The active model may not support images — switch to a vision-capable model from the header.')}
           </p>
         )}
-        {busy && <p className="text-[11px] text-ink-soft mt-2">{attachments.length > 0 ? 'Images can be sent after the current turn finishes.' : 'Sending now adds an instruction to the running agent.'}</p>}
+        {busy && <p id="agent-composer-hint" className="text-[11px] text-ink-soft mt-2">{t(attachments.length > 0 ? 'Images can be sent after the current turn finishes.' : 'Your message will be processed at the next opportunity.')}</p>}
         <ComposerFooter busy={busy} lastTurn={lastTurn} inputLength={input.length} />
       </div>
     </div>

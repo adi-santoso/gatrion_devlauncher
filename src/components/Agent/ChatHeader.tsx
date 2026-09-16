@@ -4,6 +4,7 @@ import { THINKING_LEVELS } from './agentChatUtils';
 import type { ContextUsage, ModelOption } from './agentChatTypes';
 import type { AgentSession, Project } from '../../types/shared';
 import type { OmpStatusResult } from '../../data/agent';
+import { useAgentI18n } from './useAgentI18n';
 
 interface ChatHeaderProps {
   project: Project;
@@ -87,6 +88,7 @@ export default function ChatHeader({
   toggleNotifyOnFinish,
   handleStop,
 }: ChatHeaderProps) {
+  const t = useAgentI18n();
   return (
     <div className="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3 border-b border-border bg-surface shrink-0">
       <span className="w-7 h-7 rounded-lg bg-accent/15 text-accent-hover flex items-center justify-center shrink-0">
@@ -94,7 +96,7 @@ export default function ChatHeader({
       </span>
       <div className="min-w-0 flex-1 basis-32">
         <p className="text-sm font-semibold text-ink truncate leading-tight">{project?.name || 'Agent'}</p>
-        <p className="text-[11px] text-ink-faint truncate">{session?.title || (busy ? 'working...' : 'New conversation')}</p>
+        <p className="text-[11px] text-ink-faint truncate">{session?.title || t(busy ? 'working...' : 'New conversation')}</p>
       </div>
       <div className="ml-auto flex flex-wrap items-center justify-end gap-2 min-w-0 max-w-full">
         {project && status?.installed && status?.configured && (
@@ -103,30 +105,31 @@ export default function ChatHeader({
               type="button"
               onClick={() => setLevelOpen((value) => !value)}
               disabled={busy}
-              title="Thinking level"
-              aria-label="Thinking level"
+              title={t('Thinking level')}
+              aria-label={t('Thinking level')}
               aria-expanded={levelOpen}
               className="inline-flex items-center gap-1.5 text-[11px] font-medium text-ink-soft bg-surface-2 border border-border rounded-full px-2.5 py-1 hover:border-border-hover hover:text-ink transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
             >
               <Icon name="sliders" size={11} className="text-warning" />
-              <span className="capitalize">{thinkingLevel || 'thinking'}</span>
+              <span className="capitalize">{t(THINKING_LEVELS.find(([value]) => value === thinkingLevel)?.[1] || 'Thinking')}</span>
               <Icon name="chevronDown" size={11} className="text-ink-faint" />
             </button>
             {levelOpen && (
               <>
                 <div className="fixed inset-0 z-40" onClick={() => setLevelOpen(false)} />
                 <div className="absolute right-0 top-full mt-1.5 w-40 rounded-xl border border-border bg-surface shadow-card z-50 py-1">
-                  <p className="px-3 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-[0.1em] text-ink-faint">Thinking</p>
+                  <p className="px-3 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-[0.1em] text-ink-faint">{t('Thinking')}</p>
                   {THINKING_LEVELS.map(([value, label]) => (
                     <button
                       key={value}
-                      type="button"
-                      onClick={() => handleSetThinkingLevel(value)}
+                       type="button"
+                       onClick={() => handleSetThinkingLevel(value)}
+                       aria-pressed={value === thinkingLevel}
                       className={`w-full flex items-center gap-2 px-3 py-1.5 text-left text-xs transition-colors ${
                         value === thinkingLevel ? 'text-accent bg-accent/5' : 'text-ink-soft hover:bg-surface-3 hover:text-ink'
                       }`}
                     >
-                      <span className="flex-1">{label}</span>
+                      <span className="flex-1">{t(label)}</span>
                       {value === thinkingLevel && <Icon name="check" size={12} />}
                     </button>
                   ))}
@@ -141,13 +144,13 @@ export default function ChatHeader({
               type="button"
               onClick={() => setModelsOpen((value) => !value)}
               disabled={busy}
-              title="Switch model"
-              aria-label="Switch model"
+              title={t('Switch model')}
+              aria-label={t('Switch model')}
               aria-expanded={modelsOpen}
               className="inline-flex items-center gap-1.5 text-[11px] font-medium text-ink-soft bg-surface-2 border border-border rounded-full px-2.5 py-1 hover:border-border-hover hover:text-ink transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
             >
               <Icon name="bolt" size={11} className="text-accent" />
-              <span className="max-w-[150px] truncate font-mono">{currentModelLabel || 'Select model'}</span>
+              <span className="max-w-[150px] truncate font-mono">{currentModelLabel || t('Select model')}</span>
               <Icon name="chevronDown" size={11} className="text-ink-faint" />
             </button>
             {modelsOpen && (
@@ -161,12 +164,12 @@ export default function ChatHeader({
                         autoFocus
                         value={modelSearch}
                         onChange={(event) => setModelSearch(event.target.value)}
-                        placeholder="Search models..."
-                        aria-label="Search models"
+                        placeholder={t('Search models...')}
+                        aria-label={t('Search models')}
                         className="flex-1 min-w-0 bg-transparent text-xs text-ink placeholder:text-ink-faint focus:outline-none"
                       />
                       {modelSearch && (
-                        <button type="button" onClick={() => setModelSearch('')} className="text-ink-faint hover:text-ink" aria-label="Clear search">
+                        <button type="button" onClick={() => setModelSearch('')} className="text-ink-faint hover:text-ink" aria-label={t('Clear search')}>
                           <Icon name="x" size={11} />
                         </button>
                       )}
@@ -178,7 +181,8 @@ export default function ChatHeader({
                       <button
                         key={model.ref}
                         type="button"
-                        onClick={() => handleSelectModel(model.ref)}
+                         onClick={() => handleSelectModel(model.ref)}
+                         aria-pressed={model.ref === currentModelRef}
                         className={`w-full flex items-center gap-2 px-3 py-2 text-left text-xs transition-colors ${
                           model.ref === currentModelRef ? 'text-accent bg-accent/5' : 'text-ink-soft hover:bg-surface-3 hover:text-ink'
                         }`}
@@ -188,7 +192,7 @@ export default function ChatHeader({
                       </button>
                     ))}
                     {filteredModels.length === 0 && (
-                      <p className="px-3 py-5 text-xs text-ink-faint text-center">No models match “{modelSearch}”</p>
+                      <p className="px-3 py-5 text-xs text-ink-faint text-center">{t('No models match “{query}”', { query: modelSearch })}</p>
                     )}
                   </div>
                   <div className="border-t border-border mt-1 pt-1 shrink-0">
@@ -198,7 +202,7 @@ export default function ChatHeader({
                       className="w-full flex items-center gap-2 px-3 py-2 text-left text-xs text-ink-faint hover:text-accent transition-colors"
                     >
                       <Icon name="gear" size={12} />
-                      Manage models in Settings...
+                      {t('Manage models in Settings...')}
                     </button>
                   </div>
                 </div>
@@ -215,7 +219,7 @@ export default function ChatHeader({
         {contextPercent != null && (
           <div
             className="hidden md:flex items-center gap-1.5 text-[11px]"
-            title={`${contextUsage?.tokens?.toLocaleString() || 0} / ${(contextWindowOverride ?? contextUsage?.contextWindow)?.toLocaleString() || '?'} tokens in context`}
+            title={t('{used} / {limit} tokens in context', { used: contextUsage?.tokens?.toLocaleString() || 0, limit: (contextWindowOverride ?? contextUsage?.contextWindow)?.toLocaleString() || '?' })}
           >
             <span className="w-14 h-1.5 rounded-full bg-surface-3 overflow-hidden">
               <span
@@ -235,7 +239,7 @@ export default function ChatHeader({
         {(compacting || retrying) && (
           <span className="hidden md:inline-flex items-center gap-1.5 text-[11px] text-warning bg-warning/10 border border-warning/25 rounded-full px-2.5 py-1">
             <span className="w-1.5 h-1.5 rounded-full bg-warning animate-pulse" />
-            {compacting ? 'Compacting...' : 'Retrying...'}
+            {t(compacting ? 'Compacting context' : 'Retrying connection')}
           </span>
         )}
         {project && status?.installed && status?.configured && (
@@ -244,8 +248,8 @@ export default function ChatHeader({
               type="button"
               onClick={() => setMoreOpen((value) => !value)}
               disabled={busy}
-              title="Session options"
-              aria-label="Session options"
+              title={t('Session options')}
+              aria-label={t('Session options')}
               aria-expanded={moreOpen}
               className="w-7 h-7 rounded-lg text-ink-faint hover:text-ink hover:bg-surface-3 flex items-center justify-center transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
             >
@@ -261,7 +265,7 @@ export default function ChatHeader({
                     className="w-full flex items-center gap-2 px-3 py-1.5 text-left text-xs text-ink-soft hover:bg-surface-3 hover:text-ink transition-colors"
                   >
                     <Icon name="download" size={12} />
-                    Export conversation
+                    {t('Export conversation')}
                   </button>
                   <button
                     type="button"
@@ -269,7 +273,7 @@ export default function ChatHeader({
                     className="w-full flex items-center gap-2 px-3 py-1.5 text-left text-xs text-ink-soft hover:bg-surface-3 hover:text-ink transition-colors"
                   >
                     <Icon name="fileText" size={12} />
-                    Custom instructions...
+                    {t('Custom instructions...')}
                   </button>
                   <div className="my-1 border-t border-border" />
                   <button
@@ -278,43 +282,47 @@ export default function ChatHeader({
                     className="w-full flex items-center gap-2 px-3 py-1.5 text-left text-xs text-ink-soft hover:bg-surface-3 hover:text-ink transition-colors"
                   >
                     <Icon name="minimize" size={12} />
-                    Compact context
+                    {t('Compact context')}
                   </button>
                   <button
                     type="button"
                     onClick={toggleAutoCompaction}
+                    aria-pressed={autoCompaction}
                     className="w-full flex items-center gap-2 px-3 py-1.5 text-left text-xs text-ink-soft hover:bg-surface-3 hover:text-ink transition-colors"
                   >
                     <Icon name="refreshCw" size={12} />
-                    <span className="flex-1">Auto-compact</span>
+                    <span className="flex-1">{t('Auto-compact')}</span>
                     {autoCompaction && <Icon name="check" size={12} className="text-accent" />}
                   </button>
                   <button
                     type="button"
                     onClick={toggleFastMode}
+                    aria-pressed={fastMode}
                     className="w-full flex items-center gap-2 px-3 py-1.5 text-left text-xs text-ink-soft hover:bg-surface-3 hover:text-ink transition-colors"
                   >
                     <Icon name="bolt" size={12} />
-                    <span className="flex-1">Fast mode</span>
+                    <span className="flex-1">{t('Fast mode')}</span>
                     {fastMode && <Icon name="check" size={12} className="text-accent" />}
                   </button>
                   <button
                     type="button"
                     onClick={toggleAutoRetry}
+                    aria-pressed={autoRetry}
                     className="w-full flex items-center gap-2 px-3 py-1.5 text-left text-xs text-ink-soft hover:bg-surface-3 hover:text-ink transition-colors"
                   >
                     <Icon name="restart" size={12} />
-                    <span className="flex-1">Auto-retry</span>
+                    <span className="flex-1">{t('Auto-retry')}</span>
                     {autoRetry && <Icon name="check" size={12} className="text-accent" />}
                   </button>
                   <div className="my-1 border-t border-border" />
                   <button
                     type="button"
                     onClick={toggleNotifyOnFinish}
+                    aria-pressed={notifyOnFinish}
                     className="w-full flex items-center gap-2 px-3 py-1.5 text-left text-xs text-ink-soft hover:bg-surface-3 hover:text-ink transition-colors"
                   >
                     <Icon name="bell" size={12} />
-                    <span className="flex-1">Notify when finished</span>
+                    <span className="flex-1">{t('Notify when finished')}</span>
                     {notifyOnFinish && <Icon name="check" size={12} className="text-accent" />}
                   </button>
                 </div>
@@ -328,7 +336,7 @@ export default function ChatHeader({
             className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-danger bg-danger/10 border border-danger/25 rounded-full px-3 py-1.5 hover:bg-danger/20 transition-colors"
           >
             <Icon name="stop" size={11} />
-            Stop
+            {t('Stop')}
           </button>
         )}
       </div>

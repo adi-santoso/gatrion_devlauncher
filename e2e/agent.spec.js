@@ -10,20 +10,84 @@ async function openAgentChat({ userData }) {
     DEVLAUNCHER_USER_DATA: userData,
     OMP_RPC_MOCK_SCRIPT: MOCK_RPC,
   });
-  const agentNav = window.getByRole('button', { name: /agent/i })
-    .or(window.getByText(/^agent$/i));
+  const agentNav = window.getByRole('button', { name: /agen/i })
+    .or(window.getByText(/^agen(t)?$/i));
   await agentNav.first().click();
-  await expect(window.getByText('Sessions').first()).toBeVisible({ timeout: 10000 });
-  await expect(window.getByText('provider ready').first()).toBeVisible({ timeout: 10000 });
+  await expect(window.getByText(/^(Sessions|Sesi)$/).first()).toBeVisible({ timeout: 10000 });
+  await expect(window.getByText(/^(provider ready|penyedia siap)$/).first()).toBeVisible({ timeout: 10000 });
   await window.getByText('e2e-fixture').first().click();
-  await expect(window.getByRole('button', { name: /new session/i }).first()).toBeVisible({ timeout: 10000 });
-  await window.getByRole('button', { name: /new session/i }).first().click();
-  const composer = window.getByPlaceholder('Describe a task, ask a question...');
+  await expect(window.getByRole('button', { name: /new session|sesi baru/i }).first()).toBeVisible({ timeout: 10000 });
+  await window.getByRole('button', { name: /new session|sesi baru/i }).first().click();
+  const composer = window.getByRole('textbox', { name: /^(Message to agent|Pesan ke Agent)$/ });
   await expect(composer).toBeVisible({ timeout: 10000 });
   return { app, window, composer };
 }
 
 test.describe('agent chat (mock omp)', () => {
+  for (const language of ['en', 'id']) {
+    test(`mid-task delivery, chronological timeline, reader scroll and reduced motion (${language})`, async () => {
+      const userData = await makeTempDir('agent-guidance-');
+      const projectDir = await writeFixtureProject(await makeTempDir('agent-guidance-project-'));
+      await seedUserData(userData, { projects: [fixtureProject('guidance', projectDir)], config: { language, theme: language === 'id' ? 'light' : 'dark' } });
+      const { app, window, composer } = await openAgentChat({ userData });
+      const id = language === 'id';
+      try {
+        await app.evaluate(({ BrowserWindow }) => { const w = BrowserWindow.getAllWindows().find(win => win.isVisible()); w.unmaximize(); w.setSize(1024, 600); });
+        await window.emulateMedia({ reducedMotion: 'reduce' });
+        await composer.fill('GUIDED_TASK');
+        await composer.press('Enter');
+        const activity = window.getByRole('status', { name: id ? 'Aktivitas Agent' : 'Agent activity' });
+        await expect(activity).toHaveText(id ? 'Menjalankan command' : 'Running command');
+        await expect(composer).toHaveAttribute('placeholder', id ? 'Tanya atau tambahkan arahan saat Agent bekerja…' : 'Ask or add guidance while the agent works…');
+        await composer.fill('FAIL_ONCE explain first');
+        await composer.press('Enter');
+        await expect(window.getByText(id ? 'Gagal dikirim' : 'Failed to send', { exact: true })).toBeVisible();
+        await composer.fill('untouched draft');
+        const retry = window.getByRole('button', { name: id ? 'Coba lagi' : 'Try again', exact: true });
+        await retry.focus();
+        await window.keyboard.press('Enter');
+        await expect(window.getByText(id ? 'Mengirim…' : 'Sending…', { exact: true })).toBeVisible();
+        await expect(window.getByText(id ? 'Terkirim ke Agent' : 'Sent to agent', { exact: true })).toBeVisible();
+        await expect(composer).toHaveValue('untouched draft');
+        const transcript = window.getByRole('region', { name: id ? 'Percakapan' : 'Conversation' });
+        const response = window.getByText('Guidance received: FAIL_ONCE explain first', { exact: true });
+        await expect(response).toBeVisible();
+        const first = transcript.getByText('Progress item 1: preparing the project.', { exact: true });
+        const guidance = transcript.getByText('FAIL_ONCE explain first', { exact: true });
+        expect(await first.evaluate((el, text) => {
+          const other = [...document.querySelectorAll('.agent-chat p')].find(p => p.textContent === text);
+          return !!(el.compareDocumentPosition(other) & Node.DOCUMENT_POSITION_FOLLOWING);
+        }, 'FAIL_ONCE explain first')).toBe(true);
+        expect(await guidance.evaluate(el => getComputedStyle(el.closest('.message-in')).animationName)).toBe('none');
+
+        // Completion while reading history must not pull the viewport down.
+        await transcript.evaluate(el => { el.scrollTop = 50; el.dispatchEvent(new Event('scroll')); });
+        await composer.fill('FINISH');
+        await composer.press('Enter');
+        await expect(activity).toHaveText(id ? 'Selesai' : 'Completed');
+        expect(await transcript.evaluate(el => el.scrollTop)).toBeLessThan(150);
+        const jump = window.getByRole('button', { name: id ? 'Ada respons baru ↓' : 'New response ↓' });
+        await expect(jump).toBeInViewport();
+        await jump.click();
+        await expect(window.getByText('Guidance received: FINISH', { exact: true })).toBeVisible();
+        await expect(transcript.getByText('GUIDED_TASK', { exact: true })).toHaveCount(1);
+        await expect(transcript.getByText('FAIL_ONCE explain first', { exact: true })).toHaveCount(1);
+
+        const message = transcript.locator('[data-message-id]').filter({ has: window.getByText('FINISH', { exact: true }) });
+        const copy = message.getByRole('button', { name: id ? 'Salin' : 'Copy', exact: true });
+        // Switch to keyboard modality; programmatic focus after a mouse click
+        // intentionally does not activate Chromium's :focus-visible heuristic.
+        await window.keyboard.press('Tab');
+        await copy.focus();
+        expect(await copy.evaluate(el => getComputedStyle(el.closest('.agent-message-actions')).opacity)).toBe('1');
+        expect(await copy.evaluate(el => getComputedStyle(el).outlineStyle)).not.toBe('none');
+        await expect(composer).toBeInViewport();
+        expect(await window.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+        await window.screenshot({ path: test.info().outputPath(`agent-guidance-${language}.png`) });
+      } finally { await app.close(); }
+    });
+  }
+
   test('keeps the composer and header usable at minimum window size', async () => {
     const testInfo = test.info();
     const userData = await makeTempDir('devlauncher-agent-layout-');

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ComposerAttachment } from './ChatComposer';
 import AgentChatView from './AgentChatView';
 import { computeContextPercent, currentModelInfo, filterSlashCommands } from './agentChatMessages';
@@ -46,7 +46,15 @@ export default function AgentChat({
   // Ordered timeline of the in-progress turn — text, thinking and tool calls
   // interleaved chronologically (replaces the old separate streaming/thinking/
   // tools states that rendered each type grouped together).
-  const [blocks, setBlocks] = useState<TurnBlock[]>([]);
+  const [blocks, renderBlocks] = useState<TurnBlock[]>([]);
+  const blocksRef = useRef<TurnBlock[]>([]);
+  // Event bursts and Send can occur before React renders. Keep one synchronous
+  // timeline so a tool end/agent_end never reads yesterday's buffer snapshot.
+  const setBlocks = useCallback((action: React.SetStateAction<TurnBlock[]>) => {
+    const next = typeof action === 'function' ? action(blocksRef.current) : action;
+    blocksRef.current = next;
+    renderBlocks(next);
+  }, []);
   const [error, setError] = useState<string | null>(null);
   const [historyLoading, setHistoryLoading] = useState(false);
   // Set when loading an existing session's transcript fails (timeout, dead
@@ -124,8 +132,6 @@ export default function AgentChat({
   // Latest timeline (kept fresh on every render so agent_end / stop always
   // see the complete chronological blocks, even if the handler closed over an
   // older render).
-  const blocksRef = useRef<TurnBlock[]>([]);
-  blocksRef.current = blocks;
   const handleEventRef = useRef<((event: OmpEvent) => void) | null>(null);
   // Unsent input is remembered per session so switching away and back does
   // not lose what was being typed (draft per session).
@@ -161,7 +167,7 @@ export default function AgentChat({
   }, [contextUsage, onContextUsage]);
 
   // Streaming-buffer flush (render rate cap) + scroll tracking.
-  const { scrollToBottom, handleScroll } = useAgentStream({
+  const { scrollToBottom, handleScroll, hasNewResponse } = useAgentStream({
     visible,
     visibleRef,
     streamQueueRef,
@@ -224,7 +230,7 @@ export default function AgentChat({
   const currentModelVision = currentModel.vision;
 
   // Live event pipeline: subscription + handler + notices (see useAgentEvents).
-  const { showNotice } = useAgentEvents({
+  const { showNotice, activityEvent } = useAgentEvents({
     projectRef,
     handleEventRef,
     lastEventAtRef,
@@ -271,6 +277,7 @@ export default function AgentChat({
   // Turn execution (send/retry/edit/stop), drafts and attachments.
   const {
     handleSend,
+    handleRetryDelivery,
     handleRetry,
     handleEditSave,
     handleStop,
@@ -369,6 +376,7 @@ export default function AgentChat({
       status={status}
       onOpenSettings={onOpenSettings}
       busy={busy}
+      activityEvent={activityEvent}
       thinkingLevel={thinkingLevel}
       levelOpen={levelOpen}
       setLevelOpen={setLevelOpen}
@@ -428,6 +436,7 @@ export default function AgentChat({
       handleScroll={handleScroll}
       scrollTop={scrollTop}
       nearBottom={nearBottom}
+      hasNewResponse={hasNewResponse}
       setNearBottom={setNearBottom}
       scrollToBottom={scrollToBottom}
       bottomRef={bottomRef}
@@ -449,6 +458,7 @@ export default function AgentChat({
       saveDraftRef={saveDraftRef}
       resizeInput={resizeInput}
       handleSend={handleSend}
+      handleRetryDelivery={handleRetryDelivery}
       handleFiles={handleFiles}
       slashOpen={slashOpen}
       slashMatches={slashMatches}

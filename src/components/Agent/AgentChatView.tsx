@@ -22,6 +22,10 @@ import type {
 } from './agentChatTypes';
 import type { AgentSession, Project } from '../../types/shared';
 import type { OmpStatusResult } from '../../data/agent';
+import { useAgentI18n } from './useAgentI18n';
+import { useAgentActivity } from './AgentActivity';
+import './agentChat.css';
+import type { OmpEvent } from './agentChatEvents';
 
 export interface AgentChatViewProps {
   project: Project;
@@ -30,6 +34,7 @@ export interface AgentChatViewProps {
   onOpenSettings?: () => void;
   // Header
   busy: boolean;
+  activityEvent: OmpEvent | null;
   thinkingLevel: string | null;
   levelOpen: boolean;
   setLevelOpen: Dispatch<SetStateAction<boolean>>;
@@ -94,6 +99,7 @@ export interface AgentChatViewProps {
   handleScroll: () => void;
   scrollTop: number;
   nearBottom: boolean;
+  hasNewResponse: boolean;
   setNearBottom: Dispatch<SetStateAction<boolean>>;
   scrollToBottom: (behavior?: ScrollBehavior) => void;
   bottomRef: RefObject<HTMLDivElement | null>;
@@ -117,6 +123,7 @@ export interface AgentChatViewProps {
   saveDraftRef: MutableRefObject<(text: string) => void>;
   resizeInput: (el: HTMLTextAreaElement) => void;
   handleSend: (preset?: string) => void;
+  handleRetryDelivery: (message: ChatMessage) => void;
   handleFiles: (fileList: FileList | File[] | null) => void;
   slashOpen: boolean;
   slashMatches: SlashCommand[];
@@ -190,6 +197,7 @@ export default function AgentChatView(props: AgentChatViewProps) {
     handleScroll,
     scrollTop,
     nearBottom,
+    hasNewResponse,
     setNearBottom,
     scrollToBottom,
     bottomRef,
@@ -211,6 +219,7 @@ export default function AgentChatView(props: AgentChatViewProps) {
     saveDraftRef,
     resizeInput,
     handleSend,
+    handleRetryDelivery,
     handleFiles,
     slashOpen,
     slashMatches,
@@ -218,9 +227,11 @@ export default function AgentChatView(props: AgentChatViewProps) {
     currentModelVision,
     lastTurn,
   } = props;
+  const t = useAgentI18n();
+  const activity = useAgentActivity(project.id, session?.id || '', busy, blocks, retrying, compacting, props.activityEvent);
 
   return (
-    <div className="relative flex flex-col flex-1 min-h-0 min-w-0">
+    <div className="agent-chat relative flex flex-col flex-1 min-h-0 min-w-0">
       {/* Header */}
       <ChatHeader
         project={project}
@@ -278,6 +289,8 @@ export default function AgentChatView(props: AgentChatViewProps) {
       {/* Messages */}
       <div
         ref={scrollRef}
+        role="region"
+        aria-label={t('Conversation')}
         onScroll={handleScroll}
         className="relative flex-1 min-h-0 overflow-auto px-6 pt-7 pb-5 bg-base"
       >
@@ -287,7 +300,7 @@ export default function AgentChatView(props: AgentChatViewProps) {
               <div role="status" className="text-sm px-4 py-3 rounded-xl border border-success/25 bg-success/10 text-success">{notice}</div>
             )}
             {error && (
-              <div role="alert" className="text-sm px-4 py-3 rounded-xl border border-danger/25 bg-danger/10 text-danger whitespace-pre-wrap break-words">{error}</div>
+              <div role="alert" className="text-sm px-4 py-3 rounded-xl border border-danger/25 bg-danger/10 text-danger whitespace-pre-wrap break-words">{t(error)}</div>
             )}
           </div>
         )}
@@ -313,9 +326,9 @@ export default function AgentChatView(props: AgentChatViewProps) {
               rowGap={26}
               threshold={400}
               renderItem={(message, index) => (
-                <div className="message-in" style={{ animationDelay: `${Math.min(index * 30, 150)}ms` }}>
+                <div className="message-in" data-message-id={message.id}>
                   {message.role === 'user' ? (
-                    <UserMessage message={message} isLast={index === lastUserIndex} busy={busy} onSave={handleEditSave} onBranch={handleBranch} />
+                    <UserMessage message={message} isLast={index === lastUserIndex} busy={busy} onSave={handleEditSave} onBranch={handleBranch} onRetryDelivery={handleRetryDelivery} />
                   ) : message.role === 'system' ? (
                     <SystemMessage message={message} />
                   ) : (
@@ -329,7 +342,7 @@ export default function AgentChatView(props: AgentChatViewProps) {
               {/* The live turn timeline: text, thinking and tool calls render in
                   their chronological order (a tool card appears right where it
                   happened, between the text segments around it). */}
-              <LiveTurnBlocks blocks={blocks} busy={busy} />
+              {busy && <LiveTurnBlocks blocks={blocks} busy={busy} onRetryDelivery={handleRetryDelivery} />}
               <div ref={bottomRef} />
             </div>
           </div>
@@ -341,11 +354,11 @@ export default function AgentChatView(props: AgentChatViewProps) {
         <button
           type="button"
           onClick={() => { scrollToBottom(); setNearBottom(true); }}
-          className="absolute bottom-24 left-1/2 -translate-x-1/2 flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-surface border border-border shadow-card backdrop-blur-sm z-10 text-[11px] text-ink-soft hover:text-ink hover:border-border-hover transition-colors"
-          title="Jump to latest"
+          className="agent-status-in self-center -mt-9 mb-2 shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-surface border border-border shadow-card z-10 text-[11px] text-ink-soft hover:text-ink hover:border-border-hover transition-colors"
+          title={t('Jump to latest')}
         >
           <Icon name="arrowDown" size={12} />
-          Scroll to bottom
+          <span aria-live="polite">{t(hasNewResponse ? 'New response ↓' : 'Scroll to bottom')}</span>
         </button>
       )}
 
@@ -370,8 +383,9 @@ export default function AgentChatView(props: AgentChatViewProps) {
       {/* Input */}
       <ChatComposer
         busy={busy}
+        activity={activity}
         notConfigured={notConfigured}
-        unavailableReason={!status?.installed ? 'Install omp in Agent settings to start chatting...' : historyLoading ? 'Loading conversation...' : historyError ? 'Retry loading this conversation before sending.' : undefined}
+        unavailableReason={!status?.installed ? t('Install omp in Agent settings to start chatting...') : historyLoading ? t('Loading conversation...') : historyError ? t('Retry loading this conversation before sending.') : undefined}
         project={project}
         attachments={attachments}
         setAttachments={setAttachments}

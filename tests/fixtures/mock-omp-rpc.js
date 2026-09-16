@@ -30,6 +30,7 @@ const rl = readline.createInterface({ input: process.stdin })
 // records the response it receives so tests can assert on the round-trip.
 const pendingExtUi = new Map()
 const extensionUiResponses = []
+let guidedTurn = null
 
 function send(frame) {
   process.stdout.write(JSON.stringify(frame) + '\n')
@@ -114,7 +115,6 @@ rl.on('line', (line) => {
     case 'set_auto_compaction':
     case 'set_auto_retry':
     case 'set_fast_mode':
-    case 'steer':
     case 'compact':
     case 'get_session_commands':
     case 'follow_up':
@@ -123,8 +123,32 @@ rl.on('line', (line) => {
     case 'set_todos':
       respond(id, { ok: true })
       break
+    case 'steer': {
+      if (!guidedTurn) { respond(id, { ok: true }); break }
+      const text = String(frame.message || '')
+      if (text.includes('FAIL_ONCE') && !guidedTurn.rejected) {
+        guidedTurn.rejected = true
+        send({ type: 'response', id, success: false, error: 'Mock delivery failed' })
+        break
+      }
+      const turn = guidedTurn
+      turn.messages.push({ role: 'user', content: text })
+      setTimeout(() => {
+        respond(id, { ok: true })
+        send({ type: 'tool_execution_end', toolCallId: 'guided-tool', toolName: 'bash', result: { content: [{ text: 'Command completed' }] } })
+        const reply = `Guidance received: ${text}`
+        send({ type: 'message_update', assistantMessageEvent: { type: 'text_delta', delta: reply } })
+        turn.messages.push({ role: 'assistant', content: reply })
+        if (text.includes('FINISH')) {
+          send({ type: 'agent_end', messages: turn.messages })
+          guidedTurn = null
+        }
+      }, 300)
+      break
+    }
     case 'abort':
       respond(id, { ok: true })
+      if (guidedTurn) { send({ type: 'agent_end', messages: guidedTurn.messages }); guidedTurn = null }
       // Real omp tells the host to close pending extension UI by emitting a
       // fresh cancel control frame that points at the original request ID.
       for (const targetId of pendingExtUi.keys()) {
@@ -138,6 +162,14 @@ rl.on('line', (line) => {
     case 'prompt': {
       respond(id, { ok: true })
       const prompt = String(frame.message || '')
+      if (prompt.includes('GUIDED_TASK')) {
+        const content = Array.from({ length: 24 }, (_, index) => `Progress item ${index + 1}: preparing the project.`).join('\n\n')
+        guidedTurn = { messages: [{ role: 'user', content: prompt }, { role: 'assistant', content }], rejected: false }
+        send({ type: 'agent_start' })
+        send({ type: 'message_update', assistantMessageEvent: { type: 'text_delta', delta: content } })
+        send({ type: 'tool_execution_start', toolCallId: 'guided-tool', toolName: 'bash', args: { command: 'mock build' } })
+        break
+      }
       if (prompt.includes('CRASH')) {
         send({ type: 'agent_start' })
         // Exit abruptly so the host's auto-restart path is exercised.

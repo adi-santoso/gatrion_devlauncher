@@ -9,11 +9,13 @@ import {
   appendStreamedBlock,
   argsToString,
   blocksToText,
+  blocksToSegments,
   normalizeTranscriptMessage,
   uid,
   updateToolBlock,
 } from './agentChatUtils';
 import { extractTurnUsage, mergeFinishedTurn } from './agentChatMessages';
+import { commitInterruptedTurn } from './agentInterruptedTurn';
 import type { ChatMessage, ChatTool, LastTurnInfo, SlashCommand, StreamedPart, SubagentInfo, TodoPhase, TurnBlock } from './agentChatTypes';
 
 /** omp RPC event payload (fields are optional — shapes vary by event type). */
@@ -131,8 +133,9 @@ export function createOmpEventHandler(context: OmpEventContext): (event: OmpEven
       return;
     }
     if (type === 'agent_start') {
-      streamQueueRef.current = [];
-      setBlocks([]);
+      // The user can send guidance while the initial RPC prompt is starting.
+      // runTurn already cleared the previous turn; do not drop that guidance.
+      setBusyState(true);
       setSubagents([]);
       setError(null);
       // A new turn starts a fresh TODO plan — clear the previous turn's list so
@@ -180,7 +183,8 @@ export function createOmpEventHandler(context: OmpEventContext): (event: OmpEven
       const text = event.result?.content?.map((part) => part?.text).filter(Boolean).join('') || '';
       const toolId = event.toolCallId || '';
       const toolName = event.toolName || '';
-      setBlocks((prev) => updateToolBlock(prev, toolId, toolName, { state: 'done', body: text.slice(0, 4000) }));
+      if (toolUpdateRef.current?.toolCallId === toolId) toolUpdateRef.current = null;
+      setBlocks((prev) => updateToolBlock(prev, toolId, toolName, { state: event.isError ? 'error' : 'done', body: text.slice(0, 4000) }));
       return;
     }
     if (type === 'agent_end') {
@@ -296,6 +300,16 @@ export function createOmpEventHandler(context: OmpEventContext): (event: OmpEven
       return;
     }
     if (type === 'rpc_error' || type === 'rpc_exit') {
+      const pending = streamQueueRef.current;
+      streamQueueRef.current = [];
+      const partial = pending.reduce((blocks, part) => appendStreamedBlock(blocks, part.kind, part.text), getBlocksFallback());
+      if (partial.some(block => block.kind === 'user')) {
+        setMessages(previous => commitInterruptedTurn(previous, partial, true));
+        setBlocks([]);
+      } else if (partial.length) {
+        setMessages(previous => [...previous, { id: uid(), role: 'assistant', content: blocksToText(partial), segments: blocksToSegments(partial), stopped: true }]);
+        setBlocks([]);
+      }
       setBusyState(false);
       if (type === 'rpc_error') setError(event.error || 'Agent process failed');
       return;

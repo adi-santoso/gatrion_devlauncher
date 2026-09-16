@@ -198,7 +198,7 @@ export const appendStreamedBlock = (blocks: TurnBlock[], kind: 'text' | 'thinkin
   let lastToolIndex = -1;
   for (let i = blocks.length - 1; i >= 0; i -= 1) {
     if (blocks[i].kind === kind && lastKindIndex === -1) lastKindIndex = i;
-    if (blocks[i].kind === 'tool' && lastToolIndex === -1) lastToolIndex = i;
+    if ((blocks[i].kind === 'tool' || blocks[i].kind === 'user') && lastToolIndex === -1) lastToolIndex = i;
     if (lastKindIndex !== -1 && lastToolIndex !== -1) break;
   }
   // Merge into the existing block of this kind ONLY when nothing was added
@@ -240,6 +240,7 @@ export const updateToolBlock = (blocks: TurnBlock[], toolId: string, name: strin
 export const blocksToSegments = (blocks: TurnBlock[]): MessageSegment[] => {
   const segments: MessageSegment[] = [];
   for (const block of blocks) {
+    if (block.kind === 'user') continue;
     if (block.kind === 'text' && !block.text.trim()) continue;
     if (block.kind === 'tool') {
       if (block.tool) segments.push({ kind: 'tool', tool: block.tool });

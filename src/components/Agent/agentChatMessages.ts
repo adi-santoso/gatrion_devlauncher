@@ -4,6 +4,7 @@
 // reused without pulling in React state.
 import { blocksToSegments, blocksToText, blocksToThinking, uid, type NormalizedMessage } from './agentChatUtils';
 import type { ChatMessage, ContextUsage, ModelOption, SlashCommand, TurnBlock } from './agentChatTypes';
+import { commitInterruptedTurn } from './agentInterruptedTurn';
 
 /** Token usage reported on the last transcript entry of an agent_end event. */
 export interface TurnUsage {
@@ -49,6 +50,17 @@ export function mergeFinishedTurn(
   turnMessages: NormalizedMessage[],
   options: MergeFinishedTurnOptions,
 ): MergeFinishedTurnResult {
+  if (options.blocks.some(block => block.kind === 'user')) {
+    const next = commitInterruptedTurn(prev, options.blocks);
+    // Only use canonical-only replies when no text streamed, never duplicate
+    // the original prompt or fold replies across an interruption boundary.
+    const text = blocksToText(options.blocks);
+    const canonical = turnMessages.filter(message => message.role === 'assistant').map(message => message.content).join('\n\n');
+    if (!text && canonical) next.push({ id: uid(), role: 'assistant', content: canonical, timelineId: options.blocks[0].id });
+    const last = [...next].reverse().find(message => message.role === 'assistant' && message.timelineId === options.blocks[0].id);
+    if (last) Object.assign(last, { promptTokens: options.promptTokens, completionTokens: options.completionTokens, totalTokens: options.totalTokens });
+    return { next, finishedText: text || canonical, assistantContent: text || canonical, assistantThinking: blocksToThinking(options.blocks) };
+  }
   const turnUser = turnMessages.filter((item) => item.role === 'user').pop();
   const assistantMessages = turnMessages.filter((item) => item.role === 'assistant');
   const canonicalContent = assistantMessages.map((item) => item.content).join('\n\n');

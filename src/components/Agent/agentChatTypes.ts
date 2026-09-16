@@ -21,6 +21,10 @@ export interface ChatMessage {
   createdAt?: string;
   stopped?: boolean;
   steered?: boolean;
+  delivery?: 'sending' | 'sent' | 'failed';
+  deliveryError?: string;
+  /** Local turn identity keeps interrupted/aborted timelines idempotent. */
+  timelineId?: string;
   /** Local-only UI variant — e.g. a "context compacted" note in the chat. */
   kind?: 'normal' | 'compact' | 'notice';
   /** Optional detail rendered with a notice/compact message. */
@@ -67,7 +71,8 @@ export interface StreamedPart {
  */
 export interface TurnBlock {
   id: string;
-  kind: 'text' | 'thinking' | 'tool';
+  kind: 'text' | 'thinking' | 'tool' | 'user';
+  message?: ChatMessage;
   /** Accumulated text (for text/thinking blocks). */
   text: string;
   /** Present for tool blocks. */

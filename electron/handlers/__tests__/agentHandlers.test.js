@@ -330,17 +330,21 @@ describe('agentHandlers — chat & RPC', () => {
   })
 
   test('omp-extension-ui-respond forwards a valid response frame', async () => {
-    const { ompManager } = register()
+    const window = makeWindow()
+    const { ompManager } = register({ window })
     const h = ipcMain._handlers
     const ok = await h.get('omp-extension-ui-respond')(fakeEvent, 'p1', { id: 'ext-1', confirmed: true })
     expect(ok.success).toBe(true)
     expect(ompManager.respondExtensionUi).toHaveBeenCalledWith('p1', { id: 'ext-1', confirmed: true })
+    expect(window.webContents.send).toHaveBeenCalledWith('omp-event', { projectId: 'p1', event: { type: 'extension_ui_responded', id: 'ext-1' } })
+    window.webContents.send.mockClear()
 
     // When the RPC process is gone, the manager returns false → error surfaced.
     ompManager.respondExtensionUi.mockReturnValueOnce(false)
     const gone = await h.get('omp-extension-ui-respond')(fakeEvent, 'p1', { id: 'ext-2', cancelled: true })
     expect(gone.success).toBe(false)
     expect(gone.error).toMatch(/not running/)
+    expect(window.webContents.send).not.toHaveBeenCalled()
 
     expect((await h.get('omp-extension-ui-respond')(fakeEvent, 'p1', null)).error).toMatch(/response must be an object/)
   })

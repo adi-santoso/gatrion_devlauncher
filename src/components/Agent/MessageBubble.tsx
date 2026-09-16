@@ -4,6 +4,8 @@ import Markdown from './Markdown';
 import ThinkingBlock from './ThinkingBlock';
 import ToolCard from './ToolCard';
 import type { ChatMessage } from './agentChatTypes';
+import { useAgentI18n } from './useAgentI18n';
+import MessageDelivery from './MessageDelivery';
 
 const formatTime = (iso?: string): string => {
   if (!iso) return '';
@@ -22,6 +24,7 @@ interface CopyButtonProps {
 }
 
 export function CopyButton({ text, className = '' }: CopyButtonProps) {
+  const t = useAgentI18n();
   const [copied, setCopied] = useState(false);
   const handleCopy = async () => {
     try {
@@ -31,9 +34,9 @@ export function CopyButton({ text, className = '' }: CopyButtonProps) {
     } catch { /* clipboard unavailable */ }
   };
   return (
-    <button type="button" onClick={handleCopy} title="Copy message" className={`${actionBtnCls} ${copied ? 'text-success' : ''} ${className}`}>
+    <button type="button" onClick={handleCopy} title={t('Copy message')} className={`${actionBtnCls} ${copied ? 'text-success' : ''} ${className}`}>
       <Icon name={copied ? 'check' : 'copy'} size={12} />
-      {copied ? 'Copied' : 'Copy'}
+      {t(copied ? 'Copied' : 'Copy')}
     </button>
   );
 }
@@ -49,6 +52,7 @@ interface AssistantMessageProps {
 // Memoized so streaming deltas (which re-render only the streaming block)
 // never re-parse/re-render every historical message on each keystroke.
 export const AssistantMessage = React.memo(function AssistantMessage({ message, isLast, busy, onRetry, onBranch }: AssistantMessageProps) {
+  const t = useAgentI18n();
   const [speaking, setSpeaking] = useState(false);
   const speechSupported = 'speechSynthesis' in window;
 
@@ -78,7 +82,7 @@ export const AssistantMessage = React.memo(function AssistantMessage({ message, 
       </div>
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 mb-1">
-          <span className="text-[10.5px] font-semibold font-mono uppercase tracking-[0.07em] text-ink-faint">Assistant</span>
+          <span className="text-[10.5px] font-semibold font-mono uppercase tracking-[0.07em] text-ink-faint">{t('Assistant')}</span>
           {formatTime(message.createdAt) && <span className="text-[10px] text-ink-faint">{formatTime(message.createdAt)}</span>}
           {tokens != null && tokens > 0 && (
             <span
@@ -129,26 +133,26 @@ export const AssistantMessage = React.memo(function AssistantMessage({ message, 
         {message.stopped && (
           <p className="mt-1.5 text-[11px] text-ink-faint italic flex items-center gap-1.5">
             <Icon name="stop" size={10} />
-            Generation stopped — partial reply kept
+            {t('Generation stopped — partial reply kept')}
           </p>
         )}
-        <div className="flex items-center gap-0.5 mt-2 opacity-0 group-hover:opacity-100 transition-opacity duration-150">
+        <div className="agent-message-actions flex items-center gap-0.5 mt-2 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity duration-150">
           {speechSupported && (
-            <button type="button" onClick={speak} title={speaking ? 'Stop reading' : 'Read aloud'} className={actionBtnCls}>
+            <button type="button" onClick={speak} title={t(speaking ? 'Stop reading' : 'Read aloud')} className={actionBtnCls}>
               <Icon name="volume" size={12} />
-              {speaking ? 'Stop' : 'Read aloud'}
+              {t(speaking ? 'Stop' : 'Read aloud')}
             </button>
           )}
           {isLast && !busy && (
-            <button type="button" onClick={() => onRetry?.(message)} title="Retry — re-ask the last prompt" className={actionBtnCls}>
+            <button type="button" onClick={() => onRetry?.(message)} title={t('Retry — re-ask the last prompt')} className={actionBtnCls}>
               <Icon name="refreshCw" size={12} />
-              Retry
+              {t('Retry')}
             </button>
           )}
           {message.entryId && (
-            <button type="button" onClick={() => onBranch?.(message.entryId as string)} title="Branch the conversation from here" className={actionBtnCls}>
+            <button type="button" onClick={() => onBranch?.(message.entryId as string)} title={t('Branch the conversation from here')} className={actionBtnCls}>
               <Icon name="gitBranch" size={12} />
-              Branch
+              {t('Branch')}
             </button>
           )}
           <CopyButton text={message.content} />
@@ -164,12 +168,14 @@ interface UserMessageProps {
   busy: boolean;
   onSave?: (id: string, text: string) => void;
   onBranch?: (entryId: string) => void;
+  onRetryDelivery?: (message: ChatMessage) => void;
 }
 
 // User message in the same flat layout (avatar + content column). Images render
 // as clickable thumbnails with a fullscreen viewer; the most recent user
 // message can be edited inline and re-sent.
-export function UserMessage({ message, isLast, busy, onSave, onBranch }: UserMessageProps) {
+export function UserMessage({ message, isLast, busy, onSave, onBranch, onRetryDelivery }: UserMessageProps) {
+  const t = useAgentI18n();
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(message.content);
   const [expandedImage, setExpandedImage] = useState<string | null>(null);
@@ -188,20 +194,23 @@ export function UserMessage({ message, isLast, busy, onSave, onBranch }: UserMes
   return (
     <div className="group flex gap-[13px]">
       <div className="w-7 h-7 rounded-[7px] bg-surface-2 text-ink-soft border border-border flex items-center justify-center shrink-0 mt-0.5">
-        <span className="text-[11px] font-bold">You</span>
+        <span className="text-[11px] font-bold">{t('You')}</span>
       </div>
       <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2 mb-1">
-          <span className="text-[10.5px] font-semibold font-mono uppercase tracking-[0.07em] text-ink-faint">You</span>
+        <div className="flex flex-wrap items-center gap-2 mb-1">
+          <span className="text-[10.5px] font-semibold font-mono uppercase tracking-[0.07em] text-ink-faint">{t('You')}</span>
+          {message.steered && <span className="text-[10px] rounded px-1.5 py-0.5 bg-accent/10 text-accent">{t('Additional guidance')}</span>}
           {formatTime(message.createdAt) && <span className="text-[10px] text-ink-faint">{formatTime(message.createdAt)}</span>}
         </div>
         {editing ? (
           <div className="border border-accent/40 rounded-xl bg-surface-2 overflow-hidden">
             <textarea
               autoFocus
+              aria-label={t('Edit message')}
               value={draft}
               onChange={(event) => setDraft(event.target.value)}
               onKeyDown={(event) => {
+                if (event.nativeEvent.isComposing) return;
                 if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); submitEdit(); }
                 if (event.key === 'Escape') cancelEdit();
               }}
@@ -209,8 +218,8 @@ export function UserMessage({ message, isLast, busy, onSave, onBranch }: UserMes
               className="w-full bg-transparent text-sm text-ink placeholder:text-ink-faint px-3.5 py-2.5 focus:outline-none resize-none"
             />
             <div className="flex justify-end gap-1.5 px-2 pb-2">
-              <button type="button" onClick={cancelEdit} className="px-2.5 py-1 rounded-lg text-[11px] text-ink-faint hover:text-ink hover:bg-surface-3 transition-colors">Cancel</button>
-              <button type="button" onClick={submitEdit} disabled={!draft.trim()} className="px-3 py-1 rounded-lg text-[11px] font-semibold bg-accent hover:bg-accent-hover text-white disabled:opacity-50 transition-colors">Save &amp; send</button>
+              <button type="button" onClick={cancelEdit} className="px-2.5 py-1 rounded-lg text-[11px] text-ink-faint hover:text-ink hover:bg-surface-3 transition-colors">{t('Cancel')}</button>
+              <button type="button" onClick={submitEdit} disabled={!draft.trim()} className="px-3 py-1 rounded-lg text-[11px] font-semibold bg-accent hover:bg-accent-hover text-white disabled:opacity-50 transition-colors">{t('Save & send')}</button>
             </div>
           </div>
         ) : (
@@ -228,7 +237,7 @@ export function UserMessage({ message, isLast, busy, onSave, onBranch }: UserMes
                     type="button"
                     onClick={() => setExpandedImage(image.dataUrl)}
                     className="relative group/thumb rounded-lg overflow-hidden border border-border hover:border-border-hover transition-colors"
-                    title="View image"
+                    title={t('View image')}
                   >
                     <img src={image.dataUrl} alt="Attachment" className="w-32 h-32 object-cover" />
                     <div className="absolute inset-0 bg-black/0 group-hover/thumb:bg-black/20 transition-colors flex items-center justify-center">
@@ -240,23 +249,24 @@ export function UserMessage({ message, isLast, busy, onSave, onBranch }: UserMes
             )}
           </>
         )}
+        <MessageDelivery message={message} onRetry={onRetryDelivery} />
         {!editing && (
-          <div className="flex items-center gap-0.5 mt-2 opacity-0 group-hover:opacity-100 transition-opacity duration-150">
-            {isLast && !busy && (
+          <div className="agent-message-actions flex items-center gap-0.5 mt-2 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity duration-150">
+            {isLast && !busy && message.delivery !== 'failed' && (
               <button
                 type="button"
                 onClick={() => { setEditing(true); setDraft(message.content); }}
-                title="Edit and re-ask"
+                title={t('Edit and re-ask')}
                 className={actionBtnCls}
               >
                 <Icon name="edit" size={12} />
-                Edit
+                {t('Edit')}
               </button>
             )}
             {message.entryId && (
-              <button type="button" onClick={() => onBranch?.(message.entryId as string)} title="Branch the conversation from here" className={actionBtnCls}>
+              <button type="button" onClick={() => onBranch?.(message.entryId as string)} title={t('Branch the conversation from here')} className={actionBtnCls}>
                 <Icon name="gitBranch" size={12} />
-                Branch
+                {t('Branch')}
               </button>
             )}
             {message.content && <CopyButton text={message.content} />}
@@ -271,7 +281,7 @@ export function UserMessage({ message, isLast, busy, onSave, onBranch }: UserMes
             type="button"
             onClick={() => setExpandedImage(null)}
             className="absolute top-4 right-4 w-9 h-9 rounded-full bg-black/60 hover:bg-black/80 flex items-center justify-center text-white transition-colors"
-            title="Close"
+            title={t('Close')}
           >
             <Icon name="x" size={16} />
           </button>

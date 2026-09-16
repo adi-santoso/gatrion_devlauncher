@@ -1,10 +1,11 @@
-import { useCallback, useRef } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import * as ipc from '../../utils/ipcRenderer';
 import { fileToAttachment, MAX_ATTACHMENTS, MAX_IMAGE_BYTES } from './imageAttachment';
 import { appendStreamedBlock, blocksToSegments, blocksToText, blocksToThinking, uid } from './agentChatUtils';
 import type { ComposerAttachment } from './ChatComposer';
 import type { ChatImage, ChatMessage, SlashCommand, StreamedPart, TurnBlock } from './agentChatTypes';
 import type { AgentSession, Project } from '../../types/shared';
+import { commitInterruptedTurn } from './agentInterruptedTurn';
 
 export interface AgentTurnOptions {
   project: Project;
@@ -37,6 +38,7 @@ interface RunTurnOptions {
   text: string;
   images?: ChatImage[];
   appendUser?: boolean;
+  deliveryId?: string;
 }
 
 /**
@@ -69,19 +71,54 @@ export function useAgentTurn({
   setBusyState,
   onSessionCreated,
 }: AgentTurnOptions) {
+  const mounted = useRef(true);
+  const turnGeneration = useRef(0);
+  const delivering = useRef(new Set<string>());
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
+  const patchDelivery = (id: string, patch: Partial<ChatMessage>) => {
+    setBlocks(previous => previous.map(block => block.message?.id === id ? { ...block, message: { ...block.message, ...patch } } : block));
+    setMessages(previous => previous.map(message => message.id === id ? { ...message, ...patch } : message));
+  };
+  const sendSteering = async (text: string, retryId?: string) => {
+    if (retryId && delivering.current.has(retryId)) return;
+    const id = retryId || uid();
+    delivering.current.add(id);
+    const ownerProject = project.id;
+    // IDs are unique and patches only touch existing entries. A session switch
+    // clears them, while the implicit new-session transition retains them.
+    const ownsView = () => mounted.current && projectRef.current?.id === ownerProject;
+    const pending = streamQueueRef.current;
+    streamQueueRef.current = [];
+    setBlocks(previous => {
+      const timeline = pending.reduce((list, part) => appendStreamedBlock(list, part.kind, part.text), previous);
+      return [...timeline.filter(block => !retryId || block.message?.id !== retryId), {
+        id, kind: 'user', text: '', message: { id, role: 'user', content: text, steered: true, delivery: 'sending', createdAt: new Date().toISOString() },
+      }];
+    });
+    if (retryId) setMessages(previous => previous.filter(message => message.id !== retryId));
+    try {
+      const result = await ipc.ompSteer(project.id, project.path, text);
+      if (!result?.success) throw new Error(result?.error || 'Failed to send message');
+      if (ownsView()) patchDelivery(id, { delivery: 'sent', deliveryError: undefined });
+    } catch (caught) {
+      if (ownsView()) patchDelivery(id, { delivery: 'failed', deliveryError: caught instanceof Error ? caught.message : String(caught) });
+    } finally { delivering.current.delete(id); }
+  };
   // Shared turn runner: appends the user message (unless the caller already
   // placed it, e.g. edit/retry), starts the RPC turn and arms the safety
   // timeout that recovers from silent failures.
-  const runTurn = async ({ text, images = [], appendUser = true }: RunTurnOptions): Promise<void> => {
+  const runTurn = async ({ text, images = [], appendUser = true, deliveryId }: RunTurnOptions): Promise<void> => {
     if (busyRef.current || !project) return;
+    const generation = ++turnGeneration.current;
     setError(null);
     if (appendUser) {
       setMessages((prev) => [...prev, {
-        id: uid(),
+        id: deliveryId || uid(),
         role: 'user',
         content: text || '',
         images: images.length ? images : undefined,
         createdAt: new Date().toISOString(),
+        ...(deliveryId ? { delivery: 'sending' as const } : {}),
       }]);
     }
     setBlocks([]);
@@ -92,6 +129,7 @@ export function useAgentTurn({
     try {
       const result = await ipc.ompChat(project.id, project.path, text, { sessionId: session?.id, sessionPath: session?.sessionPath, images: ompImages.length ? ompImages : undefined });
       if (!result?.success) {
+        if (deliveryId) patchDelivery(deliveryId, { delivery: 'failed', deliveryError: result?.error || 'Failed to send message' });
         setError(result?.error || 'Failed to start conversation');
         setBusyState(false);
         return;
@@ -99,8 +137,10 @@ export function useAgentTurn({
       // Remember the session created by this send so the session-change
       // effect does not reset the live conversation when it appears.
       sentSessionIdRef.current = (result.sessionId as string | undefined) ?? null;
+      if (deliveryId) patchDelivery(deliveryId, { delivery: 'sent', deliveryError: undefined });
       onSessionCreated?.(result.sessionId as string, result.session);
     } catch (caught) {
+      if (deliveryId) patchDelivery(deliveryId, { delivery: 'failed', deliveryError: caught instanceof Error ? caught.message : String(caught) });
       setError((caught instanceof Error ? caught.message : String(caught)) || 'Failed to start conversation');
       setBusyState(false);
     }
@@ -109,9 +149,15 @@ export function useAgentTurn({
     // transcript. Only fires when the turn is actually quiet, so long-running
     // generations with live events are never disturbed.
     setTimeout(() => {
-      if (busyRef.current && Date.now() - lastEventAtRef.current > 8000) {
-        refreshHistory();
-        setBusyState(false);
+      if (mounted.current && generation === turnGeneration.current && projectRef.current?.id === project.id && busyRef.current && Date.now() - lastEventAtRef.current > 8000) {
+        void ipc.ompGetState(project.id, project.path).then(result => {
+          // A quiet long-running tool is still active. Only the backend can
+          // confirm completion; silence alone must not enable a new prompt.
+          if (mounted.current && generation === turnGeneration.current && result?.success && result.state?.isStreaming === false && busyRef.current) {
+            refreshHistory();
+            setBusyState(false);
+          }
+        }).catch(() => {});
       }
     }, 25000);
   };
@@ -136,30 +182,11 @@ export function useAgentTurn({
         return;
       }
       const text = message || 'Here is an attached image — please analyze it.';
-      const messageId = uid();
       setError(null);
       setInput('');
       saveDraftRef.current?.('');
       if (inputRef.current) inputRef.current.style.height = 'auto';
-      setMessages((prev) => [...prev, {
-        id: messageId,
-        role: 'user',
-        content: text,
-        steered: true,
-        createdAt: new Date().toISOString(),
-      }]);
-      try {
-        const result = await ipc.ompSteer(project.id, project.path, text);
-        if (!result?.success) throw new Error(result?.error || 'Failed to steer the agent');
-      } catch (caught) {
-        setMessages((prev) => prev.filter((item) => item.id !== messageId));
-        setInput((current) => {
-          const restored = current ? `${text}\n${current}` : text;
-          saveDraftRef.current(restored);
-          return restored;
-        });
-        setError((caught instanceof Error ? caught.message : String(caught)) || 'Failed to steer the agent');
-      }
+      await sendSteering(text);
       return;
     }
     // omp expects a text prompt; when only images are attached, use a neutral prompt.
@@ -170,6 +197,16 @@ export function useAgentTurn({
     if (inputRef.current) inputRef.current.style.height = 'auto';
     setAttachments([]);
     await runTurn({ text, images });
+  };
+
+  const handleRetryDelivery = async (message: ChatMessage) => {
+    if (message.delivery !== 'failed' || delivering.current.has(message.id)) return;
+    if (busyRef.current) return sendSteering(message.content, message.id);
+    // The running task finished since failure. Retry as a new turn in the same
+    // session rather than leaving a steering instruction in an idle queue.
+    setMessages(previous => previous.filter(item => item.id !== message.id));
+    setBlocks(previous => previous.filter(block => block.message?.id !== message.id));
+    await runTurn({ text: message.content, deliveryId: message.id });
   };
 
   // runTurnRef keeps the latest runTurn reachable from the memoized
@@ -186,7 +223,7 @@ export function useAgentTurn({
     const list = messagesRef.current;
     const index = list.findIndex((item) => item.id === message.id);
     if (index < 0) return;
-    const precedingUser = list.slice(0, index).reverse().find((item) => item.role === 'user');
+    const precedingUser = list.slice(0, index).reverse().find((item) => item.role === 'user' && item.delivery !== 'failed');
     if (!precedingUser) return;
     setMessages((prev) => prev.filter((item) => item.id !== message.id));
     await runTurnRef.current({
@@ -229,7 +266,9 @@ export function useAgentTurn({
     const partial = blocksToText(blocks);
     const partialThinking = blocksToThinking(blocks);
     const segments = blocksToSegments(blocks);
-    if (partial || segments.length > 0) {
+    if (blocks.some(block => block.kind === 'user')) {
+      setMessages(previous => commitInterruptedTurn(previous, blocks, true));
+    } else if (partial || segments.length > 0) {
       setMessages((prev) => [...prev, {
         id: uid(),
         role: 'assistant',
@@ -240,7 +279,8 @@ export function useAgentTurn({
       }]);
     }
     setBusyState(false);
-    setBlocks([]);
+    // Retain the source timeline until agent_end reconciles the stopped turn.
+    setBlocks(blocks.some(block => block.kind === 'user') ? blocks : []);
   };
 
   const insertSlashCommand = (command: SlashCommand) => {
@@ -274,6 +314,7 @@ export function useAgentTurn({
   return {
     runTurn,
     handleSend,
+    handleRetryDelivery,
     handleRetry,
     handleEditSave,
     handleStop,
