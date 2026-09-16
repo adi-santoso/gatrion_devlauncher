@@ -67,7 +67,8 @@ const TagsField = forwardRef<TagsFieldHandle, TagsFieldProps>(({ tags, existingT
             return (
               <button
                 key={tag}
-                type="button"
+                  type="button"
+                  aria-pressed={selected}
                 onClick={() => toggle(tag)}
                 className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md border text-[10px] transition-colors ${selected ? 'bg-accent/20 border-accent/40 text-accent' : 'bg-surface-3 border-border text-ink-soft hover:text-ink'}`}
               >

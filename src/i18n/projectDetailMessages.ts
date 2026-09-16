@@ -1,5 +1,7 @@
 /** Source-text keys keep technical labels recognizable in the default language. */
+import { addProjectId } from './addProjectMessages';
 export const projectDetailId: Record<string, string> = {
+  ...addProjectId,
   'Add tag, press Enter': 'Tambah tag, tekan Enter', 'Remove tag {tag}': 'Hapus tag {tag}',
   'requirements.txt / pyproject.toml. Updates affect installed packages; pins are not rewritten': 'requirements.txt / pyproject.toml. Pembaruan memengaruhi paket terpasang; pin versi tidak ditulis ulang',
   'Unable to read task status': 'Gagal membaca status task', 'Task did not return a run ID': 'Task tidak mengembalikan ID proses', 'Failed to stop task': 'Gagal menghentikan task',

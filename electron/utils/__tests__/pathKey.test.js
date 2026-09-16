@@ -4,7 +4,7 @@ import { normalizePathKey } from '../pathKey'
 
 // Expected values must go through path.normalize too, since Windows and
 // POSIX normalize to their own native separators.
-const norm = (p) => path.normalize(p)
+const norm = (p) => path.resolve(p).replace(/[/\\]+$/, '')
 
 describe('normalizePathKey', () => {
   test('strips trailing slashes on every platform', () => {
@@ -14,7 +14,7 @@ describe('normalizePathKey', () => {
 
   test('lowercases only on case-insensitive platforms (win32)', () => {
     expect(normalizePathKey('C:/Projects/App', true)).toBe(norm('c:/projects/app'))
-    expect(normalizePathKey('/home/User/App', true)).toBe(norm('/home/user/app'))
+    expect(normalizePathKey('/home/User/App', true)).toBe(norm('/home/user/app').toLowerCase())
     // Case-sensitive (macOS/Linux): the casing is preserved so genuinely
     // different directories are not treated as duplicates.
     expect(normalizePathKey('/home/User/App', false)).toBe(norm('/home/User/App'))

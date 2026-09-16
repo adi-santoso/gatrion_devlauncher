@@ -1,6 +1,10 @@
 import { spawn } from 'child_process'
 import { ProcessMetricsBase } from './processMetricsBase'
 import Logger from '../utils/logger'
+import type { Project } from '../../src/types/shared'
+import { envVarsToObject } from '../projectSchema'
+import { collectDependencies, waitForDependency } from '../utils/dependencyReadiness'
+import { resolveLaunchConfig } from '../utils/launchConfig'
 const log = Logger || { info: () => {}, warn: () => {}, error: () => {} }
 import {
   STATUS as PROCESS_STATUS,
@@ -33,6 +37,9 @@ class ProcessManager extends ProcessMetricsBase {
   completedRuns = new Map<number, { runId: number; status: string; code: number | null }>()
   nextRunId: number
   STATUS: typeof STATUS
+  /** Configured at app startup; applies to IPC, tray, MCP, auto-start and restart. */
+  loadProjects?: () => Promise<Project[]>
+  private pendingStarts = new Map<string, Promise<Awaited<ReturnType<ProcessManager['spawnProject']>>>>()
 
   constructor() {
     super()
@@ -53,6 +60,39 @@ class ProcessManager extends ProcessMetricsBase {
    * @param port Primary port (used when command is a plain string)
    */
   async startProcess(
+    projectId: string,
+    projectPath: string,
+    command: string | LaunchCommand[],
+    env: Record<string, string> = {},
+    port: number | null = null,
+    onLog?: LogCallback,
+    onExit?: ExitCallback,
+    onError?: ErrorCallback,
+    onReady?: ReadyCallback
+  ): Promise<Awaited<ReturnType<ProcessManager['spawnProject']>>> {
+    const existing = this.pendingStarts.get(projectId)
+    if (existing) return existing
+    const launch = async () => {
+      if (this.loadProjects) {
+        const projects = await this.loadProjects()
+        const project = projects.find(item => item.id === projectId)
+        if (project) for (const dependency of collectDependencies(project, projects)) {
+          const state = this.getProcessStatus(dependency.id).status.toLowerCase()
+          if (state !== 'starting' && state !== 'running') {
+            const config = resolveLaunchConfig(dependency)
+            await this.startProcess(dependency.id, dependency.path, config.command, envVarsToObject(dependency.envVars), config.port, onLog, onExit, onError, onReady)
+          }
+          await waitForDependency(dependency, id => this.getProcessStatus(id))
+        }
+      }
+      return this.spawnProject(projectId, projectPath, command, env, port, onLog, onExit, onError, onReady)
+    }
+    const pending = launch()
+    this.pendingStarts.set(projectId, pending)
+    try { return await pending } finally { this.pendingStarts.delete(projectId) }
+  }
+
+  private async spawnProject(
     projectId: string,
     projectPath: string,
     command: string | LaunchCommand[],

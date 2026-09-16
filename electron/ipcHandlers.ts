@@ -7,6 +7,7 @@ import { assertTrustedIpcEvent } from './utils/ipcSecurity'
 import { isVersionNewer } from './utils/versionCompare'
 import { respondApproval } from './mcp/approval'
 import Logger from './utils/logger'
+import { normalizePathKey } from './utils/pathKey'
 
 const { app, ipcMain, Notification } = require('electron') as typeof import('electron')
 const https = require('https')
@@ -444,7 +445,9 @@ export function registerCoreIpcHandlers({
     try {
       assertTrustedIpcEvent(event)
       const result = await projectDetector.detectProjectType(projectPath)
-      return result
+      if (!result.success) return result
+      const existing = (await storageManager.loadProjects()).find(project => normalizePathKey(project.path) === normalizePathKey(projectPath))
+      return { ...result, existingProjectId: existing?.id }
     } catch (error) {
       return { success: false, error: (error as Error).message }
     }

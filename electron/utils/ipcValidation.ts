@@ -523,7 +523,8 @@ function safeHandle(
       assertPayload(channel, args)
       return await handler(event, ...args)
     } catch (error) {
-      return { success: false, error: (error as Error).message }
+      const detail = error as Error & { fieldErrors?: Record<string, string>; existingProjectId?: string }
+      return { success: false, error: detail.message, ...(detail.fieldErrors ? { fieldErrors: detail.fieldErrors } : {}), ...(detail.existingProjectId ? { existingProjectId: detail.existingProjectId } : {}) }
     }
   })
 }

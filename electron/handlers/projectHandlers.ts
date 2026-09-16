@@ -14,16 +14,17 @@ const log = Logger || { info: () => {}, warn: () => {}, error: () => {} }
 import { assertTrustedIpcEvent } from '../utils/ipcSecurity'
 import { safeHandle } from '../utils/ipcValidation'
 import { searchWorkspaceFiles } from '../utils/workspaceSearch'
-import { normalizePathKey } from '../utils/pathKey'
+import { normalizePathKey, canonicalProjectPath } from '../utils/pathKey'
+import { dependencyError } from '../../src/utils/projectValidation'
 import { readFileTail } from '../utils/readFileTail'
 const assertProjectDirectory = (projectPath: unknown) => {
   let stats
   try {
     stats = fs.statSync(projectPath as string)
   } catch {
-    throw new Error(`Project directory path "${projectPath}" does not exist`)
+    throw Object.assign(new Error(`Project directory path "${projectPath}" does not exist`), { fieldErrors: { path: 'Project directory does not exist' } })
   }
-  if (!stats.isDirectory()) throw new Error(`Project path "${projectPath}" must be a directory`)
+  if (!stats.isDirectory()) throw Object.assign(new Error(`Project path "${projectPath}" must be a directory`), { fieldErrors: { path: 'Project path must be a directory' } })
 }
 
 const ENV_FILE_PATTERN = /^\.env(\.[A-Za-z0-9_-]+)*$/
@@ -107,14 +108,17 @@ function setupProjectHandlers(
     }))
 
     assertProjectDirectory(project.path)
+    project.path = canonicalProjectPath(project.path)
 
     const { projects } = await storageManager.updateProjects((currentProjects) => {
       const duplicateName = currentProjects.find(p => p.name.toLowerCase() === project.name.toLowerCase())
-      if (duplicateName) throw new Error(`Project with name "${project.name}" already exists`)
+      if (duplicateName) throw Object.assign(new Error(`Project with name "${project.name}" already exists`), { fieldErrors: { name: 'A project with this name already exists' }, existingProjectId: duplicateName.id })
 
       const normPath = normalizePathKey(project.path)
       const duplicatePath = currentProjects.find(p => normalizePathKey(p.path) === normPath)
-      if (duplicatePath) throw new Error(`Project at path "${project.path}" already exists`)
+      if (duplicatePath) throw Object.assign(new Error(`Project at path "${project.path}" already exists`), { fieldErrors: { path: 'This folder is already registered' }, existingProjectId: duplicatePath.id })
+      const graphError = dependencyError(project.id, project.dependsOn, currentProjects)
+      if (graphError) throw Object.assign(new Error(graphError), { fieldErrors: { dependsOn: graphError } })
 
       return { projects: [...currentProjects, project] }
     })
@@ -142,16 +146,19 @@ function setupProjectHandlers(
       }
       const nextProject = validateProject(normalizeProject({ ...currentProjects[index], ...changes }))
       assertProjectDirectory(nextProject.path)
+      nextProject.path = canonicalProjectPath(nextProject.path)
       const duplicateName = currentProjects.find((item, itemIndex) =>
         itemIndex !== index && item.name.toLowerCase() === nextProject.name.toLowerCase()
       )
-      if (duplicateName) throw new Error(`Project with name "${nextProject.name}" already exists`)
+      if (duplicateName) throw Object.assign(new Error(`Project with name "${nextProject.name}" already exists`), { fieldErrors: { name: 'A project with this name already exists' }, existingProjectId: duplicateName.id })
 
       const normNextPath = normalizePathKey(nextProject.path)
       const duplicatePath = currentProjects.find((item, itemIndex) =>
         itemIndex !== index && normalizePathKey(item.path) === normNextPath
       )
-      if (duplicatePath) throw new Error(`Project at path "${nextProject.path}" already exists`)
+      if (duplicatePath) throw Object.assign(new Error(`Project at path "${nextProject.path}" already exists`), { fieldErrors: { path: 'This folder is already registered' }, existingProjectId: duplicatePath.id })
+      const graphError = dependencyError(nextProject.id, nextProject.dependsOn, currentProjects)
+      if (graphError) throw Object.assign(new Error(graphError), { fieldErrors: { dependsOn: graphError } })
 
       const nextProjects = [...currentProjects]
       nextProjects[index] = nextProject

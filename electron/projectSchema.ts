@@ -1,4 +1,5 @@
 import type { CustomCommand, EnvVar, Project, ProjectCommand, ProjectType } from '../src/types/shared'
+import { environmentErrors } from '../src/utils/projectValidation'
 
 interface ProjectTypeMeta {
   labels: string[]
@@ -214,6 +215,8 @@ function sanitizeProjectChanges(input: unknown): Record<string, unknown> {
       if (unknownEnvField) throw new Error(`Unsupported environment variable field: ${unknownEnvField}`)
       if (env.unchanged !== undefined && typeof env.unchanged !== 'boolean') throw new Error('Environment unchanged marker must be a boolean')
     }
+    const errors = environmentErrors(changes.envVars as EnvVar[])
+    if (Object.keys(errors).length) throw Object.assign(new Error(Object.values(errors)[0]), { fieldErrors: errors })
   }
   return changes
 }
@@ -370,4 +373,3 @@ export {
   toRendererProject,
   applyLastRun,
 }
-

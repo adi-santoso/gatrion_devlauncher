@@ -1,6 +1,6 @@
 import type { IpcRendererEvent } from 'electron'
 
-const { contextBridge, ipcRenderer } = require('electron') as typeof import('electron')
+const { contextBridge, ipcRenderer, webUtils } = require('electron') as typeof import('electron')
 
 // The bridge exposes thin pass-through wrappers over ipcRenderer. Inputs and
 // outputs are the IPC payloads defined by the main-process handlers (see
@@ -34,6 +34,7 @@ interface ElectronApi {
   // Project Detection
   detectProjectType: (projectPath: string) => Promise<unknown>
   browseFolder: () => Promise<unknown>
+  getPathForFile: (file: File) => string
 
   // Export / Import
   exportProjects: () => Promise<unknown>
@@ -278,6 +279,7 @@ const api: ElectronApi = {
   // Project Detection
   detectProjectType: (projectPath) => ipcRenderer.invoke('detect-project-type', projectPath),
   browseFolder: () => ipcRenderer.invoke('browse-folder'),
+  getPathForFile: (file) => webUtils.getPathForFile(file),
 
   // Export / Import
   exportProjects: () => ipcRenderer.invoke('export-projects'),

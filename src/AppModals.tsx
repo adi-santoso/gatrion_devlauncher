@@ -16,11 +16,14 @@ import type { ProjectRuntime } from './hooks/useProjects'
 import type { Toast } from './hooks/useToasts'
 import type { DroppedProjectData } from './useAppDrop'
 import type { PaletteCommand, PortConflictTarget } from './AppTypes'
+import type { ProjectSaveResult } from './components/Modals/ProjectModal'
 
 export interface AppModalsProps {
   openModal: string | null
   onCloseAll: () => void
-  onSaveProject: (data: Record<string, unknown>) => Promise<{ success: boolean; error?: string }>
+  onSaveProject: (data: Record<string, unknown>) => Promise<ProjectSaveResult>
+  onOpenProject: (project: Project) => void
+  onStartProject: (project: Project) => void
   editingProject: ProjectRuntime | null
   droppedProject: DroppedProjectData | null
   projects: ProjectRuntime[]
@@ -49,6 +52,8 @@ export default function AppModals({
   openModal,
   onCloseAll,
   onSaveProject,
+  onOpenProject,
+  onStartProject,
   editingProject,
   droppedProject,
   projects,
@@ -81,6 +86,8 @@ export default function AppModals({
         project={editingProject}
         droppedProject={droppedProject}
         allProjects={projects}
+        onOpenProject={onOpenProject}
+        onStartProject={onStartProject}
       />
 
       {/* Confirm Dialog */}

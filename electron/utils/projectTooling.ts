@@ -1,18 +1,13 @@
-import { existsSync, readFileSync } from 'fs';
+import { existsSync } from 'fs';
 import { copyFile } from 'fs/promises';
 import path from 'path';
 import { execTool } from './packageRunner';
 import { execNpm } from './npmRunner';
+import { LOCKFILES, resolvePackageManager, localPython } from './projectMetadata';
+export { LOCKFILES } from './projectMetadata';
 
-export const LOCKFILES = [
-  { file: 'package-lock.json', pm: 'npm' }, { file: 'pnpm-lock.yaml', pm: 'pnpm' },
-  { file: 'yarn.lock', pm: 'yarn' }, { file: 'bun.lock', pm: 'bun' }, { file: 'bun.lockb', pm: 'bun' },
-];
 export function packageManager(cwd: string): string {
-  const pkg = JSON.parse(readFileSync(path.join(cwd, 'package.json'), 'utf8'));
-  const declared = String(pkg.packageManager || '').split('@')[0];
-  if (declared && !['npm', 'pnpm', 'yarn', 'bun'].includes(declared)) throw new Error(`Unsupported package manager: ${declared}`);
-  return declared || LOCKFILES.find(lock => existsSync(path.join(cwd, lock.file)))?.pm || 'npm';
+  return resolvePackageManager(cwd).manager;
 }
 export async function backupFiles(cwd: string, files: string[]): Promise<string[]> {
   const backups: string[] = [];
@@ -26,10 +21,8 @@ export async function backupFiles(cwd: string, files: string[]): Promise<string[
   return backups;
 }
 export function pythonTool(cwd: string): string {
-  for (const folder of ['.venv', 'venv', 'env']) {
-    const python = path.join(cwd, folder, process.platform === 'win32' ? 'Scripts/python.exe' : 'bin/python');
-    if (existsSync(python)) return python;
-  }
+  const python = localPython(cwd);
+  if (python) return python;
   throw new Error('No project virtual environment found. Create .venv (python -m venv .venv) before inspecting or updating Python packages.');
 }
 export function parseNodeOutdated(raw: string): Record<string, { current?: string; wanted?: string; latest?: string }> {

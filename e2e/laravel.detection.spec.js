@@ -1,5 +1,4 @@
 const { test, expect } = require('@playwright/test');
-const path = require('path');
 const { launchApp, makeTempDir, writeLaravelViteFixture } = require('./helpers');
 
 /**
@@ -32,7 +31,7 @@ test.describe('Laravel + vite detection', () => {
     const modal = await openAddProject(window);
     // Only the primary Laravel command is present — no additional process.
     await expect(modal.getByText('Frontend assets')).toHaveCount(0);
-    await expect(modal.getByText('php artisan serve').first()).toBeVisible({ timeout: 10000 });
+    await expect(modal.locator('#project-command')).toHaveValue('php artisan serve', { timeout: 10000 });
 
     await app.close();
   });

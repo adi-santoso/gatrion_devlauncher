@@ -8,11 +8,12 @@ import { setupProcessHandlers, withRequestedPort, resolveLaunchConfig } from '..
 const fakeEvent = { senderFrame: { url: 'http://localhost:5173/' } }
 
 function makeProcessManager() {
+  const started = new Set()
   return {
     STATUS: { RUNNING: 'running', STARTING: 'starting', STOPPING: 'stopping', STOPPED: 'stopped' },
     on: vi.fn(),
-    getProcessStatus: vi.fn(() => ({ status: 'stopped', pid: null })),
-    startProcess: vi.fn(async () => ({ started: true, pid: 123 })),
+    getProcessStatus: vi.fn(id => ({ status: started.has(id) ? 'running' : 'stopped', pid: null })),
+    startProcess: vi.fn(async id => { started.add(id); return { started: true, pid: 123 } }),
     stopProcess: vi.fn(async () => ({ stopped: true })),
     restartProcess: vi.fn(async () => ({ restarted: true })),
     findPortOwner: vi.fn(async () => null),
@@ -215,9 +216,9 @@ describe('processHandlers flows', () => {
   })
 
   test('withRequestedPort appends --port for supported commands', () => {
-    expect(withRequestedPort('npm run dev', 5173)).toBe('npm run dev -- --port=5173')
+    expect(withRequestedPort('npm run dev', 5173)).toBe('npm run dev')
     expect(withRequestedPort('php artisan serve', 8000)).toBe('php artisan serve --port=8000')
-    expect(withRequestedPort('pnpm start', 4000)).toBe('pnpm start --port=4000')
+    expect(withRequestedPort('pnpm start', 4000)).toBe('pnpm start')
     expect(withRequestedPort('node server.js', 3000)).toBe('node server.js')
     expect(withRequestedPort('npm run dev --port=9999', 5173)).toBe('npm run dev --port=9999')
     expect(withRequestedPort('cmd', 'not-a-port')).toBe('cmd')

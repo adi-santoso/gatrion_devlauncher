@@ -3,12 +3,12 @@ import { describe, test, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import ProjectModal from '../ProjectModal'
 
-vi.mock('../../../utils/ipcRenderer', async () => {
-  const actual = await vi.importActual('../../../utils/ipcRenderer')
+vi.mock('../../../data/projects', async () => {
+  const actual = await vi.importActual('../../../data/projects')
   return { ...actual, browseFolder: vi.fn(), detectProjectType: vi.fn() }
 })
 
-import * as ipc from '../../../utils/ipcRenderer'
+import * as ipc from '../../../data/projects'
 
 const goDetection = {
   success: true,
@@ -68,7 +68,7 @@ describe('ProjectModal folder detection', () => {
     expect(ipc.detectProjectType).toHaveBeenCalledWith('D:/projects/goapp')
     // Detected defaults land in the form
     expect(screen.getByText('go run .')).toBeTruthy()
-    expect(screen.getByText('goapp')).toBeTruthy()
+    expect(screen.getByLabelText(/Project name/)).toHaveValue('goapp')
   })
 
   test('Change folder re-detects and updates the type on a second browse', async () => {
@@ -91,8 +91,7 @@ describe('ProjectModal folder detection', () => {
     // Open Advanced Settings and pick Node.js manually.
     fireEvent.click(screen.getByRole('button', { name: /advanced settings/i }))
     // The dropdown wrapper (role=button) precedes its inner trigger button.
-    fireEvent.click(screen.getAllByRole('button', { name: 'Go' })[0])
-    fireEvent.click(screen.getByRole('menuitem', { name: /node\.js/i }))
+    fireEvent.change(screen.getByLabelText('Project type'), { target: { value: 'NODEJS' } })
     expect(screen.getByText('Configured as Node.js')).toBeTruthy()
 
     // Re-detect the same Go folder — the manual choice must survive.
@@ -165,7 +164,7 @@ describe('ProjectModal folder detection', () => {
     })
     // The dropped prefill is shown as the configured stack (the drop handler
     // already ran detection before opening the modal).
-    expect(screen.getByText('Configured as Go')).toBeTruthy()
+    expect(screen.getByText(/Configured as Go/)).toBeTruthy()
 
     // Re-analyze the same folder — the dropped prefill must be overwritable.
     vi.mocked(ipc.detectProjectType).mockResolvedValue(nodeDetection)

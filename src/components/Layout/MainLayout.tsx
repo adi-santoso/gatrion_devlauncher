@@ -8,6 +8,7 @@ import { PrayerPanel } from './PrayerWidget'
 import Sidebar from './Sidebar'
 import type { SidebarProject } from './Sidebar'
 import TopBar from './TopBar'
+import { useDetailI18n } from '../ProjectDetail/useDetailI18n'
 
 export interface MainLayoutProps {
   children: ReactNode
@@ -32,6 +33,7 @@ const MainLayout = ({
   hideTopBar = false,
   onDropFolder
 }: MainLayoutProps) => {
+  const t = useDetailI18n()
   const { config, loading, updateSingle } = useElectronConfig()
   const [sidebarCollapsed, setSidebarCollapsed] = useState(!config?.sidebarExpanded)
 
@@ -45,6 +47,7 @@ const MainLayout = ({
   const prayerConfigRef = useRef(prayerConfig)
   prayerConfigRef.current = prayerConfig
   const [prayerPanelOpen, setPrayerPanelOpen] = useState(false)
+  const [dropMessage, setDropMessage] = useState('')
 
   const handlePrayerTime = useCallback((prayer: PrayerTimePayload) => {
     const cfg = prayerConfigRef.current
@@ -87,22 +90,29 @@ const MainLayout = ({
       if (e.dataTransfer?.types?.includes('Files')) {
         e.preventDefault()
         e.dataTransfer.dropEffect = 'copy'
+        setDropMessage('Drop one project folder')
       }
     }
     const handleDrop = (e: DragEvent) => {
       if (!e.dataTransfer?.files?.length) return
+      e.preventDefault()
+      setDropMessage('')
+      if (e.dataTransfer.files.length !== 1) { setDropMessage('Choose one project folder at a time'); return }
       const file = e.dataTransfer.files[0]
-      const folderPath = (file as File & { path?: string }).path
-      if (folderPath) {
-        e.preventDefault()
-        onDropFolder(folderPath)
-      }
+      try {
+        const folderPath = window.electron?.getPathForFile(file)
+        if (typeof folderPath === 'string' && folderPath) onDropFolder(folderPath)
+        else setDropMessage('Could not read the dropped path. Use Browse Project Folder.')
+      } catch { setDropMessage('Could not read the dropped path. Use Browse Project Folder.') }
     }
     window.addEventListener('dragover', handleDragOver)
     window.addEventListener('drop', handleDrop)
+    const leave = (e: DragEvent) => { if (!e.relatedTarget) setDropMessage('') }
+    window.addEventListener('dragleave', leave)
     return () => {
       window.removeEventListener('dragover', handleDragOver)
       window.removeEventListener('drop', handleDrop)
+      window.removeEventListener('dragleave', leave)
     }
   }, [onDropFolder])
 
@@ -125,6 +135,7 @@ const MainLayout = ({
 
   return (
     <div className="h-screen flex flex-col bg-base text-ink font-sans antialiased">
+      {dropMessage && <div role="status" className="fixed top-4 left-1/2 -translate-x-1/2 z-[70] bg-surface border border-border rounded-lg p-3 text-sm">{t(dropMessage)}<button type="button" aria-label={t('Close')} onClick={() => setDropMessage('')} className="ml-4">×</button></div>}
       <div className="flex flex-1 overflow-hidden">
         <Sidebar
           collapsed={sidebarCollapsed}

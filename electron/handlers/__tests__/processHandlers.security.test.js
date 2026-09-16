@@ -25,7 +25,7 @@ function makeHarness(projects) {
     on: () => {},
     startProcess: async (...args) => { calls.push(args); return { status: 'RUNNING' } },
     restartProcess: async (...args) => { calls.push(args); return { status: 'RUNNING' } },
-    getProcessStatus: () => ({ status: 'RUNNING' }),
+    getProcessStatus: () => ({ status: 'STOPPED' }),
   }
   const storageManager = { loadProjects: async () => projects }
   const mainWindow = { isDestroyed: () => false, webContents: { send: vi.fn() } }
@@ -41,7 +41,7 @@ describe('processHandlers security (trusted-id lookup)', () => {
     const maliciousArgs = ['C:/malicious', 'del /s /q C:\\*', { TOKEN: 'attacker' }, 1]
     const expectedCommands = [
       { ...project.commands[0] },
-      { ...project.commands[1], command: 'npm run dev -- --port=5173' },
+      { ...project.commands[1] },
     ]
 
     const started = await ipcMain._handlers.get('start-project')(fakeEvent, project.id, ...maliciousArgs)
@@ -78,7 +78,7 @@ describe('processHandlers security (trusted-id lookup)', () => {
     expect(calls[0][1]).toBe(project.path)
     expect(calls[0][2]).toEqual([
       { ...project.commands[0] },
-      { ...project.commands[1], command: 'npm run dev -- --port=5173' },
+      { ...project.commands[1] },
     ])
 
     const injected = await ipcMain._handlers.get('start-all-projects')(fakeEvent, [{ id: project.id, path: 'C:/bad' }])
@@ -99,18 +99,18 @@ describe('processHandlers security (trusted-id lookup)', () => {
     const laravelStarted = await ipcMain._handlers.get('start-project')(fakeEvent, laravelProject.id)
     expect(laravelStarted.success).toBe(true)
     expect(calls[1][2][0].command).toBe('php artisan serve --port=8001')
-    expect(calls[1][2][1].command).toBe('npm run dev -- --port=5173')
+    expect(calls[1][2][1].command).toBe('npm run dev')
     expect(calls[1][4]).toBe(8001)
   })
 
   test('withRequestedPort covers every supported launcher', () => {
     expect(withRequestedPort('php artisan serve', 8001)).toBe('php artisan serve --port=8001')
     expect(withRequestedPort('php artisan serve --port=9000', 8001)).toBe('php artisan serve --port=9000')
-    expect(withRequestedPort('npm run dev', 5174)).toBe('npm run dev -- --port=5174')
+    expect(withRequestedPort('npm run dev', 5174)).toBe('npm run dev')
     expect(withRequestedPort('npm run dev -- --port=5175', 5174)).toBe('npm run dev -- --port=5175')
-    expect(withRequestedPort('pnpm dev', 5174)).toBe('pnpm dev --port=5174')
-    expect(withRequestedPort('yarn dev', 5174)).toBe('yarn dev --port=5174')
-    expect(withRequestedPort('bun dev', 5174)).toBe('bun dev --port=5174')
+    expect(withRequestedPort('pnpm dev', 5174)).toBe('pnpm dev')
+    expect(withRequestedPort('yarn dev', 5174)).toBe('yarn dev')
+    expect(withRequestedPort('bun dev', 5174)).toBe('bun dev')
     // composer run dev wraps multiple processes and must not receive --port.
     expect(withRequestedPort('composer run dev', 8001)).toBe('composer run dev')
     expect(withRequestedPort('composer run-script dev', 8001)).toBe('composer run-script dev')

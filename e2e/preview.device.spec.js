@@ -86,7 +86,8 @@ test.describe('preview device simulator', () => {
         message: 'device viewport should be 375 CSS px wide (true media-query target)',
       }).toBe(375);
       await expect.poll(async () => (await nativeState())?.width).toBe(375);
-      await expect.poll(async () => (await nativeState())?.dpr).toBe(2);
+      // Chromium can expose a tiny floating-point error in the emulated scale.
+      await expect.poll(async () => (await nativeState())?.dpr).toBeCloseTo(2, 5);
 
       // A short fullscreen window must clip the surface, not resize the page.
       await app.evaluate(({ BrowserWindow }) => { const win = BrowserWindow.getAllWindows()[0]; win.setMinimumSize(800, 500); win.setContentSize(1024, 600); });
@@ -105,7 +106,7 @@ test.describe('preview device simulator', () => {
         return container?.children[0].getBounds().y;
       })).toBeLessThan(0);
       await window.getByRole('button', { name: 'Clear site data (cookies, storage) for this project' }).click();
-      await expect(window.getByRole('status')).toHaveText('Site data cleared');
+      await expect(window.getByRole('status').filter({ hasText: /^Site data cleared$/ })).toBeVisible();
       await window.getByTitle('Exit fullscreen (ESC)').click();
 
       // Rotate: portrait -> landscape swaps the dimensions.

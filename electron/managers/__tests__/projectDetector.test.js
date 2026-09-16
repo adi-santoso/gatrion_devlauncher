@@ -210,7 +210,7 @@ describe('ProjectDetector', () => {
     const flask = await detector.detectProjectType(path.join(tempDir, 'py-app'))
     expect(flask.type).toBe('PYTHON')
     expect(flask.defaultCommand).toBe('python app.py')
-    expect(flask.defaultPort).toBe(5000)
+    expect(flask.defaultPort).toBe(null)
 
     await write('django-app/manage.py', '#!/usr/bin/env python\n')
     await write('django-app/requirements.txt', 'django==5.0\n')
@@ -267,7 +267,7 @@ describe('ProjectDetector', () => {
     await write('badport-app/package.json', JSON.stringify({ name: 'bad', scripts: { start: 'node x.js' } }))
     await write('badport-app/.env', 'PORT=not-a-number\n')
     const result = await detector.detectProjectType(path.join(tempDir, 'badport-app'))
-    expect(result.defaultPort).toBe(3000)
+    expect(result.defaultPort).toBe(null)
   })
 
   test('missing package.json yields custom type with folder name', async () => {

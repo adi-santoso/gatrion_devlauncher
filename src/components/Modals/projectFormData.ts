@@ -5,7 +5,7 @@ export interface ProjectFormData {
   port: string;
   startCommand: string;
   commands: Array<{ id: string; name: string; command: string; port: number | string | null; primary?: boolean }>;
-  envVars: Array<{ key: string; value: string; secret?: boolean; unchanged?: boolean }>;
+  envVars: Array<{ key: string; value: string; secret?: boolean; unchanged?: boolean; needsValue?: boolean }>;
   autoStart: boolean;
   emoji: string;
   color: string;
@@ -56,20 +56,28 @@ export const validateProjectForm = (formData: ProjectFormData): Record<string, s
     }
   }
   if (!formData.startCommand.trim()) nextErrors.startCommand = 'Start command is required';
-  const commandPorts: number[] = [];
+  const commandPorts = new Map<number, string>();
   for (const command of formData.commands) {
-    if (!command.command.trim()) nextErrors.commands = `${command.name || 'Command'} command is required`;
+    const commandField = command.primary ? 'startCommand' : `command.${command.id}`;
+    const portField = command.primary ? 'port' : `port.${command.id}`;
+    if (!command.command.trim()) nextErrors[commandField] = 'Start command is required';
     if (command.port !== null && command.port !== '') {
       const commandPort = Number(command.port);
       if (!Number.isInteger(commandPort) || commandPort < 1 || commandPort > 65535) {
-        nextErrors.commands = `${command.name} port must be between 1-65535`;
+        nextErrors[portField] = 'Port must be between 1-65535';
       } else {
-        commandPorts.push(commandPort);
+        const previous = commandPorts.get(commandPort);
+        if (previous) {
+          nextErrors[portField] = 'Each command must use a different port';
+          nextErrors[previous] = 'Each command must use a different port';
+        }
+        commandPorts.set(commandPort, portField);
       }
     }
   }
-  if (new Set(commandPorts).size !== commandPorts.length) {
-    nextErrors.commands = 'Each command must use a different port';
-  }
+  Object.assign(nextErrors, environmentErrors(formData.envVars));
+  formData.envVars.forEach((item, index) => { if (item.needsValue && !item.value) nextErrors[`env.${index}`] = 'Enter the secret value for this copy'; });
+  formData.customCommands.forEach((item, index) => { if (!item.label.trim() || !item.command.trim()) nextErrors[`custom.${index}`] = 'Command label and command are required'; });
   return nextErrors;
 };
+import { environmentErrors } from '../../utils/projectValidation';

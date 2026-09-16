@@ -288,6 +288,7 @@ async function initialize() {
 
   // Wait for storage to initialize
   await storageManager.init()
+  processManager.loadProjects = () => storageManager.loadProjects()
 
   // Start resource monitoring (every 5 seconds)
   processManager.startResourceMonitoring(5000)

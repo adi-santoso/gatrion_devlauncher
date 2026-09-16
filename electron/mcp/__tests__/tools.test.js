@@ -199,7 +199,7 @@ describe('MCP write tools — project lifecycle', () => {
     expect(args[0]).toBe('p1')
     expect(args[1]).toBe('C:\\demo')
     // resolveLaunchConfig appends the requested port to npm run scripts.
-    expect(args[2]).toBe('npm run dev -- --port=3000')
+    expect(args[2]).toBe('npm run dev')
     expect(args[3]).toEqual({ NODE_ENV: 'development' })
     expect(args[4]).toBe(3000)
   })

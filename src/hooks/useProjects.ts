@@ -26,6 +26,8 @@ export interface ProjectActionResult {
   success: boolean
   project?: Project
   error?: string
+  fieldErrors?: Record<string, string>
+  existingProjectId?: string
 }
 
 /**
@@ -72,7 +74,7 @@ export const useProjects = () => {
         setProjects(prev => upsertProject(prev, { ...response.project, status: 'stopped' } as Project))
         return { success: true, project: response.project }
       } else {
-        return { success: false, error: response.error || 'Failed to add project' }
+        return { ...response, success: false, error: response.error || 'Failed to add project' }
       }
     } catch (err) {
       console.error('Error adding project:', err)
@@ -90,7 +92,7 @@ export const useProjects = () => {
       if (Object.keys(persistableUpdates).length > 0) {
         const response = await ipc.updateProject(projectId, persistableUpdates)
         if (!response.success) {
-          return { success: false, error: response.error || 'Failed to update project' }
+          return { ...response, success: false, error: response.error || 'Failed to update project' }
         }
         setProjects(prev => prev.map(p =>
           p.id === projectId ? { ...p, ...response.project } : p

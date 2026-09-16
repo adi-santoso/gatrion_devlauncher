@@ -1,5 +1,5 @@
 import type { BrowserWindow } from 'electron'
-import type { Project, ProjectCommand } from '../../src/types/shared'
+import type { Project } from '../../src/types/shared'
 import type { ProcessManager } from '../managers/ProcessManager'
 import type { StorageManager } from '../managers/StorageManager'
 
@@ -7,56 +7,8 @@ const { ipcMain } = require('electron') as typeof import('electron')
 import { envVarsToObject } from '../projectSchema'
 import { assertTrustedIpcEvent } from '../utils/ipcSecurity'
 import { safeHandle } from '../utils/ipcValidation'
-
-const portArguments = /(?:^|\s)(?:--port(?:=|\s+)|-p\s+)\d+\b/i
-const artisanServe = /(?:^|[\\/])artisan\s+serve\b/i
-const phpArtisanServe = /\bphp(?:\.exe)?\s+(?:-[a-zA-Z]\S*\s+)*artisan\s+serve\b/i
-const npmRunScript = /^npm\s+run\s+([A-Za-z0-9:_-]+)\s*$/i
-const packageManagerScript = /^(pnpm|yarn|bun)\s+([A-Za-z0-9:_-]+)\s*$/i
-// `composer run dev` (Laravel 11+) wraps multiple processes concurrently and
-// does not accept a `--port` flag — it would be passed through to whichever
-// sub-process composer invokes first, with unreliable results. We leave such
-// commands untouched and let the user control the port via APP_PORT in .env.
-const composerRunScript = /^composer(?:\.phar)?\s+run(?:-script)?\s+([A-Za-z0-9:_-]+)\s*$/i
-
-function withRequestedPort(command: unknown, port: number | null): unknown {
-  if (typeof command !== 'string' || !Number.isInteger(port) || portArguments.test(command)) return command
-  const trimmed = command.trim()
-  if (composerRunScript.test(trimmed)) return command
-  if (phpArtisanServe.test(trimmed) || artisanServe.test(trimmed)) return `${trimmed} --port=${port}`
-
-  const npmScript = trimmed.match(npmRunScript)
-  if (npmScript) return `npm run ${npmScript[1]} -- --port=${port}`
-
-  const managedScript = trimmed.match(packageManagerScript)
-  if (managedScript) return `${managedScript[1]} ${managedScript[2]} --port=${port}`
-
-  return command
-}
-
-function resolveLaunchConfig(project: Project): { command: string | ProjectCommand[]; port: number | null } {
-  const requestedPort: number | null = typeof project?.port === 'number' ? project.port : null
-  const source = project?.commands || project?.startCommand
-  if (!Array.isArray(source)) {
-    return {
-      command: typeof source === 'string' ? (withRequestedPort(source, requestedPort) as string) : '',
-      port: requestedPort,
-    }
-  }
-
-  const commands: ProjectCommand[] = source.map((item) => {
-    const port = typeof item?.port === 'number' ? item.port : null
-    return { ...item, command: withRequestedPort(item?.command ?? '', port) as string, port }
-  })
-  const primary = commands.find((item) => item.primary) || commands[0]
-  if (primary) {
-    const primaryPort = requestedPort ?? primary.port ?? null
-    primary.command = withRequestedPort(primary.command, primaryPort) as string
-    primary.port = primaryPort
-  }
-
-  return { command: commands, port: primary?.port ?? requestedPort }
-}
+import { collectDependencies, waitForDependency } from '../utils/dependencyReadiness'
+import { resolveLaunchConfig, withRequestedPort } from '../utils/launchConfig'
 
 function topologicalSort(projects: Project[]) {
   const projectMap = new Map(projects.map((p) => [p.id, p]))
@@ -147,22 +99,14 @@ function setupProcessHandlers(processManager: ProcessManager, storageManager: St
     )
   }
 
-  // Transitive dependencies of a project, in start order (dependencies first).
-  const collectDependencies = (project: Project, all: Project[]): Project[] => {
-    const byId = new Map(all.map((p) => [p.id, p]))
-    const order: Project[] = []
-    const seen = new Set<string>()
-    const visit = (p: Project) => {
-      if (seen.has(p.id)) return
-      seen.add(p.id)
-      for (const depId of Array.isArray(p.dependsOn) ? p.dependsOn : []) {
-        const dep = byId.get(depId)
-        if (dep) visit(dep)
-      }
-      if (p.id !== project.id) order.push(p)
+  const ensureDependencies = async (project: Project, all: Project[]) => {
+    const started: string[] = []
+    for (const dep of collectDependencies(project, all)) {
+      const status = processManager.getProcessStatus(dep.id).status.toLowerCase()
+      if (status !== 'running' && status !== 'starting') { await startOne(dep); started.push(dep.id) }
+      await waitForDependency(dep, id => processManager.getProcessStatus(id))
     }
-    visit(project)
-    return order
+    return started
   }
 
   // Start a project. If it depends on other projects, those are started first
@@ -172,13 +116,7 @@ function setupProcessHandlers(processManager: ProcessManager, storageManager: St
     try {
       const project = await loadPersistedProject(projectId)
       const allProjects = await storageManager.loadProjects()
-      const startedDependencies: string[] = []
-      for (const dep of collectDependencies(project, allProjects)) {
-        const depStatus = processManager.getProcessStatus(dep.id)?.status?.toLowerCase()
-        if (depStatus === 'running' || depStatus === 'starting') continue
-        await startOne(dep)
-        startedDependencies.push(dep.id)
-      }
+      const startedDependencies = await ensureDependencies(project, allProjects)
       const result = await startOne(project)
 
       // Send initial status
@@ -207,6 +145,7 @@ function setupProcessHandlers(processManager: ProcessManager, storageManager: St
   secureHandle('restart-project', async (_event, projectId) => {
     try {
       const project = await loadPersistedProject(projectId)
+      await ensureDependencies(project, await storageManager.loadProjects())
       const launch = resolveLaunchConfig(project)
       const result = await processManager.restartProcess(
         project.id,
@@ -300,14 +239,9 @@ function setupProcessHandlers(processManager: ProcessManager, storageManager: St
             results.push({ projectId: project.id, success: false, error: `Dependency ${failedDep} failed to start` })
             continue
           }
-          for (const depId of project.dependsOn) {
-            if (!projectsToStart.some((p) => p.id === depId)) continue
-            const depStatus = processManager.getProcessStatus(depId)
-            if (depStatus?.status?.toLowerCase() !== 'running') {
-              await new Promise((resolve) => setTimeout(resolve, 500))
-            }
-          }
+          await ensureDependencies(project, projectList)
         }
+        if (['starting', 'running'].includes(processManager.getProcessStatus(project.id).status.toLowerCase())) { results.push({ projectId: project.id, success: true }); continue }
 
         const result = await processManager.startProcess(
           project.id,
@@ -397,4 +331,3 @@ function setupProcessHandlers(processManager: ProcessManager, storageManager: St
 }
 
 export { setupProcessHandlers, resolveLaunchConfig, withRequestedPort, topologicalSort }
-

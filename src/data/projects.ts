@@ -16,6 +16,8 @@ export interface ProjectResult {
   success: boolean
   project: Project
   error?: string
+  fieldErrors?: Record<string, string>
+  existingProjectId?: string
 }
 
 
@@ -49,6 +51,9 @@ export interface DetectTypeResult {
   color?: string
   warnings?: string[]
   error?: string
+  path?: string
+  existingProjectId?: string
+  sources?: { command?: string; port?: string; packageManager?: string }
 }
 
 export interface ImportProjectsResult {

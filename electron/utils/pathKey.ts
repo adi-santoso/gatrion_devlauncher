@@ -1,4 +1,11 @@
 const path = require('path')
+const fs = require('fs')
+
+/** Resolve existing aliases (including Windows junctions) before storing identity. */
+function canonicalProjectPath(projectPath: string): string {
+  const absolute = path.resolve(projectPath.trim())
+  try { return fs.realpathSync.native(absolute) } catch { return absolute }
+}
 
 /**
  * Build a comparison key for a project path used in duplicate detection.
@@ -14,9 +21,8 @@ const path = require('path')
  */
 function normalizePathKey(projectPath: string | null | undefined, caseInsensitive = process.platform === 'win32'): string {
   if (!projectPath) return ''
-  const normalized = path.normalize(projectPath).replace(/[/\\]+$/, '')
+  const normalized = canonicalProjectPath(projectPath).replace(/[/\\]+$/, '')
   return caseInsensitive ? normalized.toLowerCase() : normalized
 }
 
-export { normalizePathKey }
-
+export { normalizePathKey, canonicalProjectPath }

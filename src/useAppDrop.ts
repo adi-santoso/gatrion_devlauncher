@@ -1,11 +1,10 @@
 import { useState, useCallback } from 'react'
-import type { DetectTypeResult } from './data/projects'
 import type { ProjectRuntime } from './hooks/useProjects'
 
 export interface AppDropDeps {
   openModal: (modalName: 'project', data?: unknown) => void
   setEditingProject: (project: ProjectRuntime | null) => void
-  detectProjectType: (projectPath: string) => Promise<DetectTypeResult>
+  detectProjectType?: unknown
   showToast: (type: string, message: string) => void
 }
 
@@ -30,32 +29,14 @@ export interface DroppedProjectData {
  * Drag & drop folder detection + project duplication. Both flows prefill the
  * create-project modal through the same `droppedProject` state bag.
  */
-export function useAppDrop({ openModal, setEditingProject, detectProjectType, showToast }: AppDropDeps) {
+export function useAppDrop({ openModal, setEditingProject }: AppDropDeps) {
   const [droppedProject, setDroppedProject] = useState<DroppedProjectData | null>(null)
 
-  const handleDropFolder = useCallback(async (folderPath: string) => {
+  const handleDropFolder = useCallback((folderPath: string) => {
+    setDroppedProject({ path: folderPath, analyze: true, requestId: crypto.randomUUID() })
     openModal('project')
     setEditingProject(null)
-    const result = await detectProjectType(folderPath)
-    if (result.success) {
-      setDroppedProject({
-        path: folderPath,
-        name: result.projectName || '',
-        type: result.type || 'CUSTOM',
-        port: result.defaultPort == null ? '' : String(result.defaultPort),
-        startCommand: result.defaultCommand || '',
-        commands: result.commands || [],
-        emoji: result.icon || '⚙️',
-        color: result.color || '#6B7280',
-        tags: [],
-        customCommands: [],
-        dependsOn: [],
-      })
-    } else {
-      setDroppedProject({ path: folderPath })
-      showToast('warning', 'Could not auto-detect project type. Please configure manually.')
-    }
-  }, [openModal, setEditingProject, detectProjectType, showToast])
+  }, [openModal, setEditingProject])
 
   const handleDuplicateProject = useCallback((project: ProjectRuntime) => {
     if (!project) return
@@ -66,6 +47,8 @@ export function useAppDrop({ openModal, setEditingProject, detectProjectType, sh
     }
     setDroppedProject({
       ...config,
+      path: '',
+      duplicate: true,
       id: undefined,
       name: `${project.name} (copy)`,
       createdAt: new Date().toISOString(),
@@ -73,7 +56,7 @@ export function useAppDrop({ openModal, setEditingProject, detectProjectType, sh
       tags: Array.isArray(project.tags) ? [...project.tags] : [],
       customCommands: Array.isArray(project.customCommands) ? project.customCommands.map((item) => ({ ...item })) : [],
       dependsOn: Array.isArray(project.dependsOn) ? [...project.dependsOn] : [],
-      envVars: Array.isArray(project.envVars) ? project.envVars.map((item) => ({ key: item.key, value: item.value ?? '' })) : [],
+      envVars: Array.isArray(project.envVars) ? project.envVars.map((item) => ({ key: item.key, value: item.value ?? '', secret: item.secret, needsValue: item.unchanged === true })) : [],
     })
     setEditingProject(null)
     openModal('project')

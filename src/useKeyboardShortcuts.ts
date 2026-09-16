@@ -17,6 +17,8 @@ export interface KeyboardShortcutDeps {
 export function useKeyboardShortcuts({ openModal, onOpenModal, onCloseModal, onStartAll, onStopAll, setOpenModal }: KeyboardShortcutDeps) {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      // The active dialog owns its keyboard lifecycle, including nested menus.
+      if (openModal === 'project') return
       // Ctrl+K or Cmd+K - Open command palette
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
         e.preventDefault()

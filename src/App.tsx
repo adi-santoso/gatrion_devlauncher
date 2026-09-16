@@ -395,6 +395,8 @@ function App() {
             openModal={openModal}
             onCloseAll={closeModalHandler}
             onSaveProject={handleCreateProject}
+            onOpenProject={(project) => showView('project-detail', project)}
+            onStartProject={handleStartProject}
             editingProject={editingProject}
             droppedProject={droppedProject}
             projects={projects}

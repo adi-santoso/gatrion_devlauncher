@@ -22,7 +22,7 @@ export interface ProjectActionsDeps {
   stopAll: () => Promise<unknown>
   deleteProjectFromStore: (projectId: string) => Promise<{ success: boolean; error?: string }>
   updateProjectInStore: (projectId: string, updates: ProjectUpdateInput) => Promise<{ success: boolean; error?: string }>
-  addProjectToStore: (data: Project) => Promise<{ success: boolean; error?: string }>
+  addProjectToStore: (data: Project) => Promise<{ success: boolean; error?: string; project?: Project; fieldErrors?: Record<string, string>; existingProjectId?: string }>
   showToast: (type: string, message: string) => void
   addActivity: (type: string, project: string, message: string, detail?: string) => void
   setPortConflictTarget: React.Dispatch<React.SetStateAction<PortConflictTarget | null>>
@@ -318,16 +318,13 @@ export function useAppProjectActions({
 
     if (result.success) {
       const action = editingProject ? 'updated' : 'created'
-      showToast('success', `Project ${String(projectData.name || '')} ${action} successfully`)
       addActivity('accent', String(projectData.name || ''), action, String(projectData.type || ''))
-      closeModal()
-      return { success: true }
+      return { ...result, success: true }
     } else {
       const error = result.error || `Failed to ${editingProject ? 'update' : 'create'} project`
-      showToast('error', error)
-      return { success: false, error }
+      return { ...result, success: false, error }
     }
-  }, [editingProject, updateProjectInStore, addProjectToStore, showToast, addActivity, closeModal])
+  }, [editingProject, updateProjectInStore, addProjectToStore, addActivity])
 
   return {
     handleStartProject,

@@ -1,6 +1,9 @@
 const fs = require('fs').promises
 const path = require('path')
 import { detectComposerDevScript as detectComposerDev, detectAppPortFromEnv as detectAppPort, detectPythonConfig as detectPython } from '../utils/projectDetection'
+import { detectLaunchPort } from '../utils/projectDetection'
+import { readManifest, resolvePackageManager } from '../utils/projectMetadata'
+import { canonicalProjectPath } from '../utils/pathKey'
 
 interface ProjectTypeConfig {
   name: string
@@ -13,6 +16,7 @@ interface ProjectTypeConfig {
 
 class ProjectDetector {
   projectTypes: Record<string, ProjectTypeConfig>
+  private manifests = new Map<string, Record<string, unknown> | null>()
 
   constructor() {
     this.projectTypes = {
@@ -82,6 +86,7 @@ class ProjectDetector {
         detector: async (projectPath: string): Promise<boolean> => (
           await this.fileExists(path.join(projectPath, 'requirements.txt')) ||
           await this.fileExists(path.join(projectPath, 'pyproject.toml')) ||
+          await this.fileExists(path.join(projectPath, 'manage.py')) ||
           await this.fileExists(path.join(projectPath, 'main.py')) ||
           await this.fileExists(path.join(projectPath, 'app.py'))
         ),
@@ -94,7 +99,7 @@ class ProjectDetector {
         name: 'Node.js',
         detector: (projectPath: string): Promise<boolean> => this.fileExists(path.join(projectPath, 'package.json')),
         defaultCommand: 'npm start',
-        defaultPort: 3000,
+        defaultPort: null,
         icon: '🟩',
         color: '#339933',
       },
@@ -102,19 +107,26 @@ class ProjectDetector {
   }
 
   async detectProjectType(projectPath: unknown) {
+    // Per-request detector cache: simultaneous folder requests never share metadata.
+    return new ProjectDetector().analyze(projectPath)
+  }
+
+  private async analyze(projectPath: unknown) {
     try {
       if (typeof projectPath !== 'string' || !projectPath.trim()) {
         throw new Error('Project directory path is required')
       }
-      if (!await this.directoryExists(projectPath)) {
+      projectPath = canonicalProjectPath(projectPath)
+      if (!await this.directoryExists(projectPath as string)) {
         throw new Error('Project directory does not exist')
       }
+      const cwd = projectPath as string
 
-      const packageJson = await this.readJsonIfExists(path.join(projectPath, 'package.json'))
-      const composerJson = await this.readJsonIfExists(path.join(projectPath, 'composer.json'))
-      const goModule = await this.readGoModule(projectPath)
+      const packageJson = await this.readJsonIfExists(path.join(cwd, 'package.json'))
+      const composerJson = await this.readJsonIfExists(path.join(cwd, 'composer.json'))
+      const goModule = await this.readGoModule(cwd)
       const packageManager = packageJson
-        ? await this.detectPackageManager(projectPath, packageJson)
+        ? await this.detectPackageManager(cwd, packageJson)
         : null
 
       let matchedType = 'CUSTOM'
@@ -134,7 +146,7 @@ class ProjectDetector {
 
       for (const [typeKey, typeConfig] of Object.entries(this.projectTypes)) {
         try {
-          if (await typeConfig.detector(projectPath)) {
+          if (await typeConfig.detector(cwd)) {
             matchedType = typeKey
             matchedConfig = typeConfig
             break
@@ -149,7 +161,7 @@ class ProjectDetector {
         ? detectComposerDev(composerJson)
         : null
       const pythonHint = matchedType === 'PYTHON'
-        ? await detectPython(projectPath)
+        ? await detectPython(cwd)
         : null
       const startCommand = pythonHint
         ? pythonHint.command
@@ -157,23 +169,30 @@ class ProjectDetector {
           ? this.detectStartCommand(packageJson?.scripts as Record<string, unknown> | undefined, packageManager)
           : composerDevScript ?? matchedConfig.defaultCommand
       const laravelAppPort = matchedType === 'LARAVEL'
-        ? await detectAppPort(projectPath)
+        ? await detectAppPort(cwd)
         : null
+      const scripts = (packageJson?.scripts || {}) as Record<string, unknown>
+      const selectedScript = ['dev', 'start', 'serve', 'develop'].find(key => typeof scripts[key] === 'string' && String(scripts[key]).trim())
+      const script = selectedScript ? String(scripts[selectedScript]) : ''
+      const portHint = await detectLaunchPort(cwd, script, matchedConfig.defaultPort)
       const detectedPort = matchedType === 'LARAVEL'
         ? laravelAppPort ?? matchedConfig.defaultPort
         : pythonHint
           ? pythonHint.port
-          : await this.detectActualPort(projectPath, matchedConfig.defaultPort)
-      const projectName = this.detectProjectName(projectPath, packageJson, composerJson, goModule)
-      const commands = await this.detectCommands(matchedType, matchedConfig, packageJson, composerJson, packageManager, projectPath, detectedPort)
+          : portHint.port
+      const projectName = this.detectProjectName(cwd, packageJson, composerJson, goModule)
+      const commands = await this.detectCommands(matchedType, matchedConfig, packageJson, composerJson, packageManager, cwd, detectedPort)
       const detectedName = this.detectStackName(matchedType, matchedConfig.name, packageJson)
-      const warnings: string[] = []
+      const managerHint = packageJson ? resolvePackageManager(cwd, packageJson) : null
+      const warnings: string[] = [...(managerHint?.warnings || [])]
 
-      if (!startCommand) warnings.push('Start command could not be detected. Add it in Advanced Settings.')
+      if (!startCommand) warnings.push('Start command could not be detected. Enter a command to continue.')
       if (matchedType === 'CUSTOM') warnings.push('Project framework could not be identified.')
 
       return {
         success: true,
+        path: cwd,
+        sources: { command: usesJavaScriptCommand ? `package.json → scripts.${selectedScript || '(none)'}` : matchedType === 'PYTHON' ? 'Python entrypoint / local virtual environment' : 'Framework convention', port: matchedType === 'LARAVEL' ? 'APP_PORT / Laravel convention' : pythonHint ? (pythonHint.port ? 'Django runserver convention' : 'No port monitoring') : portHint.source, packageManager: managerHint?.source },
         type: matchedType,
         name: detectedName,
         projectName,
@@ -209,28 +228,12 @@ class ProjectDetector {
   }
 
   async detectPackageManager(projectPath: string, packageJson: Record<string, unknown>): Promise<string> {
-    const declared = typeof packageJson.packageManager === 'string'
-      ? packageJson.packageManager.split('@')[0].trim().toLowerCase()
-      : ''
-    if (['npm', 'pnpm', 'yarn', 'bun'].includes(declared)) return declared
-
-    const lockfiles: Array<[string, string]> = [
-      ['pnpm-lock.yaml', 'pnpm'],
-      ['yarn.lock', 'yarn'],
-      ['bun.lock', 'bun'],
-      ['bun.lockb', 'bun'],
-      ['package-lock.json', 'npm'],
-      ['npm-shrinkwrap.json', 'npm'],
-    ]
-    for (const [lockfile, manager] of lockfiles) {
-      if (await this.fileExists(path.join(projectPath, lockfile))) return manager
-    }
-    return 'npm'
+    return resolvePackageManager(projectPath, packageJson).manager
   }
 
   detectStartCommand(scripts: Record<string, unknown> | null | undefined, packageManager: string | null): string {
     if (!scripts || typeof scripts !== 'object') return ''
-    const scriptName = ['dev', 'start', 'serve', 'develop'].find((name) => typeof scripts[name] === 'string')
+    const scriptName = ['dev', 'start', 'serve', 'develop'].find((name) => typeof scripts[name] === 'string' && String(scripts[name]).trim())
     if (!scriptName) return ''
     if (packageManager === 'npm') return scriptName === 'start' ? 'npm start' : `npm run ${scriptName}`
     return `${packageManager} ${scriptName}`
@@ -328,28 +331,9 @@ class ProjectDetector {
   }
 
   async detectFrontendPort(packageJson: Record<string, unknown> | null | undefined, projectPath: string): Promise<number> {
-    const script = Object.values((packageJson?.scripts || {}) as Record<string, unknown>).find((value) => typeof value === 'string' && /(?:vite|--port|-p\s)/.test(value as string))
-    const scriptPort = this.validPort((script as string | undefined)?.match(/(?:-p|--port)\s*=?\s*(\d+)/)?.[1])
-    if (scriptPort) return scriptPort
-    for (const viteFile of ['vite.config.js', 'vite.config.ts', 'vite.config.mjs']) {
-      try {
-        const content = await fs.readFile(path.join(projectPath, viteFile), 'utf8')
-        const configuredPort = this.validPort(content.match(/port\s*:\s*(\d+)/)?.[1])
-        if (configuredPort) return configuredPort
-      } catch {
-        // Missing and unreadable optional files are ignored.
-      }
-    }
-    for (const envFile of ['.env', '.env.local', '.env.development']) {
-      try {
-        const content = await fs.readFile(path.join(projectPath, envFile), 'utf8')
-        const envPort = this.validPort(content.match(/^VITE_PORT\s*=\s*["']?(\d+)["']?/m)?.[1])
-        if (envPort) return envPort
-      } catch {
-        // Missing and unreadable optional files are ignored.
-      }
-    }
-    return 5173
+    const scripts = (packageJson?.scripts || {}) as Record<string, unknown>
+    const key = ['dev', 'start', 'serve', 'develop'].find(name => typeof scripts[name] === 'string' && String(scripts[name]).trim())
+    return (await detectLaunchPort(projectPath, key ? String(scripts[key]) : '', 5173, true)).port || 5173
   }
 
   /**
@@ -374,36 +358,7 @@ class ProjectDetector {
   }
 
   async detectActualPort(projectPath: string, defaultPort: number | null): Promise<number | null> {
-    const envFiles = ['.env', '.env.local', '.env.development']
-    for (const envFile of envFiles) {
-      try {
-        const content = await fs.readFile(path.join(projectPath, envFile), 'utf8')
-        const match = content.match(/^(?:PORT|VITE_PORT|APP_PORT|SERVER_PORT|DEV_PORT)\s*=\s*["']?(\d+)["']?/m)
-        const port = this.validPort(match?.[1])
-        if (port) return port
-      } catch {
-        // Missing and unreadable optional files are ignored.
-      }
-    }
-
-    for (const viteFile of ['vite.config.js', 'vite.config.ts', 'vite.config.mjs']) {
-      try {
-        const content = await fs.readFile(path.join(projectPath, viteFile), 'utf8')
-        const port = this.validPort(content.match(/port\s*:\s*(\d+)/)?.[1])
-        if (port) return port
-      } catch {
-        // Missing and unreadable optional files are ignored.
-      }
-    }
-
-    const packageJson = await this.readJsonIfExists(path.join(projectPath, 'package.json'))
-    for (const scriptCommand of Object.values((packageJson?.scripts || {}) as Record<string, unknown>)) {
-      if (typeof scriptCommand !== 'string') continue
-      const port = this.validPort(scriptCommand.match(/(?:-p|--port)\s*=?\s*(\d+)/)?.[1])
-      if (port) return port
-    }
-
-    return defaultPort
+    return (await detectLaunchPort(projectPath, '', defaultPort)).port
   }
 
   validPort(value: string | null | undefined): number | null {
@@ -423,11 +378,8 @@ class ProjectDetector {
   // TODO(ts): parsed JSON documents are unvalidated — typed as Record<string, unknown>
   // until a schema check is introduced; every read site guards with typeof checks.
   async readJsonIfExists(filePath: string): Promise<Record<string, unknown> | null> {
-    try {
-      return await this.readJson(filePath)
-    } catch {
-      return null
-    }
+    if (!this.manifests.has(filePath)) this.manifests.set(filePath, readManifest(filePath))
+    return this.manifests.get(filePath)!
   }
 
   async readJson(filePath: string): Promise<Record<string, unknown>> {

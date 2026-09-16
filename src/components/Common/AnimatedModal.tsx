@@ -31,6 +31,8 @@ interface AnimatedModalProps {
   children: ReactNode
   position?: ModalPosition
   id?: string
+  labelledBy?: string
+  initialFocus?: string
 }
 
 /**
@@ -40,7 +42,7 @@ interface AnimatedModalProps {
  *
  * `position="top"` drops the panel from above (used by the command palette).
  */
-export default function AnimatedModal({ isOpen, onClose, children, position = 'center', id }: AnimatedModalProps) {
+export default function AnimatedModal({ isOpen, onClose, children, position = 'center', id, labelledBy, initialFocus }: AnimatedModalProps) {
   const { mounted, visible } = useTransitionMount(isOpen)
   const panelRef = useRef<HTMLDivElement>(null)
   const closeRef = useRef(onClose)
@@ -50,9 +52,12 @@ export default function AnimatedModal({ isOpen, onClose, children, position = 'c
     const previous = document.activeElement as HTMLElement | null
     const panel = panelRef.current
     const controls = () => Array.from(panel?.querySelectorAll<HTMLElement>('button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex="0"]') || [])
-    controls()[0]?.focus()
+    ;(initialFocus ? panel?.querySelector<HTMLElement>(initialFocus) : controls()[0])?.focus()
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); closeRef.current(); return }
+      if (event.key === 'Escape') {
+        if (panel?.querySelector('[role="menu"]')) return
+        event.preventDefault(); event.stopPropagation(); closeRef.current(); return
+      }
       if (event.key !== 'Tab') return
       const items = controls()
       const first = items[0]
@@ -63,7 +68,7 @@ export default function AnimatedModal({ isOpen, onClose, children, position = 'c
     }
     panel?.addEventListener('keydown', onKey)
     return () => { panel?.removeEventListener('keydown', onKey); if (previous?.isConnected) previous.focus() }
-  }, [isOpen, mounted])
+  }, [isOpen, mounted, initialFocus])
   if (!mounted) return null
 
   const align = position === 'top' ? 'items-start pt-24' : 'items-center'
@@ -77,7 +82,7 @@ export default function AnimatedModal({ isOpen, onClose, children, position = 'c
         onClick={onClose}
         className={`absolute inset-0 bg-black/60 backdrop-blur-sm cursor-pointer ${visible ? 'animate-backdrop-in' : 'animate-backdrop-out'}`}
       />
-      <div ref={panelRef} role="dialog" aria-modal="true" aria-label={id} tabIndex={-1} className={`relative h-full flex ${align} justify-center p-4 ${panelAnim} ${visible ? '' : 'pointer-events-none'}`}>
+      <div ref={panelRef} role="dialog" aria-modal="true" aria-labelledby={labelledBy} aria-label={labelledBy ? undefined : id} tabIndex={-1} className={`relative h-full flex ${align} justify-center p-4 ${panelAnim} ${visible ? '' : 'pointer-events-none'}`}>
         {children}
       </div>
     </div>

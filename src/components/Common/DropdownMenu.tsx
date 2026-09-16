@@ -32,7 +32,7 @@ export default function DropdownMenu({ trigger, children, isOpen, onClose }: Dro
     }
 
     const handleEscape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') closeMenu()
+      if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); closeMenu(); dropdownRef.current?.querySelector<HTMLButtonElement>('button')?.focus() }
     }
 
     if (open) {

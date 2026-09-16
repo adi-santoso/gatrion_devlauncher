@@ -174,6 +174,7 @@ class View {
   setVisible(visible) { this.visible = visible }
   getVisible() { return this.visible }
 }
+const webUtils = { getPathForFile: () => '' }
 
 const dialog = {
   showSaveDialog: async () => ({ canceled: true }),
@@ -234,6 +235,7 @@ function __previewState() {
 }
 
 module.exports = {
+  webUtils,
   View,
   ipcMain,
   ipcRenderer,

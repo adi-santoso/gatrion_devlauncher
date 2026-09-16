@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { Toast as ToastData } from '../../hooks/useToasts';
+import { useDetailI18n } from '../ProjectDetail/useDetailI18n';
 
 interface ToastProps {
   type?: string;
@@ -11,6 +12,7 @@ interface ToastProps {
  * Toast - Individual toast notification component
  */
 const Toast = ({ type = 'success', message, onDismiss }: ToastProps) => {
+  const t = useDetailI18n();
   const [leaving, setLeaving] = useState(false);
 
   // Play the slide-out animation, then let the parent remove the toast
@@ -54,6 +56,7 @@ const Toast = ({ type = 'success', message, onDismiss }: ToastProps) => {
 
   return (
     <div
+      role={type === 'error' ? 'alert' : 'status'}
       className={`flex items-start gap-2.5 bg-surface-2 border ${variant.border} rounded-lg px-3.5 py-3 shadow-card ${leaving ? 'animate-toast-out' : 'animate-toast-in'}`}
     >
       <svg
@@ -70,7 +73,7 @@ const Toast = ({ type = 'success', message, onDismiss }: ToastProps) => {
       <button
         onClick={dismiss}
         className="text-ink-faint hover:text-ink shrink-0"
-        aria-label="Dismiss notification"
+        aria-label={t('Dismiss notification')}
       >
         ✕
       </button>

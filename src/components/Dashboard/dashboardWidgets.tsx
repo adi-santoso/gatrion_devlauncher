@@ -4,6 +4,7 @@ import ProjectListCompactRow from './ProjectListCompactRow';
 import { type FormattedLog } from './dashboardUtils';
 import type { FeedActivity } from './DashboardView';
 import type { MetricSample } from './DashboardView';
+import { useDetailI18n } from '../ProjectDetail/useDetailI18n';
 
 export interface SystemStats {
   cpu: string | null;
@@ -258,6 +259,7 @@ export interface ProjectsGridProps {
 const VISIBLE_LIMIT = 12;
 
 export function ProjectsGrid({ grouped, projects, emptyHeading, emptyHint, showAddAction, onOpenModal, onStop, onStart, onRestart, onForceStop, onNavigate, getMetricHistory, layout = 'grid' }: ProjectsGridProps) {
+  const t = useDetailI18n();
   // Flatten both modes into one ordered item list so the cap applies uniformly
   // (grouped mode can still wall up: untagged projects all land in one group).
   const flatItems = useMemo(() => {
@@ -368,7 +370,7 @@ export function ProjectsGrid({ grouped, projects, emptyHeading, emptyHint, showA
                     <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                     </svg>
-                    Add Project
+                    {t('Add Project')}
                   </button>
                 )}
               </div>

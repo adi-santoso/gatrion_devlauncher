@@ -1,7 +1,7 @@
 import { describe, test, expect, vi, beforeAll, beforeEach } from 'vitest'
 import { createRequire } from 'node:module'
 
-const { ipcRenderer, contextBridge, __reset } = createRequire(import.meta.url)('electron')
+const { ipcRenderer, contextBridge, webUtils, __reset } = createRequire(import.meta.url)('electron')
 
 // preload.ts runs its exposeInMainWorld at load time and Node caches the
 // module, so load it exactly once per worker. Load it through vitest's own
@@ -51,11 +51,18 @@ describe('preload API surface', () => {
 
   test('every invoke wrapper makes exactly one invoke call', async () => {
     ipcRenderer.invoke = vi.fn(async () => ({ success: true }))
-    const wrappers = Object.entries(api).filter(([name]) => !name.startsWith('on'))
+    const wrappers = Object.entries(api).filter(([name]) => !name.startsWith('on') && name !== 'getPathForFile')
     for (const [, fn] of wrappers) {
       await fn('p1', 's1', 'message', { option: true }, ['a'], 1, null)
     }
     expect(ipcRenderer.invoke).toHaveBeenCalledTimes(wrappers.length)
+  })
+
+  test('file path bridge delegates to webUtils without serializing File over IPC', () => {
+    const file = { name: 'folder' }
+    webUtils.getPathForFile = vi.fn(() => 'C:/fixture/folder')
+    expect(api.getPathForFile(file)).toBe('C:/fixture/folder')
+    expect(webUtils.getPathForFile).toHaveBeenCalledWith(file)
   })
 
   test('on* subscriptions register listeners and return an unsubscribe', () => {

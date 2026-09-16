@@ -19,7 +19,7 @@ test.describe('project lifecycle', () => {
     // The empty state shows "Browse Project Folder" — clicking it triggers detection
     await modal.getByRole('button', { name: /browse project folder/i }).click();
     // Detection fills the form; the folder summary shows the detected config
-    await expect(modal.getByText('e2e-fixture').first()).toBeVisible({ timeout: 15000 });
+    await expect(modal.locator('#project-name')).toHaveValue('e2e-fixture', { timeout: 15000 });
     await expect(modal.getByText('npm start').first()).toBeVisible({ timeout: 10000 });
     // The fixture does not listen on a port, so clear the detected port
     // (readiness is skipped when no port is configured — the project goes
@@ -28,6 +28,7 @@ test.describe('project lifecycle', () => {
     await modal.getByRole('button', { name: 'Advanced Settings' }).click();
     await modal.getByPlaceholder('No port monitoring').first().fill('');
     await modal.getByRole('button', { name: 'Add Project', exact: true }).click();
+    await modal.getByRole('button', { name: 'Done', exact: true }).click();
 
     // Card appears on the dashboard
     const card = window.locator('article', { hasText: 'e2e-fixture' });
