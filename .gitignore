@@ -51,6 +51,7 @@ coverage/
 *.temp
 
 test-results/
+tests/.runtime/
 
 # Local tooling data
 .freebuff/

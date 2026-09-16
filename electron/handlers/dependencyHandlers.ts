@@ -3,9 +3,9 @@ import { assertTrustedIpcEvent } from '../utils/ipcSecurity'
 import { safeHandle } from '../utils/ipcValidation'
 import { assertSafePackageName } from '../utils/npmRunner'
 import { execTool } from '../utils/packageRunner'
+import { backupFiles, pythonTool } from '../utils/projectTooling'
 
 const fs = require('fs')
-const fsp = require('fs').promises
 const path = require('path')
 const { ipcMain } = require('electron') as typeof import('electron')
 
@@ -25,18 +25,15 @@ interface OutdatedEntry {
 
 // --- Pure parsers (unit-testable) --------------------------------------------
 
-// `composer outdated --json` returns `{ installed: { name: {current,latest} } }`.
+// Composer 2: `installed` is an array, with the installed version in `version`.
 function parseComposerOutdated(raw: string): OutdatedEntry[] {
-  let parsed: Record<string, { current?: string; wanted?: string; latest?: string }> = {}
-  try {
-    parsed = raw.trim() ? JSON.parse(raw).installed || {} : {}
-  } catch {
-    parsed = {}
-  }
-  return Object.entries(parsed).map(([name, info]) => ({
-    name,
-    current: info.current || null,
-    wanted: info.wanted || null,
+  const parsed = JSON.parse(raw).installed
+  if (!Array.isArray(parsed)) throw new Error('Invalid Composer outdated response')
+  if (parsed.some(info => !info || !['name', 'version', 'latest'].every(key => typeof info[key] === 'string'))) throw new Error('Invalid Composer package entry')
+  return parsed.map((info: { name: string; version: string; latest: string }) => ({
+    name: info.name,
+    current: info.version || null,
+    wanted: null,
     latest: info.latest || null,
     type: 'dependency',
   })).filter((item) => item.latest && item.current && item.latest !== item.current)
@@ -50,22 +47,33 @@ function parseGoObjects(raw: string): Array<Record<string, unknown>> {
   const text = raw.trim()
   let i = 0
   while (i < text.length) {
-    const start = text.indexOf('{', i)
-    if (start === -1) break
+    while (/\s/.test(text[i] || '') && i < text.length) i++
+    if (i === text.length) break
+    const start = i
+    if (text[start] !== '{') throw new Error('Invalid Go module response')
     let depth = 0
+    let quoted = false
+    let escaped = false
     let j = start
     for (; j < text.length; j++) {
-      if (text[j] === '{') depth += 1
+      if (quoted) {
+        if (escaped) escaped = false
+        else if (text[j] === '\\') escaped = true
+        else if (text[j] === '"') quoted = false
+        continue
+      }
+      if (text[j] === '"') quoted = true
+      else if (text[j] === '{') depth += 1
       else if (text[j] === '}') {
         depth -= 1
         if (depth === 0) break
       }
     }
-    if (depth !== 0) break
+    if (depth !== 0) throw new Error('Incomplete Go module response')
     const chunk = text.slice(start, j + 1)
-    try {
-      records.push(JSON.parse(chunk) as Record<string, unknown>)
-    } catch { /* skip partial/invalid blocks */ }
+    const record = JSON.parse(chunk)
+    if (typeof record.Path !== 'string' || record.Error) throw new Error('Invalid or failed Go module response')
+    records.push(record)
     i = j + 1
   }
   return records
@@ -90,9 +98,9 @@ function parsePipOutdated(raw: string): OutdatedEntry[] {
   let parsed: Array<{ name?: string; version?: string; latest_version?: string }> = []
   try {
     parsed = raw.trim() ? JSON.parse(raw) : []
-  } catch {
-    parsed = []
-  }
+  } catch { throw new Error('Invalid pip outdated response') }
+  if (!Array.isArray(parsed)) throw new Error('Invalid pip outdated response')
+  if (parsed.some(item => !item || typeof item.name !== 'string' || typeof item.version !== 'string' || typeof item.latest_version !== 'string')) throw new Error('Invalid pip package entry')
   return parsed
     .filter((item) => item.name && item.version && item.latest_version && item.latest_version !== item.version)
     .map((item) => ({
@@ -105,23 +113,18 @@ function parsePipOutdated(raw: string): OutdatedEntry[] {
     .sort((a, b) => a.name.localeCompare(b.name))
 }
 
-// `cargo outdated --format=json` returns `{ dependencies: [{ name, project: [...] }] }`.
+// cargo-outdated: project/compat/latest are version strings, not nested objects.
 function parseCargoOutdated(raw: string): OutdatedEntry[] {
-  let parsed: Array<{ name?: string; project?: Array<{ name?: string; version?: string; latest?: string }> }> = []
-  try {
-    const data = raw.trim() ? JSON.parse(raw) : {}
-    parsed = data.dependencies || []
-  } catch {
-    parsed = []
-  }
+  const parsed: Array<{ name: string; project: string; compat: string; latest: string }> = JSON.parse(raw).dependencies
+  if (!Array.isArray(parsed)) throw new Error('Invalid Cargo outdated response')
+  if (parsed.some(item => !item || typeof item.name !== 'string' || typeof item.project !== 'string' || typeof item.compat !== 'string' || typeof item.latest !== 'string')) throw new Error('Invalid Cargo package entry')
   return parsed
     .map((item) => {
-      const entry = (item.project || [])[0] || {}
       return {
-        name: item.name || entry.name || '',
-        current: entry.version || null,
-        wanted: entry.latest || null,
-        latest: entry.latest || null,
+        name: item.name,
+        current: item.project || null,
+        wanted: item.compat || null,
+        latest: item.latest || null,
         type: 'dependency',
       }
     })
@@ -148,16 +151,10 @@ function setupDependencyHandlers(): void {
   // composer.lock are backed up first.
   secureHandle('composer-update', async (_event, projectPath, packageName = null) => {
     assertSafePackageName(packageName)
-    const backupFiles = ['composer.json']
-    if (fs.existsSync(path.join(projectPath, 'composer.lock'))) backupFiles.push('composer.lock')
-    for (const file of backupFiles) {
-      const source = path.join(projectPath, file)
-      const target = path.join(projectPath, `${file}.bak-${Date.now()}`)
-      await fsp.copyFile(source, target).catch(() => {})
-    }
+    const backups = await backupFiles(projectPath, ['composer.json', 'composer.lock'])
     const args = packageName ? ['update', packageName.trim()] : ['update']
     const output = await execTool('composer', projectPath, args, { timeoutMs: 300000 })
-    return { success: true, output: output.trim().slice(-2000), backups: backupFiles.map((file) => `${file}.bak-*`) }
+    return { success: true, output: output.trim().slice(-2000), backups }
   })
 
   // --- Go modules -------------------------------------------------------
@@ -167,7 +164,7 @@ function setupDependencyHandlers(): void {
   secureHandle('go-outdated', async (_event, projectPath) => {
     const goFile = path.join(projectPath, 'go.mod')
     if (!fs.existsSync(goFile)) return { success: true, hasGoMod: false, outdated: [] }
-const raw = await execTool('go', projectPath, ['list', '-m', '-u', '-json', 'all'], { timeoutMs: 120000 })
+    const raw = await execTool('go', projectPath, ['list', '-m', '-u', '-json', 'all'], { timeoutMs: 120000 })
     const outdated = parseGoOutdated(raw)
     return { success: true, hasGoMod: true, outdated }
   })
@@ -175,8 +172,9 @@ const raw = await execTool('go', projectPath, ['list', '-m', '-u', '-json', 'all
   // Upgrade a single Go module to its latest release.
   secureHandle('go-update', async (_event, projectPath, moduleName) => {
     assertSafePackageName(moduleName)
+    const backups = await backupFiles(projectPath, ['go.mod', 'go.sum'])
     const output = await execTool('go', projectPath, ['get', `${moduleName.trim()}@latest`], { timeoutMs: 300000 })
-    return { success: true, output: output.trim().slice(-2000) }
+    return { success: true, output: output.trim().slice(-2000), backups }
   })
 
   // --- Python / pip -----------------------------------------------------
@@ -186,7 +184,7 @@ const raw = await execTool('go', projectPath, ['list', '-m', '-u', '-json', 'all
     const hasRequirements = fs.existsSync(path.join(projectPath, 'requirements.txt'))
     const hasPyProject = fs.existsSync(path.join(projectPath, 'pyproject.toml'))
     if (!hasRequirements && !hasPyProject) return { success: true, hasPipManifest: false, outdated: [] }
-const raw = await execTool('pip', projectPath, ['list', '--outdated', '--format=json'], { timeoutMs: 120000 })
+    const raw = await execTool(pythonTool(projectPath), projectPath, ['-m', 'pip', 'list', '--outdated', '--format=json'], { timeoutMs: 120000 })
     const outdated = parsePipOutdated(raw)
     return { success: true, hasPipManifest: true, outdated }
   })
@@ -194,8 +192,10 @@ const raw = await execTool('pip', projectPath, ['list', '--outdated', '--format=
   // Upgrade a single pip package (no safe "update all").
   secureHandle('pip-update', async (_event, projectPath, packageName) => {
     assertSafePackageName(packageName)
-    const output = await execTool('pip', projectPath, ['install', '--upgrade', packageName.trim()], { timeoutMs: 300000 })
-    return { success: true, output: output.trim().slice(-2000) }
+    const python = pythonTool(projectPath)
+    const backups = await backupFiles(projectPath, ['requirements.txt', 'pyproject.toml'])
+    const output = await execTool(python, projectPath, ['-m', 'pip', 'install', '--upgrade', packageName.trim()], { timeoutMs: 300000 })
+    return { success: true, output: output.trim().slice(-2000), backups }
   })
 
   // --- Rust / Cargo -----------------------------------------------------
@@ -206,12 +206,12 @@ const raw = await execTool('pip', projectPath, ['list', '--outdated', '--format=
     const cargoFile = path.join(projectPath, 'Cargo.toml')
     if (!fs.existsSync(cargoFile)) return { success: true, hasCargo: false, outdated: [] }
     try {
-const raw = await execTool('cargo', projectPath, ['outdated', '--format=json'], { timeoutMs: 120000 })
+      const raw = await execTool('cargo', projectPath, ['outdated', '--root-deps-only', '--format=json'], { timeoutMs: 120000 })
       const outdated = parseCargoOutdated(raw)
       return { success: true, hasCargo: true, outdated }
     } catch (error) {
       const message = (error as Error).message
-      if (/not found|could not|no such|not a (subcommand|command)/i.test(message)) {
+      if (/no such (command|subcommand).*outdated|not a (subcommand|command).*outdated/i.test(message)) {
         return { success: true, hasCargo: true, pluginMissing: true, outdated: [] }
       }
       throw error
@@ -222,15 +222,9 @@ const raw = await execTool('cargo', projectPath, ['outdated', '--format=json'], 
   // are backed up first.
   secureHandle('cargo-update', async (_event, projectPath, packageName) => {
     assertSafePackageName(packageName)
-    const backupFiles = ['Cargo.toml']
-    if (fs.existsSync(path.join(projectPath, 'Cargo.lock'))) backupFiles.push('Cargo.lock')
-    for (const file of backupFiles) {
-      const source = path.join(projectPath, file)
-      const target = path.join(projectPath, `${file}.bak-${Date.now()}`)
-      await fsp.copyFile(source, target).catch(() => {})
-    }
+    const backups = await backupFiles(projectPath, ['Cargo.toml', 'Cargo.lock'])
     const output = await execTool('cargo', projectPath, ['update', '-p', packageName.trim()], { timeoutMs: 300000 })
-    return { success: true, output: output.trim().slice(-2000), backups: backupFiles.map((file) => `${file}.bak-*`) }
+    return { success: true, output: output.trim().slice(-2000), backups }
   })
 }
 

@@ -2,7 +2,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { JSX } from 'react';
 import * as ipc from '../../utils/ipcRenderer';
 import Icon from '../Common/Icon';
+import VirtualList from '../Common/VirtualList';
 import type { LaravelLogFile } from '../../data/projects';
+import { useDetailI18n } from './useDetailI18n';
 
 const stripAnsi = (value: string): string => value
   .replace(/[\u001b\u009b][[()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-ORZcf-nqry=><]/g, '');
@@ -62,9 +64,14 @@ const TAIL_DEFAULT = 5000;
 
 interface LaravelLogsTabProps {
   projectPath: string;
+  active?: boolean;
 }
 
-export default function LaravelLogsTab({ projectPath }: LaravelLogsTabProps) {
+export default function LaravelLogsTab(props: LaravelLogsTabProps) {
+  return <ProjectLogs key={props.projectPath} {...props} />;
+}
+function ProjectLogs({ projectPath, active = true }: LaravelLogsTabProps) {
+  const t = useDetailI18n();
   const [files, setFiles] = useState<LaravelLogFile[]>([]);
   const [selectedFile, setSelectedFile] = useState('');
   const [content, setContent] = useState('');
@@ -74,32 +81,44 @@ export default function LaravelLogsTab({ projectPath }: LaravelLogsTabProps) {
   const [filter, setFilter] = useState('');
   const [stickToBottom, setStickToBottom] = useState(true);
   const outputRef = useRef<HTMLDivElement>(null);
+  const [live, setLive] = useState(false);
+  const [scrollTop, setScrollTop] = useState(0);
+  const requestRef = useRef(0);
+  const listRequestRef = useRef(0);
+  const reading = useRef(false);
+  useEffect(() => () => { requestRef.current++; listRequestRef.current++; }, []);
 
   const refreshFiles = useCallback(async (): Promise<void> => {
-    const result = await ipc.listLaravelLogs(projectPath);
+    const request = ++listRequestRef.current;
+    const result = await ipc.listLaravelLogs(projectPath).catch(cause => ({ success: false, files: [], error: String(cause) }));
+    if (request !== listRequestRef.current) return;
     if (result.success) {
       const list = result.files || [];
       setFiles(list);
       setSelectedFile((current) => (current && list.some((f) => f.name === current) ? current : list[0]?.name || ''));
     } else {
-      setError(result.error || 'Failed to list log files');
+      setError(result.error || t('Failed to list log files'));
     }
-  }, [projectPath]);
+  }, [projectPath, t]);
 
   const loadFile = useCallback(async (fileName: string, stick = true): Promise<void> => {
-    if (!fileName) return;
-    setLoading(true);
+    if (!fileName || (!stick && reading.current)) return;
+    reading.current = true;
+    const request = ++requestRef.current;
+    if (stick) setLoading(true);
     setError(null);
-    const result = await ipc.readLaravelLog(projectPath, fileName, TAIL_DEFAULT);
+    const result = await ipc.readLaravelLog(projectPath, fileName, TAIL_DEFAULT).catch(cause => ({ success: false, content: '', lineCount: 0, error: String(cause) }));
+    if (request !== requestRef.current) return;
+    reading.current = false;
     setLoading(false);
     if (result.success) {
       setContent(result.content || '');
       setLineCount(result.lineCount ?? 0);
       if (stick) setStickToBottom(true);
     } else {
-      setError(result.error || 'Failed to read log file');
+      setError(result.error || t('Failed to read log file'));
     }
-  }, [projectPath]);
+  }, [projectPath, t]);
 
   useEffect(() => {
     refreshFiles();
@@ -107,7 +126,13 @@ export default function LaravelLogsTab({ projectPath }: LaravelLogsTabProps) {
 
   useEffect(() => {
     if (selectedFile) loadFile(selectedFile);
+    else { requestRef.current++; reading.current = false; setLoading(false); setContent(''); setLineCount(0); }
   }, [selectedFile, loadFile]);
+  useEffect(() => {
+    if (!active || !live) return;
+    const timer = setInterval(() => { void refreshFiles(); void loadFile(selectedFile, false); }, 2000);
+    return () => clearInterval(timer);
+  }, [active, live, refreshFiles, selectedFile, loadFile]);
 
   // Scroll to bottom when content (re)loads while stuck to bottom.
   useEffect(() => {
@@ -118,6 +143,7 @@ export default function LaravelLogsTab({ projectPath }: LaravelLogsTabProps) {
     const el = outputRef.current;
     if (!el) return;
     const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 40;
+    setScrollTop(el.scrollTop);
     setStickToBottom(atBottom);
   };
 
@@ -127,7 +153,7 @@ export default function LaravelLogsTab({ projectPath }: LaravelLogsTabProps) {
   };
 
   const lines = useMemo(() => {
-    const raw = stripAnsi(content).split('\n');
+    const raw = content ? stripAnsi(content).split('\n') : [];
     const query = filter.trim().toLowerCase();
     return query ? raw.filter((line) => line.toLowerCase().includes(query)) : raw;
   }, [content, filter]);
@@ -140,10 +166,10 @@ export default function LaravelLogsTab({ projectPath }: LaravelLogsTabProps) {
           <select
             value={selectedFile}
             onChange={(event) => setSelectedFile(event.target.value)}
-            aria-label="Select Laravel log file"
+            aria-label={t('Select Laravel log file')}
             className="bg-surface-3 border border-border rounded-md px-2 py-1 text-xs font-mono text-ink focus:outline-none"
           >
-            {files.length === 0 ? <option value="">No log files</option> : files.map((file) => <option key={file.name} value={file.name}>{file.name}</option>)}
+            {files.length === 0 ? <option value="">{t('No log files')}</option> : files.map((file) => <option key={file.name} value={file.name}>{file.name}</option>)}
           </select>
           {files.length > 0 && (
             <span className="font-mono text-[10px] text-ink-faint">
@@ -154,27 +180,29 @@ export default function LaravelLogsTab({ projectPath }: LaravelLogsTabProps) {
             type="search"
             value={filter}
             onChange={(event) => setFilter(event.target.value)}
-            placeholder="Search logs..."
-            aria-label="Search Laravel logs"
+            placeholder={t('Search logs...')}
+            aria-label={t('Search Laravel logs')}
             className="bg-surface-3 border border-border rounded-md px-2.5 py-1 text-xs text-ink placeholder:text-ink-faint focus:outline-none w-44"
           />
         </div>
         <div className="flex items-center gap-3">
-          {lineCount > 0 && <span className="font-mono text-[10px] text-ink-faint">tail {lineCount} lines</span>}
+          <label className="text-xs flex gap-1"><input type="checkbox" checked={live} onChange={event => setLive(event.target.checked)} />{t('Live tail')}</label>
+          <button onClick={refreshFiles} className="text-xs">{t('Refresh files')}</button>
+          {lineCount > 0 && <span className="font-mono text-[10px] text-ink-faint">{t('tail {count} lines', { count: lineCount })}</span>}
           <button
             type="button"
             onClick={() => loadFile(selectedFile, true)}
             disabled={!selectedFile || loading}
-            title="Reload log file"
-            aria-label="Reload Laravel log"
+            title={t('Reload log file')}
+            aria-label={t('Reload Laravel log')}
             className="inline-flex items-center gap-1 text-[11px] text-ink-faint hover:text-ink disabled:opacity-40 transition-colors"
           >
-            <Icon name="refreshCw" size={12} /> Reload
+            <Icon name="refreshCw" size={12} /> {t('Reload')}
           </button>
         </div>
       </div>
 
-      {error && <p className="px-4 py-2 text-xs text-danger">{error}</p>}
+      {error && <p role="alert" className="px-4 py-2 text-xs text-danger">{error}</p>}
 
       <div className="relative">
         {!stickToBottom && lines.length > 0 && (
@@ -184,7 +212,7 @@ export default function LaravelLogsTab({ projectPath }: LaravelLogsTabProps) {
             className="absolute bottom-3 left-1/2 -translate-x-1/2 z-10 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-accent text-white text-[11px] font-semibold shadow-glow hover:bg-accent-hover transition-colors"
           >
             <Icon name="arrowDown" size={12} />
-            Jump to latest
+            {t('Jump to latest')}
           </button>
         )}
         <div
@@ -193,15 +221,11 @@ export default function LaravelLogsTab({ projectPath }: LaravelLogsTabProps) {
           className="scan-line bg-[#08090C] px-5 py-4 font-mono text-[12.5px] leading-relaxed h-[calc(100dvh-320px)] min-h-[320px] overflow-y-auto"
         >
           {loading ? (
-            <p className="text-ink-faint italic">Loading log...</p>
+            <p className="text-ink-faint italic">{t('Loading log...')}</p>
           ) : lines.length === 0 ? (
-            <p className="text-ink-faint italic">{content ? 'No lines match this filter.' : 'No log entries found. Logs appear in storage/logs after the app writes them.'}</p>
+            <p className="text-ink-faint italic">{t(content ? 'No lines match this filter.' : 'No log entries found. Logs appear in storage/logs after the app writes them.')}</p>
           ) : (
-            lines.map((line, index) => (
-              <p key={`${selectedFile}-${index}`} className="whitespace-pre-wrap break-words">
-                <LaravelLine line={line} query={filter.trim()} />
-              </p>
-            ))
+            <VirtualList items={lines} scrollRef={outputRef} scrollTop={scrollTop} getKey={(_, index) => `${selectedFile}-${index}`} renderItem={line => <p className="whitespace-pre-wrap break-words"><LaravelLine line={line} query={filter.trim()} /></p>} />
           )}
         </div>
       </div>

@@ -67,6 +67,16 @@ test.describe('preview device simulator', () => {
       await expect(device).toBeEnabled({ timeout: 10000 });
       await expect.poll(() => screenWidth(window), { timeout: 10000 }).toBeGreaterThan(500);
 
+      const nativeState = () => app.evaluate(async ({ webContents }, port) => {
+        const contents = webContents.getAllWebContents().find(contents => contents.getURL().includes(`:${port}`));
+        if (!contents) return null;
+        return { zoom: contents.getZoomFactor(), ...await contents.executeJavaScript('({ width: innerWidth, height: innerHeight, dpr: devicePixelRatio })') };
+      }, port);
+      await window.getByLabel('Zoom', { exact: true }).selectOption('150');
+      await expect.poll(async () => (await nativeState())?.zoom).toBe(1.5);
+      await window.getByLabel('Zoom', { exact: true }).selectOption('100');
+      await expect.poll(async () => (await nativeState())?.zoom).toBe(1);
+
       // Pick the iPhone SE preset: the viewport shrinks to the device size and
       // the label pill appears above the simulated screen.
       await device.selectOption('iphone-se');
@@ -75,6 +85,28 @@ test.describe('preview device simulator', () => {
         timeout: 10000,
         message: 'device viewport should be 375 CSS px wide (true media-query target)',
       }).toBe(375);
+      await expect.poll(async () => (await nativeState())?.width).toBe(375);
+      await expect.poll(async () => (await nativeState())?.dpr).toBe(2);
+
+      // A short fullscreen window must clip the surface, not resize the page.
+      await app.evaluate(({ BrowserWindow }) => { const win = BrowserWindow.getAllWindows()[0]; win.setMinimumSize(800, 500); win.setContentSize(1024, 600); });
+      await window.getByRole('button', { name: 'Toggle Fullscreen' }).click();
+      await expect(window.getByTitle('Exit fullscreen (ESC)')).toBeVisible();
+      await expect.poll(async () => (await nativeState())?.height).toBe(667);
+      await expect.poll(() => window.evaluate(() => {
+        const viewport = document.querySelector('[data-preview-viewport]');
+        const screen = document.querySelector('[aria-label^="Native preview"]').parentElement;
+        return screen.getBoundingClientRect().top >= viewport.getBoundingClientRect().top;
+      })).toBe(true);
+      await window.locator('[data-preview-viewport]').evaluate(el => { el.scrollTop = 140; el.dispatchEvent(new Event('scroll')); });
+      await expect.poll(async () => (await nativeState())?.height).toBe(667);
+      await expect.poll(() => app.evaluate(({ BrowserWindow }) => {
+        const container = BrowserWindow.getAllWindows()[0].contentView.children.find(view => !view.webContents && view.children.some(child => child.webContents));
+        return container?.children[0].getBounds().y;
+      })).toBeLessThan(0);
+      await window.getByRole('button', { name: 'Clear site data (cookies, storage) for this project' }).click();
+      await expect(window.getByRole('status')).toHaveText('Site data cleared');
+      await window.getByTitle('Exit fullscreen (ESC)').click();
 
       // Rotate: portrait -> landscape swaps the dimensions.
       await window.getByLabel('Rotate (portrait/landscape)').click();
@@ -90,6 +122,11 @@ test.describe('preview device simulator', () => {
       await device.selectOption({ label: 'Fit to window' });
       await expect(window.getByText(/iPhone SE ·/)).toHaveCount(0, { timeout: 10000 });
       await expect.poll(() => screenWidth(window), { timeout: 10000 }).toBeGreaterThan(500);
+
+      await device.selectOption('laptop-1366');
+      await window.getByLabel('Rotate (portrait/landscape)').click();
+      await expect.poll(async () => (await nativeState())?.width).toBe(1366);
+      await device.selectOption({ label: 'Fit to window' });
 
       // Stop the project so the app shuts down cleanly.
       await window.getByRole('button', { name: 'Stop', exact: true }).click();

@@ -5,6 +5,7 @@
  */
 import { useEffect, useRef, useState } from 'react'
 import * as ipc from '../../utils/ipcRenderer'
+import { useDetailI18n } from './useDetailI18n'
 
 /**
  * Resolve a user-typed address into an absolute URL for the preview, tolerant
@@ -28,6 +29,9 @@ export function resolvePreviewAddress(raw: string, base: string): string {
 }
 
 export interface PreviewNavigation {
+  loading: boolean
+  error: string | null
+  notice: string | null
   /** Current text shown in the address input. */
   address: string
   /** Live URL of the embedded page (native view only). */
@@ -53,23 +57,38 @@ export function usePreviewNavigation(
   appUrl: string | null,
   useNative: boolean,
 ): PreviewNavigation {
+  const t = useDetailI18n()
   const [iframeKey, setIframeKey] = useState(0)
   const [address, setAddress] = useState<string>(appUrl || '')
   const [navUrl, setNavUrl] = useState<string>(appUrl || '')
   const [canGoBack, setCanGoBack] = useState(false)
   const [canGoForward, setCanGoForward] = useState(false)
   const editingRef = useRef(false)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [notice, setNotice] = useState<string | null>(null)
+  useEffect(() => {
+    setAddress(appUrl || '')
+    setNavUrl(appUrl || '')
+    setError(null)
+    setNotice(null)
+    setLoading(false)
+    setCanGoBack(false)
+    setCanGoForward(false)
+  }, [appUrl, projectId])
 
   // Mirror the live URL/back-forward state of the embedded preview into the
   // address bar, and read the initial state once a native view exists.
   useEffect(() => {
     if (!useNative || !projectId) return undefined
     let disposed = false
-    const unsub = ipc.onPreviewUrlUpdated(({ projectId: pid, url, canGoBack: b, canGoForward: f }) => {
+    const unsub = ipc.onPreviewUrlUpdated(({ projectId: pid, url, canGoBack: b, canGoForward: f, loading: pending, error: failure }) => {
       if (disposed || pid !== projectId) return
       setNavUrl(url)
       setCanGoBack(b)
       setCanGoForward(f)
+      setLoading(Boolean(pending))
+      setError(failure || null)
       if (!editingRef.current) setAddress(url)
     })
     void ipc.previewGetState(projectId).then((res) => {
@@ -78,8 +97,10 @@ export function usePreviewNavigation(
       setNavUrl(url)
       setCanGoBack(res.data.canGoBack)
       setCanGoForward(res.data.canGoForward)
+      setLoading(Boolean(res.data.loading))
+      setError(res.data.error || null)
       if (!editingRef.current) setAddress(url)
-    })
+    }).catch(cause => { if (!disposed) setError(String(cause)) })
     return () => {
       disposed = true
       unsub()
@@ -98,7 +119,7 @@ export function usePreviewNavigation(
     if (!target) { setAddress(current); return }
     if (useNative) {
       setNavUrl(target)
-      void ipc.previewNavigate(projectId as string, target)
+       void ipc.previewNavigate(projectId as string, target).then(result => { if (!result.success) setError(result.error || t('Navigation failed')) }).catch(cause => setError(String(cause)))
     }
     setAddress(target)
   }
@@ -109,16 +130,18 @@ export function usePreviewNavigation(
   }
 
   const back = (): void => {
-    if (useNative) void ipc.previewBack(projectId as string)
+    if (useNative) void ipc.previewBack(projectId as string).then(result => { if (!result.success) setError(result.error || t('Navigation failed')) }).catch(cause => setError(String(cause)))
   }
 
   const forward = (): void => {
-    if (useNative) void ipc.previewForward(projectId as string)
+    if (useNative) void ipc.previewForward(projectId as string).then(result => { if (!result.success) setError(result.error || t('Navigation failed')) }).catch(cause => setError(String(cause)))
   }
 
   const reload = (): void => {
+    setError(null)
+    setNotice(null)
     if (useNative) {
-      ipc.previewReload(projectId as string)
+      void ipc.previewReload(projectId as string).then(result => { if (!result.success) setError(result.error || t('Reload failed')) }).catch(cause => setError(String(cause)))
     } else {
       setIframeKey((prev) => prev + 1)
     }
@@ -131,14 +154,21 @@ export function usePreviewNavigation(
 
   const clearData = async (): Promise<void> => {
     if (!projectId) return
+    setNotice(null)
+    try {
     const result = await ipc.previewClearData(projectId)
     if (result?.success) {
       // After clearing storage, reload so the app picks up a fresh session
-      ipc.previewReload(projectId)
-    }
+      const reloaded = await ipc.previewReload(projectId)
+      if (!reloaded.success) throw new Error(reloaded.error || t('Reload failed'))
+      setError(null)
+      setNotice('Site data cleared')
+    } else setError(result?.error || t('Unable to clear site data'))
+    } catch (cause) { setError(String(cause)) }
   }
 
   return {
+    loading, error, notice,
     address,
     navUrl,
     canGoBack,

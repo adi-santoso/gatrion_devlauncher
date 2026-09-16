@@ -1,7 +1,6 @@
 const { _electron: electron } = require('@playwright/test');
 const path = require('path');
 const fs = require('fs');
-const os = require('os');
 
 const APP_ROOT = path.join(__dirname, '..');
 const VITE_PORT = process.env.VITE_DEV_PORT || 5173;
@@ -36,7 +35,9 @@ async function launchApp(extraEnv = {}) {
 }
 
 async function makeTempDir(prefix) {
-  return fs.promises.mkdtemp(path.join(os.tmpdir(), prefix));
+  const root = path.join(APP_ROOT, 'test-results', 'fixtures');
+  await fs.promises.mkdir(root, { recursive: true });
+  return fs.promises.mkdtemp(path.join(root, prefix));
 }
 
 const FIXTURE_START_JS = `// Long-running fixture process for e2e: emits log lines until stopped.

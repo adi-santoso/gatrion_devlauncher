@@ -1,5 +1,5 @@
 import React from 'react'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import GitTab from '../GitTab'
 
@@ -128,5 +128,44 @@ describe('GitTab', () => {
     expect(screen.getByText('Initialize Git Repository')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Initialize', exact: true }))
     await waitFor(() => expect(mocks.gitInit).toHaveBeenCalledWith('C:/demo'))
+  })
+
+  it('does not expose project A files while project B is loading', async () => {
+    const { rerender } = render(<GitTab project={project} />)
+    await screen.findByText('src/App.jsx')
+    let finish
+    mocks.gitStatus.mockReturnValue(new Promise(resolve => { finish = resolve }))
+    rerender(<GitTab project={{ id: 'b', path: 'B' }} />)
+    expect(screen.queryByText('src/App.jsx')).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('Stage src/App.jsx')).not.toBeInTheDocument()
+    await act(async () => finish({ ...STATUS, unstaged: [], untracked: [], staged: [] }))
+    expect(mocks.gitStage).not.toHaveBeenCalled()
+  })
+
+  it('serializes Ctrl+Enter commits until the post-operation refresh finishes', async () => {
+    render(<GitTab project={project} />)
+    const input = await screen.findByLabelText('Commit message')
+    let complete
+    mocks.gitCommit.mockReturnValue(new Promise(resolve => { complete = resolve }))
+    fireEvent.change(input, { target: { value: 'once' } })
+    fireEvent.keyDown(input, { key: 'Enter', ctrlKey: true })
+    fireEvent.keyDown(input, { key: 'Enter', ctrlKey: true })
+    expect(mocks.gitCommit).toHaveBeenCalledTimes(1)
+    let refresh
+    mocks.gitStatus.mockReturnValue(new Promise(resolve => { refresh = resolve }))
+    await act(async () => complete({ success: true }))
+    fireEvent.keyDown(input, { key: 'Enter', ctrlKey: true })
+    expect(mocks.gitCommit).toHaveBeenCalledTimes(1)
+    await act(async () => refresh(STATUS))
+    expect(await screen.findByText('Committed: once')).toBeVisible()
+  })
+
+  it('offers publish for a branch without an upstream and confirms stash deletion', async () => {
+    mocks.gitStatus.mockResolvedValue({ ...STATUS, upstream: null, ahead: 0 })
+    render(<GitTab project={project} />)
+    expect(await screen.findByRole('button', { name: 'Publish' })).toBeEnabled()
+    fireEvent.click(screen.getByRole('button', { name: 'Drop' }))
+    expect(mocks.gitStashDrop).not.toHaveBeenCalled()
+    expect(screen.getByText(/Remove stash@/)).toBeVisible()
   })
 })

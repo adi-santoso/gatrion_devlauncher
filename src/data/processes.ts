@@ -65,7 +65,7 @@ export interface ProcessLogLine {
 
 export interface CustomCommandResult {
   success: boolean
-  runId?: string
+  runId?: number
   error?: string
   [key: string]: unknown
 }
@@ -152,14 +152,14 @@ export const runCustomCommand = async (projectId: string, commandId: string): Pr
   return invoke<CustomCommandResult>('runCustomCommand', projectId, commandId)
 }
 
-export const stopCustomCommand = async (runId: string): Promise<SimpleResult> => {
+export const stopCustomCommand = async (runId: number): Promise<SimpleResult> => {
   if (!isElectron()) {
     return { success: true }
   }
   return invoke<SimpleResult>('stopCustomCommand', runId)
 }
 
-export const getCustomCommandStatus = async (runId: string): Promise<CustomCommandResult> => {
+export const getCustomCommandStatus = async (runId: number): Promise<CustomCommandResult> => {
   if (!isElectron()) {
     return { success: false, error: 'Electron not available' }
   }

@@ -5,7 +5,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { execFileSync } from 'node:child_process'
 
-const { ipcMain, __reset } = createRequire(import.meta.url)('electron')
+const { ipcMain, shell, __reset } = createRequire(import.meta.url)('electron')
 
 import { setupRepoHandlers, parseStatus, parseLog, readPackageJson } from '../repoHandlers'
 
@@ -65,6 +65,13 @@ describe('parseStatus / parseLog', () => {
     expect(status.branch).toBeNull()
     expect(status.staged).toEqual([])
     expect(status.untracked).toEqual([])
+  })
+
+  test('preserves Unicode, arrows, and whitespace in NUL-delimited paths and skips rename sources', () => {
+    const status = parseStatus('## main\0R  新 file -> final.txt\0old name.txt\0?? space end \0')
+    expect(status.staged[0].path).toBe('新 file -> final.txt')
+    expect(status.untracked).toEqual(['space end '])
+    expect(status.unstaged).toEqual([])
   })
 
   test('parseLog splits records on record/unit separators', () => {
@@ -214,8 +221,33 @@ describe('git channels (validation paths + real temp repos)', () => {
     expect(log.commits[0].subject).toBe('initial')
   })
 
-  test('readPackageJson returns null for invalid JSON', () => {
+  test('readPackageJson rejects invalid JSON instead of treating it as absent', () => {
     fs.writeFileSync(path.join(tempRoot, 'package.json'), '{broken')
-    expect(readPackageJson(tempRoot)).toBeNull()
+    expect(() => readPackageJson(tempRoot)).toThrow()
+  })
+
+  test('previews and stashes untracked files, publishes to a local remote, and trashes only the selected file', async () => {
+    const git = args => execFileSync('git', args, { cwd: tempRoot, encoding: 'utf8' })
+    git(['init', '-q'])
+    fs.writeFileSync(path.join(tempRoot, 'tracked.txt'), 'base')
+    git(['add', '.'])
+    git(['-c', 'user.name=Test', '-c', 'user.email=test@example.com', 'commit', '-m', 'base'])
+    const name = 'new file & notes.txt'
+    fs.writeFileSync(path.join(tempRoot, name), 'new content')
+    setupRepoHandlers(makeStorageManager([]), makeProcessManager(), makeWindow())
+    const call = (channel, ...args) => ipcMain._handlers.get(channel)(fakeEvent, tempRoot, ...args)
+    expect((await call('git-diff', name)).diff).toContain('+new content')
+    expect((await call('git-stash-push', 'save new file')).success).toBe(true)
+    expect(fs.existsSync(path.join(tempRoot, name))).toBe(false)
+    expect((await call('git-stash-pop', 0)).success).toBe(true)
+    expect(fs.readFileSync(path.join(tempRoot, name), 'utf8')).toBe('new content')
+    shell.trashItem = vi.fn(async () => {})
+    expect((await call('git-discard', name)).success).toBe(true)
+    expect(shell.trashItem).toHaveBeenCalledWith(path.join(tempRoot, name))
+    const remote = path.join(tempRoot, 'remote.git')
+    git(['init', '--bare', '-q', remote])
+    git(['remote', 'add', 'origin', remote])
+    expect((await call('git-push')).success).toBe(true)
+    expect(git(['rev-parse', '--abbrev-ref', '@{upstream}']).trim()).toMatch(/^origin\//)
   })
 })

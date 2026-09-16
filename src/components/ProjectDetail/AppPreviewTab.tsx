@@ -6,9 +6,11 @@ import { previewUrl } from '../../utils/previewUrl'
 import type { ViewProject } from '../Dashboard/ProjectCard'
 import PreviewDeviceBar from './PreviewDeviceBar'
 import PreviewPlaceholder from './PreviewPlaceholder'
+import PreviewZoom from './PreviewZoom'
 import { deviceLabel } from './devicePresets'
 import { usePreviewDevice } from './usePreviewDevice'
 import { usePreviewNavigation } from './usePreviewNavigation'
+import { useDetailI18n } from './useDetailI18n'
 
 const statusClasses: Record<string, string> = {
   running: 'text-success bg-success/10 border-success/20',
@@ -48,8 +50,9 @@ export default function AppPreviewTab({
   active = true,
   keepAlive = true,
 }: AppPreviewTabProps) {
+  const t = useDetailI18n()
   const [zoomLevel, setZoomLevel] = useState(100)
-  const [nativeMode] = useState(() => nativeAvailable() && Boolean((project as ViewProject)?.port))
+  const nativeMode = nativeAvailable() && Boolean((project as ViewProject)?.port)
   const [nativeFailed, setNativeFailed] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
   const wasInactiveRef = useRef(false)
@@ -64,6 +67,10 @@ export default function AppPreviewTab({
   // Device simulator: selection + orientation persist per project.
   const { device, landscape, size: deviceSize, emulation, setDevice, toggleLandscape } = usePreviewDevice(projectId)
   const deviceActive = deviceSize != null
+  const currentDevice = useRef(emulation)
+  currentDevice.current = emulation
+  const currentZoom = useRef(100)
+  currentZoom.current = deviceActive ? 100 : zoomLevel
 
   const useNative = nativeMode && !nativeFailed && isRunning && appUrl != null
   const nav = usePreviewNavigation(projectId, appUrl, useNative)
@@ -85,23 +92,26 @@ export default function AppPreviewTab({
     let disposed = false
 
     const sendBounds = (): void => {
+      if (disposed || !active) return
       const el = containerRef.current
       if (!el) return
       const rect = el.getBoundingClientRect()
       const vw = window.innerWidth
       const vh = window.innerHeight
       // Clip to the visible viewport (the page may scroll under the view)
-      const x = Math.max(0, rect.left)
-      const y = Math.max(0, rect.top)
-      const right = Math.min(vw, rect.right)
-      const bottom = Math.min(vh, rect.bottom)
+      const clip = el.closest('[data-preview-viewport]')?.getBoundingClientRect()
+      const x = Math.max(0, rect.left, clip?.left || 0)
+      const y = Math.max(0, rect.top, clip?.top || 0)
+      const right = Math.min(vw, rect.right, clip?.right || vw)
+      const bottom = Math.min(vh, rect.bottom, clip?.bottom || vh)
       if (right <= x || bottom <= y) {
         ipc.previewHide(projectId)
         return
       }
-      ipc.previewSetBounds(projectId, {
-        x, y, width: right - x, height: bottom - y,
-      })
+      ipc.previewSetBounds(projectId, deviceActive ? {
+        x: rect.left, y: rect.top, width: rect.width, height: rect.height,
+        clip: { x, y, width: right - x, height: bottom - y },
+      } : { x, y, width: right - x, height: bottom - y })
     }
 
     const show = async (): Promise<void> => {
@@ -111,13 +121,18 @@ export default function AppPreviewTab({
       const result = await ipc.previewShow({
         projectId,
         url: appUrl as string,
-        bounds: { x: rect.left, y: rect.top, width: rect.width, height: rect.height },
+        bounds: { x: rect.left, y: rect.top, width: rect.width, height: rect.height,
+          ...(deviceActive ? { clip: { x: Math.max(0, rect.left), y: Math.max(0, rect.top), width: 1, height: 1 } } : {}) },
       })
       if (disposed) return
       if (!result?.success) {
         setNativeFailed(true)
         return
       }
+      await ipc.previewSetDevice(projectId, currentDevice.current)
+      if (disposed) return
+      await ipc.previewZoom(projectId, currentZoom.current)
+      sendBounds()
       // Returning from another top-level view does not necessarily fire a
       // window focus event. Wait for the hidden wrapper's layout to be
       // committed, then explicitly repaint the native view.
@@ -182,10 +197,10 @@ export default function AppPreviewTab({
 
   // Apply zoom level to the native view
   useEffect(() => {
-    if (useNative && zoomLevel !== 100) {
-      ipc.previewZoom(projectId, zoomLevel)
+    if (useNative) {
+      ipc.previewZoom(projectId, deviceActive ? 100 : zoomLevel)
     }
-  }, [useNative, zoomLevel, projectId])
+  }, [useNative, zoomLevel, projectId, deviceActive])
 
   const handleToggleDevTools = useCallback((): void => {
     if (useNative) {
@@ -234,20 +249,20 @@ export default function AppPreviewTab({
         if (e.key === 'Enter') nav.onAddressSubmit()
       }}
       onBlur={nav.onAddressBlur}
-      aria-label="Preview address"
+      aria-label={t('Preview address')}
       className="flex-1 min-w-0 bg-transparent text-xs font-mono text-ink focus:outline-none placeholder:text-ink-faint"
-      placeholder={appUrl || 'No app port configured'}
+      placeholder={appUrl || t('No app port configured')}
     />
   )
 
   const navButtonClass = 'w-7 h-7 rounded-md flex items-center justify-center text-ink-faint hover:text-ink hover:bg-surface-3 disabled:opacity-30 disabled:cursor-not-allowed transition-colors shrink-0'
   const backBtn = useNative ? (
-    <button type="button" onClick={nav.back} disabled={!nav.canGoBack} title="Back" className={navButtonClass}>
+    <button type="button" onClick={nav.back} disabled={!nav.canGoBack} title={t('Back')} className={navButtonClass}>
       <Icon name="chevronLeft" size={14} />
     </button>
   ) : null
   const forwardBtn = useNative ? (
-    <button type="button" onClick={nav.forward} disabled={!nav.canGoForward} title="Forward" className={navButtonClass}>
+    <button type="button" onClick={nav.forward} disabled={!nav.canGoForward} title={t('Forward')} className={navButtonClass}>
       <Icon name="chevronRight" size={14} />
     </button>
   ) : null
@@ -262,43 +277,23 @@ export default function AppPreviewTab({
     />
   )
 
-  const zoomSelector = (
-    <div className="flex items-center gap-1 bg-surface-3 border border-border rounded-md px-1.5 py-0.5 text-xs text-ink-soft font-mono">
-      <span className="text-[10px] text-ink-faint">Zoom:</span>
-      <select
-        value={zoomLevel}
-        disabled={deviceActive}
-        aria-label="Zoom"
-        title={deviceActive ? 'Zoom is fixed while a device is selected' : undefined}
-        onChange={(e) => setZoomLevel(Number(e.target.value))}
-        className="bg-transparent text-xs text-ink font-semibold focus:outline-none cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
-      >
-        <option value={50}>50%</option>
-        <option value={75}>75%</option>
-        <option value={100}>100%</option>
-        <option value={125}>125%</option>
-        <option value={150}>150%</option>
-      </select>
-    </div>
-  )
-
   // The element the native view overlays: full area, or the device-sized
   // screen inside the bezel. Measured for bounds in both cases.
   const screenEl = (
     <div
       ref={containerRef}
-      style={deviceSize ? { width: deviceSize.width, height: deviceSize.height, maxWidth: '100%' } : undefined}
+       style={deviceSize ? { width: deviceSize.width, height: deviceSize.height } : undefined}
       className={deviceActive ? 'relative overflow-hidden bg-black' : 'w-full h-full flex-1 relative overflow-hidden'}
     >
       {useNative ? (
         /* The WebContentsView is layered above this empty region by main */
-        <div className="w-full h-full" aria-label={`Native preview of ${projectName}`} />
+        <div className="w-full h-full" aria-label={t('Native preview of {name}', { name: projectName })} />
       ) : (
         <iframe
           key={nav.iframeKey}
           src={appUrl as string}
-          title={`${projectName} preview`}
-          style={{ zoom: `${zoomLevel}%` }}
+          title={t('{name} preview', { name: projectName })}
+          style={{ zoom: `${deviceActive ? 100 : zoomLevel}%` }}
           className={
             deviceActive
               ? 'w-full h-full border-0 bg-white'
@@ -319,7 +314,8 @@ export default function AppPreviewTab({
       type="button"
       onClick={onClick}
       disabled={opts.disabled}
-      title={title}
+      title={t(title)}
+      aria-label={t(title)}
       className={`w-7 h-7 rounded-md flex items-center justify-center text-ink-faint hover:bg-surface-3 disabled:opacity-30 disabled:cursor-not-allowed transition-colors shrink-0 ${opts.danger ? 'hover:text-danger hover:bg-danger/10' : 'hover:text-ink'}`}
     >
       <Icon name={icon} size={14} />
@@ -336,13 +332,13 @@ export default function AppPreviewTab({
     >
       {/* Mode Fullscreen Floating Info Bar */}
       {fullscreen ? (
-        <div className="sticky top-0 z-30 flex items-center justify-between gap-3 px-3 py-1.5 bg-surface/95 backdrop-blur border-b border-border text-[11px] font-mono select-none">
+        <div className="sticky top-0 z-30 shrink-0 flex flex-wrap items-center justify-between gap-2 px-3 py-1.5 bg-surface/95 backdrop-blur border-b border-border text-xs font-mono select-none">
           {/* Left Metadata */}
           <div className="flex items-center gap-2 min-w-0">
             <button
               type="button"
               onClick={onBack}
-              title="Back to projects"
+              title={t('Back to projects')}
               className="w-7 h-7 rounded-md flex items-center justify-center text-ink-faint hover:text-ink hover:bg-surface-3 transition-colors shrink-0"
             >
               <Icon name="chevronLeft" size={15} />
@@ -352,7 +348,7 @@ export default function AppPreviewTab({
             </div>
             <span className="font-bold text-ink truncate max-w-[150px] sm:max-w-xs">{projectName}</span>
             <span className={`inline-flex items-center text-[10px] font-semibold px-2 py-0.5 rounded-full border ${statusClasses[status] || statusClasses.stopped}`}>
-              {status.charAt(0).toUpperCase() + status.slice(1)}
+              {t(status.charAt(0).toUpperCase() + status.slice(1))}
             </span>
             <span className="text-ink-faint hidden sm:inline">·</span>
             <span className="text-ink-faint truncate hidden sm:inline">
@@ -361,7 +357,7 @@ export default function AppPreviewTab({
           </div>
 
           {/* Editable Address Bar (fullscreen) */}
-          <div className="flex-1 min-w-0 mx-2 h-7 bg-base border border-border rounded-md px-2 flex items-center gap-1.5 text-xs font-mono">
+          <div className="flex-1 min-w-[200px] mx-2 h-7 bg-base border border-border rounded-md px-2 flex items-center gap-1.5 text-xs font-mono">
             {backBtn}
             {forwardBtn}
             <span className={`w-2 h-2 rounded-full ${isRunning ? 'bg-success' : 'bg-ink-faint'} shrink-0`} />
@@ -369,7 +365,7 @@ export default function AppPreviewTab({
           </div>
 
           {/* Right Action Buttons */}
-          <div className="flex items-center gap-1 shrink-0">
+          <div className="flex flex-wrap items-center gap-1">
             {deviceBar}
             {onPrevProject && toolBtn('prev', 'chevronLeft', 'Previous project (Ctrl+←)', onPrevProject)}
             {onNextProject && toolBtn('next', 'chevronRight', 'Next project (Ctrl+→)', onNextProject)}
@@ -378,17 +374,17 @@ export default function AppPreviewTab({
             {useNative && !devtoolsBlocked && (
               <>
                 {toolBtn('devtools', 'code', 'Toggle project DevTools (F12)', handleToggleDevTools)}
-                {toolBtn('clear', 'trash', 'Clear site data (cookies, storage) for this project', nav.clearData, { danger: true })}
               </>
             )}
+            {useNative && toolBtn('clear', 'trash', 'Clear site data (cookies, storage) for this project', nav.clearData, { danger: true })}
             <button
               type="button"
               onClick={onToggleFullscreen}
-              title="Exit fullscreen (ESC)"
+              title={t('Exit fullscreen (ESC)')}
               className="h-7 pl-2 pr-2.5 rounded-md bg-accent/15 hover:bg-accent/25 text-accent border border-accent/30 font-semibold transition-colors flex items-center gap-1.5"
             >
               <Icon name="minimize" size={13} />
-              <span className="text-[11px]">Exit</span>
+              <span className="text-[11px]">{t('Exit')}</span>
             </button>
           </div>
         </div>
@@ -410,7 +406,7 @@ export default function AppPreviewTab({
           {/* Right Controls (Device + Zoom + Open externally + Toggle Fullscreen) */}
           <div className="flex items-center gap-3">
             {deviceBar}
-            {zoomSelector}
+            <PreviewZoom value={zoomLevel} disabled={deviceActive} onChange={setZoomLevel} />
 
             {useNative && toolBtn('clear', 'trash', 'Clear site data (cookies, storage) for this project', nav.clearData, { danger: true })}
 
@@ -418,16 +414,16 @@ export default function AppPreviewTab({
               type="button"
               onClick={nav.openExternal}
               disabled={!appUrl}
-              title="Open in external browser"
+              title={t('Open in external browser')}
               className="text-xs font-medium text-ink-faint hover:text-accent disabled:opacity-30 disabled:cursor-not-allowed flex items-center gap-1.5 transition-colors"
             >
               <Icon name="external" size={13} />
-              <span>Open externally</span>
+              <span>{t('Open externally')}</span>
             </button>
             <button
               type="button"
               onClick={onToggleFullscreen}
-              title="Toggle Fullscreen"
+              title={t('Toggle Fullscreen')}
               className="w-7 h-7 rounded-md bg-surface-3 hover:bg-surface-2 text-xs font-medium text-ink-soft hover:text-ink border border-border flex items-center justify-center transition-colors"
             >
               <Icon name="maximize" size={14} />
@@ -435,6 +431,7 @@ export default function AppPreviewTab({
           </div>
         </div>
       )}
+      {(nav.loading || nav.error || nav.notice) && <div role={nav.error ? 'alert' : 'status'} className="shrink-0 text-xs px-3 py-2 bg-surface-2">{nav.error || (nav.notice ? t(nav.notice) : t('Loading preview…'))}{nav.error && <button className="ml-3 underline" onClick={nav.reload}>{t('Retry')}</button>}</div>}
 
       {/* Main Preview Container — the fit-mode branch keeps the measured
           element as a DIRECT child so its h-full/flex-1 chain never collapses
@@ -442,18 +439,19 @@ export default function AppPreviewTab({
           Centering is dropped ONLY for a real fit-to-window preview; the
           placeholder is a small card and must stay centered in every mode. */}
       <div
+        data-preview-viewport
         className={
           fullscreen && !deviceActive && !showPlaceholder
             ? 'flex-1 relative bg-base flex flex-col w-full h-full p-0 overflow-hidden'
             : fullscreen
-              ? 'flex-1 relative bg-base flex flex-col items-center justify-center w-full h-full p-4 overflow-hidden'
-              : 'flex-1 relative bg-base flex flex-col items-center justify-center p-4'
+              ? deviceActive && !showPlaceholder ? 'flex-1 min-h-0 relative bg-base flex flex-col items-start w-full p-4 overflow-auto' : 'flex-1 relative bg-base flex flex-col items-center justify-center w-full h-full p-4 overflow-hidden'
+              : deviceActive && !showPlaceholder ? 'flex-1 min-w-0 relative bg-base flex flex-col items-start p-4 overflow-auto max-h-[80vh]' : 'flex-1 relative bg-base flex flex-col items-center justify-center p-4'
         }
       >
         {!appUrl ? (
           <PreviewPlaceholder variant="no-port" onEdit={onEdit} />
         ) : !isRunning ? (
-          <PreviewPlaceholder variant="not-running" appUrl={appUrl} onStart={() => onStart?.(project)} />
+          <PreviewPlaceholder variant="not-running" status={status} appUrl={appUrl} onStart={() => onStart?.(project)} />
         ) : (
           <>
             {devicePill && (

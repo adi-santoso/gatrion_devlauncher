@@ -1,8 +1,9 @@
-import type { BrowserWindow, WebContentsView as WebContentsViewType } from 'electron'
+import type { BrowserWindow, View as ViewType, WebContentsView as WebContentsViewType } from 'electron'
 
 const { WebContentsView, session } = require('electron') as typeof import('electron')
 import type { CredentialManager } from './CredentialManager'
 import { applyDeviceEmulation, clearDeviceEmulation, sanitizeEmulationConfig } from './previewDeviceEmulation'
+import { placePreview, type PreviewBounds } from './previewBounds'
 
 interface PreviewEntry {
   view: WebContentsViewType
@@ -12,6 +13,10 @@ interface PreviewEntry {
   canGoBack: boolean
   canGoForward: boolean
   title: string
+  loading?: boolean
+  error?: string | null
+  clipView?: ViewType
+  zoomFactor?: number
 }
 
 /** Snapshot pushed to the renderer whenever the preview URL/state changes. */
@@ -21,13 +26,8 @@ export interface PreviewNavState {
   canGoBack: boolean
   canGoForward: boolean
   title: string
-}
-
-interface PreviewBounds {
-  x: number
-  y: number
-  width: number
-  height: number
+  loading?: boolean
+  error?: string | null
 }
 
 interface ConsoleInfo {
@@ -200,6 +200,15 @@ class PreviewManager {
     this.win.contentView.addChildView(view)
     view.setVisible(false)
     entry = { view, url: null, baseUrl: null, canGoBack: false, canGoForward: false, title: '' }
+    view.webContents.on('did-start-loading', () => { entry!.loading = true; entry!.error = null; this.pushNavState(projectId) })
+    view.webContents.on('dom-ready', () => { if (entry!.zoomFactor != null) view.webContents.setZoomFactor(entry!.zoomFactor) })
+    view.webContents.on('did-stop-loading', () => { entry!.loading = false; this.pushNavState(projectId) })
+    view.webContents.on('did-fail-load', (_event, code, description, _url, isMainFrame) => {
+      if (!isMainFrame || code === -3) return
+      entry!.loading = false
+      entry!.error = description
+      this.pushNavState(projectId)
+    })
 
     // Keep the renderer's mini-browser in sync with the actual page state so
     // the address bar reflects the URL currently being viewed and can offer
@@ -239,6 +248,8 @@ class PreviewManager {
         projectId,
         url: entry.url || '',
         title: entry.title,
+        loading: entry.loading,
+        error: entry.error,
         canGoBack,
         canGoForward,
       } satisfies PreviewNavState)
@@ -266,11 +277,16 @@ class PreviewManager {
       entry.baseUrl = url
       entry.url = url
       entry.view.webContents.loadURL(url).catch((error) => {
+        if (entry.url !== url || (error as { code?: string }).code === 'ERR_ABORTED') return
+        entry.loading = false
+        entry.error = error.message
+        this.pushNavState(projectId)
         console.error(`[Preview] Failed to load ${url}:`, error)
       })
     }
 
     this.setBounds(projectId, bounds)
+    entry.clipView?.setVisible(true)
     entry.view.setVisible(true)
     this.hideOthers(projectId)
     console.log(`[Preview] Showing native WebContentsView for ${projectId} at ${url} (${bounds?.width}x${bounds?.height})`)
@@ -279,6 +295,7 @@ class PreviewManager {
 
   /** Hide a project's view but keep it alive (page state preserved). */
   hide(projectId: string) {
+    this.views.get(projectId)?.clipView?.setVisible(false)
     const view = this.getView(projectId)
     if (view) view.setVisible(false)
     return { success: true }
@@ -286,31 +303,13 @@ class PreviewManager {
 
   hideOthers(exceptProjectId: string) {
     for (const [id, entry] of this.views) {
-      if (id !== exceptProjectId) entry.view.setVisible(false)
+      if (id !== exceptProjectId) { entry.view.setVisible(false); entry.clipView?.setVisible(false) }
     }
   }
 
   setBounds(projectId: string, bounds?: PreviewBounds) {
-    const view = this.getView(projectId)
-    if (!view || !bounds) return
-    const { x, y, width, height } = bounds
-    if (![x, y, width, height].every(Number.isFinite)) return
-    const next = {
-      x: Math.round(x),
-      y: Math.round(y),
-      width: Math.max(1, Math.round(width)),
-      height: Math.max(1, Math.round(height)),
-    }
-    const prev = view.getBounds?.() ?? null
-    view.setBounds(next)
-    // Windows compositor quirk: growing a WebContentsView can leave the newly
-    // exposed area black until the web contents repaints (classic "blank
-    // fullscreen" symptom — e.g. entering the in-app fullscreen preview).
-    // Force a repaint when the size changed; position-only moves expose no
-    // new surface and can skip it.
-    if (!prev || prev.width !== next.width || prev.height !== next.height) {
-      view.webContents.invalidate?.()
-    }
+    const entry = this.views.get(projectId)
+    if (entry && bounds) placePreview(this.win, entry, bounds)
   }
 
   navigate(projectId: string, url: string) {
@@ -318,6 +317,10 @@ class PreviewManager {
     if (!entry) return { success: false, error: 'Preview not created yet' }
     entry.url = url
     entry.view.webContents.loadURL(url).catch((error) => {
+      if (entry.url !== url || (error as { code?: string }).code === 'ERR_ABORTED') return
+      entry.loading = false
+      entry.error = error.message
+      this.pushNavState(projectId)
       console.error(`[Preview] Navigate failed:`, error)
     })
     return { success: true }
@@ -334,6 +337,8 @@ class PreviewManager {
         projectId,
         url: entry.url || '',
         title: entry.title,
+        loading: entry.loading,
+        error: entry.error,
         canGoBack: entry.canGoBack,
         canGoForward: entry.canGoForward,
       },
@@ -362,10 +367,11 @@ class PreviewManager {
   }
 
   setZoom(projectId: string, zoomLevel: number) {
-    const view = this.getView(projectId)
-    if (!view) return { success: false, error: 'Preview not created yet' }
+    const entry = this.views.get(projectId)
+    if (!entry) return { success: false, error: 'Preview not created yet' }
     const factor = Math.max(0.25, Math.min(3, (zoomLevel || 100) / 100))
-    view.webContents.setZoomFactor(factor)
+    entry.zoomFactor = factor
+    entry.view.webContents.setZoomFactor(factor)
     return { success: true }
   }
 
@@ -469,7 +475,10 @@ class PreviewManager {
     const entry = this.views.get(projectId)
     if (!entry) return { success: true }
     try {
-      this.win?.contentView.removeChildView(entry.view)
+      if (entry.clipView) {
+        entry.clipView.removeChildView(entry.view)
+        this.win?.contentView.removeChildView(entry.clipView)
+      } else this.win?.contentView.removeChildView(entry.view)
       if (!entry.view.webContents.isDestroyed()) {
         entry.view.webContents.close()
       }

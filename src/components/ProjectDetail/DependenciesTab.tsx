@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import Icon from '../Common/Icon';
 import * as ipc from '../../utils/ipcRenderer';
 import { ConfirmDialog } from '../Modals';
 import type { ProjectRuntime } from '../../hooks/useProjects';
 import type { SimpleResult } from '../../data/ipcCore';
 import { composerOutdated, composerUpdate, goOutdated, goUpdate, pipOutdated, pipUpdate, cargoOutdated, cargoUpdate, OutdatedDependency } from '../../data/dependencies';
+import { useDetailI18n } from './useDetailI18n';
 
 const btnBase = 'inline-flex items-center gap-1.5 h-8 px-3 rounded-lg text-xs font-medium transition-colors whitespace-nowrap';
 const btnSecondary = `${btnBase} bg-surface-3 hover:bg-surface-2 text-ink-soft hover:text-ink border border-border disabled:opacity-50 disabled:cursor-not-allowed`;
@@ -44,7 +45,7 @@ interface ManagerUi {
 
 const MANAGER_UI: Record<ManagerKey, ManagerUi> = {
   npm: {
-    key: 'npm', label: 'npm (Node.js)', sub: 'npm outdated', updateLabel: 'npm update',
+    key: 'npm', label: 'Node.js package manager', sub: 'Detected manager outdated scan', updateLabel: 'detected manager compatible update',
     backupNote: 'package.json + lockfile',
     nothingMsg: 'No package.json found in this project.',
     icon: 'package', supportsUpdateAll: true,
@@ -57,13 +58,13 @@ const MANAGER_UI: Record<ManagerKey, ManagerUi> = {
   },
   go: {
     key: 'go', label: 'Go modules', sub: 'go list -m -u', updateLabel: 'go get @latest',
-    backupNote: 'go.mod (no backup — module file is the source of truth)',
+    backupNote: 'go.mod + go.sum',
     nothingMsg: 'No go.mod found in this project.',
     icon: 'package', supportsUpdateAll: false,
   },
   pip: {
-    key: 'pip', label: 'Python (pip)', sub: 'pip list --outdated', updateLabel: 'pip install --upgrade',
-    backupNote: 'requirements.txt (when present)',
+    key: 'pip', label: 'Python project virtual environment', sub: 'project Python -m pip list --outdated', updateLabel: 'project Python -m pip install --upgrade',
+    backupNote: 'requirements.txt / pyproject.toml. Updates affect installed packages; pins are not rewritten',
     nothingMsg: 'No requirements.txt or pyproject.toml found in this project.',
     icon: 'package', supportsUpdateAll: false,
   },
@@ -98,39 +99,40 @@ function ManagerSection({
   onUpdateAll: () => void;
   onInitUpdate: (item: OutdatedDependency) => void;
 }) {
-  if (!state.present) return null;
+  const t = useDetailI18n();
+  if (!state.present && !state.error) return null;
   const isEmpty = state.outdated.length === 0;
 
   return (
     <div className="bg-surface border border-border rounded-xl shadow-card overflow-hidden">
       <div className="flex items-center justify-between gap-3 px-4 py-2.5 border-b border-border bg-surface-2 flex-wrap">
         <div>
-          <p className="text-xs font-semibold text-ink">{ui.label}</p>
-          <p className="text-[10px] text-ink-faint mt-0.5">Runs <span className="font-mono">{ui.sub}</span></p>
+          <p className="text-xs font-semibold text-ink">{t(ui.label)}</p>
+          <p className="text-[10px] text-ink-faint mt-0.5">{t('Runs')} <span className="font-mono">{t(ui.sub)}</span></p>
         </div>
         <div className="flex items-center gap-2">
           {ui.supportsUpdateAll && state.outdated.length > 0 && (
             <button onClick={onUpdateAll} disabled={busy !== null} className={btnPrimary} title={ui.updateLabel}>
               <Icon name="download" size={13} />
-              Update all
+              {t('Update all')}
             </button>
           )}
-          <button onClick={onRefresh} disabled={busy !== null} className={btnSecondary} title="Re-check">
+          <button onClick={onRefresh} disabled={busy !== null} className={btnSecondary} title={t('Re-check')}>
             <Icon name="restart" size={13} />
-            Re-check
+            {t('Re-check')}
           </button>
         </div>
       </div>
 
       {state.notice && (
-        <p className="text-xs px-4 py-2.5 text-ink-soft bg-surface-2 border-b border-border">{state.notice}</p>
+        <p className="text-xs px-4 py-2.5 text-ink-soft bg-surface-2 border-b border-border">{t(state.notice)}</p>
       )}
 
       {state.error && (
-        <p className="text-xs px-4 py-2.5 text-danger">{state.error}</p>
+        <p role="alert" className="text-xs px-4 py-2.5 text-danger">{state.error}</p>
       )}
 
-      {state.loading && !state.error ? (
+      {state.error || state.notice ? <p role="status" className="px-4 py-3 text-sm text-warning">{t('Dependency health is unavailable until a scan completes successfully.')}</p> : state.loading ? (
         <div className="p-4 space-y-3">
           <div className="skeleton h-9 w-full" />
           <div className="skeleton h-9 w-full" />
@@ -141,19 +143,19 @@ function ManagerSection({
           <div className="w-10 h-10 rounded-full bg-success/10 text-success flex items-center justify-center mx-auto mb-2">
             <Icon name="check" size={18} />
           </div>
-          <h3 className="font-display font-bold text-sm text-ink">Up to date</h3>
-          <p className="text-xs text-ink-faint mt-1">No outdated {ui.key === 'go' ? 'modules' : 'packages'} found.</p>
+          <h3 className="font-display font-bold text-sm text-ink">{t('Up to date')}</h3>
+          <p className="text-xs text-ink-faint mt-1">{t(ui.key === 'go' ? 'No outdated modules found.' : 'No outdated packages found.')}</p>
         </div>
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full text-xs">
             <thead>
               <tr className="text-left text-[10px] uppercase tracking-wider text-ink-faint border-b border-border/50">
-                <th className="px-4 py-2 font-medium">Package</th>
-                <th className="px-3 py-2 font-medium">Current</th>
-                <th className="px-3 py-2 font-medium">Wanted</th>
-                <th className="px-3 py-2 font-medium">Latest</th>
-                <th className="px-4 py-2 font-medium text-right">Action</th>
+                <th className="px-4 py-2 font-medium">{t('Package')}</th>
+                <th className="px-3 py-2 font-medium">{t('Current')}</th>
+                <th className="px-3 py-2 font-medium">{t('Wanted')}</th>
+                <th className="px-3 py-2 font-medium">{t('Latest')}</th>
+                <th className="px-4 py-2 font-medium text-right">{t('Action')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border/50">
@@ -168,10 +170,10 @@ function ManagerSection({
                       onClick={() => onInitUpdate(item)}
                       disabled={busy !== null}
                       className="inline-flex items-center gap-1 text-[10px] text-ink-faint hover:text-accent transition-colors"
-                      title={`Update ${item.name} to ${item.latest}`}
+                      title={t('Update {name} within manager constraints', { name: item.name })}
                     >
                       <Icon name="download" size={11} />
-                      Update
+                      {t('Update')}
                     </button>
                   </td>
                 </tr>
@@ -182,24 +184,32 @@ function ManagerSection({
       )}
 
       <p className="text-[10px] text-ink-faint px-4 py-2 border-t border-border/50">
-        Backups: {ui.backupNote}. Updates run via <span className="font-mono">{ui.updateLabel}</span>.
+        {t('Backups')}: {t(ui.backupNote)}. {t('Updates run via')} <span className="font-mono">{t(ui.updateLabel)}</span>.
       </p>
     </div>
   );
 }
 
 export default function DependenciesTab({ project }: { project: ProjectRuntime | null }) {
+  return <ProjectDependencies key={project?.path} project={project} />;
+}
+function ProjectDependencies({ project }: { project: ProjectRuntime | null }) {
+  const t = useDetailI18n();
   const projectPath = project?.path;
   const [managers, setManagers] = useState<Record<ManagerKey, ManagerState>>(INITIAL_MANAGER);
   const [runningRefresh, setRunningRefresh] = useState(false);
   const [notice, setNotice] = useState<Notice | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [confirmUpdate, setConfirmUpdate] = useState<ConfirmUpdateTarget | null>(null);
+  const requestRef = useRef(0);
+  const actionRef = useRef(false);
+  useEffect(() => () => { requestRef.current++; }, []);
 
   const refresh = useCallback(async () => {
     if (!projectPath) return;
+    const request = ++requestRef.current;
     setRunningRefresh(true);
-    setNotice(null);
+    setNotice(previous => previous?.type === 'info' ? null : previous);
 
     // Each adapter normalizes the manager's result to a common shape, so the
     // various domain wrappers (with different optional flags) can be unified.
@@ -243,6 +253,7 @@ export default function DependenciesTab({ project }: { project: ProjectRuntime |
         return { key, present: false, outdated: [], error: (e instanceof Error ? e.message : String(e)) };
       }
     }));
+    if (request !== requestRef.current) return;
 
     const next: Record<ManagerKey, ManagerState> = { ...INITIAL_MANAGER };
     let presentCount = 0;
@@ -258,11 +269,11 @@ export default function DependenciesTab({ project }: { project: ProjectRuntime |
     }
     setManagers(next);
 
-    if (presentCount === 0) {
-      setNotice({ type: 'info', message: 'No supported dependency manifest found. Supported: package.json, composer.json, go.mod, requirements.txt/pyproject.toml, Cargo.toml.' });
+    if (presentCount === 0 && !results.some(result => result.error)) {
+      setNotice({ type: 'info', message: t('No supported dependency manifest found. Supported: package.json, composer.json, go.mod, requirements.txt/pyproject.toml, Cargo.toml.') });
     }
     setRunningRefresh(false);
-  }, [projectPath]);
+  }, [projectPath, t]);
 
   useEffect(() => {
     // Show loading for known-present managers lazily (npm only if package.json).
@@ -270,6 +281,8 @@ export default function DependenciesTab({ project }: { project: ProjectRuntime |
   }, [refresh]);
 
   const handleUpdate = async (target: ConfirmUpdateTarget): Promise<void> => {
+    if (actionRef.current || runningRefresh) return;
+    actionRef.current = true;
     setConfirmUpdate(null);
     setBusy(`${target.manager}:${target.name || 'all'}`);
     setNotice(null);
@@ -279,41 +292,44 @@ export default function DependenciesTab({ project }: { project: ProjectRuntime |
         case 'npm': result = await ipc.npmUpdate(projectPath!, target.name); break;
         case 'composer': result = await composerUpdate(projectPath!, target.name); break;
         case 'go': {
-          if (!target.name) { setNotice({ type: 'error', message: 'Go updates are applied one module at a time.' }); setBusy(null); return; }
+          if (!target.name) { setNotice({ type: 'error', message: t('Go updates are applied one module at a time.') }); setBusy(null); return; }
           result = await goUpdate(projectPath!, target.name);
           break;
         }
         case 'pip': {
-          if (!target.name) { setNotice({ type: 'error', message: 'pip updates are applied one package at a time.' }); setBusy(null); return; }
+          if (!target.name) { setNotice({ type: 'error', message: t('pip updates are applied one package at a time.') }); setBusy(null); return; }
           result = await pipUpdate(projectPath!, target.name);
           break;
         }
         case 'cargo': {
-          if (!target.name) { setNotice({ type: 'error', message: 'Cargo updates are applied one package at a time.' }); setBusy(null); return; }
+          if (!target.name) { setNotice({ type: 'error', message: t('Cargo updates are applied one package at a time.') }); setBusy(null); return; }
           result = await cargoUpdate(projectPath!, target.name);
           break;
         }
       }
       if (result.success) {
-        setNotice({ type: 'success', message: `${target.name ? `"${target.name}"` : 'All packages'} updated.` });
         await refresh();
+        const backups = (result as SimpleResult & { backups?: string[] }).backups || [];
+        setNotice({ type: 'success', message: t('Update completed. Backups: {files}', { files: backups.join(', ') || t('None') }) });
       } else {
-        setNotice({ type: 'error', message: result.error || 'Update failed.' });
+        setNotice({ type: 'error', message: result.error || t('Update failed.') });
       }
     } catch (error) {
       setNotice({ type: 'error', message: (error instanceof Error ? error.message : String(error)) || 'Update failed.' });
     } finally {
+      actionRef.current = false;
       setBusy(null);
     }
   };
 
-  const presentManagers = Object.values(MANAGER_UI).filter((ui) => managers[ui.key].present);
+  const presentManagers = Object.values(MANAGER_UI).filter((ui) => managers[ui.key].present || managers[ui.key].error);
   const totalOutdated = presentManagers.reduce((sum, ui) => sum + managers[ui.key].outdated.length, 0);
 
   return (
     <div className="space-y-4">
+      <div className="flex items-center justify-between"><p role="status" className="text-sm">{busy ? t('Updating {task}… This can take several minutes.', { task: busy }) : t(runningRefresh ? 'Checking dependencies…' : 'Dependency scan')}</p><button disabled={Boolean(busy) || runningRefresh} onClick={() => refresh()} className={btnSecondary}>{t('Re-check all')}</button></div>
       {notice && (
-        <p className={`text-xs px-3 py-2 rounded-lg border ${
+        <p role={notice.type === 'error' ? 'alert' : 'status'} className={`text-xs px-3 py-2 rounded-lg border ${
           notice.type === 'success' ? 'text-success border-success/20 bg-success/10'
             : notice.type === 'error' ? 'text-danger border-danger/20 bg-danger/10'
               : 'text-ink-soft border-border bg-surface-2'
@@ -334,7 +350,7 @@ export default function DependenciesTab({ project }: { project: ProjectRuntime |
             key={ui.key}
             ui={ui}
             state={managers[ui.key]}
-            busy={busy}
+            busy={busy || (runningRefresh ? 'Scanning' : null)}
             onRefresh={() => refresh()}
             onUpdateAll={() => setConfirmUpdate({ manager: ui.key, name: null, target: 'all' })}
             onInitUpdate={(item) => setConfirmUpdate({ manager: ui.key, name: item.name, target: `${item.name}@${item.latest}` })}
@@ -344,15 +360,15 @@ export default function DependenciesTab({ project }: { project: ProjectRuntime |
 
       <ConfirmDialog
         isOpen={confirmUpdate !== null}
-        title="Update Dependencies"
+        title={t('Update Dependencies')}
         message={confirmUpdate?.name === null
-          ? `Update all outdated packages in ${MANAGER_UI[confirmUpdate!.manager]?.label || 'this project'} to their latest versions?`
-          : `Update "${confirmUpdate?.name}" to ${confirmUpdate?.target}?`}
-        confirmLabel="Update"
+          ? t('Update packages in {manager} within existing version constraints?', { manager: t(MANAGER_UI[confirmUpdate!.manager]?.label || 'this project') })
+          : t('Update "{name}" using {command}? Compatible managers respect manifest constraints; Go and pip request the latest available version.', { name: confirmUpdate?.name || '', command: confirmUpdate ? t(MANAGER_UI[confirmUpdate.manager].updateLabel) : '' })}
+        confirmLabel={t('Update')}
         onConfirm={() => handleUpdate(confirmUpdate!)}
         onCancel={() => setConfirmUpdate(null)}
       />
-      <p className="text-[11px] text-ink-faint">Total: {totalOutdated} outdated across {presentManagers.length} manager(s).</p>
+      <p className="text-[11px] text-ink-faint">{t('Total: {count} outdated across {managers} manager(s).', { count: totalOutdated, managers: presentManagers.length })}</p>
     </div>
   );
 }

@@ -1,6 +1,7 @@
 import { describe, test, expect, vi } from 'vitest'
 
 import { createToolRunner, execTool } from '../packageRunner'
+import path from 'node:path'
 
 function makeChild({ code = 0, stdout = '', stderr = '', error = null, autoClose = true } = {}) {
   const child = {
@@ -16,6 +17,17 @@ function makeChild({ code = 0, stdout = '', stderr = '', error = null, autoClose
 }
 
 describe('packageRunner — execTool', () => {
+  test('runs project-local Python directly even when the path has spaces', async () => {
+    const spawn = vi.fn(() => makeChild({ stdout: '[]' }))
+    const python = path.resolve('project with spaces/.venv/Scripts/python.exe')
+    await createToolRunner(spawn).execTool(python, process.cwd(), ['-m', 'pip', 'list'])
+    expect(spawn).toHaveBeenCalledWith(python, ['-m', 'pip', 'list'], expect.objectContaining({ shell: false }))
+  })
+
+  test('rejects a signal termination instead of reporting a successful scan', async () => {
+    const runner = createToolRunner(() => makeChild({ code: null }))
+    await expect(runner.execTool('composer', '.', ['outdated'])).rejects.toThrow()
+  })
   test('spawns the tool joined with args through a shell', async () => {
     const spawn = vi.fn(() => makeChild({ code: 0, stdout: '{}' }))
     const runner = createToolRunner(spawn)

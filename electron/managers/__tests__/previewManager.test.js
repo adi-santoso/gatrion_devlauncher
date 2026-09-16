@@ -30,6 +30,30 @@ beforeEach(() => {
 })
 
 describe('PreviewManager', () => {
+  test('clips a scrolled device without changing its native viewport resolution', () => {
+    const manager = new PreviewManager()
+    manager.setWindow(makeWindow())
+    manager.show({ projectId: 'device', url: 'http://localhost:3000', bounds })
+    manager.setBounds('device', { x: 100, y: -100, width: 375, height: 667, clip: { x: 100, y: 80, width: 375, height: 400 } })
+    expect(manager.getView('device').bounds).toEqual({ x: 0, y: -180, width: 375, height: 667 })
+    expect(manager.views.get('device').clipView.getBounds()).toEqual({ x: 100, y: 80, width: 375, height: 400 })
+    manager.hide('device')
+    expect(manager.views.get('device').clipView.getVisible()).toBe(false)
+    manager.setBounds('device', bounds)
+    expect(manager.getView('device').bounds).toEqual(bounds)
+    expect(manager.views.get('device').clipView).toBeUndefined()
+  })
+
+  test('publishes load failures and clears them on the next load attempt', () => {
+    const manager = new PreviewManager()
+    manager.setWindow(makeWindow())
+    manager.show({ projectId: 'p1', url: 'http://localhost:3000', bounds })
+    const handlers = manager.getView('p1').consoleHandlers
+    handlers['did-fail-load']({}, -102, 'ERR_CONNECTION_REFUSED', '', true)
+    expect(manager.getState('p1').data).toMatchObject({ loading: false, error: 'ERR_CONNECTION_REFUSED' })
+    handlers['did-start-loading']()
+    expect(manager.getState('p1').data).toMatchObject({ loading: true, error: null })
+  })
   test('creates a sandboxed persistent-partition view and shows it', () => {
     const manager = new PreviewManager()
     const win = makeWindow()

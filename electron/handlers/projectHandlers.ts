@@ -15,6 +15,7 @@ import { assertTrustedIpcEvent } from '../utils/ipcSecurity'
 import { safeHandle } from '../utils/ipcValidation'
 import { searchWorkspaceFiles } from '../utils/workspaceSearch'
 import { normalizePathKey } from '../utils/pathKey'
+import { readFileTail } from '../utils/readFileTail'
 const assertProjectDirectory = (projectPath: unknown) => {
   let stats
   try {
@@ -350,9 +351,13 @@ function setupProjectHandlers(
   })
 
   // Write a single env file (creates a timestamped backup of the previous file)
-  handle('write-env-file', async (_event, projectPath, fileName, content) => {
+  handle('write-env-file', async (_event, projectPath, fileName, content, modifiedAt) => {
     if (typeof content !== 'string') throw new Error('Env file content must be a string')
     const target = assertEnvFilePath(projectPath, fileName)
+    if (typeof modifiedAt === 'number') {
+      const current = await fs.promises.stat(target)
+      if (current.mtimeMs !== modifiedAt) throw new Error('This file changed on disk. Copy your draft, then discard and reload before saving.')
+    }
     if (fs.existsSync(target)) {
       const backupName = `${fileName}.backup-${new Date().toISOString().replace(/[:.]/g, '-')}`
       await fs.promises.copyFile(target, path.join(path.dirname(target), backupName))
@@ -401,9 +406,10 @@ function setupProjectHandlers(
     const target = path.resolve(logsDir, fileName)
     if (path.dirname(target) !== logsDir) throw new Error('Log file must be inside storage/logs')
 
+    const limit = typeof maxLines === 'number' && Number.isInteger(maxLines) && maxLines > 0 ? Math.min(maxLines, 100000) : 5000
     let content
     try {
-      content = await fs.promises.readFile(target, 'utf8')
+      content = await readFileTail(target, limit)
     } catch (error) {
       if (error && (error as NodeJS.ErrnoException).code === 'ENOENT') {
         throw new Error(`Log file ${fileName} does not exist`)
@@ -411,14 +417,10 @@ function setupProjectHandlers(
       throw error
     }
 
-    const limit = typeof maxLines === 'number' && Number.isInteger(maxLines) && maxLines > 0
-      ? Math.min(maxLines, 100000)
-      : 5000
-    const lines = content.split(/\r?\n/).slice(-limit)
+    const lines = content ? content.split(/\r?\n/) : []
     const stats = await fs.promises.stat(target).catch(() => null)
     return { success: true, fileName, content: lines.join('\n'), lineCount: lines.length, modifiedAt: stats?.mtimeMs ?? null }
   })
 }
 
 export { setupProjectHandlers }
-

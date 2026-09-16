@@ -30,7 +30,7 @@ describe('env file data layer', () => {
 
   it('writeEnvFile forwards path, file name and content', async () => {
     await writeEnvFile('C:/proj', '.env', 'A=2\n')
-    expect(window.electron.writeEnvFile).toHaveBeenCalledWith('C:/proj', '.env', 'A=2\n')
+    expect(window.electron.writeEnvFile).toHaveBeenCalledWith('C:/proj', '.env', 'A=2\n', undefined)
   })
 
   it('falls back to empty file list without the Electron bridge', async () => {

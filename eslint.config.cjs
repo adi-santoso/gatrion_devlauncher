@@ -5,7 +5,7 @@ const tseslint = require('typescript-eslint')
 
 module.exports = [
   {
-    ignores: ['node_modules/**', 'dist/**', 'dist-react/**', 'out/**', 'build/**', 'coverage/**', 'temp-*.js'],
+    ignores: ['node_modules/**', 'dist/**', 'dist-react/**', 'out/**', 'build/**', 'coverage/**', 'test-results/**', 'tests/.runtime/**', 'temp-*.js'],
   },
   js.configs.recommended,
   {

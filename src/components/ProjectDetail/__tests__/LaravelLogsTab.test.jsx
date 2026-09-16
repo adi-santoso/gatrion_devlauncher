@@ -64,6 +64,16 @@ describe('LaravelLogsTab', () => {
     await waitFor(() => expect(screen.getByText(/No log files/i)).toBeInTheDocument())
   })
 
+  it('shows empty file contents and discovers log rotation via refresh', async () => {
+    ipc.readLaravelLog.mockResolvedValue({ success: true, content: '', lineCount: 0 })
+    render(<LaravelLogsTab projectPath="C:/demo" />)
+    await waitFor(() => expect(ipc.readLaravelLog).toHaveBeenCalled())
+    expect(screen.getByText(/No log entries found/)).toBeVisible()
+    ipc.listLaravelLogs.mockResolvedValue({ success: true, files: [{ name: 'new.log', size: 1 }] })
+    fireEvent.click(screen.getByRole('button', { name: 'Refresh files' }))
+    await waitFor(() => expect(ipc.readLaravelLog).toHaveBeenLastCalledWith('C:/demo', 'new.log', 5000))
+  })
+
   it('renders raw lines without a timestamp/level header', async () => {
     render(<LaravelLogsTab projectPath="C:/demo" />)
     await waitFor(() => expect(screen.getByText(/plain line without a level/i)).toBeInTheDocument())

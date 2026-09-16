@@ -231,6 +231,20 @@ describe('projectHandlers', () => {
     expect(traversal.success).toBe(false)
   })
 
+  test('rejects a stale env save after an external edit, preserving the external contents', async () => {
+    const file = path.join(tempRoot, '.env')
+    fs.writeFileSync(file, 'ORIGINAL=1')
+    setupProjectHandlers(makeStorageManager(), makeProcessManager(), makeWindow())
+    const read = await ipcMain._handlers.get('read-env-file')(fakeEvent, tempRoot, '.env')
+    fs.writeFileSync(file, 'EXTERNAL=2')
+    const later = new Date(Date.now() + 10000)
+    fs.utimesSync(file, later, later)
+    const result = await ipcMain._handlers.get('write-env-file')(fakeEvent, tempRoot, '.env', 'DRAFT=3', read.modifiedAt)
+    expect(result.success).toBe(false)
+    expect(result.error).toContain('changed on disk')
+    expect(fs.readFileSync(file, 'utf8')).toBe('EXTERNAL=2')
+  })
+
   test('list-laravel-logs returns .log files from storage/logs sorted newest first', async () => {
     const logsDir = path.join(tempRoot, 'storage', 'logs')
     fs.mkdirSync(logsDir, { recursive: true })

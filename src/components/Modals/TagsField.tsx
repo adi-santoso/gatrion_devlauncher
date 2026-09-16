@@ -1,4 +1,5 @@
 import { forwardRef, useImperativeHandle, useState } from 'react';
+import { useDetailI18n } from '../ProjectDetail/useDetailI18n';
 
 export interface TagsFieldHandle {
   /** Tags including any typed-but-uncommitted input; also commits them via onChange. */
@@ -20,6 +21,7 @@ const INPUT_CLASS = 'flex-1 bg-surface-3 border border-border rounded-lg px-2.5 
  * in jsdom/quick clicks — the pending value must not be silently dropped).
  */
 const TagsField = forwardRef<TagsFieldHandle, TagsFieldProps>(({ tags, existingTags, onChange }, ref) => {
+  const t = useDetailI18n();
   const [input, setInput] = useState('');
 
   const commit = (): void => {
@@ -47,10 +49,11 @@ const TagsField = forwardRef<TagsFieldHandle, TagsFieldProps>(({ tags, existingT
 
   return (
     <div>
-      <label className="text-xs text-ink-soft mb-1.5 block">Tags</label>
+      <label htmlFor="project-tags" className="text-xs text-ink-soft mb-1.5 block">{t('Tags')}</label>
       <input
         type="text"
-        placeholder="Add tag, press Enter"
+        id="project-tags"
+        placeholder={t('Add tag, press Enter')}
         value={input}
         onChange={(e) => setInput(e.target.value)}
         onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); commit(); } }}
@@ -79,7 +82,7 @@ const TagsField = forwardRef<TagsFieldHandle, TagsFieldProps>(({ tags, existingT
           {tags.map((tag) => (
             <span key={tag} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-surface-3 border border-border text-[10px] text-ink-soft">
               {tag}
-              <button type="button" onClick={() => onChange(tags.filter((t) => t !== tag))} className="text-ink-faint hover:text-danger">✕</button>
+              <button type="button" aria-label={t('Remove tag {tag}', { tag })} onClick={() => onChange(tags.filter((t) => t !== tag))} className="text-ink-faint hover:text-danger">✕</button>
             </span>
           ))}
         </div>

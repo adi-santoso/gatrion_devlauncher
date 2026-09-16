@@ -55,6 +55,16 @@ afterEach(() => {
 })
 
 describe('AppPreviewTab native view focus handling', () => {
+  it('sends zoom 100 after 150 and discovers a port added after mount', async () => {
+    const { rerender } = render(<AppPreviewTab project={{ ...project, port: null }} />)
+    expect(ipc.previewShow).not.toHaveBeenCalled()
+    rerender(<AppPreviewTab project={project} />)
+    await waitFor(() => expect(ipc.previewShow).toHaveBeenCalled())
+    fireEvent.change(screen.getByLabelText('Zoom'), { target: { value: '150' } })
+    expect(ipc.previewZoom).toHaveBeenLastCalledWith('p1', 150)
+    fireEvent.change(screen.getByLabelText('Zoom'), { target: { value: '100' } })
+    expect(ipc.previewZoom).toHaveBeenLastCalledWith('p1', 100)
+  })
   it('re-asserts bounds and nudges a repaint when the window regains focus', () => {
     render(<AppPreviewTab project={project} />)
     expect(screen.getByLabelText('Native preview of Alpha')).toBeInTheDocument()
@@ -309,7 +319,7 @@ describe('AppPreviewTab preview area centering', () => {
     expect(container.className).not.toContain('justify-center')
   })
 
-  it('centers a device-simulated preview in fullscreen', async () => {
+  it('keeps oversized fullscreen devices reachable from the top of a scrollable viewport', async () => {
     renderApp(<AppPreviewTab project={project} fullscreen />)
     fireEvent.change(screen.getByLabelText('Device'), { target: { value: 'iphone-15' } })
 
@@ -318,8 +328,9 @@ describe('AppPreviewTab preview area centering', () => {
     await waitFor(() => {
       const screenEl = screen.getByLabelText('Native preview of Alpha').parentElement
       const container = screenEl.parentElement.parentElement
-      expect(container.className).toContain('items-center')
-      expect(container.className).toContain('justify-center')
+      expect(container.className).toContain('items-start')
+      expect(container.className).toContain('overflow-auto')
+      expect(screenEl.style.height).toBe('852px')
     })
   })
 })

@@ -72,6 +72,7 @@ export interface EnvFileResult {
   success: boolean
   content?: string
   error?: string
+  modifiedAt?: number
 }
 
 export interface LaravelLogFile {
@@ -234,11 +235,11 @@ export const readEnvFile = async (projectPath: string, fileName: string): Promis
   return invoke<EnvFileResult>('readEnvFile', projectPath, fileName)
 }
 
-export const writeEnvFile = async (projectPath: string, fileName: string, content: string): Promise<SimpleResult> => {
+export const writeEnvFile = async (projectPath: string, fileName: string, content: string, modifiedAt?: number): Promise<SimpleResult> => {
   if (!isElectron()) {
     return { success: true }
   }
-  return invoke<SimpleResult>('writeEnvFile', projectPath, fileName, content)
+  return invoke<SimpleResult>('writeEnvFile', projectPath, fileName, content, modifiedAt)
 }
 
 export const listLaravelLogs = async (projectPath: string): Promise<LaravelLogsResult> => {

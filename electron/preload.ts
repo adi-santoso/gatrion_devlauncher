@@ -47,7 +47,7 @@ interface ElectronApi {
   // Env Files
   listEnvFiles: (projectPath: string) => Promise<unknown>
   readEnvFile: (projectPath: string, fileName: string) => Promise<unknown>
-  writeEnvFile: (projectPath: string, fileName: string, content: string) => Promise<unknown>
+  writeEnvFile: (projectPath: string, fileName: string, content: string, modifiedAt?: number) => Promise<unknown>
 
   // Laravel Logs
   listLaravelLogs: (projectPath: string) => Promise<unknown>
@@ -291,7 +291,7 @@ const api: ElectronApi = {
   // Env Files
   listEnvFiles: (projectPath) => ipcRenderer.invoke('list-env-files', projectPath),
   readEnvFile: (projectPath, fileName) => ipcRenderer.invoke('read-env-file', projectPath, fileName),
-  writeEnvFile: (projectPath, fileName, content) => ipcRenderer.invoke('write-env-file', projectPath, fileName, content),
+  writeEnvFile: (projectPath, fileName, content, modifiedAt) => ipcRenderer.invoke('write-env-file', projectPath, fileName, content, modifiedAt),
 
   // Laravel Logs
   listLaravelLogs: (projectPath) => ipcRenderer.invoke('list-laravel-logs', projectPath),

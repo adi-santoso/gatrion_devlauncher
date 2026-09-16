@@ -4,6 +4,9 @@ import DropdownMenu, { DropdownItem } from '../Common/DropdownMenu';
 import AnimatedModal from '../Common/AnimatedModal';
 import StackLogo from '../Common/StackLogo';
 import TagsField, { type TagsFieldHandle } from './TagsField';
+import EnvironmentFields from './EnvironmentFields';
+import CustomCommandFields from './CustomCommandFields';
+import { useDetailI18n } from '../ProjectDetail/useDetailI18n';
 import { typeLabel, TYPE_LABELS } from '../../utils/typeLabels';
 import type { ProjectRuntime } from '../../hooks/useProjects';
 import type { DetectTypeResult } from '../../data/projects';
@@ -21,6 +24,7 @@ interface ProjectModalProps {
 }
 
 const ProjectModal = ({ isOpen, onClose, onSave, project = null, droppedProject = null, allProjects = [] }: ProjectModalProps) => {
+  const t = useDetailI18n();
   const { browseFolder, detectProjectType } = useProjects();
   const detectionId = useRef(0);
   // Tracks the values the detector last wrote, so re-analysis only refills fields
@@ -196,15 +200,6 @@ const ProjectModal = ({ isOpen, onClose, onSave, project = null, droppedProject 
     }
   };
 
-  const handleEnvVarChange = (index: number, field: string, value: string): void => {
-    setFormData((previous) => ({
-      ...previous,
-      envVars: previous.envVars.map((envVar, envIndex) => (
-        envIndex === index ? { ...envVar, [field]: value, unchanged: false } : envVar
-      )),
-    }));
-  };
-
   const validateForm = (): boolean => {
     const nextErrors = validateProjectForm(formData);
     setErrors(nextErrors);
@@ -246,24 +241,24 @@ const ProjectModal = ({ isOpen, onClose, onSave, project = null, droppedProject 
         <div className="w-full max-w-lg bg-surface border border-border rounded-xl shadow-card max-h-[85vh] flex flex-col">
           <div className="flex items-center justify-between px-5 py-4 border-b border-border shrink-0">
             <div>
-              <h3 className="font-display font-bold text-sm">{isEditing ? 'Edit Project' : 'Add Project'}</h3>
+              <h3 className="font-display font-bold text-sm">{t(isEditing ? 'Edit Project' : 'Add Project')}</h3>
               <p className="text-xs text-ink-faint mt-0.5">
-                {isEditing ? 'Update project launch configuration.' : 'Choose a folder and Gatrion will configure it.'}
+                {t(isEditing ? 'Update project launch configuration.' : 'Choose a folder and Gatrion will configure it.')}
               </p>
             </div>
-            <button type="button" onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-lg text-ink-faint hover:text-ink hover:bg-surface-3 transition-colors">✕</button>
+            <button type="button" onClick={onClose} aria-label={t('Close')} className="w-8 h-8 flex items-center justify-center rounded-lg text-ink-faint hover:text-ink hover:bg-surface-3 transition-colors">✕</button>
           </div>
 
           <div className="px-5 py-5 space-y-4 overflow-y-auto">
             {!isEditing && !hasSelectedFolder && (
               <div className="rounded-xl border border-dashed border-border bg-surface-2/50 px-6 py-9 text-center">
                 <div className="mx-auto mb-4 w-12 h-12 rounded-xl bg-accent/10 border border-accent/20 flex items-center justify-center text-2xl">⌁</div>
-                <p className="text-sm font-semibold text-ink">Select your project folder</p>
+                <p className="text-sm font-semibold text-ink">{t('Select your project folder')}</p>
                 <p className="text-xs text-ink-faint mt-1.5 max-w-xs mx-auto leading-relaxed">
-                  Framework, package manager, start command, and port will be detected automatically.
+                  {t('Framework, package manager, start command, and port will be detected automatically.')}
                 </p>
                 <button type="button" onClick={handleBrowse} disabled={isDetecting} className="mt-5 px-4 py-2.5 rounded-lg bg-accent hover:bg-accent-hover text-white text-sm font-semibold shadow-glow transition-colors disabled:opacity-50">
-                  {isDetecting ? 'Analyzing Project...' : 'Browse Project Folder'}
+                  {t(isDetecting ? 'Analyzing Project...' : 'Browse Project Folder')}
                 </button>
               </div>
             )}
@@ -280,12 +275,12 @@ const ProjectModal = ({ isOpen, onClose, onSave, project = null, droppedProject 
                         <p className="text-sm font-semibold text-ink truncate">{formData.name}</p>
                         <p className="text-[11px] text-success mt-0.5">
                           {detection && formData.type === detection.type
-                            ? `Detected as ${detection.name}`
-                            : `Configured as ${typeLabel(formData.type)}`}
+                            ? t('Detected as {type}', { type: detection.name })
+                            : t('Configured as {type}', { type: typeLabel(formData.type) })}
                         </p>
                       </div>
                       <button type="button" onClick={handleBrowse} disabled={isDetecting} className="text-[11px] font-medium text-accent hover:text-accent-hover shrink-0">
-                        {isDetecting ? 'Analyzing...' : 'Change folder'}
+                        {t(isDetecting ? 'Analyzing...' : 'Change folder')}
                       </button>
                     </div>
                     <p className="text-[11px] font-mono text-ink-faint truncate mt-2">{formData.path}</p>
@@ -293,35 +288,35 @@ const ProjectModal = ({ isOpen, onClose, onSave, project = null, droppedProject 
                 </div>
                 <div className="grid grid-cols-2 border-t border-border text-xs">
                   <div className="px-4 py-3 border-r border-border">
-                    <p className="text-[10px] uppercase tracking-wider text-ink-faint">Package manager</p>
-                    <p className="text-ink mt-1 font-mono">{detection?.packageManager || 'Not required'}</p>
+                    <p className="text-[10px] uppercase tracking-wider text-ink-faint">{t('Package manager')}</p>
+                    <p className="text-ink mt-1 font-mono">{detection?.packageManager || t('Not required')}</p>
                   </div>
                   <div className="px-4 py-3">
                     <p className="text-[10px] uppercase tracking-wider text-ink-faint">Port</p>
-                    <p className="text-ink mt-1 font-mono">{formData.port || 'Not monitored'}</p>
+                    <p className="text-ink mt-1 font-mono">{formData.port || t('Not monitored')}</p>
                   </div>
                   <div className="col-span-2 px-4 py-3 border-t border-border">
-                    <p className="text-[10px] uppercase tracking-wider text-ink-faint">Start command</p>
-                    <p className={`mt-1 font-mono ${formData.startCommand ? 'text-ink' : 'text-warning'}`}>{formData.startCommand || 'Needs configuration'}</p>
+                    <p className="text-[10px] uppercase tracking-wider text-ink-faint">{t('Start command')}</p>
+                    <p className={`mt-1 font-mono ${formData.startCommand ? 'text-ink' : 'text-warning'}`}>{formData.startCommand || t('Needs configuration')}</p>
                   </div>
                   {formData.commands.length > 1 && formData.commands.filter((item) => !item.primary).map((item) => (
                     <div key={item.id} className="col-span-2 px-4 py-3 border-t border-border">
                       <p className="text-[10px] uppercase tracking-wider text-ink-faint">{item.name}</p>
                       <p className="text-ink mt-1 font-mono">{item.command}</p>
-                      <p className="text-[11px] text-ink-faint mt-1">{item.port ? `Port ${item.port}` : 'No port monitoring'}</p>
+                      <p className="text-[11px] text-ink-faint mt-1">{item.port ? `Port ${item.port}` : t('No port monitoring')}</p>
                     </div>
                   ))}
                 </div>
               </div>
             )}
 
-            {isDetecting && hasSelectedFolder && <p className="text-xs text-accent">Analyzing project configuration...</p>}
-            {errors.detection && <p className="text-xs text-danger">{errors.detection}</p>}
+            {isDetecting && hasSelectedFolder && <p role="status" className="text-xs text-accent">{t('Analyzing project configuration...')}</p>}
+            {errors.detection && <p role="alert" className="text-xs text-danger">{t(errors.detection)}</p>}
             {detection?.warnings?.map((warning) => <p key={warning} className="text-[11px] text-warning">{warning}</p>)}
 
             {!isEditing && hasSelectedFolder && (
               <button type="button" onClick={() => setShowAdvanced((value) => !value)} className="w-full flex items-center justify-between py-1 text-xs font-medium text-ink-soft hover:text-ink">
-                <span>Advanced Settings</span>
+                <span>{t('Advanced Settings')}</span>
                 <span>{showAdvanced ? '−' : '+'}</span>
               </button>
             )}
@@ -329,21 +324,21 @@ const ProjectModal = ({ isOpen, onClose, onSave, project = null, droppedProject 
             {showConfiguration && (
               <div className="space-y-4 pt-1">
                 <div>
-                  <label className="text-xs text-ink-soft mb-1.5 block">Project name <span className="text-danger">*</span></label>
-                  <input type="text" value={formData.name} onChange={(event) => handleChange('name', event.target.value)} className={`w-full bg-surface-3 border rounded-lg px-3 py-2 text-sm text-ink focus:outline-none focus:ring-2 focus:ring-accent/40 ${errors.name ? 'border-danger' : 'border-border'}`} />
-                  {errors.name && <p className="text-[11px] text-danger mt-1">{errors.name}</p>}
+                  <label htmlFor="project-name" className="text-xs text-ink-soft mb-1.5 block">{t('Project name')} <span className="text-danger">*</span></label>
+                  <input id="project-name" type="text" value={formData.name} onChange={(event) => handleChange('name', event.target.value)} className={`w-full bg-surface-3 border rounded-lg px-3 py-2 text-sm text-ink focus:outline-none focus:ring-2 focus:ring-accent/40 ${errors.name ? 'border-danger' : 'border-border'}`} />
+                  {errors.name && <p role="alert" className="text-[11px] text-danger mt-1">{t(errors.name)}</p>}
                 </div>
                 <div>
-                  <label className="text-xs text-ink-soft mb-1.5 block">Project path <span className="text-danger">*</span></label>
+                  <label htmlFor="project-path" className="text-xs text-ink-soft mb-1.5 block">{t('Project path')} <span className="text-danger">*</span></label>
                   <div className="flex gap-2">
-                    <input type="text" value={formData.path} onChange={(event) => handleChange('path', event.target.value)} className={`flex-1 bg-surface-3 border rounded-lg px-3 py-2 text-sm font-mono text-ink focus:outline-none focus:ring-2 focus:ring-accent/40 ${errors.path ? 'border-danger' : 'border-border'}`} />
-                    <button type="button" onClick={handleBrowse} disabled={isDetecting} className="px-3 py-2 rounded-lg bg-surface-3 border border-border text-xs font-medium text-ink-soft hover:text-ink disabled:opacity-50">Browse...</button>
+                    <input id="project-path" type="text" value={formData.path} onChange={(event) => handleChange('path', event.target.value)} className={`flex-1 min-w-0 bg-surface-3 border rounded-lg px-3 py-2 text-sm font-mono text-ink focus:outline-none focus:ring-2 focus:ring-accent/40 ${errors.path ? 'border-danger' : 'border-border'}`} />
+                    <button type="button" onClick={handleBrowse} disabled={isDetecting} className="px-3 py-2 rounded-lg bg-surface-3 border border-border text-xs font-medium text-ink-soft hover:text-ink disabled:opacity-50">{t('Browse...')}</button>
                   </div>
-                  {errors.path && <p className="text-[11px] text-danger mt-1">{errors.path}</p>}
+                  {errors.path && <p role="alert" className="text-[11px] text-danger mt-1">{t(errors.path)}</p>}
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="text-xs text-ink-soft mb-1.5 block">Project type</label>
+                    <label className="text-xs text-ink-soft mb-1.5 block">{t('Project type')}</label>
                     <DropdownMenu
                       trigger={(
                         <button type="button" className="w-full flex items-center gap-2 bg-surface-3 border border-border rounded-lg px-3 py-2 text-sm text-ink focus:outline-none focus:ring-2 focus:ring-accent/40">
@@ -364,13 +359,13 @@ const ProjectModal = ({ isOpen, onClose, onSave, project = null, droppedProject 
                     </DropdownMenu>
                   </div>
                   <div>
-                    <label className="text-xs text-ink-soft mb-1.5 block">Port <span className="text-ink-faint">(optional)</span></label>
-                    <input type="text" placeholder="No port monitoring" value={formData.port} onChange={(event) => handleChange('port', event.target.value)} className={`w-full bg-surface-3 border rounded-lg px-3 py-2 text-sm font-mono text-ink focus:outline-none focus:ring-2 focus:ring-accent/40 ${errors.port ? 'border-danger' : 'border-border'}`} />
-                    {errors.port && <p className="text-[11px] text-danger mt-1">{errors.port}</p>}
+                    <label htmlFor="project-port" className="text-xs text-ink-soft mb-1.5 block">Port <span className="text-ink-faint">{t('(optional)')}</span></label>
+                    <input id="project-port" type="text" placeholder={t('No port monitoring')} value={formData.port} onChange={(event) => handleChange('port', event.target.value)} className={`w-full bg-surface-3 border rounded-lg px-3 py-2 text-sm font-mono text-ink focus:outline-none focus:ring-2 focus:ring-accent/40 ${errors.port ? 'border-danger' : 'border-border'}`} />
+                    {errors.port && <p role="alert" className="text-[11px] text-danger mt-1">{t(errors.port)}</p>}
                   </div>
                 </div>
                 <div>
-                  <label className="text-xs text-ink-soft mb-1.5 block">Preview host</label>
+                  <label className="text-xs text-ink-soft mb-1.5 block">{t('Preview host')}</label>
                   <div className="grid grid-cols-2 gap-2">
                     <button
                       type="button"
@@ -387,19 +382,19 @@ const ProjectModal = ({ isOpen, onClose, onSave, project = null, droppedProject 
                       127.0.0.1
                     </button>
                   </div>
-                  <p className="text-[11px] text-ink-faint mt-1">Host used to reach the dev server for embedded preview &amp; &quot;Open in browser&quot;.</p>
+                  <p className="text-[11px] text-ink-faint mt-1">{t('Host used to reach the dev server for embedded preview & "Open in browser".')}</p>
                 </div>
                 <div>
-                  <label className="text-xs text-ink-soft mb-1.5 block">Start command <span className="text-danger">*</span></label>
-                  <input type="text" value={formData.startCommand} onChange={(event) => handleChange('startCommand', event.target.value)} className={`w-full bg-surface-3 border rounded-lg px-3 py-2 text-sm font-mono text-ink focus:outline-none focus:ring-2 focus:ring-accent/40 ${errors.startCommand ? 'border-danger' : 'border-border'}`} />
-                  {errors.startCommand && <p className="text-[11px] text-danger mt-1">{errors.startCommand}</p>}
+                  <label htmlFor="project-command" className="text-xs text-ink-soft mb-1.5 block">{t('Start command')} <span className="text-danger">*</span></label>
+                  <input id="project-command" type="text" value={formData.startCommand} onChange={(event) => handleChange('startCommand', event.target.value)} className={`w-full bg-surface-3 border rounded-lg px-3 py-2 text-sm font-mono text-ink focus:outline-none focus:ring-2 focus:ring-accent/40 ${errors.startCommand ? 'border-danger' : 'border-border'}`} />
+                  {errors.startCommand && <p role="alert" className="text-[11px] text-danger mt-1">{t(errors.startCommand)}</p>}
                 </div>
                 {formData.commands.filter((item) => !item.primary).map((item) => (
                   <div key={item.id} className="rounded-lg border border-border bg-surface-2 p-3 space-y-3">
                     <div className="flex items-center justify-between">
                       <p className="text-xs font-semibold text-ink">{item.name}</p>
                       <div className="flex items-center gap-2">
-                        <span className="text-[10px] uppercase tracking-wider text-accent">Additional process</span>
+                        <span className="text-[10px] uppercase tracking-wider text-accent">{t('Additional process')}</span>
                         <button type="button" onClick={() => setFormData((previous) => ({ ...previous, commands: previous.commands.filter((cmd) => cmd.id !== item.id) }))} className="w-6 h-6 flex items-center justify-center rounded-md text-ink-faint hover:text-danger hover:bg-danger/10 transition-colors" aria-label="Remove additional process" title="Remove">✕</button>
                       </div>
                     </div>
@@ -407,51 +402,23 @@ const ProjectModal = ({ isOpen, onClose, onSave, project = null, droppedProject 
                     <input type="text" placeholder="No port monitoring" value={item.port ?? ''} onChange={(event) => setFormData((previous) => ({ ...previous, commands: previous.commands.map((command) => command.id === item.id ? { ...command, port: event.target.value } : command) }))} className="w-full bg-surface-3 border border-border rounded-lg px-3 py-2 text-sm font-mono text-ink focus:outline-none focus:ring-2 focus:ring-accent/40" />
                   </div>
                 ))}
-                {errors.commands && <p className="text-[11px] text-danger">{errors.commands}</p>}
-                <div>
-                  <div className="flex items-center justify-between mb-1.5">
-                    <label className="text-xs text-ink-soft">Environment variables</label>
-                    <button type="button" onClick={() => setFormData((previous) => ({ ...previous, envVars: [...previous.envVars, { key: '', value: '' }] }))} className="text-[11px] font-medium text-accent hover:text-accent-hover">+ Add variable</button>
-                  </div>
-                  <div className="space-y-2">
-                    {formData.envVars.map((envVar, index) => (
-                      <div key={`${envVar.key}-${index}`} className="flex gap-2 items-center">
-                        <input type="text" value={envVar.key} onChange={(event) => handleEnvVarChange(index, 'key', event.target.value)} placeholder="KEY" className="w-1/3 bg-surface-3 border border-border rounded-lg px-2.5 py-1.5 text-xs font-mono text-ink focus:outline-none focus:ring-2 focus:ring-accent/40" />
-                        <input type={envVar.secret ? 'password' : 'text'} value={envVar.value} onChange={(event) => handleEnvVarChange(index, 'value', event.target.value)} placeholder={envVar.unchanged ? 'Stored value unchanged' : 'value'} className="flex-1 bg-surface-3 border border-border rounded-lg px-2.5 py-1.5 text-xs font-mono text-ink focus:outline-none focus:ring-2 focus:ring-accent/40" />
-                        <button type="button" onClick={() => setFormData((previous) => ({ ...previous, envVars: previous.envVars.filter((_, envIndex) => envIndex !== index) }))} className="w-7 h-7 shrink-0 flex items-center justify-center rounded-lg text-ink-faint hover:text-danger hover:bg-danger/10">✕</button>
-                      </div>
-                    ))}
-                  </div>
-                </div>
+                {errors.commands && <p role="alert" className="text-[11px] text-danger">{t(errors.commands)}</p>}
+                <EnvironmentFields key={`${isOpen}:${project?.id || 'new'}`} values={formData.envVars} onChange={envVars => setFormData(previous => ({ ...previous, envVars }))} />
                 <div className="flex items-center justify-between pt-1">
-                  <div><p className="text-xs text-ink">Start on app launch</p><p className="text-[11px] text-ink-faint">Auto-run this project when Gatrion opens.</p></div>
-                  <button type="button" onClick={() => handleChange('autoStart', !formData.autoStart)} className={`w-9 h-5 rounded-full relative shrink-0 ${formData.autoStart ? 'bg-accent' : 'bg-surface-3 border border-border'}`}><span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-transform ${formData.autoStart ? 'right-0.5' : 'left-0.5'}`}></span></button>
+                  <div><p className="text-xs text-ink">{t('Start on app launch')}</p><p className="text-[11px] text-ink-faint">{t('Auto-run this project when Gatrion opens.')}</p></div>
+                  <button type="button" role="switch" aria-checked={formData.autoStart} aria-label={t('Start on app launch')} onClick={() => handleChange('autoStart', !formData.autoStart)} className={`w-9 h-5 rounded-full relative shrink-0 ${formData.autoStart ? 'bg-accent' : 'bg-surface-3 border border-border'}`}><span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-transform ${formData.autoStart ? 'right-0.5' : 'left-0.5'}`}></span></button>
                 </div>
                 <TagsField ref={tagsFieldRef} tags={formData.tags} existingTags={existingTags} onChange={(tags) => setFormData((p) => ({ ...p, tags }))} />
-                <div>
-                  <div className="flex items-center justify-between mb-1.5">
-                    <label className="text-xs text-ink-soft">Custom commands</label>
-                    <button type="button" onClick={() => setFormData((p) => ({ ...p, customCommands: [...p.customCommands, { id: `cmd-${Date.now()}`, label: '', command: '' }] }))} className="text-[11px] font-medium text-accent hover:text-accent-hover">+ Add command</button>
-                  </div>
-                  <div className="space-y-2">
-                    {formData.customCommands.map((cc, idx) => (
-                      <div key={cc.id} className="flex gap-2 items-center">
-                        <input type="text" value={cc.label} onChange={(e) => setFormData((p) => ({ ...p, customCommands: p.customCommands.map((c, i) => i === idx ? { ...c, label: e.target.value } : c) }))} placeholder="Label" className="w-1/3 bg-surface-3 border border-border rounded-lg px-2.5 py-1.5 text-xs text-ink focus:outline-none focus:ring-2 focus:ring-accent/40" />
-                        <input type="text" value={cc.command} onChange={(e) => setFormData((p) => ({ ...p, customCommands: p.customCommands.map((c, i) => i === idx ? { ...c, command: e.target.value } : c) }))} placeholder="npm run build" className="flex-1 bg-surface-3 border border-border rounded-lg px-2.5 py-1.5 text-xs font-mono text-ink focus:outline-none focus:ring-2 focus:ring-accent/40" />
-                        <button type="button" onClick={() => setFormData((p) => ({ ...p, customCommands: p.customCommands.filter((_, i) => i !== idx) }))} className="w-7 h-7 shrink-0 flex items-center justify-center rounded-lg text-ink-faint hover:text-danger hover:bg-danger/10">✕</button>
-                      </div>
-                    ))}
-                  </div>
-                </div>
+                <CustomCommandFields values={formData.customCommands} onChange={customCommands => setFormData(previous => ({ ...previous, customCommands }))} />
                 {allProjects.length > 0 && (
                   <div>
-                    <label className="text-xs text-ink-soft mb-1.5 block">Depends on</label>
+                    <label className="text-xs text-ink-soft mb-1.5 block">{t('Depends on')}</label>
                     <div className="flex flex-wrap gap-2">
                       {allProjects.filter((p) => p.id !== project?.id).map((p) => (
                         <button key={p.id} type="button" onClick={() => setFormData((prev) => ({ ...prev, dependsOn: prev.dependsOn.includes(p.id) ? prev.dependsOn.filter((id) => id !== p.id) : [...prev.dependsOn, p.id] }))} className={`px-2.5 py-1 rounded-md text-[11px] border transition-colors ${formData.dependsOn.includes(p.id) ? 'bg-accent/20 border-accent/40 text-accent' : 'bg-surface-3 border-border text-ink-soft hover:text-ink'}`}>{p.name}</button>
                       ))}
                     </div>
-                    <p className="text-[10px] text-ink-faint mt-1">These projects will start before this one.</p>
+                    <p className="text-[10px] text-ink-faint mt-1">{t('These projects will start before this one.')}</p>
                   </div>
                 )}
               </div>
@@ -459,11 +426,11 @@ const ProjectModal = ({ isOpen, onClose, onSave, project = null, droppedProject 
           </div>
 
           <div className="flex items-center justify-end gap-2 px-5 py-4 border-t border-border shrink-0">
-            {errors.form && <p className="mr-auto text-xs text-danger">{errors.form}</p>}
-            <button type="button" onClick={onClose} className="px-3.5 py-2 rounded-lg text-ink-soft hover:text-ink hover:bg-surface-3 text-sm font-medium transition-colors">Cancel</button>
+            {errors.form && <p role="alert" className="mr-auto text-xs text-danger">{t(errors.form)}</p>}
+            <button type="button" onClick={onClose} className="px-3.5 py-2 rounded-lg text-ink-soft hover:text-ink hover:bg-surface-3 text-sm font-medium transition-colors">{t('Cancel')}</button>
             {(isEditing || hasSelectedFolder) && (
               <button type="button" onClick={handleSubmit} disabled={isSaving || isDetecting} className="px-3.5 py-2 rounded-lg bg-accent hover:bg-accent-hover text-white text-sm font-semibold shadow-glow transition-colors disabled:opacity-50">
-                {isSaving ? 'Saving...' : isEditing ? 'Save Changes' : 'Add Project'}
+                {t(isSaving ? 'Saving...' : isEditing ? 'Save Changes' : 'Add Project')}
               </button>
             )}
           </div>

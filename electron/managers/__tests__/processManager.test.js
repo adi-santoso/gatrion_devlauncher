@@ -20,6 +20,24 @@ describe('ProcessManager', () => {
     vi.restoreAllMocks()
   })
 
+  test.each([0, 1])('retains custom command completion for exit %s', async code => {
+    const manager = new ProcessManager()
+    const result = await manager.runCustomCommand('task-test', process.cwd(), 'build', 'Build', `node -e "process.exit(${code})"`)
+    await vi.waitFor(() => expect(manager.getCustomRunStatus(result.runId).status).toBe(code === 0 ? 'succeeded' : 'failed'))
+    expect(manager.getCustomRunStatus(result.runId).code).toBe(code)
+    expect((await manager.stopCustomCommand(result.runId)).success).toBe(true)
+    expect(manager.getCustomRunStatus(result.runId).status).toBe(code === 0 ? 'succeeded' : 'failed')
+  })
+
+  test('does not allow a duplicate task in the same project', async () => {
+    const manager = new ProcessManager()
+    const result = await manager.runCustomCommand('duplicate-task', process.cwd(), 'build', 'Build', LONG_RUNNING)
+    try {
+      await expect(manager.runCustomCommand('duplicate-task', process.cwd(), 'build', 'Build', LONG_RUNNING)).rejects.toThrow('already running')
+    } finally { await manager.stopCustomCommand(result.runId, true) }
+    expect(manager.getCustomRunStatus(result.runId).status).not.toBe('running')
+  })
+
   describe('secret masking', () => {
     test('env secrets never appear in DevLauncher logs or persisted output', async () => {
       const pm = new ProcessManager()

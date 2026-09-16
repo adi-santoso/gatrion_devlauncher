@@ -1,4 +1,6 @@
 const { spawn } = require('child_process')
+import path from 'path'
+import { shellQuote } from './shellQuote'
 
 /**
  * Generic package-manager runner for tools that have a .cmd shim on Windows
@@ -29,9 +31,10 @@ function createToolRunner(spawnFn: typeof import('child_process').spawn = spawn)
         let stdout = ''
         let stderr = ''
         let child: ReturnType<typeof spawnFn> | undefined
-        const cmd = [tool, ...args].join(' ')
+        const direct = path.isAbsolute(tool) // project-local Python is an executable, not a .cmd shim
+        const cmd = direct ? [tool, ...args].join(' ') : [tool, ...args].map(shellQuote).join(' ')
         try {
-          child = spawnFn(cmd, { cwd, shell: true, windowsHide: true })
+          child = direct ? spawnFn(tool, args, { cwd, shell: false, windowsHide: true }) : spawnFn(cmd, { cwd, shell: true, windowsHide: true })
         } catch (error) {
           settled = true
           const err = error as NodeJS.ErrnoException
@@ -56,7 +59,7 @@ function createToolRunner(spawnFn: typeof import('child_process').spawn = spawn)
           if (settled) return
           settled = true
           clearTimeout(timer)
-          if (code !== null && !okCodes.includes(code)) {
+          if (code === null || !okCodes.includes(code)) {
             reject(new Error((stderr || '').trim().slice(0, 400) || `${cmd} failed with exit code ${code}`))
             return
           }

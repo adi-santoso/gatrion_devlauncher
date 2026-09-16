@@ -12,7 +12,9 @@ const { ipcMain } = require('electron') as typeof import('electron')
 import { envVarsToObject } from '../projectSchema'
 import { assertTrustedIpcEvent } from '../utils/ipcSecurity'
 import { safeHandle } from '../utils/ipcValidation'
-import { execNpm, assertSafePackageName } from '../utils/npmRunner'
+import { assertSafePackageName } from '../utils/npmRunner'
+import { LOCKFILES, packageManager, scanNode, updateNode } from '../utils/projectTooling'
+import { shellQuote } from '../utils/shellQuote'
 
 // Run git with no shell, GIT_TERMINAL_PROMPT disabled so a missing credential
 // helper fails fast instead of hanging the app waiting for input.
@@ -28,6 +30,7 @@ function runGit(cwd: string, args: string[], { timeoutMs = 30000 }: { timeoutMs?
       args,
       {
         cwd,
+        timeout: timeoutMs,
         env: { ...process.env, GIT_TERMINAL_PROMPT: '0' },
         maxBuffer: 8 * 1024 * 1024,
         windowsHide: true,
@@ -71,14 +74,17 @@ function parseStatus(output: string) {
     unstaged: Array<{ path: string; staged: string; unstaged: string }>
     untracked: string[]
   } = { branch: null, upstream: null, ahead: 0, behind: 0, staged: [], unstaged: [], untracked: [] }
-  for (const line of output.split('\n')) {
+  const nulDelimited = output.includes('\0')
+  const records = output.split(nulDelimited ? '\0' : '\n')
+  for (let index = 0; index < records.length; index++) {
+    const line = records[index]
     if (!line) continue
     if (line.startsWith('## ')) {
       const head = line.slice(3).trim()
       const bracket = head.indexOf(' [')
       const branchPart = bracket === -1 ? head : head.slice(0, bracket)
       const [branch, upstream] = branchPart.split('...')
-      result.branch = branch || null
+      result.branch = branch?.replace(/^(No commits yet on|Initial commit on) /, '') || null
       result.upstream = upstream || null
       if (bracket !== -1) {
         const aheadMatch = head.slice(bracket).match(/ahead (\d+)/)
@@ -89,7 +95,9 @@ function parseStatus(output: string) {
       continue
     }
     const xy = line.slice(0, 2)
-    const filePath = cleanPath(line.slice(3))
+    const filePath = nulDelimited ? line.slice(3) : cleanPath(line.slice(3))
+    // -z emits the destination followed by the original path for renames/copies.
+    if (nulDelimited && /[RC]/.test(xy)) index++
     if (xy[0] === '?' && xy[1] === '?') {
       result.untracked.push(filePath)
     } else {
@@ -132,14 +140,6 @@ function assertPathArray(files: unknown): string[] {
 // Package tooling (scripts + dependency health)
 // ===========================================================================
 
-const LOCKFILES = [
-  { file: 'package-lock.json', pm: 'npm' },
-  { file: 'pnpm-lock.yaml', pm: 'pnpm' },
-  { file: 'yarn.lock', pm: 'yarn' },
-  { file: 'bun.lockb', pm: 'bun' },
-  { file: 'bun.lock', pm: 'bun' },
-]
-
 interface PackageJson {
   name?: string
   version?: string
@@ -156,7 +156,7 @@ function readPackageJson(projectPath: string): PackageJson | null {
   try {
     return JSON.parse(fs.readFileSync(file, 'utf8')) as PackageJson
   } catch {
-    return null
+    throw new Error('package.json contains invalid JSON')
   }
 }
 
@@ -187,8 +187,8 @@ function setupRepoHandlers(storageManager: StorageManager, processManager: Proce
   secureHandle('git-status', async (_event, projectPath) => {
     try {
       await runGit(projectPath, ['rev-parse', '--is-inside-work-tree'])
-      const output = await runGit(projectPath, ['status', '--porcelain=v1', '-b', '--untracked-files=all'])
-      return { success: true, ...parseStatus(output) }
+      const output = await runGit(projectPath, ['status', '--porcelain=v1', '-z', '-b', '--untracked-files=all'])
+      return { success: true, isRepo: true, ...parseStatus(output) }
     } catch (error) {
       const err = error as Error
       if (error && /not a git repository/i.test(err.message)) {
@@ -210,6 +210,17 @@ function setupRepoHandlers(storageManager: StorageManager, processManager: Proce
     if (staged) args.push('--cached')
     args.push('--', filePath)
     const output = await runGit(projectPath, args)
+    if (!output && !staged) {
+      const untracked = await runGit(projectPath, ['ls-files', '--others', '--exclude-standard', '--', filePath])
+      if (untracked.trim()) {
+        const target = path.resolve(projectPath, filePath)
+        if (!target.startsWith(path.resolve(projectPath) + path.sep)) throw new Error('File is outside this project')
+        const stat = await fsp.stat(target)
+        if (stat.size > 1024 * 1024) return { success: true, diff: 'New file exceeds 1 MB. Open it in your editor.' }
+        const content = await fsp.readFile(target, 'utf8')
+        return { success: true, diff: content.includes('\0') ? 'New binary file' : content.split('\n').map((line: string) => `+${line}`).join('\n') }
+      }
+    }
     return { success: true, diff: output }
   })
 
@@ -242,7 +253,10 @@ function setupRepoHandlers(storageManager: StorageManager, processManager: Proce
   })
 
   secureHandle('git-push', async (_event, projectPath) => {
-    const output = await runGit(projectPath, ['push'], { timeoutMs: 90000 })
+    const upstream = await runGit(projectPath, ['rev-parse', '--abbrev-ref', '@{upstream}']).catch(() => '')
+    const branch = await runGit(projectPath, ['branch', '--show-current'])
+    if (!branch.trim()) throw new Error('Checkout a branch before publishing')
+    const output = await runGit(projectPath, upstream.trim() ? ['push'] : ['push', '--set-upstream', 'origin', branch.trim()], { timeoutMs: 90000 })
     return { success: true, output: output.trim() }
   })
 
@@ -279,7 +293,7 @@ function setupRepoHandlers(storageManager: StorageManager, processManager: Proce
   secureHandle('git-stash-push', async (_event, projectPath, message) => {
     const cleanMessage = typeof message === 'string' ? message.trim() : ''
     if (cleanMessage.length > 200) throw new Error('Stash message is too long')
-    const args = ['stash', 'push']
+    const args = ['stash', 'push', '--include-untracked']
     if (cleanMessage) args.push('-m', cleanMessage)
     const output = await runGit(projectPath, args)
     return { success: true, output: output.trim() }
@@ -308,7 +322,11 @@ function setupRepoHandlers(storageManager: StorageManager, processManager: Proce
   // content; renderer must confirm before calling.
   secureHandle('git-discard', async (_event, projectPath, filePath) => {
     if (typeof filePath !== 'string' || !filePath.trim()) throw new Error('A file path is required')
-    await runGit(projectPath, ['restore', '--', filePath])
+    const target = path.resolve(projectPath, filePath)
+    if (!target.startsWith(path.resolve(projectPath) + path.sep)) throw new Error('File is outside this project')
+    const untracked = await runGit(projectPath, ['ls-files', '--others', '--exclude-standard', '--', filePath])
+    if (untracked.trim()) await (require('electron') as typeof import('electron')).shell.trashItem(target)
+    else await runGit(projectPath, ['restore', '--', filePath])
     return { success: true }
   })
 
@@ -355,7 +373,7 @@ function setupRepoHandlers(storageManager: StorageManager, processManager: Proce
       hasPackageJson: true,
       hasNodeModules: fs.existsSync(path.join(projectPath, 'node_modules')),
       lockfile: lockfile ? lockfile.file : null,
-      packageManager: lockfile ? lockfile.pm : 'npm',
+      packageManager: packageManager(projectPath),
       scriptCount: Object.keys(pkg.scripts || {}).length,
       depCount,
     }
@@ -377,7 +395,7 @@ function setupRepoHandlers(storageManager: StorageManager, processManager: Proce
         project.path,
         `script:${scriptName}`,
         scriptName,
-        `npm run ${scriptName}`,
+        `${packageManager(project.path)} run ${shellQuote(scriptName)}`,
         envVarsToObject(project.envVars),
         (pid: string, log: unknown) => safeSend('process-log', pid, log)
       )
@@ -396,13 +414,7 @@ function setupRepoHandlers(storageManager: StorageManager, processManager: Proce
   secureHandle('npm-outdated', async (_event, projectPath) => {
     const pkg = readPackageJson(projectPath)
     if (!pkg) return { success: true, hasPackageJson: false, outdated: [] }
-    const raw = await execNpm(projectPath, ['outdated', '--json'], { timeoutMs: 120000 })
-    let parsed: Record<string, { current?: string; wanted?: string; latest?: string }> = {}
-    try {
-      parsed = raw.trim() ? JSON.parse(raw) : {}
-    } catch {
-      parsed = {}
-    }
+    const { packages: parsed, manager } = await scanNode(projectPath)
     const deps = pkg.dependencies || {}
     const outdated = Object.entries(parsed).map(([name, info]) => ({
       name,
@@ -410,26 +422,15 @@ function setupRepoHandlers(storageManager: StorageManager, processManager: Proce
       wanted: info.wanted || null,
       latest: info.latest || null,
       type: Object.prototype.hasOwnProperty.call(deps, name) ? 'dependency' : 'devDependency',
-    })).filter((item) => item.latest && item.current && item.latest !== item.current)
-    return { success: true, hasPackageJson: true, outdated }
+    })).filter((item) => item.latest && item.latest !== item.current)
+    return { success: true, hasPackageJson: true, outdated, packageManager: manager }
   })
 
   // Update a single package (or all) to its wanted version. package.json and
   // the lockfile are backed up first so the change can be reverted manually.
   secureHandle('npm-update', async (_event, projectPath, packageName = null) => {
     assertSafePackageName(packageName)
-    const backupFiles = ['package.json']
-    for (const lock of LOCKFILES.map((item) => item.file)) {
-      if (fs.existsSync(path.join(projectPath, lock))) backupFiles.push(lock)
-    }
-    for (const file of backupFiles) {
-      const source = path.join(projectPath, file)
-      const target = path.join(projectPath, `${file}.bak-${Date.now()}`)
-      await fsp.copyFile(source, target).catch(() => {})
-    }
-    const args = packageName ? ['install', `${packageName.trim()}@latest`] : ['update']
-    const output = await execNpm(projectPath, args, { timeoutMs: 300000 })
-    return { success: true, output: output.trim().slice(-2000), backups: backupFiles.map((file) => `${file}.bak-*`) }
+    return updateNode(projectPath, packageName)
   })
 
 // Install dependencies through the process manager so progress is visible in
@@ -437,8 +438,7 @@ function setupRepoHandlers(storageManager: StorageManager, processManager: Proce
   secureHandle('install-dependencies', async (_event, projectId) => {
     try {
       const project = await loadProject(projectId)
-      const lockfile = LOCKFILES.find((entry) => fs.existsSync(path.join(project.path, entry.file)))
-      const pm = lockfile ? lockfile.pm : 'npm'
+      const pm = packageManager(project.path)
       const result = await processManager.runCustomCommand(
         project.id,
         project.path,
@@ -456,4 +456,3 @@ function setupRepoHandlers(storageManager: StorageManager, processManager: Proce
 }
 
 export { setupRepoHandlers, parseStatus, parseLog, readPackageJson, runGit }
-

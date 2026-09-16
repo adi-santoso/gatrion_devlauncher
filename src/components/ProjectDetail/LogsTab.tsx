@@ -4,6 +4,7 @@ import type { JSX } from 'react';
 import Icon from '../Common/Icon';
 import VirtualList from '../Common/VirtualList';
 import type { ProcessLogLine } from '../../data/processes';
+import { useDetailI18n } from './useDetailI18n';
 
 const stripAnsi = (value: unknown): string => String(value ?? '')
   .replace(/[\u001b\u009b][[()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-ORZcf-nqry=><]/g, '');
@@ -69,8 +70,11 @@ interface LogsTabProps {
 }
 
 export default function LogsTab({ logs = [], autoScroll = true, onAutoScrollChange, onClear, fontSize }: LogsTabProps) {
+  const t = useDetailI18n();
   const [filter, setFilter] = useState('');
   const [typeFilter, setTypeFilter] = useState('all');
+  const [source, setSource] = useState('all');
+  const [copyNotice, setCopyNotice] = useState('');
   // When the user scrolls up to read older lines, stop forcing the view to the
   // bottom; offer a "jump to latest" affordance instead.
   const [stickToBottom, setStickToBottom] = useState(true);
@@ -80,14 +84,14 @@ export default function LogsTab({ logs = [], autoScroll = true, onAutoScrollChan
   const query = filter.trim().toLowerCase();
 
   const visibleLogs = useMemo(() => normalizedLogs.filter((log) => {
+    if (source !== 'all' && log.commandName !== source) return false;
     if (typeFilter !== 'all' && log.level !== typeFilter && !(typeFilter === 'warn' && (log.level === 'warning' || log.level === 'warn'))) {
       return false;
     }
     if (!query) return true;
-    const levelMatch = typeFilter === 'all' || log.level === typeFilter;
     const text = `${log.commandName || ''} ${log.level} ${log.message}`.toLowerCase();
-    return levelMatch && text.includes(query);
-  }), [normalizedLogs, query, typeFilter]);
+    return text.includes(query);
+  }), [normalizedLogs, query, typeFilter, source]);
 
   const handleScroll = (): void => {
     const el = outputRef.current;
@@ -112,21 +116,24 @@ export default function LogsTab({ logs = [], autoScroll = true, onAutoScrollChan
     <div className="bg-surface border border-border rounded-xl shadow-card overflow-hidden">
       <div className="flex items-center justify-between gap-3 px-4 py-2.5 border-b border-border bg-surface-2 flex-wrap">
         <div className="flex items-center gap-2 flex-wrap">
-          <input type="search" value={filter} onChange={(event) => setFilter(event.target.value)} placeholder="Search logs..." aria-label="Search logs" className="bg-surface-3 border border-border rounded-md px-2.5 py-1 text-xs text-ink placeholder:text-ink-faint focus:outline-none w-44"/>
-          <select value={typeFilter} onChange={(event) => setTypeFilter(event.target.value)} aria-label="Filter log type" className="bg-surface-3 border border-border rounded-md px-2 py-1 text-xs text-ink-soft focus:outline-none">
-            {LOG_TYPES.map((type) => <option key={type.value} value={type.value}>{type.label}</option>)}
+          <input type="search" value={filter} onChange={(event) => setFilter(event.target.value)} placeholder={t('Search logs...')} aria-label={t('Search logs')} className="bg-surface-3 border border-border rounded-md px-2.5 py-1 text-xs text-ink placeholder:text-ink-faint focus:outline-none w-44"/>
+          <select value={typeFilter} onChange={(event) => setTypeFilter(event.target.value)} aria-label={t('Filter log type')} className="bg-surface-3 border border-border rounded-md px-2 py-1 text-xs text-ink-soft focus:outline-none">
+            {LOG_TYPES.map((type) => <option key={type.value} value={type.value}>{t(type.label)}</option>)}
           </select>
+          <select aria-label={t('Log source')} value={source} onChange={event => setSource(event.target.value)} className="bg-surface-3 text-xs rounded-md px-2 py-1"><option value="all">{t('All commands')}</option>{[...new Set(normalizedLogs.map(log => log.commandName).filter(Boolean))].map(name => <option key={name} value={name!}>{name}</option>)}</select>
           {(query || typeFilter !== 'all') && (
             <span className="font-mono text-[10px] text-ink-faint" aria-live="polite">
-              {visibleLogs.length} of {normalizedLogs.length}
+              {t('{count} of {total}', { count: visibleLogs.length, total: normalizedLogs.length })}
             </span>
           )}
         </div>
         <div className="flex items-center gap-3">
-          <label className="flex items-center gap-1.5 text-[11px] text-ink-faint"><input type="checkbox" checked={autoScroll} onChange={(event) => onAutoScrollChange?.(event.target.checked)} className="w-3 h-3 accent-accent"/>Auto-scroll</label>
-          <button type="button" onClick={onClear} disabled={!onClear} className="inline-flex items-center gap-1 text-[11px] text-ink-faint hover:text-danger disabled:opacity-40 disabled:cursor-not-allowed transition-colors"><Icon name="trash" size={12} /> Clear</button>
+          <button className="text-xs" onClick={async () => { try { await navigator.clipboard.writeText(visibleLogs.map(log => `${log.timestamp || ''} [${log.commandName || log.level}] ${log.message}`).join('\n')); setCopyNotice('Copied filtered output'); } catch { setCopyNotice('Could not copy output'); } }}>{t('Copy output')}</button>
+          <label className="flex items-center gap-1.5 text-[11px] text-ink-faint"><input type="checkbox" checked={autoScroll} onChange={(event) => onAutoScrollChange?.(event.target.checked)} className="w-3 h-3 accent-accent"/>{t('Auto-scroll')}</label>
+          <button type="button" onClick={onClear} disabled={!onClear} className="inline-flex items-center gap-1 text-[11px] text-ink-faint hover:text-danger disabled:opacity-40 disabled:cursor-not-allowed transition-colors"><Icon name="trash" size={12} /> {t('Clear')}</button>
         </div>
       </div>
+      {copyNotice && <p role="status" className="text-xs px-3">{t(copyNotice)}</p>}
       <div className="relative">
         {autoScroll && !stickToBottom && visibleLogs.length > 0 && (
           <button
@@ -135,11 +142,11 @@ export default function LogsTab({ logs = [], autoScroll = true, onAutoScrollChan
             className="absolute bottom-3 left-1/2 -translate-x-1/2 z-10 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-accent text-white text-[11px] font-semibold shadow-glow hover:bg-accent-hover transition-colors"
           >
             <Icon name="arrowDown" size={12} />
-            Jump to latest
+            {t('Jump to latest')}
           </button>
         )}
-        <div ref={outputRef} onScroll={handleScroll} style={fontSize ? { fontSize: `${fontSize}px` } : undefined} className="scan-line bg-[#08090C] px-5 py-4 font-mono text-[12.5px] leading-relaxed h-72 overflow-y-auto">
-        {visibleLogs.length === 0 ? <p className="text-ink-faint italic">{normalizedLogs.length === 0 ? 'No logs captured yet.' : 'No logs match this filter.'}</p>
+        <div ref={outputRef} onScroll={handleScroll} style={{ fontSize: fontSize ? `${fontSize}px` : undefined, resize: 'vertical', minHeight: 160 }} className="scan-line bg-[#08090C] px-4 py-3 font-mono text-[12.5px] leading-relaxed h-64 overflow-auto">
+        {visibleLogs.length === 0 ? <p className="text-ink-faint italic">{t(normalizedLogs.length === 0 ? 'No logs captured yet.' : 'No logs match this filter.')}</p>
           : <VirtualList
               items={visibleLogs}
               scrollRef={outputRef}

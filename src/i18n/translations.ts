@@ -3,10 +3,12 @@
  * Keys must stay in sync between languages (enforced by a test).
  * `{var}` placeholders are substituted by `t(key, { var })`.
  */
+import { projectDetailEn, projectDetailIndonesian } from './projectDetailMessages'
 export type TranslationTable = Record<string, string>
 
 export const translations: { en: TranslationTable; id: TranslationTable } = {
   en: {
+    ...projectDetailEn,
     // Navigation
     'nav.dashboard': 'Workspace',
     'nav.projects': 'Projects',
@@ -227,6 +229,7 @@ export const translations: { en: TranslationTable; id: TranslationTable } = {
     'preview.groupLaptops': 'Laptops',
   },
   id: {
+    ...projectDetailIndonesian,
     // Navigation
     'nav.dashboard': 'Workspace',
     'nav.projects': 'Proyek',

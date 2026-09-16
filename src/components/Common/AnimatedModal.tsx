@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 
 /**
@@ -42,6 +42,28 @@ interface AnimatedModalProps {
  */
 export default function AnimatedModal({ isOpen, onClose, children, position = 'center', id }: AnimatedModalProps) {
   const { mounted, visible } = useTransitionMount(isOpen)
+  const panelRef = useRef<HTMLDivElement>(null)
+  const closeRef = useRef(onClose)
+  closeRef.current = onClose
+  useEffect(() => {
+    if (!isOpen || !mounted) return
+    const previous = document.activeElement as HTMLElement | null
+    const panel = panelRef.current
+    const controls = () => Array.from(panel?.querySelectorAll<HTMLElement>('button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex="0"]') || [])
+    controls()[0]?.focus()
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); closeRef.current(); return }
+      if (event.key !== 'Tab') return
+      const items = controls()
+      const first = items[0]
+      const last = items[items.length - 1]
+      if (!first) { event.preventDefault(); panel?.focus(); return }
+      if (event.shiftKey && (document.activeElement === first || !panel?.contains(document.activeElement))) { event.preventDefault(); last.focus() }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus() }
+    }
+    panel?.addEventListener('keydown', onKey)
+    return () => { panel?.removeEventListener('keydown', onKey); if (previous?.isConnected) previous.focus() }
+  }, [isOpen, mounted])
   if (!mounted) return null
 
   const align = position === 'top' ? 'items-start pt-24' : 'items-center'
@@ -55,7 +77,7 @@ export default function AnimatedModal({ isOpen, onClose, children, position = 'c
         onClick={onClose}
         className={`absolute inset-0 bg-black/60 backdrop-blur-sm cursor-pointer ${visible ? 'animate-backdrop-in' : 'animate-backdrop-out'}`}
       />
-      <div className={`relative h-full flex ${align} justify-center p-4 ${panelAnim} ${visible ? '' : 'pointer-events-none'}`}>
+      <div ref={panelRef} role="dialog" aria-modal="true" aria-label={id} tabIndex={-1} className={`relative h-full flex ${align} justify-center p-4 ${panelAnim} ${visible ? '' : 'pointer-events-none'}`}>
         {children}
       </div>
     </div>

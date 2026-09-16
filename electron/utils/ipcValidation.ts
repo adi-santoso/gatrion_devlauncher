@@ -143,6 +143,7 @@ const CHANNEL_RULES: Record<string, ArgRule[]> = {
     ['projectPath', 'string', { minLength: 1 }],
     ['fileName', 'string', { minLength: 1, maxLength: 120 }],
     ['content', 'string', { maxLength: 2 * 1024 * 1024 }],
+    ['modifiedAt', 'number', { optional: true }],
   ],
   'list-laravel-logs': [['projectPath', 'string', { minLength: 1 }]],
   'read-laravel-log': [

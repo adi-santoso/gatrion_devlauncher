@@ -3,21 +3,16 @@ import type { JSX } from 'react';
 import ProjectDetailHeader from './ProjectDetailHeader';
 import TabNavigation from './TabNavigation';
 import LogsTab from './LogsTab';
-import LaravelLogsTab from './LaravelLogsTab';
-import EnvironmentTab from './EnvironmentTab';
-import SettingsTab from './SettingsTab';
+import DetailPanels from './DetailPanels';
 import AppPreviewTab, { type PreviewProject } from './AppPreviewTab';
 import CustomCommands from './CustomCommands';
 import CrashBanner from './CrashBanner';
-import GitTab from './GitTab';
-import ScriptsTab from './ScriptsTab';
-import DependenciesTab from './DependenciesTab';
-import AnalyticsTab from './AnalyticsTab';
 import InteractiveTerminal from '../Terminal/InteractiveTerminal';
 import Icon from '../Common/Icon';
 import type { ViewProject } from '../Dashboard/ProjectCard';
 import type { ProcessLogLine } from '../../data/processes';
 import type { AppConfig } from '../../types/shared';
+import { useDetailI18n } from './useDetailI18n';
 
 interface ProjectDetailViewProps {
   project: ViewProject | null;
@@ -64,7 +59,11 @@ export default function ProjectDetailView({
   terminalConfig,
   onAutoScrollChange,
 }: ProjectDetailViewProps) {
-  const [activeTab, setActiveTab] = useState('app');
+  const t = useDetailI18n();
+  const [tabs, setTabs] = useState<Record<string, string>>({});
+  const selectedTab = tabs[project?.id || ''] || 'app';
+  const activeTab = selectedTab === 'logs' && project?.type !== 'LARAVEL' ? 'app' : selectedTab;
+  const setActiveTab = (tab: string) => setTabs(previous => ({ ...previous, [project?.id || '']: tab }));
   // Derived from config so the Settings toggle and the in-page checkbox stay in sync
   const autoScroll = terminalConfig?.autoScroll !== false;
   // Use prop instead of local state to sync with parent
@@ -142,37 +141,39 @@ export default function ProjectDetailView({
   };
 
   return (
-    <div className={fullscreen ? 'h-full flex-1 flex flex-col p-0 overflow-hidden' : 'view space-y-5'}>
+    <div className={fullscreen ? 'h-full min-h-0 flex-1 flex flex-col p-0 overflow-hidden' : 'view min-w-0 space-y-3'}>
       {!fullscreen && (
         <>
           <button onClick={onBack} className="text-xs text-ink-faint hover:text-ink flex items-center gap-1 transition-colors">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M15 18l-6-6 6-6"/></svg>Back to Projects
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M15 18l-6-6 6-6"/></svg>{t('Back to Projects')}
           </button>
           <ProjectDetailHeader project={project} onStart={onStart} onStop={onStop} onRestart={onRestart} onEdit={onEdit} onDuplicate={onDuplicate} onOpenAgent={onOpenAgent}/>
           {project?.status === 'error' && (
             <CrashBanner
-              message={`Project "${project.name}" could not start or exited unexpectedly.`}
-              timestamp={project.errorMessage ? `Details: ${project.errorMessage}` : null}
+              message={t('Project "{name}" could not start or exited unexpectedly.', { name: project.name })}
+              timestamp={project.errorMessage ? t('Details: {error}', { error: project.errorMessage }) : null}
               onRestart={onRestart}
+              onViewLogs={() => setActiveTab('terminal')}
+              onOpenAgent={onOpenAgent}
             />
           )}
-          <TabNavigation activeTab={activeTab} onTabChange={setActiveTab} showLogsTab={project?.type === 'LARAVEL'}/>
+          <TabNavigation activeTab={activeTab} onTabChange={setActiveTab} projectId={project?.id} showLogsTab={project?.type === 'LARAVEL'}/>
         </>
       )}
 
-      <div className={keepPreviewAlive || activeTab === 'app' ? (fullscreen ? 'h-full flex-1 flex flex-col' : 'block') : 'hidden'}>
+      <div role="tabpanel" id={`project-panel-${project?.id}-app`} aria-labelledby="project-tab-app" aria-hidden={activeTab !== 'app'} className={keepPreviewAlive || activeTab === 'app' ? (fullscreen ? 'h-full flex-1 flex flex-col' : 'block') : 'hidden'}>
         {keepPreviewAlive ? previewProjects.map(renderPreview) : (visible && activeTab === 'app' && project ? renderPreview(project) : null)}
       </div>
 
       {/* Keep PTYs mounted even while the app preview is fullscreen. Hiding the
           container preserves the real shell process, history and screen state. */}
-      <div className={!fullscreen && activeTab === 'terminal' ? 'block space-y-5' : 'hidden'}>
+      <div role="tabpanel" id={`project-panel-${project?.id}-terminal`} aria-labelledby="project-tab-terminal" className={!fullscreen && activeTab === 'terminal' ? 'block space-y-3' : 'hidden'}>
         {project?.path ? (
           <div className="flex items-center justify-between gap-3 rounded-xl border border-border bg-surface p-3">
             <div className="flex items-center gap-2 min-w-0">
               <Icon name="terminal" size={16} className="text-accent" />
               <div className="min-w-0">
-                <p className="text-sm font-semibold text-ink">Interactive shell</p>
+                <p className="text-sm font-semibold text-ink">{t('Interactive shell')}</p>
                 <p className="text-xs text-ink-faint truncate">{project.path}</p>
               </div>
             </div>
@@ -180,21 +181,21 @@ export default function ProjectDetailView({
               <button
                 type="button"
                 onClick={() => closeTerminal(project.id)}
-                title="Close shell for this project"
+                title={t('Close shell for this project')}
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-surface-3 hover:bg-surface-2 text-xs font-medium text-ink-soft hover:text-ink border border-border transition-colors"
               >
                 <Icon name="x" size={13} />
-                Close shell
+                {t('Close shell')}
               </button>
             ) : (
               <button
                 type="button"
                 onClick={() => startTerminal(project.id)}
-                title="Open a shell in the project folder"
+                title={t('Open a shell in the project folder')}
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-accent hover:bg-accent-hover text-white text-xs font-semibold shadow-glow transition-colors"
               >
                 <Icon name="play" size={13} />
-                Start shell
+                {t('Start shell')}
               </button>
             )}
           </div>
@@ -204,40 +205,19 @@ export default function ProjectDetailView({
           const active = id === project?.id;
           if (!tProject?.path) return null;
           return (
-            <div key={id} className={active ? 'block h-80 rounded-xl border border-border bg-surface shadow-card p-2' : 'hidden'}>
+            <div key={id} style={active ? { resize: 'vertical', overflow: 'auto', minHeight: 160 } : undefined} className={active ? 'block h-64 rounded-xl border border-border bg-surface shadow-card p-2' : 'hidden'}>
               <InteractiveTerminal cwd={tProject.path} fontSize={terminalConfig?.fontSize} />
             </div>
           );
         })}
-        <CustomCommands project={project}/>
-        <LogsTab logs={combinedLogs} autoScroll={autoScroll} onAutoScrollChange={onAutoScrollChange} onClear={onClearLogs} fontSize={terminalConfig?.fontSize}/>
+        <CustomCommands key={project?.id} project={project}/>
+        <LogsTab key={project?.id} logs={combinedLogs} autoScroll={autoScroll} onAutoScrollChange={onAutoScrollChange} onClear={onClearLogs} fontSize={terminalConfig?.fontSize}/>
       </div>
 
-      {!fullscreen && (
-        <>
-          <div className={activeTab === 'logs' ? 'block' : 'hidden'}>
-            {project?.path ? <LaravelLogsTab projectPath={project.path}/> : null}
-          </div>
-          <div className={activeTab === 'git' ? 'block' : 'hidden'}>
-            <GitTab project={project}/>
-          </div>
-          <div className={activeTab === 'scripts' ? 'block' : 'hidden'}>
-            <ScriptsTab project={project}/>
-          </div>
-          <div className={activeTab === 'dependencies' ? 'block' : 'hidden'}>
-            <DependenciesTab project={project}/>
-          </div>
-          <div className={activeTab === 'environment' ? 'block' : 'hidden'}>
-            <EnvironmentTab project={project} envVars={project?.envVars} onEdit={onEdit}/>
-          </div>
-          <div className={activeTab === 'analytics' ? 'block' : 'hidden'}>
-            <AnalyticsTab project={project}/>
-          </div>
-          <div className={activeTab === 'settings' ? 'block' : 'hidden'}>
-            <SettingsTab project={project} onEdit={onEdit} onRemove={onRemove}/>
-          </div>
-        </>
-      )}
+      {[...new Set([...visitedIds, ...Object.keys(tabs), project?.id])].map(id => {
+        const target = projects.find(p => p.id === id) || (project?.id === id ? project : null);
+        return target ? <DetailPanels key={`${target.id}:${target.path}`} project={target} tab={target.id === project?.id ? activeTab : tabs[target.id] || 'app'} visible={visible && !fullscreen && target.id === project?.id} onEdit={onEdit} onRemove={onRemove} onOutput={() => setActiveTab('terminal')} /> : null;
+      })}
     </div>
   );
 }

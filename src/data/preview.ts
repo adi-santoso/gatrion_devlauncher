@@ -10,6 +10,7 @@ export interface PreviewBounds {
   y?: number
   width?: number
   height?: number
+  clip?: { x: number; y: number; width: number; height: number }
 }
 
 export interface PreviewConsoleEntry {
@@ -24,6 +25,8 @@ export interface PreviewNavState {
   canGoBack: boolean
   canGoForward: boolean
   title?: string
+  loading?: boolean
+  error?: string | null
 }
 
 /**

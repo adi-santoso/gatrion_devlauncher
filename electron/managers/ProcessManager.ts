@@ -30,6 +30,7 @@ class ProcessManager extends ProcessMetricsBase {
   processes: Map<string, ProcessData>
   autoRestartConfig: Record<string, unknown> | null
   customRuns: Map<number, CustomRun>
+  completedRuns = new Map<number, { runId: number; status: string; code: number | null }>()
   nextRunId: number
   STATUS: typeof STATUS
 
@@ -185,6 +186,7 @@ class ProcessManager extends ProcessMetricsBase {
   ) {
     if (!projectId || !projectPath) throw new Error('Project id and path are required')
     if (typeof command !== 'string' || !command.trim()) throw new Error('Command is required')
+    if ([...this.customRuns.values()].some(run => run.projectId === projectId && run.commandId === commandId)) throw new Error('This task is already running')
 
     const runId = this.nextRunId++
     const childProcess = spawn(command.trim(), {
@@ -211,12 +213,16 @@ class ProcessManager extends ProcessMetricsBase {
 
     childProcess.once('error', (error: Error) => {
       this.customRuns.delete(runId)
+      this.completedRuns.set(runId, { runId, status: 'failed', code: null })
+      if (this.completedRuns.size > 500) this.completedRuns.delete(this.completedRuns.keys().next().value!)
       this.addLog(projectId, `Custom command failed: ${error.message}`, 'error', commandId, label)
       if (onLog) onLog(projectId, { id: this.nextLogId - 1 || this.nextLogId, timestamp: new Date().toISOString(), type: 'error', message: `Custom command failed: ${error.message}`, commandId, commandName: label })
     })
 
     childProcess.once('exit', (code: number | null, signal: NodeJS.Signals | null) => {
       this.customRuns.delete(runId)
+      if (!this.completedRuns.has(runId)) this.completedRuns.set(runId, { runId, status: signal ? 'stopped' : code === 0 ? 'succeeded' : 'failed', code })
+      if (this.completedRuns.size > 500) this.completedRuns.delete(this.completedRuns.keys().next().value!)
       this.addLog(projectId, `Custom command exited with ${signal ? `signal ${signal}` : `code ${code}`}`, 'system', commandId, label)
       if (onLog) onLog(projectId, { id: this.nextLogId - 1 || this.nextLogId, timestamp: new Date().toISOString(), type: 'system', message: `Custom command exited with ${signal ? `signal ${signal}` : `code ${code}`}`, commandId, commandName: label })
     })
@@ -226,18 +232,16 @@ class ProcessManager extends ProcessMetricsBase {
 
   async stopCustomCommand(runId: number, force = false) {
     const run = this.customRuns.get(runId)
-    if (!run) throw new Error(`Custom command ${runId} not found`)
-    try {
-      await this.killProcessTree(run.process, force)
-    } finally {
-      this.customRuns.delete(runId)
-    }
+    if (!run) return { success: true, runId, forced: force }
+    await this.killProcessTree(run.process, force)
+    this.customRuns.delete(runId)
+    if (!this.completedRuns.has(runId)) this.completedRuns.set(runId, { runId, status: 'stopped', code: null })
     return { success: true, runId, forced: force }
   }
 
   getCustomRunStatus(runId: number) {
     const run = this.customRuns.get(runId)
-    return run ? { runId, pid: run.pid, status: 'running' } : { runId, pid: null, status: 'stopped' }
+    return run ? { runId, pid: run.pid, status: 'running' } : this.completedRuns.get(runId) || { runId, pid: null, status: 'stopped' }
   }
 
   async stopAllCustomCommands() {

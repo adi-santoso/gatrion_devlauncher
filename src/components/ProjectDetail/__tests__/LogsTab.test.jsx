@@ -32,6 +32,15 @@ describe('LogsTab', () => {
     expect(screen.queryByText(/Starting server on port 3000/)).not.toBeInTheDocument()
   })
 
+  it('combines warning aliases with matching text and command filters', () => {
+    render(<LogsTab logs={[{ level: 'warning', message: 'deprecated API', commandName: 'worker' }, { level: 'info', message: 'healthy', commandName: 'web' }]} />)
+    fireEvent.change(screen.getByLabelText('Filter log type'), { target: { value: 'warn' } })
+    fireEvent.change(screen.getByLabelText('Search logs'), { target: { value: 'deprecated' } })
+    fireEvent.change(screen.getByLabelText('Log source'), { target: { value: 'worker' } })
+    expect(screen.getByText('deprecated', { selector: 'mark' })).toBeVisible()
+    expect(screen.queryByText('healthy')).not.toBeInTheDocument()
+  })
+
   it('shows empty state when no logs exist', () => {
     render(<LogsTab logs={[]} />)
     expect(screen.getByText('No logs captured yet.')).toBeInTheDocument()
@@ -39,7 +48,7 @@ describe('LogsTab', () => {
 
   it('shows a jump-to-latest button when the user scrolls away from the bottom', () => {
     render(<LogsTab logs={logs} />)
-    const container = screen.getByText(/Starting server on port 3000/).closest('.overflow-y-auto')
+    const container = screen.getByText(/Starting server on port 3000/).closest('.overflow-auto')
     expect(screen.queryByRole('button', { name: 'Jump to latest' })).not.toBeInTheDocument()
 
     // jsdom reports zero sizes; fake a tall scrolled container
@@ -64,7 +73,7 @@ describe('LogsTab', () => {
     // enough to render quickly in jsdom's DOM.
     const bigLogs = Array.from({ length: 1500 }, (_, i) => ({ message: `line ${i}`, level: 'info' }))
     render(<LogsTab logs={bigLogs} />)
-    const container = screen.getByText('line 0').closest('.overflow-y-auto')
+    const container = screen.getByText('line 0').closest('.overflow-auto')
 
     // jsdom has no layout: simulate a viewport + scroll position.
     Object.defineProperty(container, 'clientHeight', { configurable: true, value: 300 })

@@ -1,4 +1,5 @@
 import AnimatedModal from '../Common/AnimatedModal';
+import { useDetailI18n } from '../ProjectDetail/useDetailI18n';
 
 interface ConfirmDialogProps {
   isOpen: boolean;
@@ -25,6 +26,7 @@ const ConfirmDialog = ({
   confirmLabel = 'Confirm',
   confirmVariant = 'danger',
 }: ConfirmDialogProps) => {
+  const t = useDetailI18n();
   const handleConfirm = () => {
     onConfirm();
   };
@@ -71,7 +73,7 @@ const ConfirmDialog = ({
               onClick={handleCancel}
               className="px-3.5 py-2 rounded-lg text-ink-soft hover:text-ink hover:bg-surface-3 text-sm font-medium transition-colors"
             >
-              Cancel
+              {t('Cancel')}
             </button>
             <button
               onClick={handleConfirm}

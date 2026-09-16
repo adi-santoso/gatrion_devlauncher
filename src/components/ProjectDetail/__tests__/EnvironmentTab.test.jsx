@@ -1,5 +1,5 @@
 import React from 'react'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import EnvironmentTab from '../EnvironmentTab'
 
@@ -59,7 +59,7 @@ describe('EnvironmentTab env files', () => {
     fireEvent.change(editor, { target: { value: 'APP_KEY=rotated\n' } })
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
 
-    await waitFor(() => expect(ipc.writeEnvFile).toHaveBeenCalledWith('C:/demo', '.env', 'APP_KEY=rotated\n'))
+    await waitFor(() => expect(ipc.writeEnvFile).toHaveBeenCalledWith('C:/demo', '.env', 'APP_KEY=rotated\n', 1))
     await waitFor(() => expect(screen.getByText(/saved/i)).toBeInTheDocument())
   })
 
@@ -86,5 +86,30 @@ describe('EnvironmentTab env files', () => {
     // Typing updates both layers with the same content
     fireEvent.change(editor, { target: { value: 'APP_KEY=newvalue\nNEW=1\n' } })
     expect(highlight.textContent).toContain('APP_KEY=newvalue')
+  })
+
+  it('ignores a late read from the previous project', async () => {
+    let finishA
+    ipc.readEnvFile.mockImplementation(path => path === 'C:/demo' ? new Promise(resolve => { finishA = resolve }) : Promise.resolve({ success: true, content: 'PROJECT=B', modifiedAt: 2 }))
+    const { rerender } = render(<EnvironmentTab project={project} />)
+    await waitFor(() => expect(finishA).toBeTypeOf('function'))
+    rerender(<EnvironmentTab project={{ ...project, id: 'b', path: 'B' }} />)
+    await screen.findByText('B')
+    await act(async () => finishA({ success: true, content: 'PROJECT=A' }))
+    expect(screen.getByLabelText('Content of .env')).toHaveTextContent('PROJECT=B')
+  })
+
+  it('disables missing file chips and protects a draft from list refresh', async () => {
+    render(<EnvironmentTab project={project} />)
+    await screen.findByText('APP_KEY')
+    expect(screen.getByRole('button', { name: 'production', exact: true })).toBeDisabled()
+    fireEvent.click(screen.getByRole('button', { name: 'Edit', exact: true }))
+    fireEvent.change(screen.getByLabelText('Edit .env'), { target: { value: 'DRAFT=1' } })
+    expect(screen.getByLabelText('Reload env file list')).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Reload content' })).toBeDisabled()
+    ipc.writeEnvFile.mockResolvedValue({ success: false, error: 'File changed on disk' })
+    fireEvent.click(screen.getByRole('button', { name: 'Save', exact: true }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('File changed on disk')
+    expect(screen.getByLabelText('Edit .env')).toHaveValue('DRAFT=1')
   })
 })

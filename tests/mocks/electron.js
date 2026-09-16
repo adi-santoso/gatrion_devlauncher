@@ -59,6 +59,7 @@ const shell = {
   openExternal: async () => {},
   showItemInFolder: () => {},
   openPath: async () => '',
+  trashItem: async () => {},
 }
 
 // WebContentsView + session partition fakes used by PreviewManager tests.
@@ -164,6 +165,15 @@ const session = {
 }
 
 const WebContentsView = FakeWebContentsView
+class View {
+  children = []
+  addChildView(view) { this.children.push(view) }
+  removeChildView(view) { this.children = this.children.filter(child => child !== view) }
+  setBounds(bounds) { this.bounds = bounds }
+  getBounds() { return this.bounds }
+  setVisible(visible) { this.visible = visible }
+  getVisible() { return this.visible }
+}
 
 const dialog = {
   showSaveDialog: async () => ({ canceled: true }),
@@ -207,6 +217,7 @@ function __reset() {
   shell.openExternal = async () => {}
   shell.showItemInFolder = () => {}
   shell.openPath = async () => ''
+  shell.trashItem = async () => {}
   dialog.showSaveDialog = async () => ({ canceled: true })
   dialog.showOpenDialog = async () => ({ canceled: true })
   contextBridge._exposed = null
@@ -223,6 +234,7 @@ function __previewState() {
 }
 
 module.exports = {
+  View,
   ipcMain,
   ipcRenderer,
   shell,

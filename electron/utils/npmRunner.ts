@@ -58,7 +58,14 @@ function createNpmRunner(spawnFn: typeof import('child_process').spawn = spawn) 
           if (settled) return
           settled = true
           clearTimeout(timer)
-          if (code !== 0 && code !== 1) {
+          let validOutdated = false
+          if (args[0] === 'outdated') {
+            try {
+              const result = JSON.parse(stdout)
+              validOutdated = result !== null && typeof result === 'object' && !Array.isArray(result) && !result.error
+            } catch { /* malformed output cannot justify an unsuccessful exit */ }
+          }
+          if (code !== 0 && !(code === 1 && validOutdated)) {
             // npm outdated exits 1 when packages ARE outdated — that is success.
             reject(new Error((stderr || '').trim().slice(0, 400) || `npm ${args[0] || ''} failed`))
             return
@@ -74,4 +81,3 @@ const defaultRunner = createNpmRunner()
 
 export const execNpm = defaultRunner.execNpm
 export { assertSafePackageName, createNpmRunner }
-

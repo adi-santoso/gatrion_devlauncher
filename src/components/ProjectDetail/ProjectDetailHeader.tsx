@@ -4,6 +4,7 @@ import StackLogo from '../Common/StackLogo';
 import Icon from '../Common/Icon';
 import { previewUrl } from '../../utils/previewUrl';
 import type { ViewProject } from '../Dashboard/ProjectCard';
+import { useDetailI18n } from './useDetailI18n';
 
 const statusClasses: Record<string, string> = {
   running: 'bg-success/10 text-success border-success/20', starting: 'bg-warning/10 text-warning border-warning/20',
@@ -40,6 +41,7 @@ interface ProjectDetailHeaderProps {
 }
 
 export default function ProjectDetailHeader({ project, onStart, onStop, onRestart, onEdit, onDuplicate, onOpenAgent }: ProjectDetailHeaderProps) {
+  const t = useDetailI18n();
   const status = (project?.status || 'stopped').toLowerCase();
   const busy = status === 'starting' || status === 'stopping';
   const appUrl = previewUrl(project?.port, project?.previewHost);
@@ -84,7 +86,7 @@ export default function ProjectDetailHeader({ project, onStart, onStop, onRestar
   };
 
   return (
-    <header className="border-b border-border bg-surface/50 rounded-xl p-5 shadow-card space-y-3">
+    <header className="border-b border-border bg-surface/50 rounded-xl p-3 shadow-card space-y-2">
       {/* Top Header Row */}
       <div className="flex items-center justify-between flex-wrap gap-4">
         <div className="flex items-center gap-3.5 min-w-0">
@@ -93,18 +95,18 @@ export default function ProjectDetailHeader({ project, onStart, onStop, onRestar
           </div>
           <div className="min-w-0">
             <div className="flex items-center gap-2.5 flex-wrap">
-              <h1 className="font-display font-extrabold text-2xl tracking-tight text-ink">{project?.name}</h1>
+              <h1 className="font-display font-extrabold text-xl tracking-tight text-ink break-all">{project?.name}</h1>
               <span className={`inline-flex items-center text-xs font-semibold px-2.5 py-0.5 rounded-full border ${statusClasses[status] || statusClasses.stopped}`}>
-                {status.charAt(0).toUpperCase() + status.slice(1)}
+                {t(status.charAt(0).toUpperCase() + status.slice(1))}
               </span>
             </div>
-            <p
+            <button type="button"
               onClick={handleRevealInExplorer}
-              title="Click to reveal in File Explorer"
-              className="text-xs font-mono text-ink-faint mt-1 truncate hover:text-accent cursor-pointer transition-colors"
+              title={t('Click to reveal in File Explorer')}
+              className="text-xs font-mono text-ink-faint mt-1 truncate max-w-full hover:text-accent cursor-pointer transition-colors"
             >
-              {project?.path || 'No path specified'}
-            </p>
+              {project?.path || t('No path specified')}
+            </button>
           </div>
         </div>
 
@@ -116,8 +118,8 @@ export default function ProjectDetailHeader({ project, onStart, onStop, onRestar
             <button
               onClick={handleOpenBrowser}
               disabled={status !== 'running'}
-              aria-label={status === 'running' ? `Open ${appUrl} in browser` : 'Start the project to open the app'}
-              title={status === 'running' ? `Open ${appUrl} in browser` : 'Start the project to open the app'}
+              aria-label={status === 'running' ? t('Open {url} in browser', { url: appUrl }) : t('Start the project to open the app')}
+              title={status === 'running' ? t('Open {url} in browser', { url: appUrl }) : t('Start the project to open the app')}
               className={`${btnIcon} ${
                 status === 'running'
                   ? 'text-success border border-success/30 bg-success/10 hover:bg-success/20'
@@ -128,7 +130,7 @@ export default function ProjectDetailHeader({ project, onStart, onStop, onRestar
             </button>
           )}
           {onOpenAgent && (
-            <button onClick={onOpenAgent} aria-label="Open the AI agent workspace for this project" title="Open the AI agent workspace for this project" className={`${btnIcon} bg-surface-3 hover:bg-surface-2 text-accent border border-accent/30`}>
+            <button onClick={onOpenAgent} aria-label={t('Open the AI agent workspace for this project')} title={t('Open the AI agent workspace for this project')} className={`${btnIcon} bg-surface-3 hover:bg-surface-2 text-accent border border-accent/30`}>
               <Icon name="messageSquare" size={14} />
             </button>
           )}
@@ -137,9 +139,9 @@ export default function ProjectDetailHeader({ project, onStart, onStop, onRestar
           <div ref={menuRef} className="relative">
             <button
               onClick={() => setMenuOpen((prev) => !prev)}
-              aria-label="More actions"
+              aria-label={t('More actions')}
               aria-expanded={menuOpen}
-              title="More actions"
+              title={t('More actions')}
               className={`${btnIcon} ${menuOpen ? 'bg-surface-2 text-ink border border-accent/40' : 'bg-surface-3 hover:bg-surface-2 text-ink-soft border border-border'}`}
             >
               <Icon name="more" size={14} />
@@ -148,21 +150,21 @@ export default function ProjectDetailHeader({ project, onStart, onStop, onRestar
               <div className="absolute right-0 top-full mt-1.5 z-40 min-w-[190px] rounded-lg border border-border bg-surface-2 shadow-card py-1">
                 <button onClick={() => { handleRevealInExplorer(); setMenuOpen(false); }} className={menuItem}>
                   <Icon name="folder" size={13} />
-                  Explorer
+                  {t('Explorer')}
                 </button>
                 <button onClick={() => { handleOpenInEditor(); setMenuOpen(false); }} className={menuItem}>
                   <Icon name="code" size={13} />
-                  Open in Editor
+                  {t('Open in Editor')}
                 </button>
                 <div className="my-1 border-t border-border/60" />
                 <button onClick={() => { onEdit?.(); setMenuOpen(false); }} className={menuItem}>
                   <Icon name="gear" size={13} />
-                  Edit
+                  {t('Edit')}
                 </button>
                 {onDuplicate && (
                   <button onClick={() => { onDuplicate(); setMenuOpen(false); }} className={menuItem}>
                     <Icon name="duplicate" size={13} />
-                    Duplicate
+                    {t('Duplicate')}
                   </button>
                 )}
               </div>
@@ -177,26 +179,26 @@ export default function ProjectDetailHeader({ project, onStart, onStop, onRestar
             <>
               <button onClick={onRestart} className={btnAccent}>
                 <Icon name="restart" size={13} />
-                Restart
+                {t('Restart')}
               </button>
               <button onClick={onStop} className={btnDanger}>
                 <Icon name="stop" size={12} />
-                Stop
+                {t('Stop')}
               </button>
             </>
           ) : busy ? (
             <button disabled className={`${btnBase} px-3.5 bg-warning/10 text-warning border border-warning/20 font-semibold cursor-wait`}>
-              {status === 'starting' ? 'Starting...' : 'Stopping...'}
+              {t(status === 'starting' ? 'Starting...' : 'Stopping...')}
             </button>
           ) : status === 'error' ? (
             <button onClick={onRestart} className={btnDanger}>
               <Icon name="restart" size={13} />
-              Restart
+              {t('Restart')}
             </button>
           ) : (
             <button onClick={onStart} className={btnPrimary}>
               <Icon name="play" size={13} />
-              Start Project
+              {t('Start Project')}
             </button>
           )}
         </div>
@@ -216,7 +218,7 @@ export default function ProjectDetailHeader({ project, onStart, onStop, onRestar
           <span>PID <strong className="text-ink-soft">{project.pid}</strong></span>
         )}
         {(project?.uptime || project?.metrics?.uptime) && (
-          <span>Uptime <strong className="text-ink-soft">{project?.metrics?.uptime || project.uptime}</strong></span>
+          <span>{t('Uptime')} <strong className="text-ink-soft">{project?.metrics?.uptime || project.uptime}</strong></span>
         )}
         {project?.cpu != null && (
           <span>CPU <strong className={`font-semibold ${project.cpu > 80 ? 'text-danger' : project.cpu > 60 ? 'text-warning' : 'text-success'}`}>{Number(project.cpu).toFixed(1)}%</strong></span>
@@ -239,7 +241,7 @@ export default function ProjectDetailHeader({ project, onStart, onStop, onRestar
                   <p className="font-mono text-ink-faint truncate">{command.command}</p>
                 </div>
                 <div className="text-right shrink-0">
-                  <p className={command.status === 'RUNNING' ? 'text-success' : command.status === 'ERROR' ? 'text-danger' : 'text-warning'}>{command.status}</p>
+                  <p className={command.status === 'RUNNING' ? 'text-success' : command.status === 'ERROR' ? 'text-danger' : 'text-warning'}>{t(command.status?.toLowerCase() || 'stopped')}</p>
                   <p className="font-mono text-ink-faint">{command.port ? `:${command.port}` : ''}{command.pid ? ` PID ${command.pid}` : ''}</p>
                 </div>
               </div>

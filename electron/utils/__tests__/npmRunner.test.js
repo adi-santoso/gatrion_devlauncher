@@ -34,6 +34,16 @@ describe('npmRunner — execNpm', () => {
     await expect(runner.execNpm('.', ['update'])).rejects.toThrow(/something broke/)
   })
 
+  test.each(['install', 'update'])('rejects %s exit 1, including dependency conflicts', async command => {
+    const runner = createNpmRunner(() => makeChild({ code: 1, stdout: '{}', stderr: 'ERESOLVE unable to resolve dependency tree' }))
+    await expect(runner.execNpm('.', [command, 'demo'])).rejects.toThrow('ERESOLVE')
+  })
+
+  test.each(['{broken', '{"error":{"code":"ENETUNREACH"}}', '[]'])('rejects failed outdated output %s', async stdout => {
+    const runner = createNpmRunner(() => makeChild({ code: 1, stdout, stderr: 'network error' }))
+    await expect(runner.execNpm('.', ['outdated', '--json'])).rejects.toThrow('network error')
+  })
+
   test('kills the child and rejects on timeout', async () => {
     const child = makeChild({ autoClose: false }) // never closes
     const runner = createNpmRunner(() => child)

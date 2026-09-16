@@ -1,16 +1,10 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import Icon from '../Common/Icon';
 import * as ipc from '../../utils/ipcRenderer';
 import { ConfirmDialog } from '../Modals';
 import type { ProjectRuntime } from '../../hooks/useProjects';
-
-// Module-level store so running scripts survive unmounting the component
-// (switching tabs and coming back).
-const runStore = new Map<string, string | null>();
-const setRunId = (projectId: string, scriptName: string, runId: string | null | undefined): void => {
-  if (runId == null) runStore.delete(`${projectId}:${scriptName}`);
-  else runStore.set(`${projectId}:${scriptName}`, runId);
-};
+import { useProjectTasks } from './useProjectTasks';
+import { useDetailI18n } from './useDetailI18n';
 
 const btnBase = 'inline-flex items-center gap-1.5 h-8 px-3 rounded-lg text-xs font-medium transition-colors whitespace-nowrap';
 const btnSecondary = `${btnBase} bg-surface-3 hover:bg-surface-2 text-ink-soft hover:text-ink border border-border disabled:opacity-50 disabled:cursor-not-allowed`;
@@ -48,86 +42,66 @@ interface DepsView {
 
 interface ScriptsTabProps {
   project: ProjectRuntime | null;
+  active?: boolean;
+  onOutput?: () => void;
 }
 
-export default function ScriptsTab({ project }: ScriptsTabProps) {
+export default function ScriptsTab(props: ScriptsTabProps) {
+  return <ProjectScripts key={`${props.project?.id}:${props.project?.path}`} {...props} />;
+}
+
+function ProjectScripts({ project, active = true, onOutput }: ScriptsTabProps) {
+  const t = useDetailI18n();
   const [scripts, setScripts] = useState<PackageScript[]>([]);
   const [deps, setDeps] = useState<DepsView | null>(null);
   const [loading, setLoading] = useState(true);
   const [notice, setNotice] = useState<Notice | null>(null);
-  const [busy, setBusy] = useState<string | null>(null);
-  const [running, setRunning] = useState<Record<string, string | null>>({});
+  const { tasks, busy, error, run, stop } = useProjectTasks(project?.id || '');
   const [confirmInstall, setConfirmInstall] = useState(false);
+  const requestRef = useRef(0);
+  useEffect(() => () => { requestRef.current++; }, []);
 
   const refresh = useCallback(async () => {
     if (!project?.path) return;
+    const request = ++requestRef.current;
     setLoading(true);
+    setNotice(previous => previous?.type === 'error' ? null : previous);
+    try {
     const [scriptsResult, depsResult] = await Promise.all([
       ipc.readPackageScripts(project.path),
       ipc.checkDependencies(project.path),
     ]);
+    if (request !== requestRef.current) return;
     setLoading(false);
     if (scriptsResult.success) setScripts((scriptsResult as ScriptsView).scripts || []);
-    else setNotice({ type: 'error', message: scriptsResult.error || 'Failed to read package.json' });
+    else setNotice({ type: 'error', message: scriptsResult.error || t('Failed to read package.json') });
     if (depsResult.success) setDeps(depsResult as DepsView);
-    else setNotice({ type: 'error', message: depsResult.error || 'Failed to check dependencies' });
-  }, [project?.path]);
+    else setNotice({ type: 'error', message: depsResult.error || t('Failed to check dependencies') });
+    } catch (cause) { if (request === requestRef.current) setNotice({ type: 'error', message: String(cause) }); }
+    finally { if (request === requestRef.current) setLoading(false); }
+  }, [project?.path, t]);
 
   useEffect(() => {
-    refresh();
-  }, [refresh]);
+    if (active) void refresh();
+  }, [refresh, active]);
+  const installTask = tasks[`${deps?.packageManager || 'npm'} install`];
+  const installStatus = installTask?.status;
+  useEffect(() => {
+    if (active && installStatus === 'succeeded') void refresh();
+  }, [active, installStatus, refresh]);
 
   const handleRun = async (script: PackageScript): Promise<void> => {
     if (!project) return;
-    setBusy(script.name);
-    setNotice(null);
-    try {
-      const result = await ipc.runProjectScript(project.id, script.name);
-      if (result.success) {
-        const runId = (result as { runId?: string }).runId;
-        setRunId(project.id, script.name, runId);
-        setRunning((prev) => ({ ...prev, [script.name]: runId ?? null }));
-        setNotice({ type: 'success', message: `Started "${script.name}". Output appears in the Terminal tab.` });
-      } else {
-        setNotice({ type: 'error', message: result.error || `Failed to run "${script.name}"` });
-      }
-    } finally {
-      setBusy(null);
-    }
+    if (await run(script.name, () => ipc.runProjectScript(project.id, script.name))) setNotice({ type: 'success', message: t('Started "{name}". Output appears in the Terminal tab.', { name: script.name }) });
   };
 
-  const handleStop = async (scriptName: string, runId: string): Promise<void> => {
-    if (!project) return;
-    setBusy(scriptName);
-    const result = await ipc.stopCustomCommand(runId);
-    setBusy(null);
-    if (result.success) {
-      setRunId(project.id, scriptName, null);
-      setRunning((prev) => ({ ...prev, [scriptName]: null }));
-    } else {
-      setNotice({ type: 'error', message: result.error || 'Failed to stop' });
-    }
-  };
+  const handleStop = (scriptName: string): Promise<void> => stop(scriptName);
 
   const handleInstall = async (): Promise<void> => {
     if (!project) return;
     setConfirmInstall(false);
-    setBusy('install');
-    setNotice(null);
-    try {
-      const result = await ipc.installDependencies(project.id);
-      if (result.success) {
-        const label = `${(result as { packageManager?: string }).packageManager || 'npm'} install`;
-        const runId = (result as { runId?: string }).runId;
-        setRunId(project.id, label, runId);
-        setRunning((prev) => ({ ...prev, [label]: runId ?? null }));
-        setNotice({ type: 'success', message: `Started ${label}. Output appears in the Terminal tab.` });
-      } else {
-        setNotice({ type: 'error', message: result.error || 'Failed to install dependencies' });
-      }
-    } finally {
-      setBusy(null);
-    }
+    const label = `${deps?.packageManager || 'npm'} install`;
+    if (await run(label, () => ipc.installDependencies(project.id))) setNotice({ type: 'success', message: t('Started "{name}". Output appears in the Terminal tab.', { name: label }) });
   };
 
   if (loading && !deps && !notice) {
@@ -151,58 +125,61 @@ export default function ScriptsTab({ project }: ScriptsTabProps) {
   if (!deps?.hasPackageJson) {
     return (
       <div className="bg-surface border border-border rounded-xl shadow-card p-8 text-center">
+        {notice?.type === 'error' && <p role="alert">{notice.message}</p>}
+        <button onClick={refresh} className={btnSecondary}>{t('Retry / reload')}</button>
         <div className="w-12 h-12 rounded-full bg-surface-3 flex items-center justify-center text-ink-soft mx-auto mb-3">
           <Icon name="terminal" size={20} />
         </div>
-        <h3 className="font-display font-bold text-base text-ink">No package.json Found</h3>
+        <h3 className="font-display font-bold text-base text-ink">{t('No package.json Found')}</h3>
         <p className="text-xs text-ink-faint mt-1.5 leading-relaxed max-w-md mx-auto">
-          Script runner and dependency health are available for Node.js projects. Add a package.json to this project to use them.
+          {t('Script runner and dependency health are available for Node.js projects. Add a package.json to this project to use them.')}
         </p>
       </div>
     );
   }
 
-  const installRunId = running[`${deps.packageManager || 'npm'} install`];
-
   return (
     <div className="space-y-4">
+      {error && <p role="alert" className="text-danger text-sm">{error}</p>}
+      {onOutput && <button onClick={onOutput} className={btnSecondary}>{t('Open output')}</button>}
       {notice && (
-        <p className={`text-xs px-3 py-2 rounded-lg border ${notice.type === 'success' ? 'text-success border-success/20 bg-success/10' : 'text-danger border-danger/20 bg-danger/10'}`}>
+        <p role={notice.type === 'error' ? 'alert' : 'status'} className={`text-xs px-3 py-2 rounded-lg border ${notice.type === 'success' ? 'text-success border-success/20 bg-success/10' : 'text-danger border-danger/20 bg-danger/10'}`}>
           {notice.message}
         </p>
       )}
 
       {/* Dependency health */}
       <div className="bg-surface border border-border rounded-xl shadow-card p-4">
-        <p className="text-sm font-semibold text-ink">Dependencies</p>
+        <p className="text-sm font-semibold text-ink">{t('Dependencies')}</p>
+        {installTask && <p role="status" className="text-xs text-ink-soft">{t(installTask.status)}{installTask.code != null ? ` · exit ${installTask.code}` : ''}</p>}
         <div className="flex items-center gap-3 flex-wrap mt-3">
           <span className={`inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border ${
             deps.hasNodeModules ? 'text-success border-success/25 bg-success/10' : 'text-danger border-danger/25 bg-danger/10'
           }`}>
             <Icon name={deps.hasNodeModules ? 'check' : 'warn'} size={13} />
-            node_modules {deps.hasNodeModules ? 'installed' : 'missing'}
+            node_modules {t(deps.hasNodeModules ? 'installed' : 'missing')}
           </span>
           <span className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-surface-3 border border-border text-ink-soft">
             <Icon name="commit" size={13} />
             {deps.packageManager || 'npm'}
-            {deps.lockfile ? ` · ${deps.lockfile}` : ' · no lockfile'}
+            {deps.lockfile ? ` · ${deps.lockfile}` : t(' · no lockfile')}
           </span>
-          <span className="text-xs text-ink-faint">{deps.depCount} package(s) · {deps.scriptCount} script(s)</span>
+          <span className="text-xs text-ink-faint">{t('{packages} package(s) · {scripts} script(s)', { packages: deps.depCount, scripts: deps.scriptCount })}</span>
           <div className="flex-1" />
-          {installRunId != null ? (
-            <button onClick={() => handleStop(`${deps.packageManager || 'npm'} install`, installRunId)} className={btnSecondary} title="Stop install">
+          {installTask?.status === 'running' ? (
+            <button onClick={() => handleStop(`${deps.packageManager || 'npm'} install`)} disabled={Boolean(busy)} className={btnSecondary} title={t('Stop install')}>
               <Icon name="stop" size={12} />
-              Stop install
+              {t('Stop install')}
             </button>
           ) : deps.hasNodeModules ? (
-            <button onClick={refresh} className={btnSecondary} title="Re-check">
+            <button onClick={refresh} className={btnSecondary} title={t('Re-check')}>
               <Icon name="restart" size={13} />
-              Re-check
+              {t('Re-check')}
             </button>
           ) : (
-            <button onClick={() => setConfirmInstall(true)} disabled={busy !== null} className={btnPrimary} title="Runs the detected package manager install; output in Terminal tab">
+            <button onClick={() => setConfirmInstall(true)} disabled={busy !== null} className={btnPrimary} title={t('Runs the detected package manager install; output in Terminal tab')}>
               <Icon name="download" size={13} />
-              Install dependencies
+              {t('Install dependencies')}
             </button>
           )}
         </div>
@@ -212,35 +189,36 @@ export default function ScriptsTab({ project }: ScriptsTabProps) {
       <div className="bg-surface border border-border rounded-xl shadow-card overflow-hidden">
         <div className="flex items-center justify-between gap-3 px-4 py-2.5 border-b border-border bg-surface-2 flex-wrap">
           <div>
-            <p className="text-xs font-semibold text-ink">package.json scripts</p>
-            <p className="text-[10px] text-ink-faint mt-0.5">Runs through the process manager — output lands in the Terminal tab.</p>
+            <p className="text-xs font-semibold text-ink">{t('package.json scripts')}</p>
+            <p className="text-[10px] text-ink-faint mt-0.5">{t('Runs through the process manager — output lands in the Terminal tab.')}</p>
           </div>
-          <button onClick={refresh} className={btnSecondary} title="Reload scripts">
+          <button onClick={refresh} className={btnSecondary} title={t('Reload scripts')}>
             <Icon name="restart" size={13} />
-            Reload
+            {t('Reload')}
           </button>
         </div>
         {scripts.length === 0 ? (
-          <p className="py-6 text-center text-sm text-ink-faint">No scripts defined in package.json.</p>
+          <p className="py-6 text-center text-sm text-ink-faint">{t('No scripts defined in package.json.')}</p>
         ) : (
           <div className="grid gap-2 p-3 sm:grid-cols-2">
             {scripts.map((script) => {
-              const runId = running[script.name];
+              const task = tasks[script.name];
               return (
                 <div key={script.name} className="flex items-center gap-2 rounded-lg border border-border bg-surface-2 px-3 py-2">
                   <div className="flex-1 min-w-0">
-                    <p className="text-xs font-semibold text-ink font-mono">{script.name}</p>
+                     <p className="text-xs font-semibold text-ink font-mono">{script.name}</p>
+                     {task && <p role="status" className="text-xs text-ink-soft">{t(task.status)}{task.code != null ? ` · exit ${task.code}` : ''}</p>}
                     <p className="text-[10px] text-ink-faint font-mono truncate" title={script.command}>{script.command}</p>
                   </div>
-                  {runId != null ? (
-                    <button onClick={() => handleStop(script.name, runId)} disabled={busy !== null} className={btnSecondary} title="Stop script">
+                  {task?.status === 'running' ? (
+                    <button onClick={() => handleStop(script.name)} disabled={busy !== null} className={btnSecondary} title={t('Stop script')}>
                       <Icon name="stop" size={12} />
-                      Stop
+                      {t('Stop')}
                     </button>
                   ) : (
-                    <button onClick={() => handleRun(script)} disabled={busy !== null} className={btnPrimary} title={`npm run ${script.name}`}>
+                    <button onClick={() => handleRun(script)} disabled={busy !== null} className={btnPrimary} title={`${deps.packageManager || 'npm'} run ${script.name}`}>
                       <Icon name="play" size={12} />
-                      Run
+                      {t('Run')}
                     </button>
                   )}
                 </div>
@@ -252,9 +230,9 @@ export default function ScriptsTab({ project }: ScriptsTabProps) {
 
       <ConfirmDialog
         isOpen={confirmInstall}
-        title="Install Dependencies"
-        message={`Run "${deps.packageManager || 'npm'} install" in this project? This can take a while and modifies node_modules and the lockfile.`}
-        confirmLabel="Install"
+        title={t('Install Dependencies')}
+        message={t('Run "{manager} install" in this project? This can take a while and modifies node_modules and the lockfile.', { manager: deps.packageManager || 'npm' })}
+        confirmLabel={t('Install')}
         onConfirm={handleInstall}
         onCancel={() => setConfirmInstall(false)}
       />
