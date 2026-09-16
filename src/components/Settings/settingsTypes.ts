@@ -48,6 +48,7 @@ export interface BackupResultMessage {
 export type AppConfigUpdateValue = DeepPartial<AppConfig>[keyof AppConfig];
 
 export interface SettingsViewProps {
+  initialTab?: 'general' | 'agent';
   config: AppConfig;
   updateConfig: (updates: DeepPartial<AppConfig>) => void | Promise<void>;
   onExportProjects: () => void;

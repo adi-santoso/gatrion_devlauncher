@@ -1,12 +1,29 @@
 # Roadmap DevLauncher — Rencana Peningkatan
 
-> **STATUS: SELESAI** (keputusan 14 Agu 2026) — seluruh item P0/P1 tuntas; P2 tersisa hanya item yang di-skip dengan sengaja (code signing, berbayar) dan sisanya yang menunggu platform nyata (verifikasi runtime macOS/Linux). **Rewrite TypeScript juga telah tuntas (15 Agu 2026, v0.1.8)** — kode produksi 100% TS strict; lihat [ROADMAP_TS.md](ROADMAP_TS.md).
+> **STATUS: SELESAI / ARSIP** (keputusan 14 Agu 2026) — seluruh item P0/P1 tuntas; P2 tersisa hanya item yang di-skip dengan sengaja (code signing, berbayar) dan sisanya yang menunggu platform nyata (verifikasi runtime macOS/Linux). **Rewrite TypeScript juga telah tuntas (15 Agu 2026, v0.1.8)** — kode produksi 100% TS strict; lihat [ROADMAP_TS.md](ROADMAP_TS.md).
 >
-> **Fitur baru:** [ROADMAP_AGENT_MCP.md](ROADMAP_AGENT_MCP.md) — agent (omp) mengontrol DevLauncher via MCP (belum dimulai, Fase 0).
+> **Dokumen ini adalah arsip.** Tabel "Kondisi Saat Ini" dan nama file di bawah dibekukan pada commit `8fb48f6` (pra-TypeScript) — referensi seperti `AgentChat.jsx`, `App.jsx`, dan `ProcessManager.js` **sudah tidak ada lagi**; padanannya kini `.tsx`/`.ts`. Untuk status faktual terkini gunakan [FEATURE_STATUS.md](FEATURE_STATUS.md) dan [ARCHITECTURE.md](ARCHITECTURE.md).
+>
+> **Rencana aktif:** [ROADMAP_v2.md](ROADMAP_v2.md) — agent workspace & kompetisi. **Fitur MCP:** [ROADMAP_AGENT_MCP.md](ROADMAP_AGENT_MCP.md) (F0–F4 selesai, 44 tool).
 
-Dokumen ini berisi rencana perbaikan DevLauncher berdasarkan analisa kode saat ini (commit `8fb48f6`). Ini bukan daftar fitur marketing — tiap item diturunkan dari kondisi nyata repo, diberi prioritas, perkiraan effort, dan dampak. Status per fitur eksisting tetap di [FEATURE_STATUS.md](FEATURE_STATUS.md); riwayat perubahan di [CHANGELOG.md](../CHANGELOG.md).
+## Snapshot terkini (v0.2.9, terverifikasi)
 
-## Kondisi Saat Ini (hasil analisa)
+Angka di bawah menggantikan tabel historis di bagian berikutnya:
+
+| Area | Fakta |
+|---|---|
+| Ukuran kode | ±35.700 baris sumber (220 file) + ±11.700 baris test (99 file) |
+| Kualitas | Lint **0 error, 9 warning** (7 `max-lines`, 2 `no-unused-vars` di test); `npm run typecheck` **0 error**; TS strict 100% |
+| Test | **910 test Vitest (99 file)** + **29 test Playwright (15 spec)** |
+| IPC | **136 channel** di 11 file handler, semuanya lewat `safeHandle` + `CHANNEL_RULES` |
+| MCP | **44 tool** dalam 3 kategori izin (read/write/destructive) |
+| CI | `ci.yml` hanya lint + typecheck; pipeline penuh (test, coverage, audit, build, publish) hanya pada tag `v*` di `release.yml` |
+
+---
+
+Dokumen ini berisi rencana perbaikan DevLauncher berdasarkan analisa kode saat itu (commit `8fb48f6`). Ini bukan daftar fitur marketing — tiap item diturunkan dari kondisi nyata repo, diberi prioritas, perkiraan effort, dan dampak. Status per fitur eksisting tetap di [FEATURE_STATUS.md](FEATURE_STATUS.md); riwayat perubahan di [CHANGELOG.md](../CHANGELOG.md).
+
+## Kondisi Saat Ini (hasil analisa — historis, commit `8fb48f6`)
 
 | Area | Fakta |
 |---|---|
@@ -95,17 +112,20 @@ Dokumen ini berisi rencana perbaikan DevLauncher berdasarkan analisa kode saat i
 
 ## Gerbang Rilis (Definition of Done)
 
-Checklist yang harus terpenuhi sebelum versi pertama benar-benar dirilis:
+Checklist yang harus terpenuhi sebelum versi pertama benar-benar dirilis. Status di bawah **diverifikasi ulang pada v0.2.9**:
 
-- [ ] Tidak ada fitur visible yang diam-diam mock.
-- [ ] Lifecycle process tidak meninggalkan orphan; PID/status/log selalu konsisten.
-- [ ] Lint 0 error (target: 0 warning), `npm run typecheck` lulus, coverage path kritis ≥ 50%.
-- [ ] CI hijau di clean checkout (lint, `npm test`, vitest, build, e2e).
+- [x] Tidak ada fitur visible yang diam-diam mock — lihat [FEATURE_STATUS.md](FEATURE_STATUS.md), tidak ada baris berstatus `Mock`.
+- [x] Lifecycle process tidak meninggalkan orphan; PID/status/log konsisten — dicakup test spawn nyata ProcessManager.
+- [x] Lint 0 error, `npm run typecheck` lulus (tersisa 9 warning: 7 `max-lines`, 2 `no-unused-vars` di test).
+- [ ] **Coverage path kritis ≥ 50% ditegakkan CI** — coverage aktual memenuhi, tetapi threshold `vitest.config.js` masih 28% lines sehingga gate-nya tidak benar-benar menjaga angka itu.
+- [ ] **CI hijau di clean checkout untuk lint + test + build + e2e** — saat ini push/PR hanya menjalankan lint + typecheck; `npm test` hanya pada tag rilis dan e2e tidak pernah dijalankan CI.
 - [ ] NSIS dan portable diuji di Windows bersih, path dengan spasi, user non-admin.
 - [ ] Uninstall tidak menghapus user data tanpa consent.
-- [ ] Auto-update teruji dari versi lama ke versi baru.
+- [ ] Auto-update teruji end-to-end dari versi lama ke versi baru.
 
-## Urutan Eksekusi yang Disarankan
+Catatan: **code signing sengaja tidak diambil** (butuh sertifikat berbayar), jadi peringatan SmartScreen saat install adalah perilaku yang diterima, bukan bug.
+
+## Urutan Eksekusi yang Disarankan (historis)
 
 1. **Minggu 1 (selesai ✅)** — semua P0: lint 0 warning, single instance lock, error capture, CI typecheck + audit + gate coverage.
 2. **Minggu 2–4 (selesai ✅)** — P1 code quality: pecah `AgentChat.jsx` (utils + ToolCard + ChatComposer + ChatHeader), `App.jsx` (orchestration → hook), `ProcessManager.js` (helper → modul), seragamkan respons IPC (`safeHandle` di 8 file handler). Tersisa: TypeScript electron.

@@ -44,7 +44,7 @@ Real screenshots of the app in action — no mockups.
 ## What you get
 
 ### Project management
-- **Register any folder as a project** — framework auto-detected (Laravel, Next.js, React/Vite, Vue, Go, Node.js, or Custom) with start command and port. Per-project start commands, env vars, and tags.
+- **Register any folder as a project** — framework auto-detected (Laravel, Next.js, Vue, React/Vite, React, Go, Python, Node.js, or Custom) with start command and port. Per-project start commands, env vars, and tags.
 - **Full CRUD** — edit, duplicate, delete; drag & drop a folder onto the window to auto-fill the form. Export/import projects as portable JSON (import merges, never overwrites).
 - **Workspace presets** — save a group of projects as a preset and start/stop the whole stack with one click, with staggered delays and per-project progress.
 
@@ -83,7 +83,7 @@ Real screenshots of the app in action — no mockups.
 - **Tabbed settings** — General, Terminal, Data & Backup, Diagnostics, AI Agent, Prayer; saved automatically.
 - **Theme & language** — dark/light/system + instant EN/ID switch.
 - **Backup** — export everything (projects incl. `.env`, config, presets) to one file, optionally AES-256-GCM encrypted; import merges safely.
-- **Diagnostics** — crash dumps, main-log tail, environment check for 17 tools.
+- **Diagnostics** — crash dumps, main-log tail, environment check for 17 tools, one-click diagnostics bundle with secrets redacted.
 - **Updates** — check, download, and install in-app.
 - **Desktop integration** — minimize to tray, start on boot, auto-start projects on launch.
 
@@ -151,9 +151,9 @@ Nothing is stored in the repository. Electron uses `app.getPath('userData')`:
 ## Important Notes
 
 - Start commands run through your local shell — only add projects and commands you trust.
-- Windows x64 is the primary target; macOS and Linux build in CI but aren't validated on real hardware yet.
+- Windows x64 is the only packaged target; macOS and Linux code paths are audited but not validated on real hardware yet.
 - The preview uses a native WebContentsView with a sandboxed iframe fallback.
-- App icons regenerate with `npm run icons` into `build/` (gitignored — run before packaging).
+- App icons are committed under `build/` (`.gitignore` explicitly un-ignores `icon.ico`, `icon.png`, `icon-tray.png`) so packaging always embeds the real icon. Regenerate with `npm run icons` and commit the result if the artwork changes.
 
 ## License
 

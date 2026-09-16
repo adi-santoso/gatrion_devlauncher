@@ -57,6 +57,9 @@ export default function AppPreviewTab({
   const isRunning = status === 'running'
   const appUrl = previewUrl((project as ViewProject)?.port, (project as ViewProject)?.previewHost)
   const projectId = project?.id
+  // Empty state (no port configured, or project stopped): a small centered card
+  // is rendered instead of a preview surface.
+  const showPlaceholder = appUrl == null || !isRunning
 
   // Device simulator: selection + orientation persist per project.
   const { device, landscape, size: deviceSize, emulation, setDevice, toggleLandscape } = usePreviewDevice(projectId)
@@ -435,14 +438,16 @@ export default function AppPreviewTab({
 
       {/* Main Preview Container — the fit-mode branch keeps the measured
           element as a DIRECT child so its h-full/flex-1 chain never collapses
-          (a wrapping h-full div in an auto-height flex parent measures 0). */}
+          (a wrapping h-full div in an auto-height flex parent measures 0).
+          Centering is dropped ONLY for a real fit-to-window preview; the
+          placeholder is a small card and must stay centered in every mode. */}
       <div
         className={
-          fullscreen
-            ? deviceActive
+          fullscreen && !deviceActive && !showPlaceholder
+            ? 'flex-1 relative bg-base flex flex-col w-full h-full p-0 overflow-hidden'
+            : fullscreen
               ? 'flex-1 relative bg-base flex flex-col items-center justify-center w-full h-full p-4 overflow-hidden'
-              : 'flex-1 relative bg-base flex flex-col w-full h-full p-0 overflow-hidden'
-            : 'flex-1 relative bg-base flex flex-col items-center justify-center p-4'
+              : 'flex-1 relative bg-base flex flex-col items-center justify-center p-4'
         }
       >
         {!appUrl ? (

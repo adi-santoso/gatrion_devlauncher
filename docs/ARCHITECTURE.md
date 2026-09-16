@@ -21,19 +21,21 @@ Renderer tidak mendapat akses Node.js langsung. `nodeIntegration` nonaktif dan `
 electron/                      TypeScript, di-bundle electron-vite 5 → out/main + out/preload
   main.ts                       lifecycle window dan app (orchestrator tipis)
   preload.ts                    API aman ke renderer (contextBridge)
-  ipcHandlers.ts                registrasi semua ipcMain.handle (implementasi per-domain di handlers/)
+  ipcHandlers.ts                registerCoreIpcHandlers — channel lintas-domain (config, activity, preset, window, updater, MCP approval)
   notifications.ts              notifikasi native + aksi restart dari notifikasi
   configSchema.ts / projectSchema.ts   schema validasi + normalisasi
-  handlers/
-    projectHandlers.ts          CRUD project, browse folder
-    processHandlers.ts          lifecycle process dan events
-    agentHandlers.ts            AI Agent (omp): chat, sessions, RPC forwarding
-    systemHandlers.ts           environment check, update checker
-    repoHandlers.ts             Git: status/log/diff/stage/commit/stash/blame
-    previewHandlers.ts          embedded preview (WebContentsView)
-    terminalHandlers.ts         interactive PTY shell
-    desktopHandlers.ts          tray, open external, reveal, notifications
-    backupHandlers.ts           workspace backup (export/import terenkripsi)
+  handlers/                     136 channel IPC, semua lewat safeHandle + CHANNEL_RULES
+    projectHandlers.ts          CRUD project, browse folder, import/export, workspace search (13)
+    processHandlers.ts          lifecycle process, metrics, log, custom command (13)
+    agentHandlers.ts            AI Agent (omp): chat, sessions, RPC forwarding, installer (47)
+    systemHandlers.ts           environment check, main log, crash dump (6)
+    repoHandlers.ts             Git, env file, Laravel log (23)
+    dependencyHandlers.ts       outdated/update npm, composer, go, pip, cargo (8)
+    previewHandlers.ts          embedded preview (WebContentsView) (14)
+    previewCredentialHandlers.ts  kredensial preview (3)
+    terminalHandlers.ts         interactive PTY shell (4)
+    desktopHandlers.ts          open external, reveal, open in editor (3)
+    backupHandlers.ts           workspace backup (export/import terenkripsi) (2)
   managers/
     ProcessManager.ts           spawn, stop tree, status, log buffer (dipecah: processTypes / processLogBase / processPortBase / processChildBase / processMetricsBase)
     ProjectDetector.ts          deteksi framework
@@ -43,7 +45,15 @@ electron/                      TypeScript, di-bundle electron-vite 5 → out/mai
     OmpConfig.ts                models.yml / config.yml omp
     HealthManager.ts            health & analytics (userData/health.json)
     PreviewManager.ts           sesi preview persisten per project
+    CredentialManager.ts        kredensial preview (encrypted via safeStorage)
     TrayManager.ts              native tray
+  mcp/                          MCP server agent-control (opt-in, localhost-only)
+    server.ts                   HTTP Streamable + JSON-RPC 2.0, token Bearer per-launch
+    toolsShared.ts              tipe, model izin, dispatchTool
+    toolsRead.ts / toolsWrite.ts / toolsWriteMisc.ts / toolsDestructive.ts / gitTools.ts
+    approval.ts                 registry pending approval untuk tool destruktif
+    ompConfig.ts                tulis/hapus entry MCP di config omp
+    tools.ts / index.ts         barrel registry (44 tool) + facade lifecycle
   utils/
     ipcSecurity.ts / ipcValidation.ts   validasi trusted IPC event + CHANNEL_RULES per channel
     logger.ts                   structured logging (userData/logs/main.log)
@@ -53,6 +63,7 @@ electron/                      TypeScript, di-bundle electron-vite 5 → out/mai
 
 src/                           TypeScript strict
   App.tsx                       controller tipis — orchestration dipindah ke hooks/modul
+  i18n/                         translations.ts (en/id) + I18nContext.tsx (useI18n().t)
   hooks/                        orkestrasi state & data (useProjects, useProcesses, useElectronConfig, …)
   data/                         satu-satunya lapisan panggilan IPC (per-domain: projects, processes, agent, …)
   types/                        tipe domain murni (shared.d.ts, electron.d.ts)
@@ -66,18 +77,33 @@ src/                           TypeScript strict
     Agent/                      chat coding agent (streaming, tool cards, sessions)
     Terminal/                   terminal workspace & PTY
     Modals/, States/            modal global + loading states
+
+tests/                          harness saja (setup + mock electron/node-pty + fixture mock omp)
+e2e/                            15 spec Playwright (29 test) terhadap app Electron yang di-build
 ```
+
+Test unit berada di `__tests__/` bersebelahan dengan kode yang diuji, bukan terpusat di `tests/`.
 
 ## Main Process Lifecycle
 
-1. `app.whenReady()` memanggil `initialize()`.
-2. Managers dibuat dan storage diinisialisasi.
-3. BrowserWindow dibuat.
-4. IPC handlers didaftarkan.
-5. Development memuat Vite port 5173; production memuat `dist-react/index.html`.
-6. `before-quit` mencegah exit sementara, menghentikan semua process aktif, lalu `app.exit(0)`.
+`main.ts` sengaja dijaga tipis — `initialize()` hanya merangkai, bukan mengimplementasi:
+
+1. Single instance lock (`requestSingleInstanceLock`); instance kedua memfokuskan window yang ada lalu keluar.
+2. CSP diterapkan, reset data tertunda diproses, menu + crash reporter dipasang.
+3. Managers dibuat dan storage diinisialisasi.
+4. BrowserWindow dibuat (frameless di Windows/Linux, native frame di macOS).
+5. Auto-updater, tray, dan global shortcut `Ctrl/Cmd+Shift+Space` didaftarkan.
+6. PreviewManager + CredentialManager, lalu MCP manager (autostart hanya bila `agent.controlEnabled`).
+7. Seluruh handler IPC didaftarkan, disusul notifikasi dan auto-start project.
+8. Development memuat dev server (`VITE_DEV_PORT`, default 5173); production memuat `dist-react/index.html`.
+9. `before-quit` mencegah exit sementara, menghentikan semua process aktif dan terminal PTY, lalu `app.exit(0)`.
 
 Jika storage gagal diinisialisasi, app mencatat error dan quit.
+
+Dua perilaku yang mudah salah diubah:
+
+- **Handler `close` window harus sinkron.** Minimize-to-tray membaca `config.minimizeToTray` dari cache (`currentConfig`) — pembacaan async akan membuat window telanjur tertutup sebelum keputusan diambil.
+- **Reset ke fresh install ditunda.** Handler menulis marker `.reset-pending`; penghapusan dilakukan pada startup berikutnya (`utils/resetData.ts`) agar flush-on-quit milik manager tidak menulis ulang data yang baru dihapus.
 
 ## Process Lifecycle
 
@@ -191,13 +217,15 @@ Config lama dengan key flat seperti `notifyOnStart`, `terminalFontSize`, dan `te
 - CSP diterapkan di main process (dev mengizinkan inline script Vite).
 - Nilai rahasia (KEY/TOKEN/SECRET/PASSWORD) di-mask di UI dan tidak di-log.
 - Command user tetap dijalankan melalui shell lokal (`shell: true` untuk command yang memang butuh shell) — hanya project dan command tepercaya yang boleh ditambahkan.
-- **MCP server agent-control (opt-in)** — HTTP server hand-rolled di `electron/mcp/` (`server.ts` bind `127.0.0.1` saja + token Bearer acak per-launch, rate limit 120 req/10 s, max payload 512 KB, 16 in-flight; `tools*.ts` registri 37 tool dengan kategori `read`/`write`/`destructive`; `approval.ts` + `McpApprovalModal` — tool destruktif menunggu persetujuan user; config `agent.controlEnabled` + matriks izin `agent.permissions`; entry omp di `~/.omp/agent/mcp.json`). Detail: `docs/ROADMAP_AGENT_MCP.md`.
+- **MCP server agent-control (opt-in)** — HTTP server hand-rolled di `electron/mcp/` (`server.ts` bind `127.0.0.1` saja + token Bearer acak per-launch, rate limit 120 req/10 s, max payload 512 KB, 16 in-flight; `tools*.ts` registri **44 tool** dengan kategori `read`/`write`/`destructive`; `approval.ts` + `McpApprovalModal` — tool destruktif menunggu persetujuan user; config `agent.controlEnabled` + matriks izin `agent.permissions`; entry omp di `~/.omp/agent/mcp.json`). Detail: `docs/MCP_API.md` dan `docs/ROADMAP_AGENT_MCP.md`.
 
 ## Technical Debt Utama
 
-- IPC response shapes sebagian masih mengembalikan bentuk langsung alih-alih wrapper `{ success }` (konsolidasi bertahap lewat `safeHandle`).
+- IPC response shapes sebagian masih mengembalikan bentuk langsung alih-alih wrapper `{ success }` (konsolidasi bertahap lewat `safeHandle`) — lihat catatan Convention di [IPC_API.md](IPC_API.md).
 - File test (`__tests__`) masih `.js`/`.jsx` — sengaja dikecualikan dari tsconfig; dapat dikonversi ke TS bila diperlukan.
 - `noUncheckedIndexedAccess` belum diaktifkan (opsional — evaluasi per folder).
-- e2e Playwright masih smoke-level untuk sebagian alur (alur inti project/settings/agent sudah ter-cover).
+- **Threshold coverage jauh di bawah angka terukur** — `vitest.config.js` mematok statements/lines 28%, functions 32%, branches 60%, sedangkan coverage aktual jauh lebih tinggi. Floor serendah ini tidak menangkap regresi; naikkan mendekati baseline nyata.
+- **9 warning lint (0 error)** — 7 `max-lines` pada file yang melewati batas 400 baris (`max-lines` dihitung tanpa baris kosong/komentar): `electron/utils/ipcValidation.ts`, `electron/preload.ts`, `electron/main.ts`, `electron/managers/OmpManager.ts`, `src/components/Modals/ProjectModal.tsx`, `src/components/Settings/OmpSettingsCard.tsx`, dan satu file test (`electron/managers/__tests__/previewManager.test.js`). Sisanya 2 `no-unused-vars` di file test. Rule-nya masih `warn`, jadi batas ini tidak pernah memblokir CI.
+- Dokumentasi di `docs/` hanya Bahasa Indonesia, sementara README bilingual — kontributor non-Indonesia berhenti di level arsitektur.
 
 Prioritas dan acceptance criteria tersedia di [Roadmap](ROADMAP.md).

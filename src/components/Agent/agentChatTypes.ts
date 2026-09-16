@@ -144,6 +144,7 @@ export interface LastTurnInfo {
 }
 
 export interface AgentChatProps {
+  draftsRef?: React.RefObject<Record<string, string>>;
   status: OmpStatusResult;
   project: Project;
   session: AgentSession;

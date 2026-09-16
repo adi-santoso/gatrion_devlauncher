@@ -9,10 +9,10 @@ Daftar shortcut yang benar-benar terimplementasi di source. `Ctrl` berlaku untuk
 | `Ctrl/Cmd + Shift + Space` | Panggil/fokus jendela aplikasi (OS global, dari aplikasi lain mana pun) |
 | `Ctrl/Cmd + K` | Buka command palette |
 | `Ctrl/Cmd + N` | Tambah project baru (buka ProjectModal) |
-| `Ctrl + Shift + S` | Start semua project |
-| `Ctrl + Shift + X` | Stop semua project |
+| `Ctrl/Cmd + Shift + S` | Start semua project |
+| `Ctrl/Cmd + Shift + X` | Stop semua project |
 | `Escape` | Tutup modal / palette yang sedang terbuka |
-| `?` | Buka modal shortcuts |
+| `?` | Buka modal shortcuts (diabaikan saat fokus di input/textarea) |
 
 ## Projects view
 
@@ -26,7 +26,7 @@ Daftar shortcut yang benar-benar terimplementasi di source. `Ctrl` berlaku untuk
 | Shortcut | Action |
 |----------|--------|
 | `Ctrl/Cmd + ←` / `Ctrl/Cmd + →` | Pindah ke project sebelumnya / berikutnya |
-| `F12` atau `Ctrl + Shift + I` | Buka/tutup DevTools preview |
+| `F12` atau `Ctrl/Cmd + Shift + I` | Buka/tutup DevTools preview (disembunyikan saat emulasi device aktif) |
 
 ## Git tab
 
@@ -42,6 +42,17 @@ Daftar shortcut yang benar-benar terimplementasi di source. `Ctrl` berlaku untuk
 | `Shift + Enter` | Baris baru di input |
 | `Ctrl/Cmd + Enter` | Terapkan custom instructions |
 | `Escape` | Tutup dropdown header (model, thinking, menu "…") |
+
+## Terminal interaktif (PTY)
+
+Berperilaku seperti Windows Terminal — `Ctrl+C` tetap mengirim interrupt ke shell selama tidak ada teks terseleksi.
+
+| Shortcut | Action |
+|----------|--------|
+| `Ctrl/Cmd + V` atau `Shift + Insert` | Paste isi clipboard ke shell |
+| `Ctrl/Cmd + C` | Interrupt (`ETX`) bila **tidak** ada seleksi; **copy** bila ada seleksi |
+| `Ctrl/Cmd + Shift + C` atau `Ctrl + Insert` | Selalu copy seleksi |
+| `↑` / `↓` | Riwayat command shell |
 
 ## Command palette
 

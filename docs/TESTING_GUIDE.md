@@ -29,9 +29,11 @@ npm run test:coverage  # Generate coverage report
 
 ### Full Suite + E2E
 ```bash
-npm test              # Everything: vitest run (renderer + electron, ~500 tests)
-npm run test:e2e      # Playwright: launches the real Electron app (smoke + flows)
+npm test              # Everything: vitest run (renderer + electron, 910 test di 99 file, ~60 s)
+npm run test:e2e      # Playwright: build lalu jalankan app Electron nyata (29 test di 15 spec)
 ```
+
+Catatan: `npm test` dan `npm run test:e2e` **hanya berjalan manual** — CI di push/PR cuma menjalankan `lint` + `typecheck`; suite lengkap dijalankan pada tag rilis (`release.yml`), dan e2e tidak pernah dijalankan CI.
 
 ### ESLint
 ```bash
@@ -98,16 +100,21 @@ describe('StorageManager', () => {
 })
 ```
 
-## Test Coverage Goals
+## Test Coverage
 
-| Module | Current (approx.) |
-|--------|-------------------|
-| IPC handlers (8 file) | ~86% |
+Angka di bawah adalah baseline yang pernah diukur per modul (dari [ROADMAP.md](ROADMAP.md)); belum diukur ulang per modul untuk v0.2.9.
+
+| Module | Baseline |
+|--------|----------|
+| IPC handlers | ~86% |
 | ipcValidation | ~99% |
 | preload | ~91% |
 | HealthManager / OmpConfig | ~98% |
 | OmpManager | ~83% |
-| Overall lines | ~58% (naik tiap batch) |
+| `electron/mcp` | 90% lines |
+| Overall lines | ~58% |
+
+**Penting:** threshold di `vitest.config.js` sengaja dipasang jauh di bawah angka-angka ini (statements/lines **28%**, functions **32%**, branches **60%**) sebagai regression floor, bukan target. Artinya suite bisa kehilangan cakupan besar tanpa membuat CI merah. Ukur ulang dengan `npm run test:coverage` sebelum mengklaim angka apa pun.
 
 ## Mock Data Pattern
 
@@ -132,4 +139,11 @@ vi.mocked(window.electron?.ipcRenderer?.invoke)
 
 ## CI Integration
 
-GitHub Actions runs on a 3-OS matrix (windows/macos/ubuntu): lint, `npm test` (Vitest), `vite build`, and Playwright e2e (Linux via `xvfb-run`). A shared Electron mock is installed in `tests/setup.js` by patching `Module._load`, because `vi.mock` does not reach CJS `require()` calls inside Electron modules.
+CI dipisah dua workflow dengan sengaja:
+
+- **`ci.yml`** (push & PR ke `master`/`main`) — hanya `npm run lint` + `npm run typecheck` di `ubuntu-latest`, timeout 10 menit. Push biasa dibuat murah.
+- **`release.yml`** (tag `v*`) — pipeline penuh di `windows-latest`: lint → typecheck → `npm test` → `vitest run --coverage` (gate threshold) → `npm audit --audit-level=high` → `electron-vite build` → `electron-builder --win --x64 --publish always`.
+
+Konsekuensi yang perlu disadari: **`npm test` tidak berjalan di PR**, dan **e2e Playwright tidak berjalan di CI sama sekali** — jalankan `npm run test:e2e` secara manual sebelum merge perubahan yang menyentuh process lifecycle, preview, terminal, atau MCP. Matrix 3 OS yang dulu ada sudah dilepas.
+
+Sejak konversi ke Electron murni, test memakai mock `electron` bersama yang dipasang di `tests/setup.js` dengan mem-patch `Module._load`, karena `vi.mock` tidak menjangkau pemanggilan `require()` CJS di dalam modul Electron.

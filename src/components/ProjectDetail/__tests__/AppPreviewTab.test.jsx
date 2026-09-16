@@ -267,3 +267,59 @@ describe('AppPreviewTab device simulator', () => {
     expect(ipc.previewShow).not.toHaveBeenCalled()
   })
 })
+
+describe('AppPreviewTab preview area centering', () => {
+  const renderApp = (el) => render(<I18nProvider language="en">{el}</I18nProvider>)
+
+  // The card sits inside the "main preview container" — the element that also
+  // carries the centering classes. Its parentElement is that container.
+  const previewContainer = () => screen.getByText('Project is Not Running').closest('div').parentElement
+
+  it('centers the not-running card in fullscreen preview', () => {
+    // Regression: fullscreen dropped items-center/justify-center (needed so a
+    // fit-to-window preview can bleed edge to edge), which also applied to the
+    // placeholder and pinned the card to the left edge instead of centering it.
+    renderApp(<AppPreviewTab project={{ ...project, status: 'stopped' }} fullscreen />)
+
+    expect(previewContainer().className).toContain('items-center')
+    expect(previewContainer().className).toContain('justify-center')
+  })
+
+  it('centers the not-running card in normal mode too', () => {
+    renderApp(<AppPreviewTab project={{ ...project, status: 'stopped' }} />)
+
+    expect(previewContainer().className).toContain('items-center')
+    expect(previewContainer().className).toContain('justify-center')
+  })
+
+  it('centers the no-port card in fullscreen preview', () => {
+    renderApp(<AppPreviewTab project={{ ...project, port: null, status: 'stopped' }} fullscreen />)
+
+    const card = screen.getByText('No App Port Configured')
+    expect(card.closest('div').parentElement.className).toContain('justify-center')
+  })
+
+  it('still drops centering for a live fit-to-window preview', () => {
+    // The full-bleed branch is intentional: an uncentered flex parent lets the
+    // native/iframe preview fill the whole area. Keep it for running projects.
+    renderApp(<AppPreviewTab project={project} fullscreen />)
+
+    const container = screen.getByLabelText('Native preview of Alpha').parentElement
+    expect(container.className).not.toContain('items-center')
+    expect(container.className).not.toContain('justify-center')
+  })
+
+  it('centers a device-simulated preview in fullscreen', async () => {
+    renderApp(<AppPreviewTab project={project} fullscreen />)
+    fireEvent.change(screen.getByLabelText('Device'), { target: { value: 'iphone-15' } })
+
+    // With a device selected the screen is wrapped in a bezel, so the preview
+    // container is two levels up from the measured element.
+    await waitFor(() => {
+      const screenEl = screen.getByLabelText('Native preview of Alpha').parentElement
+      const container = screenEl.parentElement.parentElement
+      expect(container.className).toContain('items-center')
+      expect(container.className).toContain('justify-center')
+    })
+  })
+})

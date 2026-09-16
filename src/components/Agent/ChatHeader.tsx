@@ -88,22 +88,24 @@ export default function ChatHeader({
   handleStop,
 }: ChatHeaderProps) {
   return (
-    <div className="flex items-center gap-3 px-5 py-3 border-b border-border bg-surface shrink-0">
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3 border-b border-border bg-surface shrink-0">
       <span className="w-7 h-7 rounded-lg bg-accent/15 text-accent-hover flex items-center justify-center shrink-0">
         <Icon name="messageSquare" size={14} />
       </span>
-      <div className="min-w-0">
+      <div className="min-w-0 flex-1 basis-32">
         <p className="text-sm font-semibold text-ink truncate leading-tight">{project?.name || 'Agent'}</p>
         <p className="text-[11px] text-ink-faint truncate">{session?.title || (busy ? 'working...' : 'New conversation')}</p>
       </div>
-      <div className="ml-auto flex items-center gap-2 shrink-0">
+      <div className="ml-auto flex flex-wrap items-center justify-end gap-2 min-w-0 max-w-full">
         {project && status?.installed && status?.configured && (
-          <div className="relative hidden lg:block">
+          <div className="relative">
             <button
               type="button"
               onClick={() => setLevelOpen((value) => !value)}
               disabled={busy}
               title="Thinking level"
+              aria-label="Thinking level"
+              aria-expanded={levelOpen}
               className="inline-flex items-center gap-1.5 text-[11px] font-medium text-ink-soft bg-surface-2 border border-border rounded-full px-2.5 py-1 hover:border-border-hover hover:text-ink transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
             >
               <Icon name="sliders" size={11} className="text-warning" />
@@ -134,12 +136,14 @@ export default function ChatHeader({
           </div>
         )}
         {models.length > 0 && (
-          <div className="relative hidden lg:block">
+          <div className="relative">
             <button
               type="button"
               onClick={() => setModelsOpen((value) => !value)}
               disabled={busy}
               title="Switch model"
+              aria-label="Switch model"
+              aria-expanded={modelsOpen}
               className="inline-flex items-center gap-1.5 text-[11px] font-medium text-ink-soft bg-surface-2 border border-border rounded-full px-2.5 py-1 hover:border-border-hover hover:text-ink transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
             >
               <Icon name="bolt" size={11} className="text-accent" />
@@ -158,7 +162,8 @@ export default function ChatHeader({
                         value={modelSearch}
                         onChange={(event) => setModelSearch(event.target.value)}
                         placeholder="Search models..."
-                        className="flex-1 bg-transparent text-xs text-ink placeholder:text-ink-faint focus:outline-none"
+                        aria-label="Search models"
+                        className="flex-1 min-w-0 bg-transparent text-xs text-ink placeholder:text-ink-faint focus:outline-none"
                       />
                       {modelSearch && (
                         <button type="button" onClick={() => setModelSearch('')} className="text-ink-faint hover:text-ink" aria-label="Clear search">
@@ -240,6 +245,8 @@ export default function ChatHeader({
               onClick={() => setMoreOpen((value) => !value)}
               disabled={busy}
               title="Session options"
+              aria-label="Session options"
+              aria-expanded={moreOpen}
               className="w-7 h-7 rounded-lg text-ink-faint hover:text-ink hover:bg-surface-3 flex items-center justify-center transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
             >
               <Icon name="more" size={14} />

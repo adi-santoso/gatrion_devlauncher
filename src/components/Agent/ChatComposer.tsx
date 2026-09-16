@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type Dispatch, type MutableRefObject, type RefObject, type SetStateAction } from 'react';
 import Icon from '../Common/Icon';
-import { formatCost } from '../../utils/costEstimate';
+import ComposerFooter from './ComposerFooter';
 import { MAX_ATTACHMENTS } from './imageAttachment';
 import type { ChatImage, LastTurnInfo, SlashCommand } from './agentChatTypes';
 import type { Project } from '../../types/shared';
@@ -28,6 +28,7 @@ const loadTemplates = (): PromptTemplate[] => {
 interface ChatComposerProps {
   busy: boolean;
   notConfigured: boolean;
+  unavailableReason?: string;
   project: Project;
   attachments: ComposerAttachment[];
   setAttachments: Dispatch<SetStateAction<ComposerAttachment[]>>;
@@ -59,6 +60,7 @@ interface ChatComposerProps {
 export default function ChatComposer({
   busy,
   notConfigured,
+  unavailableReason,
   project,
   attachments,
   setAttachments,
@@ -87,13 +89,35 @@ export default function ChatComposer({
   const [templateOpen, setTemplateOpen] = useState(false);
   const [templateName, setTemplateName] = useState('');
   const templateInputRef = useRef<HTMLInputElement | null>(null);
+  const templatePanelRef = useRef<HTMLDivElement | null>(null);
+  const templateButtonRef = useRef<HTMLButtonElement | null>(null);
+  const [dismissedSlashInput, setDismissedSlashInput] = useState<string | null>(null);
+  const showSlash = slashOpen && slashMatches.length > 0 && dismissedSlashInput !== input;
+  const disabled = notConfigured || Boolean(unavailableReason) || !project;
+
+  useEffect(() => {
+    if (!templateOpen) return;
+    templateInputRef.current?.focus();
+    const onPointer = (event: PointerEvent) => {
+      const target = event.target as Node;
+      if (!templatePanelRef.current?.contains(target) && !templateButtonRef.current?.contains(target)) setTemplateOpen(false);
+    };
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') { setTemplateOpen(false); templateButtonRef.current?.focus(); }
+    };
+    document.addEventListener('pointerdown', onPointer);
+    document.addEventListener('keydown', onKey);
+    return () => { document.removeEventListener('pointerdown', onPointer); document.removeEventListener('keydown', onKey); };
+  }, [templateOpen]);
+
+  useEffect(() => { if (inputRef.current) resizeInput(inputRef.current); }, [input, inputRef, resizeInput]);
 
   // Index of the highlighted slash-command suggestion (arrow-key navigable).
   const [slashIndex, setSlashIndex] = useState(0);
   // Reset the highlight whenever the visible list changes (open/close/filter).
   useEffect(() => {
     setSlashIndex(0);
-  }, [slashOpen, slashMatches.length]);
+  }, [slashOpen, input, slashMatches.length]);
 
   const saveCurrentAsTemplate = () => {
     const content = input.trim();
@@ -107,6 +131,7 @@ export default function ChatComposer({
     setTemplates(next);
     setTemplateName('');
     setInput('');
+    saveDraftRef.current?.('');
     setTemplateOpen(false);
   };
 
@@ -118,6 +143,7 @@ export default function ChatComposer({
 
   const insertTemplate = (template: PromptTemplate) => {
     setInput(template.content);
+    saveDraftRef.current?.(template.content);
     setTemplateOpen(false);
     requestAnimationFrame(() => inputRef.current?.focus());
   };
@@ -126,6 +152,7 @@ export default function ChatComposer({
   const [workElapsed, setWorkElapsed] = useState(0);
   useEffect(() => {
     if (!busy) return undefined;
+    setWorkElapsed(0);
     const startedAt = Date.now();
     const timer = setInterval(() => {
       setWorkElapsed(Math.floor((Date.now() - startedAt) / 1000));
@@ -179,16 +206,19 @@ export default function ChatComposer({
                 value={bashCommand}
                 onChange={(event) => setBashCommand(event.target.value)}
                 onKeyDown={(event) => {
-                  if (event.key === 'Enter') { event.preventDefault(); runBash(bashCommand); }
+                  if (event.nativeEvent.isComposing) return;
+                  if (event.key === 'Enter' && !busy && !disabled) { event.preventDefault(); runBash(bashCommand); }
                   if (event.key === 'Escape') setBashInputOpen(false);
                 }}
                 placeholder="Run command in project..."
+                aria-label="Command to run in project"
+                disabled={busy || disabled}
                 className="flex-1 min-w-0 bg-transparent text-sm font-mono text-ink placeholder:text-ink-faint focus:outline-none"
               />
               <button
                 type="button"
                 onClick={() => runBash(bashCommand)}
-                disabled={!bashCommand.trim()}
+                disabled={busy || disabled || !bashCommand.trim()}
                 className="shrink-0 inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-accent hover:bg-accent-hover text-white text-[11px] font-semibold transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 Run
@@ -201,13 +231,15 @@ export default function ChatComposer({
               value={input}
               onChange={(event) => {
                 setInput(event.target.value);
+                setDismissedSlashInput(null);
                 saveDraftRef.current?.(event.target.value);
                 resizeInput(event.target);
               }}
               onKeyDown={(event) => {
+                if (event.nativeEvent.isComposing || disabled) return;
                 // While the slash palette is open, arrow keys move the
                 // highlight and Enter/Tab inserts the selected command.
-                if (slashOpen && slashMatches.length > 0) {
+                if (showSlash) {
                   if (event.key === 'ArrowDown') {
                     event.preventDefault();
                     setSlashIndex((index) => (index + 1) % slashMatches.length);
@@ -218,24 +250,24 @@ export default function ChatComposer({
                     setSlashIndex((index) => (index - 1 + slashMatches.length) % slashMatches.length);
                     return;
                   }
-                  if (event.key === 'Enter' || event.key === 'Tab') {
+                  if ((event.key === 'Enter' || event.key === 'Tab') && !event.shiftKey) {
                     event.preventDefault();
-                    insertSlashCommand(slashMatches[slashIndex]);
+                    insertSlashCommand(slashMatches[slashIndex] || slashMatches[0]);
                     return;
                   }
                   if (event.key === 'Escape') {
                     event.preventDefault();
-                    setInput(input.slice(0, -1));
-                    saveDraftRef.current?.(input.slice(0, -1));
+                    setDismissedSlashInput(input);
                     return;
                   }
                 }
                 if (event.key === 'Enter' && !event.shiftKey) {
                   event.preventDefault();
-                  handleSend();
+                  if (!busy || attachments.length === 0) handleSend();
                 }
               }}
               onPaste={(event) => {
+                if (busy || disabled) return;
                 const pasted = Array.from(event.clipboardData?.files || []).filter((file) => file.type?.startsWith('image/'));
                 if (pasted.length > 0) {
                   event.preventDefault();
@@ -243,8 +275,9 @@ export default function ChatComposer({
                 }
               }}
               rows={1}
-              placeholder={notConfigured ? 'Configure a provider to start chatting...' : 'Describe a task, ask a question...'}
-              disabled={notConfigured || !project}
+              aria-label="Message to agent"
+              placeholder={unavailableReason || (notConfigured ? 'Configure a provider to start chatting...' : 'Describe a task, ask a question...')}
+              disabled={disabled}
               className="w-full bg-transparent text-sm text-ink placeholder:text-ink-faint focus:outline-none resize-none max-h-[130px] py-0.5 disabled:opacity-50"
               style={{ overflowY: 'auto' }}
             />
@@ -252,7 +285,7 @@ export default function ChatComposer({
               <button
                 type="button"
                 onClick={() => setBashInputOpen((value) => !value)}
-                disabled={busy || notConfigured || !project}
+                disabled={busy || disabled}
                 className="w-7 h-7 shrink-0 rounded-md text-ink-faint hover:text-ink hover:bg-surface-3 flex items-center justify-center transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                 title="Run command in project"
                 aria-label="Run command in project"
@@ -261,8 +294,10 @@ export default function ChatComposer({
               </button>
               <button
                 type="button"
-                onClick={() => { setTemplateOpen((value) => !value); if (!templateOpen) setTimeout(() => templateInputRef.current?.focus(), 0); }}
-                disabled={busy || notConfigured || !project}
+                ref={templateButtonRef}
+                onClick={() => { setTemplateOpen((value) => !value); setDismissedSlashInput(input); }}
+                disabled={busy || disabled}
+                aria-expanded={templateOpen}
                 className="w-7 h-7 shrink-0 rounded-md text-ink-faint hover:text-ink hover:bg-surface-3 flex items-center justify-center transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                 title="Prompt templates"
                 aria-label="Prompt templates"
@@ -272,7 +307,7 @@ export default function ChatComposer({
               <button
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
-                disabled={busy || notConfigured || !project}
+                disabled={busy || disabled || attachments.length >= MAX_ATTACHMENTS}
                 className="w-7 h-7 shrink-0 rounded-md text-ink-faint hover:text-ink hover:bg-surface-3 flex items-center justify-center transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                 title="Attach image"
                 aria-label="Attach image"
@@ -293,10 +328,10 @@ export default function ChatComposer({
               <div className="flex-1" />
               <button
                 onClick={() => handleSend()}
-                disabled={(!input.trim() && attachments.length === 0) || notConfigured || !project}
+                disabled={(!input.trim() && attachments.length === 0) || disabled || (busy && attachments.length > 0)}
                 className="w-[34px] h-[34px] shrink-0 rounded-lg bg-accent hover:bg-accent-hover text-white flex items-center justify-center transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                aria-label="Send message"
-                title="Send (Enter)"
+                aria-label={busy ? 'Steer agent' : 'Send message'}
+                title={busy ? 'Send an instruction to the current turn (Enter)' : 'Send (Enter)'}
               >
                 <Icon name="upload" size={14} />
               </button>
@@ -304,7 +339,7 @@ export default function ChatComposer({
           </div>
         </div>
         {templateOpen && (
-          <div className="absolute bottom-full left-0 right-0 mb-1.5 max-h-64 overflow-auto rounded-xl border border-border bg-surface shadow-card z-30 py-1.5 px-1.5 dropdown-menu">
+          <div ref={templatePanelRef} role="region" aria-label="Prompt templates" className="absolute bottom-full left-0 right-0 mb-1.5 max-h-64 overflow-auto rounded-xl border border-border bg-surface shadow-card z-30 py-1.5 px-1.5 dropdown-menu">
             <p className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-ink-faint">Templates</p>
             {templates.length === 0 && (
               <p className="px-2 py-1.5 text-[11px] text-ink-faint">No templates yet — save the current prompt below.</p>
@@ -335,7 +370,7 @@ export default function ChatComposer({
                 value={templateName}
                 onChange={(event) => setTemplateName(event.target.value)}
                 onKeyDown={(event) => {
-                  if (event.key === 'Enter') { event.preventDefault(); saveCurrentAsTemplate(); }
+                  if (event.key === 'Enter' && !event.nativeEvent.isComposing) { event.preventDefault(); saveCurrentAsTemplate(); }
                 }}
                 placeholder="Template name (optional)"
                 aria-label="Template name"
@@ -353,7 +388,7 @@ export default function ChatComposer({
             </div>
           </div>
         )}
-        {slashOpen && slashMatches.length > 0 && (
+        {showSlash && !templateOpen && (
           <div className="absolute bottom-full left-0 right-0 mb-1.5 max-h-56 overflow-auto rounded-xl border border-border bg-surface shadow-card z-30 py-1 dropdown-menu">
             {slashMatches.map((command, index) => (
               <button
@@ -377,16 +412,8 @@ export default function ChatComposer({
             The active model may not support images — switch to a vision-capable model from the header.
           </p>
         )}
-        <div className="text-center text-[10px] text-ink-faint mt-1.5 flex items-center justify-center gap-x-3 gap-y-0.5 flex-wrap">
-          <span className="font-mono flex items-center gap-1"><kbd className="px-1 py-0.5 rounded bg-surface-3 border border-border text-[9.5px]">Enter</kbd> send · <kbd className="px-1 py-0.5 rounded bg-surface-3 border border-border text-[9.5px]">Shift+Enter</kbd> newline</span>
-          {lastTurn && (lastTurn.tokens > 0 || lastTurn.cost > 0) && (
-            <span className="tabular-nums text-ink-soft" title="Estimated from the active model's list price">
-              last turn · {lastTurn.tokens.toLocaleString()} tok · ≈{formatCost(lastTurn.cost)}
-            </span>
-          )}
-          {input.length > 0 && <span className="tabular-nums">{input.length.toLocaleString()} chars</span>}
-          <span className="text-ink-faint/80">Sessions stored locally by omp</span>
-        </div>
+        {busy && <p className="text-[11px] text-ink-soft mt-2">{attachments.length > 0 ? 'Images can be sent after the current turn finishes.' : 'Sending now adds an instruction to the running agent.'}</p>}
+        <ComposerFooter busy={busy} lastTurn={lastTurn} inputLength={input.length} />
       </div>
     </div>
   );

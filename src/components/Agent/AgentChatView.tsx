@@ -220,7 +220,7 @@ export default function AgentChatView(props: AgentChatViewProps) {
   } = props;
 
   return (
-    <div className="flex flex-col min-w-0 h-full">
+    <div className="relative flex flex-col flex-1 min-h-0 min-w-0">
       {/* Header */}
       <ChatHeader
         project={project}
@@ -284,10 +284,10 @@ export default function AgentChatView(props: AgentChatViewProps) {
         {(notice || error) && (
           <div className="max-w-[760px] mx-auto space-y-2">
             {notice && (
-              <div className="text-sm px-4 py-3 rounded-xl border border-success/25 bg-success/10 text-success">{notice}</div>
+              <div role="status" className="text-sm px-4 py-3 rounded-xl border border-success/25 bg-success/10 text-success">{notice}</div>
             )}
             {error && (
-              <div className="text-sm px-4 py-3 rounded-xl border border-danger/25 bg-danger/10 text-danger whitespace-pre-wrap break-words">{error}</div>
+              <div role="alert" className="text-sm px-4 py-3 rounded-xl border border-danger/25 bg-danger/10 text-danger whitespace-pre-wrap break-words">{error}</div>
             )}
           </div>
         )}
@@ -296,6 +296,7 @@ export default function AgentChatView(props: AgentChatViewProps) {
           historyLoading={historyLoading}
           isFresh={isFresh}
           notConfigured={notConfigured}
+          installed={status?.installed}
           project={project}
           busy={busy}
           onRetry={() => setHistoryRetry((n) => n + 1)}
@@ -370,6 +371,7 @@ export default function AgentChatView(props: AgentChatViewProps) {
       <ChatComposer
         busy={busy}
         notConfigured={notConfigured}
+        unavailableReason={!status?.installed ? 'Install omp in Agent settings to start chatting...' : historyLoading ? 'Loading conversation...' : historyError ? 'Retry loading this conversation before sending.' : undefined}
         project={project}
         attachments={attachments}
         setAttachments={setAttachments}

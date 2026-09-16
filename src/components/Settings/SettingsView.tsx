@@ -39,14 +39,14 @@ import type {
  * `settingsPanels.tsx`. Panels stay mounted (hidden, not unmounted) so in-flight
  * state survives tab switches.
  */
-const SettingsView = ({ config, updateConfig, onExportProjects, onImportProjects, onExportDiagnostics }: SettingsViewProps) => {
+const SettingsView = ({ config, updateConfig, onExportProjects, onImportProjects, onExportDiagnostics, initialTab = 'general' }: SettingsViewProps) => {
   const { t } = useI18n();
 
   const handleChange = async (key: keyof AppConfig, value: AppConfigUpdateValue) => {
     await updateConfig({ [key]: value } as DeepPartial<AppConfig>);
   };
 
-  const [activeTab, setActiveTab] = useState('general');
+  const [activeTab, setActiveTab] = useState<string>(initialTab);
   const TABS: Array<{ id: string; icon: IconName; label: string }> = [
     { id: 'general', icon: 'gear', label: t('settings.tabs.general') },
     { id: 'terminal', icon: 'terminal', label: t('settings.tabs.terminal') },

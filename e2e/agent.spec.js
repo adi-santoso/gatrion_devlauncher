@@ -24,6 +24,47 @@ async function openAgentChat({ userData }) {
 }
 
 test.describe('agent chat (mock omp)', () => {
+  test('keeps the composer and header usable at minimum window size', async () => {
+    const testInfo = test.info();
+    const userData = await makeTempDir('devlauncher-agent-layout-');
+    const projectDir = await writeFixtureProject(await makeTempDir('devlauncher-agentproj-'));
+    await seedUserData(userData, { projects: [fixtureProject('proj-layout', projectDir)] });
+    const { app, window, composer } = await openAgentChat({ userData });
+    try {
+      await app.evaluate(({ BrowserWindow }) => {
+        const main = BrowserWindow.getAllWindows().find((win) => win.isVisible());
+        main.unmaximize();
+        main.setSize(1024, 600);
+      });
+      await expect(composer).toBeInViewport();
+      await expect(window.getByRole('button', { name: 'Switch model', exact: true })).toBeInViewport();
+      await expect(window.getByRole('button', { name: 'Thinking level', exact: true })).toBeInViewport();
+      const sidebar = window.getByRole('complementary', { name: 'Agent sessions' });
+      await expect.poll(() => sidebar.evaluate((el) => el.scrollWidth - el.clientWidth)).toBeLessThanOrEqual(1);
+      await composer.fill('Draft that survives closing the project list');
+      await sidebar.getByText('e2e-fixture', { exact: true }).click();
+      await sidebar.getByText('e2e-fixture', { exact: true }).click();
+      await sidebar.getByRole('button', { name: /^Session / }).click();
+      await expect(composer).toHaveValue('Draft that survives closing the project list');
+      await window.getByRole('button', { name: 'Switch model', exact: true }).click();
+      await expect(window.getByPlaceholder('Search models...')).toBeInViewport();
+      await window.keyboard.press('Escape');
+      await expect(window.getByPlaceholder('Search models...')).toHaveCount(0);
+      await window.screenshot({ path: testInfo.outputPath('agent-1024x600.png'), animations: 'disabled' });
+      await composer.fill('Check compact layout');
+      await composer.press('Enter');
+      await expect(window.getByText('Mock reply to: Check compact layout').first()).toBeVisible({ timeout: 15000 });
+      await expect(composer).toBeInViewport();
+      await expect.poll(() => window.getByText('Mock reply to: Check compact layout').first().evaluate((el) => getComputedStyle(el.closest('.message-in')).opacity)).toBe('1');
+      await window.screenshot({ path: testInfo.outputPath('agent-1024x600-chat.png'), animations: 'disabled' });
+      await window.getByRole('button', { name: 'Switch model', exact: true }).click();
+      await window.getByRole('button', { name: 'Manage models in Settings...' }).click();
+      await expect(window.getByRole('tab', { name: /agent/i })).toHaveAttribute('aria-selected', 'true');
+    } finally {
+      await app.close();
+    }
+  });
+
   test('creates a session, sends a prompt, streams a reply, and persists token usage', async () => {
     const userData = await makeTempDir('devlauncher-agent-');
     const projectDir = await writeFixtureProject(await makeTempDir('devlauncher-agentproj-'));

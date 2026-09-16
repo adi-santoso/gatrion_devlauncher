@@ -1021,7 +1021,7 @@ describe('AgentChat', () => {
     expect(await screen.findByText(/working · \d{2}:\d{2}/)).toBeInTheDocument()
 
     fireEvent.change(input, { target: { value: 'no wait, do it differently' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Send message' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Steer agent' }))
 
     await waitFor(() => expect(mocks.ompSteer).toHaveBeenCalledWith('p1', 'C:/demo', 'no wait, do it differently'))
     expect(screen.getByText('no wait, do it differently')).toBeInTheDocument()
@@ -1039,6 +1039,21 @@ describe('AgentChat', () => {
 
     await waitFor(() => expect(mocks.ompCompact).toHaveBeenCalledWith('p1', 'C:/demo'))
     expect(await screen.findByText(/Context compacted/)).toBeInTheDocument()
+  })
+
+  it('restores a rejected steering message instead of showing it as delivered', async () => {
+    mocks.ompChat.mockResolvedValue({ success: true, sessionId: 's-steer', session: { id: 's-steer', title: 'Steer' } })
+    mocks.ompSteer.mockResolvedValueOnce({ success: false, error: 'Agent is restarting' })
+    render(<Harness />)
+    const input = screen.getByLabelText('Message to agent')
+    fireEvent.change(input, { target: { value: 'first task' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Send message' }))
+    await waitFor(() => expect(mocks.ompChat).toHaveBeenCalled())
+    fireEvent.change(input, { target: { value: 'change direction' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Steer agent' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('Agent is restarting')
+    expect(input).toHaveValue('change direction')
+    expect(screen.queryByText('change direction', { selector: 'p' })).not.toBeInTheDocument()
   })
 
   it('renders an auto-compaction notice entry in the chat list', async () => {
@@ -1164,7 +1179,7 @@ describe('AgentChat', () => {
     const sessionB = { id: 'sb', title: 'B', sessionPath: 'C:/sessions/sb.jsonl' }
     const { rerender } = render(<Harness initialSession={sessionA} />)
 
-    const input = screen.getByPlaceholderText('Describe a task, ask a question...')
+    const input = await screen.findByPlaceholderText('Describe a task, ask a question...')
     fireEvent.change(input, { target: { value: 'unsent draft for A' } })
     expect(input.value).toBe('unsent draft for A')
 
@@ -1384,14 +1399,14 @@ describe('AgentChat', () => {
     const sessionA = { id: 'sA', title: 'Session A', sessionPath: 'C:/sessions/sA.jsonl' }
     const sessionB = { id: 'sB', title: 'Session B', sessionPath: 'C:/sessions/sB.jsonl' }
     mocks.ompChat.mockResolvedValue({ success: true, sessionId: 'sA', session: sessionA })
-    mocks.ompGetMessages.mockResolvedValue({ success: true, messages: [
+    mocks.ompGetMessages.mockResolvedValueOnce({ success: true, messages: [] }).mockResolvedValue({ success: true, messages: [
       { id: 'e1', role: 'user', content: 'first task' },
       { id: 'e2', role: 'assistant', content: 'done it' },
     ] })
 
     const { rerender } = render(<Harness initialSession={sessionA} />)
     // Send a message so sentSessionIdRef is armed for the just-created session
-    const input = screen.getByPlaceholderText('Describe a task, ask a question...')
+    const input = await screen.findByPlaceholderText('Describe a task, ask a question...')
     fireEvent.change(input, { target: { value: 'first task' } })
     fireEvent.click(screen.getByRole('button', { name: 'Send message' }))
     await screen.findByText('first task')

@@ -153,6 +153,7 @@ export function TodosPanel({ todos, open, setOpen }: TodosPanelProps) {
 // ---------------------------------------------------------------------------
 
 export interface HistoryStateProps {
+  installed?: boolean;
   historyError: string | null;
   historyLoading: boolean;
   isFresh: boolean;
@@ -164,7 +165,7 @@ export interface HistoryStateProps {
   onSend: (preset?: string) => void;
 }
 
-export function HistoryStates({ historyError, historyLoading, isFresh, notConfigured, project, busy, onRetry, onOpenSettings, onSend }: HistoryStateProps) {
+export function HistoryStates({ historyError, historyLoading, isFresh, notConfigured, installed = true, project, busy, onRetry, onOpenSettings, onSend }: HistoryStateProps) {
   if (historyError) {
     return (
       <div className="max-w-[560px] mx-auto pt-2 px-4">
@@ -219,7 +220,7 @@ export function HistoryStates({ historyError, historyLoading, isFresh, notConfig
   }
   if (isFresh) {
     return (
-      <div className="h-full flex flex-col items-center justify-center max-w-xl mx-auto text-center">
+      <div className="min-h-full flex flex-col items-center justify-center max-w-xl mx-auto text-center py-2">
         <div className="relative w-16 h-16 mx-auto mb-5">
           <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-accent/15 to-accent/5" />
           <div className="relative w-full h-full rounded-2xl bg-gradient-to-br from-accent/10 to-accent/5 border border-accent/20 flex items-center justify-center text-accent-hover">
@@ -230,7 +231,7 @@ export function HistoryStates({ historyError, historyLoading, isFresh, notConfig
           <>
             <p className="text-base font-semibold text-ink">Agent is not configured yet</p>
             <p className="text-sm text-ink-faint mt-1.5 max-w-md leading-relaxed">
-              omp is installed but no AI provider is set up. Configure one to start chatting with the coding agent.
+              {installed ? 'omp is installed but no AI provider is set up. Configure one to start chatting with the coding agent.' : 'Install omp and configure an AI provider in Agent settings to start chatting.'}
             </p>
             <button
               onClick={() => onOpenSettings?.()}

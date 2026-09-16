@@ -34,12 +34,18 @@ Jangan edit `node_modules`, `dist-react`, atau `dist` secara manual.
 npm run dev
 ```
 
-Flow:
+Flow (`electron-vite dev` — satu proses, bukan `concurrently`):
 
-1. Vite membuka port `5173`.
-2. `wait-on` menunggu URL tersedia.
-3. Electron memuat `http://localhost:5173` dan membuka DevTools.
-4. Saat Electron exit, `concurrently --kill-others` menghentikan Vite.
+1. electron-vite membangun bundle main + preload, lalu membuka dev server renderer di port `5173`.
+2. Electron di-spawn dan memuat `http://localhost:<port>` beserta DevTools.
+3. Perubahan pada `electron/` memicu restart main process; perubahan pada `src/` memakai HMR renderer.
+4. Saat Electron ditutup, electron-vite menghentikan dev server sekaligus.
+
+Port dev dapat diubah lewat env `VITE_DEV_PORT` (dipakai konsisten oleh `electron.vite.config.mjs`, `vite.config.js`, `playwright.config.js`, `electron/main.ts`, dan pengecekan trusted-IPC di `electron/utils/ipcSecurity.ts`):
+
+```powershell
+$env:VITE_DEV_PORT = 5300; npm run dev
+```
 
 ### Renderer saja
 
@@ -71,7 +77,16 @@ Regression check:
 npm test
 ```
 
-Check saat ini mencakup ProcessManager, schema/migration, concurrent storage transaction, atomic writes, dan recovery JSON project rusak.
+Suite saat ini: **910 test Vitest di 99 file** (unit + integrasi) yang mencakup ProcessManager, schema/migration, transaction storage concurrent, atomic write, recovery JSON project rusak, handler IPC, registry MCP, dan komponen renderer.
+
+Gate kualitas lengkap — jalankan manual sebelum merge, karena CI push/PR **hanya** menjalankan dua perintah pertama:
+
+```powershell
+npm run lint        # dijalankan ci.yml
+npm run typecheck   # dijalankan ci.yml
+npm test            # hanya jalan di CI pada tag rilis
+npm run test:e2e    # 29 test Playwright di 15 spec; tidak pernah dijalankan CI
+```
 
 Build renderer tanpa packaging:
 
@@ -107,17 +122,27 @@ Ketiga asset icon (`build/icon.ico`, `build/icon.png`, `build/icon-tray.png`) **
 npm run icons
 ```
 
-Script `scripts/generate-icons.js` menulis `build/icon.ico` (256px), `build/icon.png` (512px), dan `build/icon-tray.png` (32px) — tile rounded-square purple gradient dengan monogram "G". Setelah regenerate, commit ulang assetnya.
+Script `scripts/generate-icons.js` menulis `build/icon.ico` (256px), `build/icon.png` (512px), dan `build/icon-tray.png` (32px) — mark **workspace grid**: tiga tile project dan satu tile launch. Setelah regenerate, commit ulang assetnya.
 
 ## Data dan Backup
 
 Electron membuat data di `app.getPath('userData')`:
 
 ```text
-projects.json
-config.json
-backups/
+projects.json                 registry project
+config.json                   app config
+presets.json                  workspace preset
+activities.json               activity feed
+health.json                   crash/run history + tren resource
+agent-sessions.json           registry session agent
+preview-credentials.json      kredensial preview (encrypted via safeStorage)
+backups/                      rotasi backup projects.json (5 terbaru)
+logs/main.log                 log main process (dirotasi)
+crashDumps/                   minidump lokal
+omp/omp.exe                   binary agent terkelola
 ```
+
+Repository tidak pernah menyimpan data ini. `preview-credentials.json` sengaja **tidak** ikut backup/export.
 
 Setiap save project:
 
@@ -141,23 +166,26 @@ Field wajib backend:
 
 Nama bersifat case-insensitive unique. Path harus unique secara string. Folder dipilih melalui dialog Electron, lalu framework dapat dideteksi otomatis.
 
-Supported detector:
+Supported detector (urutan evaluasi penting — lihat `electron/managers/ProjectDetector.ts`):
 
 | Type | Marker | Default command | Port |
 |---|---|---|---:|
-| Laravel | `artisan` + `laravel/framework` | `php artisan serve` | 8000 |
-| Next.js | dependency `next` | `npm run dev` | 3000 |
-| React/Vite | dependencies `vite` + `react`, atau `vite.config.js` | `npm run dev` | 5173 |
-| Vue | dependency `vue` | `npm run dev` | 5173 |
-| Go | `go.mod` atau `main.go` | `go run .` | 8080 |
-| Node.js | `package.json` fallback | `npm start` | 3000 |
-| Custom | tidak ada marker | kosong | kosong |
+| `LARAVEL` | `artisan` **dan** `laravel/framework` di `composer.json` | `php artisan serve` | 8000 |
+| `NEXTJS` | dependency `next` | `npm run dev` | 3000 |
+| `VUE` | dependency `vue` | `npm run dev` | 5173 |
+| `REACT_VITE` | dependency `vite` **dan** `react` | `npm run dev` | 5173 |
+| `REACT` | dependency `react` (tanpa Vite/Next) | `npm start` | 3000 |
+| `GOLANG` | `go.mod` atau `main.go` | `go run .` | — |
+| `PYTHON` | `requirements.txt`, `pyproject.toml`, `main.py`, atau `app.py` | `python main.py` | — |
+| `NODEJS` | `package.json` (fallback) | `npm start` | 3000 |
+
+Laravel sengaja dievaluasi lebih dulu karena project Inertia juga memakai Vite; `REACT_VITE` mendahului `REACT` agar project Vite tidak jatuh ke Create React App. Bila tidak ada marker yang cocok, project dibuat sebagai **Custom** tanpa command/port default. Untuk Laravel, port tambahan dibaca dari `.env` dan script dev Composer bila ada (`electron/utils/projectDetection.ts`).
 
 ## Troubleshooting
 
 ### `npm run dev` tidak kembali ke prompt
 
-Pastikan script `dev` masih memakai `concurrently --kill-others --success first`. Setelah Electron ditutup, Vite seharusnya mati maksimal sekitar tiga detik kemudian.
+`npm run dev` menjalankan `electron-vite dev` sebagai satu proses — menutup window Electron menghentikan dev server sekaligus. Jika prompt tetap tertahan, pastikan tidak ada process `electron.exe` sisa yang masih memegang port.
 
 ### Port 5173 sudah dipakai
 
@@ -167,7 +195,11 @@ Cari proses pemilik port:
 Get-NetTCPConnection -LocalPort 5173
 ```
 
-Hentikan proses terkait atau ubah konfigurasi Vite dan URL Electron secara bersamaan. Keduanya saat ini hard-coded ke `5173`.
+Hentikan proses terkait, atau jalankan di port lain tanpa mengubah kode:
+
+```powershell
+$env:VITE_DEV_PORT = 5300; npm run dev
+```
 
 ### Project tidak bisa start
 
@@ -197,7 +229,11 @@ Periksa folder `backups` di `userData`. Recovery otomatis hanya terjadi untuk JS
 
 ## Verification Sebelum Merge
 
+CI push/PR hanya menjalankan `lint` + `typecheck`, jadi sisanya adalah tanggung jawab kamu sebelum merge:
+
 ```powershell
+npm run lint
+npm run typecheck
 npm test
 npx vite build
 git diff --check

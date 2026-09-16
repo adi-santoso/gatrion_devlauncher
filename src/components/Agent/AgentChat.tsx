@@ -33,6 +33,7 @@ export default function AgentChat({
   onContextUsage,
   onTitleGenerated,
   onOpenSettings,
+  draftsRef: sharedDraftsRef,
   // False while the user is browsing another menu — the view stays mounted
   // (hidden) so the conversation survives, but streaming must not keep
   // re-rendering at the flush rate while invisible (that starves the
@@ -128,7 +129,8 @@ export default function AgentChat({
   const handleEventRef = useRef<((event: OmpEvent) => void) | null>(null);
   // Unsent input is remembered per session so switching away and back does
   // not lose what was being typed (draft per session).
-  const draftsRef = useRef<Record<string, string>>({});
+  const localDraftsRef = useRef<Record<string, string>>({});
+  const draftsRef = sharedDraftsRef || localDraftsRef;
   projectRef.current = project;
   sessionRef.current = session;
   messagesRef.current = messages;
@@ -334,7 +336,7 @@ export default function AgentChat({
     currentModelRef,
   });
 
-  const notConfigured = Boolean(status?.installed && !status?.configured);
+  const notConfigured = !status?.installed || !status?.configured;
   const isFresh = messages.length === 0 && blocks.length === 0 && !historyLoading;
   // Index of the most recent user message — the only one that can be edited.
   let lastUserIndex = -1;

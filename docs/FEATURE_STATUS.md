@@ -2,6 +2,8 @@
 
 Status ini berdasarkan source saat dokumentasi dibuat, bukan target roadmap.
 
+> Terakhir diverifikasi terhadap kode pada **v0.2.9** — angka test/lint/channel di halaman ini diambil dari hasil eksekusi nyata (`npm test`, `npm run lint`, `npm run typecheck`), bukan estimasi.
+
 Legend:
 
 - **Done**: flow utama terhubung dan diverifikasi build/test dasar.
@@ -19,7 +21,7 @@ Legend:
 | Add project | Done | Validation dasar + duplicate name/path |
 | Delete project | Done | Running process dihentikan dulu |
 | Edit project | Done | Modal yang sama dipakai untuk add/edit |
-| Framework detection | Done | Laravel, Next, React/Vite, Vue, Go, Node, Custom |
+| Framework detection | Done | Laravel, Next.js, Vue, React (Vite), React, Go, Python, Node.js, Custom — urutan evaluasi dijaga (Laravel dulu, `REACT_VITE` sebelum `REACT`); detail di [SETUP.md](SETUP.md) |
 | Storage backup/recovery | Done | 5 backup project, recovery JSON corrupt |
 | Concurrent storage mutation | Done | Queue project/config + transactional project updates |
 | Config persistence | Done | Schema nested canonical + migrasi key flat lama |
@@ -69,7 +71,7 @@ Legend:
 | OmpManager (RPC client) | Done | Spawn `omp --mode rpc` per project (lazy, cwd = folder project), NDJSON framing + korelasi by id, fast-fail tanpa provider, idle kill 15 menit, session registry di userData/agent-sessions.json |
 | OmpInstaller | Done | Download binary omp (±150 MB) ke userData/omp tanpa admin rights, progress stream + verifikasi SHA256; deteksi omp sistem (PATH, LOCALAPPDATA, ~/.bun) |
 | Settings AI Agent | Done | Kartu di Settings: status/versi, install + progress bar, Run omp setup (wizard console sendiri), check update, daftar provider + hapus, default model picker, form custom provider (baseUrl/api type/apiKey/models) → merge ke ~/.omp/agent/models.yml dengan backup otomatis (js-yaml) |
-| Agent control via MCP | Done | **F0–F3**: HTTP MCP server hand-rolled di `127.0.0.1:<port-acak>` (Streamable HTTP, JSON-RPC 2.0, token Bearer per-launch, localhost-only) + entry `~/.omp/agent/mcp.json` — agent omp bisa memanggil **37 tool** DevLauncher (baca: list/status/log/git/config/presets/health/preview-console; tulis: lifecycle project, preset, git, npm, terminal PTY, preview, env, config, activity; destruktif: delete project, force stop, backup export/import, update app, clear health/crash-dumps, config sensitif) yang muncul sebagai tool card di chat. Tool destruktif **menunggu persetujuan modal** (queue + approve/deny/deny-all, timeout 120 s). Semua aksi di-audit ke activity feed + main.log dengan args ter-redaksi; secret .env tidak pernah sampai ke agent. **F4**: matriks izin per kategori (read/write/destructive) di Settings, rate limit + max payload + concurrency guard di boundary MCP, audit penuh (read pun) + durasi tool call, e2e Playwright dengan MCP client asli (handshake → tools/call → modal → approve/deny) — coverage `electron/mcp` 90% lines. |
+| Agent control via MCP | Done | **F0–F4**: HTTP MCP server hand-rolled di `127.0.0.1:<port-acak>` (Streamable HTTP, JSON-RPC 2.0, token Bearer per-launch, localhost-only) + entry `~/.omp/agent/mcp.json` — agent omp bisa memanggil **44 tool** DevLauncher (baca: list/status/log/git/config/presets/health/preview-console; tulis: lifecycle project, preset, git, npm, terminal PTY, preview, env, config, activity; destruktif: delete project, force stop, backup export/import, update app, clear health/crash-dumps, config sensitif) yang muncul sebagai tool card di chat. Tool destruktif **menunggu persetujuan modal** (queue + approve/deny/deny-all, timeout 120 s). Semua aksi di-audit ke activity feed + main.log dengan args ter-redaksi; secret .env tidak pernah sampai ke agent. Matriks izin per kategori (read/write/destructive) di Settings, rate limit + max payload + concurrency guard di boundary MCP, audit penuh (read pun) + durasi tool call, e2e Playwright dengan MCP client asli (handshake → tools/call → modal → approve/deny). Katalog lengkap: [MCP_API.md](MCP_API.md). |
 | Script runner | Done | Tab Scripts: jalankan script `package.json` + health check dependency |
 | Animation system | Done | AnimatedModal (entrance + exit), toast slide, sliding tab indicator, theme transition, press feedback, skeleton shimmer |
 | Pengingat Sholat | Done | Widget sidebar/topbar (bisa diatur/dinonaktifkan), algoritma PrayTimes offline (Kemenag RI + 5 metode), geocode kota, panel floating expand, notifikasi + suara. **Redesign**: konten bergantian slide up/down — jam live sampai detik + tanggal Masehi + **Hijriah** (Umm al-Qura), sholat berikutnya + countdown, banner "Sedang Berlangsung" 10 menit setelah masuk waktu; semua class theme-safe (light mode tidak lagi gelap) |
@@ -105,22 +107,27 @@ Legend:
 
 | Feature | Status | Catatan |
 |---|---|---|
-| ProcessManager regression test | Done | `npm test` |
+| ProcessManager regression test | Done | `npm test` — spawn sungguhan: start/stop/exit code/composite/staggered readiness/port conflict/backoff |
 | Renderer production build | Done | `npx vite build` |
-| Unit test storage/detector/hooks | Done | Vitest setup, ProjectDetector.test.js, StorageManager.test.js created |
-| Electron integration/smoke automation | Done | Playwright E2E (`npm run test:e2e`) launches the app, checks navigation |
-| Lint command | Done | ESLint configured with @eslint/js + react-hooks plugin |
-| Type checking | Done | TypeScript strict penuh (renderer + main process), `no-explicit-any` error, 0 warning lint |
+| Unit test storage/detector/hooks | Done | **910 test Vitest di 99 file**, colocated di `__tests__/` (bukan terpusat di `tests/`); `tests/` hanya berisi setup + mock + fixture mock omp |
+| Electron integration/smoke automation | Done | Playwright E2E (`npm run test:e2e`): **29 test di 15 spec** — smoke/navigasi, add→start→log→stop, settings lintas restart, agent streaming + extension UI + layout minimum, MCP handshake/approval, preview persistence/device/fullscreen, terminal PTY, tray, reset data |
+| Lint command | Done | ESLint flat config (`eslint.config.cjs`) + react-hooks; **0 error, 9 warning** (7 `max-lines`, 2 `no-unused-vars` di file test) |
+| Type checking | Done | TypeScript strict penuh (renderer + main process), `no-explicit-any` error; `npm run typecheck` 0 error |
 | Accessibility audit | Partial | ARIA labels on buttons/focusable elements added, keyboard shortcuts documented, contrast compliance |
-| Windows installer | Partial | Ikon aplikasi (motif G, purple gradient) digenerate via `npm run icons` → `build/icon.ico/png/tray`; build NSIS/portable belum dijalankan penuh |
+| Windows installer | Partial | Ikon aplikasi (mark **workspace grid**) digenerate via `npm run icons` → `build/icon.ico/png/tray`, di-commit ke repo agar packaging CI selalu memakai icon asli; target NSIS + portable x64 dikonfigurasi dan dipublish oleh `release.yml`, tetapi belum diverifikasi di Windows bersih |
 | Clean machine validation | Pending | Belum dibuktikan |
-| Code signing/update | Pending | Belum dirancang |
-| CI pipeline | Done | GitHub Actions matrix 3 OS (windows/macos/ubuntu): lint, `npm test` (vitest), `vite build`, Playwright e2e (Linux via xvfb) |
+| Code signing/update | Partial | Auto-update **sudah jalan** (electron-updater + feed `latest.yml` via GitHub Releases, download + install in-app dengan progress). **Code signing sengaja di-skip** (butuh sertifikat berbayar) — konsekuensinya SmartScreen tetap memperingatkan saat install |
+| CI pipeline | Partial | Dua workflow dengan pembagian sengaja: **`ci.yml` (push/PR ke master/main)** hanya `lint` + `typecheck` di ubuntu — murah dan cepat. **`release.yml` (tag `v*`)** menjalankan pipeline penuh di windows: lint → typecheck → `npm test` → coverage gate → `npm audit --audit-level=high` → `electron-vite build` → `electron-builder --publish always`. **Gap: unit test hanya jalan saat rilis, dan e2e Playwright tidak pernah dijalankan CI** (harus manual `npm run test:e2e`); matrix 3 OS yang dulu ada sudah dilepas |
 | CSP | Done | `Content-Security-Policy` di main process; dev mengizinkan inline script Vite |
 
 ## Known Wiring Gaps
 
-Tidak ada gap aktif. Semua handler IPC dan push channel terhubung ke renderer.
+Tidak ada gap wiring aktif — semua handler IPC dan push channel terhubung ke renderer. Gap yang tersisa bersifat proses/rilis, bukan fitur:
+
+- Unit test tidak jalan di push/PR (hanya pada tag rilis); e2e Playwright tidak pernah dijalankan CI.
+- Threshold coverage di `vitest.config.js` (28% lines) jauh di bawah angka terukur, sehingga regresi besar tetap lolos.
+- Validasi installer di Windows bersih (path berspasi, user non-admin) dan auto-update dari versi lama ke baru belum dibuktikan.
+- Runtime macOS/Linux belum diverifikasi di hardware nyata.
 
 ## Manual Smoke Checklist
 
@@ -133,9 +140,10 @@ Tidak ada gap aktif. Semua handler IPC dan push channel terhubung ke renderer.
 - [ ] Setelah stop, status `Stopped` dan PID hilang di detail/card/table.
 - [ ] Restart menghasilkan PID/process baru.
 - [ ] Delete running project menghentikan process dan menghapus record.
-- [ ] Close app menghentikan child process dan Vite tanpa Ctrl+C.
+- [ ] Close app menghentikan child process dan dev server tanpa Ctrl+C.
 - [ ] Reopen app memuat project dengan status `Stopped`.
 - [ ] Theme bertahan setelah restart.
+- [ ] `npm run lint` dan `npm run typecheck` lulus.
 - [ ] `npm test` lulus.
 - [ ] `npx vite build` lulus.
 

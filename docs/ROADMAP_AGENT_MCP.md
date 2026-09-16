@@ -6,8 +6,10 @@
 > criteria-nya terverifikasi lewat test/CI, bukan sekadar "terlihat jalan".
 >
 > F0 (spike), F1 (server + read), F2 (write), F3 (destructive + approval modal) dan
-> F4 (hardening) sudah diimplementasi & diuji (627 unit test + 10 e2e Playwright, coverage
-> `electron/mcp` 90% lines). Lihat section 7 untuk hasil F4 + checklist security review.
+> F4 (hardening) sudah diimplementasi & diuji. Angka test (`627 unit test + 10 e2e`) adalah
+> snapshot saat F4 ditutup; suite saat ini **910 unit test + 29 e2e** dengan **44 tool** MCP
+> (naik dari 37 saat F3) — lihat [FEATURE_STATUS.md](FEATURE_STATUS.md) untuk status terkini.
+> Coverage `electron/mcp` 90% lines. Lihat section 7 untuk hasil F4 + checklist security review.
 >
 > Konteks fitur: DevLauncher sudah punya chat agent (oh-my-pi / omp) yang bisa membaca & mengedit
 > kode. Fitur ini menambahkan kemampuan agent untuk **bertindak di aplikasi DevLauncher itu

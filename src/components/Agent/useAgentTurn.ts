@@ -131,20 +131,33 @@ export function useAgentTurn({
     // While the agent is working, sending steers the running turn with the new
     // instruction instead of starting a fresh one.
     if (busyRef.current) {
+      if (attachments.length > 0) {
+        setError('Images can be sent after the current turn finishes.');
+        return;
+      }
       const text = message || 'Here is an attached image — please analyze it.';
+      const messageId = uid();
+      setError(null);
       setInput('');
       saveDraftRef.current?.('');
       if (inputRef.current) inputRef.current.style.height = 'auto';
       setMessages((prev) => [...prev, {
-        id: uid(),
+        id: messageId,
         role: 'user',
         content: text,
         steered: true,
         createdAt: new Date().toISOString(),
       }]);
       try {
-        await ipc.ompSteer(project.id, project.path, text);
+        const result = await ipc.ompSteer(project.id, project.path, text);
+        if (!result?.success) throw new Error(result?.error || 'Failed to steer the agent');
       } catch (caught) {
+        setMessages((prev) => prev.filter((item) => item.id !== messageId));
+        setInput((current) => {
+          const restored = current ? `${text}\n${current}` : text;
+          saveDraftRef.current(restored);
+          return restored;
+        });
         setError((caught instanceof Error ? caught.message : String(caught)) || 'Failed to steer the agent');
       }
       return;
@@ -252,11 +265,11 @@ export function useAgentTurn({
   }, [setAttachments]);
 
   // Grow the textarea with its content (up to ~10 lines), then scroll.
-  const resizeInput = (el: HTMLTextAreaElement) => {
+  const resizeInput = useCallback((el: HTMLTextAreaElement) => {
     if (!el) return;
     el.style.height = 'auto';
     el.style.height = `${Math.min(el.scrollHeight, 240)}px`;
-  };
+  }, []);
 
   return {
     runTurn,

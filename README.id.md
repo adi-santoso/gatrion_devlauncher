@@ -44,7 +44,7 @@ Screenshot asli aplikasi yang sedang berjalan — bukan mockup.
 ## Fitur
 
 ### Manajemen project
-- **Daftarkan folder mana pun sebagai project** — framework terdeteksi otomatis (Laravel, Next.js, React/Vite, Vue, Go, Node.js, atau Custom) beserta start command dan port-nya. Setiap project bisa punya start command, environment variable, dan tag sendiri.
+- **Daftarkan folder mana pun sebagai project** — framework terdeteksi otomatis (Laravel, Next.js, Vue, React/Vite, React, Go, Python, Node.js, atau Custom) beserta start command dan port-nya. Setiap project bisa punya start command, environment variable, dan tag sendiri.
 - **CRUD lengkap** — edit, duplikasi, atau hapus project; drag & drop folder ke jendela untuk mengisi form otomatis. Export/import project sebagai JSON portabel (import merge tanpa menimpa duplikat).
 - **Workspace presets** — simpan sekelompok project sebagai preset dan start/stop seluruh stack dengan satu klik, lengkap dengan stagger delay dan progress per project.
 
@@ -157,7 +157,7 @@ src/            React renderer: hooks, components, styles, i18n
 tests/          Mock + setup Vitest
 e2e/            Playwright end-to-end test
 scripts/        Utility script (generate-icons, generator changelog)
-.github/        CI workflow (lint, test, build, e2e di Windows/macOS/Linux)
+.github/        CI workflow (ci.yml: lint + typecheck di Linux; release.yml: pipeline penuh di Windows untuk tag v*)
 dist-react/     Output Vite (generated)
 dist/           Output electron-builder (generated)
 ```
@@ -192,9 +192,9 @@ Menu **Agent** di sidebar menjalankan coding agent [oh-my-pi (omp)](https://omp.
 ## Catatan Penting
 
 - Start command dijalankan lewat shell lokal. Hanya tambahkan project dan command yang kamu percaya.
-- Icon aplikasi digenerate ke `build/` dengan `npm run icons` (`scripts/generate-icons.js`); folder `build/` di-`.gitignore`, jadi jalankan script ini sebelum packaging.
+- Icon aplikasi ada di `build/` dan **di-commit ke repo** (`.gitignore` mengecualikan `icon.ico`, `icon.png`, `icon-tray.png`) agar packaging selalu memakai icon asli. Regenerate dengan `npm run icons` lalu commit hasilnya bila artwork berubah.
 - Preview memakai WebContentsView native (sesi persisten per project) dengan fallback iframe bila view native tidak tersedia.
-- Target utama Windows x64. macOS dan Linux sudah berjalan di CI (matrix 3 OS) dan path spesifik platform sudah ditangani, tapi app hasil packaging belum divalidasi di mesin sungguhan.
+- Hanya Windows x64 yang dipaketkan. Jalur kode macOS/Linux sudah diaudit tapi belum divalidasi di hardware sungguhan.
 - Global shortcut (`Ctrl+Shift+Space` di Windows/Linux, `Cmd+Shift+Space` di macOS) memanggil jendela dari mana saja.
 
 ## Lisensi

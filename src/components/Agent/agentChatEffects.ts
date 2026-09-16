@@ -188,6 +188,7 @@ export function useAgentRuntimeData({
 }: RuntimeDataOptions) {
   // Model list + current default, merged from models.yml and the live RPC.
   useEffect(() => {
+    if (!visible) return;
     let cancelled = false;
     const apply = (options: ModelOption[], current: string | null) => {
       if (cancelled) return;
@@ -245,7 +246,7 @@ export function useAgentRuntimeData({
       }).catch(() => {});
     }).catch(() => {});
     return () => { cancelled = true; };
-  }, [projectId, sessionId, projectRef, applyState, setModels, setDefaultModel, setProviderContextWindows]);
+  }, [projectId, sessionId, visible, projectRef, applyState, setModels, setDefaultModel, setProviderContextWindows]);
 
   // Keep the context-usage indicator fresh while a conversation is active.
   // Polls once immediately, then on a timer (faster while the agent works).
@@ -351,4 +352,3 @@ export function useAgentSessionState({
 
   return { applyState, refreshStateRef };
 }
-

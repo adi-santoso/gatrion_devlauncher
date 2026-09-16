@@ -14,7 +14,7 @@ interface PreviewPlaceholderProps {
 export default function PreviewPlaceholder({ variant, appUrl, onEdit, onStart }: PreviewPlaceholderProps) {
   const noPort = variant === 'no-port'
   return (
-    <div className="max-w-md text-center py-12 px-6 bg-surface border border-border rounded-xl shadow-sm my-auto">
+    <div className="w-full max-w-md text-center py-12 px-6 bg-surface border border-border rounded-xl shadow-sm shrink-0">
       <div className={`w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-3 ${noPort ? 'bg-surface-3 text-ink-soft' : 'bg-accent/10 text-accent'}`}>
         <Icon name={noPort ? 'gear' : 'globe'} size={22} />
       </div>

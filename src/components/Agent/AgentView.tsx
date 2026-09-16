@@ -4,6 +4,8 @@ import { ConfirmDialog } from '../Modals';
 import * as ipc from '../../utils/ipcRenderer';
 import AgentChat from './AgentChat';
 import AgentSessionSidebar, { type RenamingTarget } from './AgentSessionSidebar';
+import useAgentSessions from './useAgentSessions';
+import { cleanIpcError } from './agentChatUtils';
 import type { AgentSession, Project } from '../../types/shared';
 import type { OmpStatusResult } from '../../data/agent';
 
@@ -25,15 +27,24 @@ interface SessionStatus {
 export default function AgentView({ projects, initialProjectId = null, initialSessionId = null, onOpenProject, onOpenSettings, visible = true }: AgentViewProps) {
   const [status, setStatus] = useState<SessionStatus>({ installed: false, configured: false });
   const [statusLoading, setStatusLoading] = useState(true);
-  const [sessionsByProject, setSessionsByProject] = useState<Record<string, AgentSession[]>>({});
+  const { sessionsByProject, setSessionsByProject, loading: sessionsLoading, errors: sessionErrors, loadSessions } = useAgentSessions(projects);
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const [activeSession, setActiveSession] = useState<AgentSession | null>(null);
-  const [, setBusy] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [pendingAction, setPendingAction] = useState<string | null>(null);
+  const actionRef = useRef(false);
+  const [statusError, setStatusError] = useState<string | null>(null);
+  const [statusRetry, setStatusRetry] = useState(0);
   const [renaming, setRenaming] = useState<RenamingTarget | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<{ project: Project; session: AgentSession } | null>(null);
   const [sessionSearch, setSessionSearch] = useState('');
   const [pendingSessionId, setPendingSessionId] = useState<string | null>(null);
-  const loadedRef = useRef<Record<string, boolean>>({});
+  const navigationRef = useRef('');
+  const draftsRef = useRef<Record<string, string>>({});
+  const generatedTitlesRef = useRef<Record<string, string>>({});
+  const selectedProjectRef = useRef(selectedProjectId);
+  selectedProjectRef.current = selectedProjectId;
   // Live context usage (tokens/contextWindow) of the active session, bubbled up
   // from AgentChat so the sidebar can show how much context is used right now.
   const [activeContextUsage, setActiveContextUsage] = useState<{ tokens?: number; contextWindow?: number } | null>(null);
@@ -42,54 +53,49 @@ export default function AgentView({ projects, initialProjectId = null, initialSe
 
   // Detect omp + auto-select project passed from navigation
   useEffect(() => {
+    if (!visible) return;
+    let cancelled = false;
+    setStatusLoading(true);
+    setStatusError(null);
     ipc.ompStatus().then((result) => {
-      setStatusLoading(false);
-      if (result?.success) setStatus(result);
-    }).catch(() => setStatusLoading(false));
-  }, []);
+      if (cancelled) return;
+      if (!result?.success) throw new Error(result?.error || 'Could not check agent status.');
+      setStatus(result);
+    }).catch((error) => {
+      if (!cancelled) setStatusError(cleanIpcError(error, 'Could not check agent status.'));
+    }).finally(() => { if (!cancelled) setStatusLoading(false); });
+    return () => { cancelled = true; };
+  }, [visible, statusRetry]);
 
   useEffect(() => {
-    if (initialProjectId && projects.some((project) => project.id === initialProjectId)) {
-      setSelectedProjectId(initialProjectId);
-    }
-  }, [initialProjectId, projects]);
-
-  // Navigation from the workspace search palette can target a specific session
-  // across ANY project. Hold it as pending until its project's session list has
-  // loaded, then select it. Re-running on initialSessionId lets the user jump
-  // between sessions of the same project without leaving the view.
-  useEffect(() => {
-    if (initialSessionId) setPendingSessionId(initialSessionId);
-  }, [initialSessionId]);
+    const request = JSON.stringify([initialProjectId, initialSessionId]);
+    if (navigationRef.current === request || busy) return;
+    if (!initialProjectId) { navigationRef.current = request; return; }
+    if (!projects.some((project) => project.id === initialProjectId)) return;
+    navigationRef.current = request;
+    setSelectedProjectId(initialProjectId);
+    if (selectedProjectRef.current !== initialProjectId) setActiveSession(null);
+    setPendingSessionId(initialSessionId);
+  }, [initialProjectId, initialSessionId, projects, busy]);
 
   useEffect(() => {
-    if (!pendingSessionId) return;
+    if (!pendingSessionId || busy) return;
     const list = selectedProjectId ? (sessionsByProject[selectedProjectId] || []) : [];
     const session = list.find((item) => item.id === pendingSessionId);
     if (session) {
       setPendingSessionId(null);
       setActiveSession(session);
     }
-  }, [pendingSessionId, selectedProjectId, sessionsByProject]);
+  }, [pendingSessionId, selectedProjectId, sessionsByProject, busy]);
 
-  const loadSessions = useCallback(async (projectId: string) => {
-    if (loadedRef.current[projectId]) return;
-    loadedRef.current[projectId] = true;
-    const result = await ipc.ompListSessions(projectId);
-    if (result?.success) {
-      setSessionsByProject((prev) => ({ ...prev, [projectId]: result.sessions }));
-    }
-  }, []);
-
-  // When a project becomes selected, load its sessions
-  useEffect(() => {
-    if (selectedProjectId) loadSessions(selectedProjectId);
-  }, [selectedProjectId, loadSessions]);
+  useEffect(() => { setActiveContextUsage(null); }, [selectedProjectId, activeSession?.id]);
 
   // Clicking a project name only expands/collapses its session list — it does
   // NOT open the chat. The chat opens when a session (or New session) is picked,
   // so a stray click can never start an invisible, un-resumable conversation.
   const toggleProject = (project: Project) => {
+    if (busy) return;
+    setPendingSessionId(null);
     if (selectedProjectId === project.id) {
       setSelectedProjectId(null);
       setActiveSession(null);
@@ -97,52 +103,80 @@ export default function AgentView({ projects, initialProjectId = null, initialSe
     }
     setSelectedProjectId(project.id);
     setActiveSession(null); // the chat is per-project; switching resets it
-    loadSessions(project.id);
   };
 
-  const selectSession = (_project: Project, session: AgentSession) => {
+  const selectSession = (project: Project, session: AgentSession) => {
+    if (busy) return;
+    setPendingSessionId(null);
+    setSelectedProjectId(project.id);
     setActiveSession(session);
   };
 
+  const runAction = async (key: string, action: () => Promise<void>) => {
+    if (actionRef.current) return;
+    actionRef.current = true;
+    setPendingAction(key);
+    setActionError(null);
+    try { await action(); }
+    catch (error) { setActionError(cleanIpcError(error, 'Could not update this session. Please try again.')); }
+    finally { actionRef.current = false; setPendingAction(null); }
+  };
+
   const handleNewSession = async (project: Project) => {
-    const result = await ipc.ompCreateSession(project.id, '');
-    if (!result?.success) return;
-    setSessionsByProject((prev) => ({ ...prev, [project.id]: [...(prev[project.id] || []), result.session as AgentSession] }));
-    setActiveSession(result.session as AgentSession);
+    if (busy || sessionsLoading[project.id] || sessionErrors[project.id]) return;
+    await runAction(`new:${project.id}`, async () => {
+      const result = await ipc.ompCreateSession(project.id, '');
+      if (!result?.success || !result.session) throw new Error(result?.error || 'Could not create session.');
+      const created = result.session;
+      setSessionsByProject((prev) => ({ ...prev, [project.id]: [...(prev[project.id] || []), created] }));
+      if (selectedProjectRef.current === project.id) {
+        setSessionSearch('');
+        setActiveSession(created);
+      }
+    });
   };
 
   const handleDeleteSession = async (project: Project, session: AgentSession) => {
     setConfirmDelete(null);
-    await ipc.ompDeleteSession(project.id, session.id);
-    setSessionsByProject((prev) => ({ ...prev, [project.id]: (prev[project.id] || []).filter((item) => item.id !== session.id) }));
-    if (activeSession?.id === session.id) setActiveSession(null);
+    if (busy) return;
+    await runAction(session.id, async () => {
+      const result = await ipc.ompDeleteSession(project.id, session.id);
+      if (!result?.success) throw new Error(result?.error || 'Could not delete session.');
+      setSessionsByProject((prev) => ({ ...prev, [project.id]: (prev[project.id] || []).filter((item) => item.id !== session.id) }));
+      setActiveSession((current) => current?.id === session.id ? null : current);
+    });
   };
 
   const handleTogglePin = async (project: Project, session: AgentSession) => {
-    const result = await ipc.ompTogglePin(project.id, session.id);
-    const updated = (result as { success: boolean; session?: AgentSession }).session;
-    if (result?.success && updated) {
-      setSessionsByProject((prev) => ({
-        ...prev,
-        [project.id]: (prev[project.id] || []).map((item) => (item.id === session.id ? updated : item)),
-      }));
-    }
+    await runAction(session.id, async () => {
+      const result = await ipc.ompTogglePin(project.id, session.id);
+      if (!result?.success) throw new Error(result?.error || 'Could not pin session.');
+      const updated = (result as { success: boolean; session?: AgentSession }).session;
+      if (updated) {
+        setSessionsByProject((prev) => ({
+          ...prev,
+          [project.id]: (prev[project.id] || []).map((item) => (item.id === session.id ? updated : item)),
+        }));
+      }
+    });
   };
 
   const handleRenameSession = async (project: Project, session: AgentSession, title: string) => {
-    const clean = title.trim();
+    const clean = title.trim().slice(0, 80);
     if (!clean || clean === session.title) {
       setRenaming(null);
       return;
     }
-    const result = await ipc.ompRenameSession(project.id, session.id, clean);
-    if (result?.success) {
+    await runAction(session.id, async () => {
+      const result = await ipc.ompRenameSession(project.id, session.id, clean);
+      if (!result?.success) throw new Error(result?.error || 'Could not rename session.');
       setSessionsByProject((prev) => ({
         ...prev,
         [project.id]: (prev[project.id] || []).map((item) => (item.id === session.id ? { ...item, title: clean } : item)),
       }));
-    }
-    setRenaming(null);
+      setActiveSession((current) => current?.id === session.id ? { ...current, title: clean } : current);
+      setRenaming(null);
+    });
   };
 
   // Adopt an omp auto-generated session title (from the first message) into the
@@ -151,6 +185,10 @@ export default function AgentView({ projects, initialProjectId = null, initialSe
     if (!activeSession || !selectedProjectId) return;
     const clean = title.trim();
     if (!clean || clean === activeSession.title) return;
+    // Auto-generated names may replace the default or an earlier generated
+    // name, but never a name explicitly chosen by the user.
+    if (!/^Session \d+$/.test(activeSession.title) && generatedTitlesRef.current[activeSession.id] !== activeSession.title) return;
+    generatedTitlesRef.current[activeSession.id] = clean;
     const projectId = selectedProjectId;
     setSessionsByProject((prev) => {
       const current = (prev[projectId] || []).find((item) => item.id === activeSession.id);
@@ -162,8 +200,9 @@ export default function AgentView({ projects, initialProjectId = null, initialSe
         ),
       };
     });
+    setActiveSession((current) => current?.id === activeSession.id ? { ...current, title: clean } : current);
     ipc.ompRenameSession(projectId, activeSession.id, clean).catch(() => {});
-  }, [activeSession, selectedProjectId]);
+  }, [activeSession, selectedProjectId, setSessionsByProject]);
 
   const handleSessionCreated = (sessionId: string, session?: AgentSession) => {
     const created: AgentSession = session || { id: sessionId, title: sessionId, projectId: '' };
@@ -187,7 +226,7 @@ export default function AgentView({ projects, initialProjectId = null, initialSe
     }
   };
 
-  const sessionCount = Object.values(sessionsByProject).reduce((sum, list) => sum + list.length, 0);
+  const sessionCount = projects.reduce((sum, project) => sum + (sessionsByProject[project.id]?.length || 0), 0);
 
   return (
     <div className="flex flex-col h-full min-h-0">
@@ -197,6 +236,11 @@ export default function AgentView({ projects, initialProjectId = null, initialSe
           sessionsByProject={sessionsByProject}
           selectedProjectId={selectedProjectId}
           activeSession={activeSession}
+          loading={sessionsLoading}
+          errors={sessionErrors}
+          onRetry={loadSessions}
+          busy={busy}
+          pendingAction={pendingAction}
           sessionSearch={sessionSearch}
           onSearchChange={setSessionSearch}
           onToggleProject={toggleProject}
@@ -207,14 +251,16 @@ export default function AgentView({ projects, initialProjectId = null, initialSe
           onStartRename={(projectId, sessionId) => setRenaming({ projectId, sessionId })}
           onCancelRename={() => setRenaming(null)}
           onRenameSession={handleRenameSession}
-            onTogglePin={handleTogglePin}
-            onRequestDelete={(project, session) => setConfirmDelete({ project, session })}
-            status={status}
-            statusLoading={statusLoading}
-            sessionCount={sessionCount}
-            activeContextUsage={activeContextUsage}
-            onOpenSettings={onOpenSettings}
-          />
+          onTogglePin={handleTogglePin}
+          onRequestDelete={(project, session) => setConfirmDelete({ project, session })}
+          status={status}
+          statusLoading={statusLoading}
+          statusError={statusError}
+          onRetryStatus={() => setStatusRetry((n) => n + 1)}
+          sessionCount={sessionCount}
+          activeContextUsage={activeContextUsage}
+          onOpenSettings={onOpenSettings}
+        />
 
         <ConfirmDialog
           isOpen={Boolean(confirmDelete)}
@@ -227,8 +273,14 @@ export default function AgentView({ projects, initialProjectId = null, initialSe
 
         {/* Chat */}
         <div className="flex-1 min-w-0 flex flex-col min-h-0 relative">
+          {actionError && (
+            <div role="alert" className="flex items-start gap-2 px-4 py-3 text-sm text-danger bg-danger/10 border-b border-danger/25">
+              <span className="flex-1 min-w-0 break-words">{actionError}</span>
+              <button type="button" onClick={() => setActionError(null)} aria-label="Dismiss session error"><Icon name="x" size={16} /></button>
+            </div>
+          )}
           {!selectedProject || !activeSession ? (
-            <div className="flex-1 flex flex-col items-center justify-center bg-base gap-3">
+            <div className="flex-1 overflow-auto flex flex-col items-center justify-center bg-base gap-3 p-6 text-center">
               <div className="w-16 h-16 rounded-2xl bg-surface-2 border border-border flex items-center justify-center text-ink-faint">
                 <Icon name="messageSquare" size={26} />
               </div>
@@ -244,6 +296,7 @@ export default function AgentView({ projects, initialProjectId = null, initialSe
           ) : (
             <AgentChat
               visible={visible}
+              draftsRef={draftsRef}
               status={status as OmpStatusResult}
               project={selectedProject}
               session={activeSession}
@@ -251,7 +304,7 @@ export default function AgentView({ projects, initialProjectId = null, initialSe
               onBusyChange={setBusy}
               onOpenSettings={onOpenSettings}
               onTokensUsed={(tokens, cost) => {
-                if (!activeSession || !selectedProjectId) return;
+                if (!activeSession || !selectedProjectId || !Number.isFinite(tokens) || tokens <= 0) return;
                 const projectId = selectedProjectId;
                 setSessionsByProject((prev) => ({
                   ...prev,

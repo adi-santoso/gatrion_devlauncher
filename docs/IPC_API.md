@@ -2,7 +2,11 @@
 
 Dokumen ini mencatat kontrak yang benar-benar diekspos oleh `electron/preload.ts` (di-bundle ke `out/preload/index.js`). Semua method tersedia sebagai `window.electron` hanya di Electron mode.
 
+> **Cakupan.** Halaman ini merinci channel inti (project, process, git, env, preview, terminal, system). Total channel terdaftar saat ini **136 di 11 file `electron/handlers/`** — sisanya yang belum dirinci di sini didominasi permukaan agent (`omp-*`, 47 channel di `agentHandlers.ts`). Sumber kebenaran yang selalu mutakhir adalah `CHANNEL_RULES` di `electron/utils/ipcValidation.ts`: setiap channel **wajib** punya rule di sana, dan `channelRegistry.test.js` membuat channel baru tanpa rule langsung gagal.
+
 ## Convention
+
+Setiap channel didaftarkan lewat `safeHandle(ipcMain, assertTrustedIpcEvent, channel, handler)`, yang menjamin handler tidak pernah reject, sender selalu diverifikasi, dan payload divalidasi terhadap rule-nya lebih dulu.
 
 Sebagian besar mutation mengembalikan:
 

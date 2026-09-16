@@ -30,6 +30,7 @@ const baseProps = {
 
 beforeEach(() => {
   localStorage.clear()
+  vi.clearAllMocks()
 })
 
 describe('ChatComposer', () => {
@@ -134,5 +135,57 @@ describe('ChatComposer', () => {
     // The palette is a controlled popup — re-render to confirm the list renders.
     rerender(<ChatComposer {...baseProps} input="/" slashOpen slashMatches={slashMatches} insertSlashCommand={insertSlashCommand} />)
     expect(screen.getByText('/compact')).toBeInTheDocument()
+  })
+
+  it('Escape dismisses slash suggestions without deleting the prompt', () => {
+    render(<ChatComposer {...baseProps} input="/com" slashOpen slashMatches={[{ name: 'compact' }]} />)
+    fireEvent.keyDown(screen.getByLabelText('Message to agent'), { key: 'Escape' })
+    expect(screen.queryByText('/compact')).not.toBeInTheDocument()
+    expect(screen.getByLabelText('Message to agent')).toHaveValue('/com')
+    expect(baseProps.setInput).not.toHaveBeenCalled()
+  })
+
+  it('does not submit or select commands while composing text with an IME', () => {
+    render(<ChatComposer {...baseProps} input="/com" slashOpen slashMatches={[{ name: 'compact' }]} />)
+    fireEvent.keyDown(screen.getByLabelText('Message to agent'), { key: 'Enter', isComposing: true })
+    expect(baseProps.handleSend).not.toHaveBeenCalled()
+    expect(baseProps.insertSlashCommand).not.toHaveBeenCalled()
+  })
+
+  it('keeps Shift+Enter available for newlines with slash suggestions open', () => {
+    render(<ChatComposer {...baseProps} input="/com" slashOpen slashMatches={[{ name: 'compact' }]} />)
+    fireEvent.keyDown(screen.getByLabelText('Message to agent'), { key: 'Enter', shiftKey: true })
+    expect(baseProps.handleSend).not.toHaveBeenCalled()
+    expect(baseProps.insertSlashCommand).not.toHaveBeenCalled()
+  })
+
+  it('synchronizes template insertion and clearing with the session draft', () => {
+    localStorage.setItem('devlauncher:promptTemplates', JSON.stringify([{ id: '1', name: 'Review', content: 'Review this project' }]))
+    const saveDraft = vi.fn()
+    const { rerender } = render(<ChatComposer {...baseProps} saveDraftRef={{ current: saveDraft }} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Prompt templates' }))
+    fireEvent.click(screen.getByText('Review'))
+    expect(saveDraft).toHaveBeenLastCalledWith('Review this project')
+    rerender(<ChatComposer {...baseProps} input="Save me" saveDraftRef={{ current: saveDraft }} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Prompt templates' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Save current prompt' }))
+    expect(saveDraft).toHaveBeenLastCalledWith('')
+  })
+
+  it('closes templates with Escape and restores keyboard focus', () => {
+    render(<ChatComposer {...baseProps} />)
+    const button = screen.getByRole('button', { name: 'Prompt templates' })
+    fireEvent.click(button)
+    fireEvent.keyDown(screen.getByLabelText('Template name'), { key: 'Escape' })
+    expect(screen.queryByRole('region', { name: 'Prompt templates' })).not.toBeInTheDocument()
+    expect(button).toHaveFocus()
+  })
+
+  it('cannot send while history is loading or the agent is unavailable', () => {
+    render(<ChatComposer {...baseProps} input="hello" unavailableReason="Loading conversation..." />)
+    expect(screen.getByLabelText('Message to agent')).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Send message' })).toBeDisabled()
+    fireEvent.keyDown(screen.getByLabelText('Message to agent'), { key: 'Enter' })
+    expect(baseProps.handleSend).not.toHaveBeenCalled()
   })
 })

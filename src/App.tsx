@@ -42,6 +42,7 @@ function App() {
   const [currentView, setCurrentView] = useState('dashboard')
   const [agentProjectId, setAgentProjectId] = useState<string | null>(null)
   const [agentSessionId, setAgentSessionId] = useState<string | null>(null)
+  const [settingsInitialTab, setSettingsInitialTab] = useState<'general' | 'agent'>('general')
   const [selectedProject, setSelectedProject] = useState<ProjectRuntime | null>(null)
 
   // ---- UI state ----
@@ -93,6 +94,7 @@ function App() {
   // ---- Navigation + modal plumbing (plain functions; effects re-bind on state change) ----
   const showView = (viewName: string, data: unknown = null): void => {
     setCurrentView(viewName)
+    if (viewName === 'settings') setSettingsInitialTab((data as { tab?: string } | null)?.tab === 'agent' ? 'agent' : 'general')
 
     if (viewName === 'project-detail' && data) {
       setSelectedProject(data as ProjectRuntime)
@@ -371,13 +373,14 @@ function App() {
                   initialSessionId={agentSessionId}
                   visible={currentView === 'agent'}
                   onOpenProject={(project) => showView('project-detail', project)}
-                  onOpenSettings={() => showView('settings')}
+                  onOpenSettings={() => showView('settings', { tab: 'agent' })}
                 />
               </div>
 
               {/* Settings View */}
               {currentView === 'settings' && (
                 <SettingsView
+                  initialTab={settingsInitialTab}
                   config={config}
                   updateConfig={(updates) => { void updateElectronConfig(updates) }}
                   onExportProjects={handleExportProjects}
