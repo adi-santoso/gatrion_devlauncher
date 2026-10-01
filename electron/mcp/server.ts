@@ -34,6 +34,19 @@ export interface McpServerState {
 }
 
 /**
+ * A scoped endpoint resolves to its own token, tool list, and deps. VPS chat
+ * sessions point omp at `/mcp/<scopeId>` so the bound server is a structural
+ * property of the endpoint, not an agent-supplied argument (F0 §11.2).
+ */
+export interface McpResolvedScope {
+  token: string
+  tools: McpTool[]
+  deps: McpDeps
+}
+
+export type McpScopeResolver = (scopeId: string) => McpResolvedScope | null
+
+/**
  * Sliding-window limiter keyed by remote address. Tracks the timestamps of
  * recent requests; `check` prunes old entries and returns false when the
  * window is full. Localhost-only server, so this guards against runaway
@@ -59,7 +72,11 @@ export function createRateLimiter(windowMs = MCP_RATE_LIMIT.windowMs, max = MCP_
   }
 }
 
-export function createMcpServer(tools: McpTool[], deps: McpDeps): { start: () => Promise<McpServerHandle>; stop: () => Promise<void>; getState: () => McpServerState } {
+export function createMcpServer(
+  tools: McpTool[],
+  deps: McpDeps,
+  resolveScope?: McpScopeResolver,
+): { start: () => Promise<McpServerHandle>; stop: () => Promise<void>; getState: () => McpServerState } {
   let server: http.Server | null = null
   let token = randomBytes(32).toString('hex')
   let port: number | null = null
@@ -73,7 +90,7 @@ export function createMcpServer(tools: McpTool[], deps: McpDeps): { start: () =>
     res.end(JSON.stringify({ jsonrpc: '2.0', id: id ?? null, error: { code, message } }))
   }
 
-  const handleBody = async (body: string, res: http.ServerResponse): Promise<void> => {
+  const handleBody = async (body: string, res: http.ServerResponse, scope: McpResolvedScope): Promise<void> => {
     let message: Record<string, unknown>
     try {
       message = JSON.parse(body)
@@ -113,12 +130,12 @@ export function createMcpServer(tools: McpTool[], deps: McpDeps): { start: () =>
         ok({})
         return
       case 'tools/list':
-        ok({ tools: tools.map((t) => ({ name: t.name, description: t.description, inputSchema: t.inputSchema })) })
+        ok({ tools: scope.tools.map((t) => ({ name: t.name, description: t.description, inputSchema: t.inputSchema })) })
         return
       case 'tools/call': {
         const name = typeof params.name === 'string' ? params.name : ''
         const args = (params.arguments && typeof params.arguments === 'object' ? params.arguments : {}) as Record<string, unknown>
-        const result = await dispatchTool(tools, deps, name, args)
+        const result = await dispatchTool(scope.tools, scope.deps, name, args)
         if (result.success) {
           ok({ content: [{ type: 'text', text: JSON.stringify(result.data ?? { success: true }) }], isError: false })
         } else {
@@ -145,9 +162,25 @@ export function createMcpServer(tools: McpTool[], deps: McpDeps): { start: () =>
         res.end('forbidden')
         return
       }
-      // Bearer token auth on every request.
+      // Resolve the endpoint: `/mcp` (project scope) or `/mcp/<scopeId>`
+      // (VPS scope, bound to exactly one server server-side).
+      const pathname = (req.url || '').split('?')[0]
+      let scope: McpResolvedScope
+      if (pathname === '/mcp') {
+        scope = { token, tools, deps }
+      } else {
+        const match = /^\/mcp\/([a-f0-9]{8,64})$/.exec(pathname)
+        const resolved = match ? resolveScope?.(match[1]) : null
+        if (!resolved) {
+          res.statusCode = 404
+          res.end('unknown scope')
+          return
+        }
+        scope = resolved
+      }
+      // Bearer token auth on every request, against the resolved scope.
       const header = req.headers.authorization || ''
-      if (header !== `Bearer ${token}`) {
+      if (header !== `Bearer ${scope.token}`) {
         res.statusCode = 401
         res.end('unauthorized')
         return
@@ -183,11 +216,6 @@ export function createMcpServer(tools: McpTool[], deps: McpDeps): { start: () =>
         res.end('method not allowed')
         return
       }
-      if ((req.url || '').split('?')[0] !== '/mcp') {
-        res.statusCode = 404
-        res.end('not found')
-        return
-      }
       let body = ''
       let tooLarge = false
       req.on('data', (chunk: Buffer) => {
@@ -203,7 +231,7 @@ export function createMcpServer(tools: McpTool[], deps: McpDeps): { start: () =>
           res.end('payload too large')
           return
         }
-        void handleBody(body, res).finally(done)
+        void handleBody(body, res, scope).finally(done)
       })
       req.on('error', () => {
         if (!res.writableEnded) { res.statusCode = 400; res.end('bad request') }

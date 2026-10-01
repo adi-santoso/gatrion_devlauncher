@@ -22,6 +22,7 @@ const ProjectsView = lazy(() => import('./components/Projects').then((m) => ({ d
 const SettingsView = lazy(() => import('./components/Settings').then((m) => ({ default: m.SettingsView })))
 const TerminalWorkspace = lazy(() => import('./components/TerminalWorkspace'))
 const AgentView = lazy(() => import('./components/Agent/AgentView'))
+const VpsView = lazy(() => import('./components/Vps/VpsView'))
 
 function App() {
   // ---- Data hooks ----
@@ -374,6 +375,16 @@ function App() {
                   visible={currentView === 'agent'}
                   onOpenProject={(project) => showView('project-detail', project)}
                   onOpenSettings={() => showView('settings', { tab: 'agent' })}
+                />
+              </div>
+
+              {/* VPS Command Center — kept mounted (hidden) so an in-flight
+                  agent turn and terminal sessions survive navigation. */}
+              <div className={(currentView !== 'vps' ? 'hidden ' : '') + 'h-full flex flex-col min-h-0'}>
+                <VpsView
+                  visible={currentView === 'vps'}
+                  onOpenSettings={() => showView('settings', { tab: 'agent' })}
+                  terminalFontSize={config.terminal?.fontSize}
                 />
               </div>
 

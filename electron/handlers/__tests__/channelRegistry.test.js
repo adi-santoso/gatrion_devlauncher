@@ -26,6 +26,7 @@ import { setupDependencyHandlers } from '../dependencyHandlers'
 import { setupSystemHandlers } from '../systemHandlers'
 import { setupBackupHandlers } from '../backupHandlers'
 import { setupTerminalHandlers } from '../terminalHandlers'
+import { setupVpsHandlers } from '../vpsHandlers'
 
 function registerAll() {
   const emitter = { on: () => {} }
@@ -40,6 +41,7 @@ function registerAll() {
   setupDependencyHandlers()
   setupSystemHandlers()
   setupBackupHandlers(emitter, null, null)
+  setupVpsHandlers(emitter, () => null, () => null)
   return [...ipcMain._handlers.keys()]
 }
 

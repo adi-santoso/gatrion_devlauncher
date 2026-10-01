@@ -200,6 +200,37 @@ interface ElectronApi {
   respondMcpApproval: (id: string, decision: string) => Promise<unknown>
   onMcpApprovalRequest: (callback: (request: unknown) => void) => Unsub
 
+  // VPS command center (SSH)
+  vpsListServers: () => Promise<unknown>
+  vpsAddServer: (input: unknown, secret?: unknown) => Promise<unknown>
+  vpsUpdateServer: (serverId: string, patch: unknown) => Promise<unknown>
+  vpsDeleteServer: (serverId: string) => Promise<unknown>
+  vpsSetCredential: (serverId: string, secret: unknown) => Promise<unknown>
+  vpsHasCredential: (serverId: string) => Promise<unknown>
+  vpsTestConnection: (input: unknown, secret?: unknown) => Promise<unknown>
+  vpsConnect: (serverId: string, trustedFingerprint?: string) => Promise<unknown>
+  vpsDisconnect: (serverId: string) => Promise<unknown>
+  vpsTrustHostKey: (serverId: string, fingerprint: string) => Promise<unknown>
+  vpsForgetHostKey: (serverId: string) => Promise<unknown>
+  vpsGetStatus: (serverId: string) => Promise<unknown>
+  vpsOverview: (serverId: string) => Promise<unknown>
+  vpsListServices: (serverId: string) => Promise<unknown>
+  vpsGetLogs: (serverId: string, service: string, lines?: number) => Promise<unknown>
+  vpsRestartService: (serverId: string, service: string) => Promise<unknown>
+  vpsExec: (serverId: string, options: unknown) => Promise<unknown>
+  vpsListJobs: (serverId: string, limit?: number) => Promise<unknown>
+  vpsGetJob: (jobId: string, serverId?: string) => Promise<unknown>
+  vpsCancelJob: (jobId: string) => Promise<unknown>
+  vpsTerminalOpen: (serverId: string, cols: number, rows: number) => Promise<unknown>
+  vpsTerminalInput: (serverId: string, data: string) => Promise<unknown>
+  vpsTerminalResize: (serverId: string, cols: number, rows: number) => Promise<unknown>
+  vpsTerminalClose: (serverId: string) => Promise<unknown>
+  vpsPrepareScope: (serverId: string, sessionId: string) => Promise<unknown>
+  onVpsStatus: (callback: (status: unknown) => void) => Unsub
+  onVpsJobEvent: (callback: (event: unknown) => void) => Unsub
+  onVpsTerminalData: (callback: (serverId: string, data: string) => void) => Unsub
+  onVpsTerminalClose: (callback: (serverId: string) => void) => Unsub
+
   // AI Agent (oh-my-pi)
   ompStatus: () => Promise<unknown>
   ompListSessions: (projectId: string) => Promise<unknown>
@@ -495,6 +526,53 @@ const api: ElectronApi = {
     const listener = (_event: IpcRendererEvent, request: unknown) => callback(request)
     ipcRenderer.on('mcp-approval-request', listener)
     return () => ipcRenderer.removeListener('mcp-approval-request', listener)
+  },
+
+  // VPS command center (SSH)
+  vpsListServers: () => ipcRenderer.invoke('vps-list-servers'),
+  vpsAddServer: (input, secret) => ipcRenderer.invoke('vps-add-server', input, secret),
+  vpsUpdateServer: (serverId, patch) => ipcRenderer.invoke('vps-update-server', serverId, patch),
+  vpsDeleteServer: (serverId) => ipcRenderer.invoke('vps-delete-server', serverId),
+  vpsSetCredential: (serverId, secret) => ipcRenderer.invoke('vps-set-credential', serverId, secret),
+  vpsHasCredential: (serverId) => ipcRenderer.invoke('vps-has-credential', serverId),
+  vpsTestConnection: (input, secret) => ipcRenderer.invoke('vps-test-connection', input, secret),
+  vpsConnect: (serverId, trustedFingerprint) => ipcRenderer.invoke('vps-connect', serverId, trustedFingerprint),
+  vpsDisconnect: (serverId) => ipcRenderer.invoke('vps-disconnect', serverId),
+  vpsTrustHostKey: (serverId, fingerprint) => ipcRenderer.invoke('vps-trust-host-key', serverId, fingerprint),
+  vpsForgetHostKey: (serverId) => ipcRenderer.invoke('vps-forget-host-key', serverId),
+  vpsGetStatus: (serverId) => ipcRenderer.invoke('vps-get-status', serverId),
+  vpsOverview: (serverId) => ipcRenderer.invoke('vps-overview', serverId),
+  vpsListServices: (serverId) => ipcRenderer.invoke('vps-list-services', serverId),
+  vpsGetLogs: (serverId, service, lines) => ipcRenderer.invoke('vps-get-logs', serverId, service, lines),
+  vpsRestartService: (serverId, service) => ipcRenderer.invoke('vps-restart-service', serverId, service),
+  vpsExec: (serverId, options) => ipcRenderer.invoke('vps-exec', serverId, options),
+  vpsListJobs: (serverId, limit) => ipcRenderer.invoke('vps-list-jobs', serverId, limit),
+  vpsGetJob: (jobId, serverId) => ipcRenderer.invoke('vps-get-job', jobId, serverId),
+  vpsCancelJob: (jobId) => ipcRenderer.invoke('vps-cancel-job', jobId),
+  vpsTerminalOpen: (serverId, cols, rows) => ipcRenderer.invoke('vps-terminal-open', serverId, cols, rows),
+  vpsTerminalInput: (serverId, data) => ipcRenderer.invoke('vps-terminal-input', serverId, data),
+  vpsTerminalResize: (serverId, cols, rows) => ipcRenderer.invoke('vps-terminal-resize', serverId, cols, rows),
+  vpsTerminalClose: (serverId) => ipcRenderer.invoke('vps-terminal-close', serverId),
+  vpsPrepareScope: (serverId, sessionId) => ipcRenderer.invoke('vps-prepare-scope', serverId, sessionId),
+  onVpsStatus: (callback) => {
+    const listener = (_event: IpcRendererEvent, status: unknown) => callback(status)
+    ipcRenderer.on('vps-status', listener)
+    return () => ipcRenderer.removeListener('vps-status', listener)
+  },
+  onVpsJobEvent: (callback) => {
+    const listener = (_event: IpcRendererEvent, event: unknown) => callback(event)
+    ipcRenderer.on('vps-job-event', listener)
+    return () => ipcRenderer.removeListener('vps-job-event', listener)
+  },
+  onVpsTerminalData: (callback) => {
+    const listener = (_event: IpcRendererEvent, serverId: string, data: string) => callback(serverId, data)
+    ipcRenderer.on('vps-terminal-data', listener)
+    return () => ipcRenderer.removeListener('vps-terminal-data', listener)
+  },
+  onVpsTerminalClose: (callback) => {
+    const listener = (_event: IpcRendererEvent, serverId: string) => callback(serverId)
+    ipcRenderer.on('vps-terminal-close', listener)
+    return () => ipcRenderer.removeListener('vps-terminal-close', listener)
   },
   onUpdateState: (callback) => {
     const listener = (_event: IpcRendererEvent, state: unknown) => callback(state)

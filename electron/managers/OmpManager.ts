@@ -4,6 +4,7 @@ const os = require('os')
 const fs = require('fs').promises
 const { EventEmitter } = require('events')
 import { OmpRpcTransport, type RpcEntry } from './ompRpc'
+import { listScopes, revokeScope } from './vps/vpsScopes'
 
 interface AgentSessionMeta {
   id: string
@@ -228,6 +229,14 @@ class OmpManager extends EventEmitter {
   }
 
   async deleteSession(projectId: string, sessionId: string) {
+    if (projectId.startsWith('vps:')) {
+      for (const scope of listScopes()) {
+        if (scope.serverId === projectId.slice(4) && scope.sessionId === sessionId) {
+          if (this.rpc.rpcs.get(projectId)?.vpsScopeId === scope.scopeId) this.rpc.killRpc(projectId)
+          revokeScope(scope.scopeId)
+        }
+      }
+    }
     const list = (this.registry.projects[projectId] || []).filter((item) => item.id !== sessionId)
     this.registry.projects[projectId] = list
     await this.saveRegistry()
@@ -483,6 +492,7 @@ class OmpManager extends EventEmitter {
    * generous deadline.
    */
   async bash(projectId: string, cwd: string, command: string) {
+    if (projectId.startsWith('vps:')) throw new Error('Local bash is disabled for VPS chats — use scoped VPS tools or the SSH terminal')
     await this.ensureRpc(projectId, cwd)
     return this.rpc._send(projectId, { type: 'bash', command: String(command).slice(0, 2000) }, 300000)
   }

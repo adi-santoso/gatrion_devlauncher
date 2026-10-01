@@ -23,6 +23,13 @@
 //     block the turn or open an input dialog.
 
 const readline = require('readline')
+const fs = require('fs')
+const persistHistory = process.env.OMP_RPC_MOCK_PERSIST_HISTORY === '1'
+let sessionFile = `${process.cwd().replace(/\\/g, '/')}/.mock-session.jsonl`
+const readHistory = () => {
+  if (!persistHistory || !fs.existsSync(sessionFile)) return []
+  return JSON.parse(fs.readFileSync(sessionFile, 'utf8'))
+}
 
 const rl = readline.createInterface({ input: process.stdin })
 
@@ -52,7 +59,9 @@ function streamTurn(prompt, extra = '') {
   send({ type: 'message_update', assistantMessageEvent: { type: 'text_delta', delta: 'Mock reply to: ' } })
   send({ type: 'message_update', assistantMessageEvent: { type: 'text_delta', delta: prompt } })
   if (extra) send({ type: 'message_update', assistantMessageEvent: { type: 'text_delta', delta: extra } })
-  send({ type: 'agent_end', messages: echoMessages(prompt, extra) })
+  const messages = echoMessages(prompt, extra)
+  if (persistHistory) fs.writeFileSync(sessionFile, JSON.stringify([...readHistory(), ...messages]))
+  send({ type: 'agent_end', messages })
 }
 
 rl.on('line', (line) => {
@@ -84,17 +93,18 @@ rl.on('line', (line) => {
 
   switch (type) {
     case 'get_messages_page':
-      respond(id, { messages: [], nextCursor: null })
+      respond(id, { messages: readHistory(), nextCursor: null })
       break
     case 'get_messages':
-      respond(id, { messages: [] })
+      respond(id, { messages: readHistory() })
       break
     case 'new_session':
+      if (persistHistory) fs.writeFileSync(sessionFile, '[]')
       respond(id, { sessionId: 'mock-session-1' })
       break
     case 'get_state':
       respond(id, {
-        sessionFile: `${process.cwd().replace(/\\/g, '/')}/.mock-session.jsonl`,
+        sessionFile,
         contextUsage: { tokens: 128, contextWindow: 200000, percent: 0.001 },
         thinkingLevel: 'off',
         tokensPerSecond: 15,
@@ -105,6 +115,7 @@ rl.on('line', (line) => {
       })
       break
     case 'switch_session':
+      if (persistHistory && frame.sessionPath) sessionFile = frame.sessionPath
       respond(id, { ok: true })
       break
     case 'get_available_models':

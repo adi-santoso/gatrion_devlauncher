@@ -106,13 +106,29 @@ module.exports = [
   },
   {
     // Icon/build helper scripts run under plain Node
-    files: ['scripts/**/*.js'],
+    files: ['scripts/**/*.js', 'scripts/**/*.cjs'],
     languageOptions: {
       ecmaVersion: 2022,
       sourceType: 'commonjs',
       globals: {
         console: 'readonly', process: 'readonly', Buffer: 'readonly', __dirname: 'readonly',
         require: 'readonly', module: 'readonly',
+      },
+    },
+    rules: {
+      'no-unused-vars': ['warn', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
+      'no-console': 'off',
+    },
+  },
+  {
+    // ESM spike/verification harnesses run under plain Node
+    files: ['scripts/**/*.mjs'],
+    languageOptions: {
+      ecmaVersion: 2022,
+      sourceType: 'module',
+      globals: {
+        console: 'readonly', process: 'readonly', Buffer: 'readonly', setTimeout: 'readonly',
+        clearTimeout: 'readonly', URL: 'readonly', fetch: 'readonly',
       },
     },
     rules: {

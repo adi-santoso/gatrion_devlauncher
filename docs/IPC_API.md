@@ -590,6 +590,68 @@ Channel: `omp-bash` / `omp-abort-bash`
 | `onOmpEvent(callback)` | `omp-event` | `callback({ projectId, event })` — event RPC omp: `message_update` (`assistantMessageEvent.delta`), `tool_execution_start/update/end`, `agent_start`, `agent_end` (berisi `messages` transkrip), `todo_reminder`/`todo_auto_clear`, `available_commands_update`, `auto_compaction_start/end`, `auto_retry_start/end`, `model_changed`/`thinking_level_changed`, `rpc_error`/`rpc_exit` |
 | `onOmpInstallProgress(callback)` | `omp-install-progress` | `callback(state)` — `{ status, phase, received, total, percent, error, version }` |
 
+## VPS API (SSH)
+
+Kontrak untuk VPS Command Center. Tidak ada satu pun method yang mengembalikan secret: private
+key/passphrase/password hanya dikirim *ke* main process dan disimpan terenkripsi; renderer hanya
+bisa menanyakan apakah kredensial ada. Detail: [VPS_AUDIT.md](VPS_AUDIT.md).
+
+### Registry
+
+| Method | Channel | Keterangan |
+|---|---|---|
+| `vpsListServers()` | `vps-list-servers` | `{ success, servers }` — metadata tanpa secret |
+| `vpsAddServer(input, secret?)` | `vps-add-server` | `{ success, server }`; `secret` = `{ kind: 'key' \| 'password' \| 'agent', ... }` |
+| `vpsUpdateServer(serverId, patch)` | `vps-update-server` | `{ success, server }` |
+| `vpsDeleteServer(serverId)` | `vps-delete-server` | Stop job aktif, cabut scope, hapus credential |
+| `vpsSetCredential(serverId, secret)` | `vps-set-credential` | Ganti kredensial tanpa mengubah metadata |
+| `vpsHasCredential(serverId)` | `vps-has-credential` | `{ success, has }` |
+
+### Koneksi
+
+| Method | Channel | Keterangan |
+|---|---|---|
+| `vpsTestConnection(input, secret?)` | `vps-test-connection` | `{ success, result: { success, error?, hostKey? } }` — fingerprint hasil probe, **tidak** di-trust |
+| `vpsConnect(serverId, trustedFingerprint?)` | `vps-connect` | `{ success, status }`; gagal `Unknown host key …` bila belum di-trust |
+| `vpsTrustHostKey(serverId, fingerprint)` | `vps-trust-host-key` | Trust + connect; hanya menerima fingerprint yang sama dengan `pendingHostKey` |
+| `vpsDisconnect(serverId)` | `vps-disconnect` | Job berjalan → `unknown` |
+| `vpsForgetHostKey(serverId)` | `vps-forget-host-key` | Hapus trust |
+| `vpsGetStatus(serverId)` | `vps-get-status` | `{ success, status: { state, error, connectedAt, pendingHostKey, hostKey } }` |
+
+`state` ∈ `disconnected \| connecting \| verifying-host \| connected \| reconnecting \| error`.
+
+### Data &
+
+| Method | Channel | Keterangan |
+|---|---|---|
+| `vpsOverview(serverId)` | `vps-overview` | `{ success, overview }` — `available:false` + `metrics.available:false` bila tidak terhubung; `metrics.stale` bila sampel lama |
+| `vpsListServices(serverId)` | `vps-list-services` | `{ success, services }` |
+| `vpsGetLogs(serverId, service, lines?)` | `vps-get-logs` | `{ success, output, truncated }` |
+| `vpsRestartService(serverId, service)` | `vps-restart-service` | `{ success, ok, detail, job }` (aksi manual) |
+| `vpsExec(serverId, options)` | `vps-exec` | `{ success, job }`; `options = { command, cwd?, timeoutMs?, mutating?, sessionId? }` |
+
+### Job & terminal
+
+| Method | Channel | Keterangan |
+|---|---|---|
+| `vpsListJobs(serverId, limit?)` | `vps-list-jobs` | `{ success, jobs }` (maks 50 per server, retensi 1 jam) |
+| `vpsGetJob(jobId, serverId?)` | `vps-get-job` | `{ success, job }` |
+| `vpsCancelJob(jobId)` | `vps-cancel-job` | `{ success, requested, confirmed, state }` — `confirmed` selalu `false` (channel close bukan bukti) |
+| `vpsTerminalOpen(serverId, cols, rows)` | `vps-terminal-open` | `{ success, id }` — satu PTY per server |
+| `vpsTerminalInput(serverId, data)` | `vps-terminal-input` | Tulis ke PTY |
+| `vpsTerminalResize(serverId, cols, rows)` | `vps-terminal-resize` | Resize PTY |
+| `vpsTerminalClose(serverId)` | `vps-terminal-close` | Tutup PTY |
+| `vpsPrepareScope(serverId, sessionId)` | `vps-prepare-scope` | `{ success, scopeId, contextDir, scoped }` — siapkan endpoint MCP ter-scope untuk sesi |
+
+### Events
+
+| Event | Bentuk |
+|---|---|
+| `onVpsStatus(cb)` | `cb({ serverId, state, error, connectedAt, pendingHostKey, hostKey })` |
+| `onVpsJobEvent(cb)` | `cb({ jobId, serverId, type: 'started' \| 'output' \| 'state', chunk?, job })` |
+| `onVpsTerminalData(cb)` | `cb(serverId, data)` |
+| `onVpsTerminalClose(cb)` | `cb(serverId)` |
+
 ## Browser Fallback
 
 `src/data/` (facade `src/utils/ipcRenderer.ts`) menyediakan mock per-fungsi untuk browser mode. Batasannya:

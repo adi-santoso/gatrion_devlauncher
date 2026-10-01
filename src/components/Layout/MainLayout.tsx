@@ -120,6 +120,10 @@ const MainLayout = ({
     switch (currentView) {
       case 'dashboard':
         return 'Workspace'
+      case 'agent':
+        return 'Agent'
+      case 'vps':
+        return 'VPS'
       case 'terminals':
         return 'Terminals'
       case 'projects':

@@ -47,6 +47,15 @@ electron/                      TypeScript, di-bundle electron-vite 5 → out/mai
     PreviewManager.ts           sesi preview persisten per project
     CredentialManager.ts        kredensial preview (encrypted via safeStorage)
     TrayManager.ts              native tray
+    vps/                        VPS Command Center (SSH) — terpisah dari ProcessManager
+      VpsManager.ts             koneksi SSH persisten per server, policy agent, structured reads, PTY
+      VpsTransport.ts           wrapper ssh2 (exec streaming, shell PTY, hostVerifier)
+      vpsStore.ts               vps-servers.json + vps-hostkeys.json (tanpa secret)
+      vpsCredentials.ts         vps-credentials.json (safeStorage, store terpisah)
+      vpsJobRegistry.ts         job remote: output terbatas + redaksi, state jujur, cancel
+      remoteCommand.ts          builder/parser murni (quoting, /proc, systemd, journalctl)
+      vpsRedact.ts              redaksi output + bounded buffer
+      vpsScopes.ts              scope MCP per sesi + writer .omp/mcp.json project-scoped
   mcp/                          MCP server agent-control (opt-in, localhost-only)
     server.ts                   HTTP Streamable + JSON-RPC 2.0, token Bearer per-launch
     toolsShared.ts              tipe, model izin, dispatchTool
@@ -217,6 +226,7 @@ Config lama dengan key flat seperti `notifyOnStart`, `terminalFontSize`, dan `te
 - CSP diterapkan di main process (dev mengizinkan inline script Vite).
 - Nilai rahasia (KEY/TOKEN/SECRET/PASSWORD) di-mask di UI dan tidak di-log.
 - Command user tetap dijalankan melalui shell lokal (`shell: true` untuk command yang memang butuh shell) — hanya project dan command tepercaya yang boleh ditambahkan.
+- **VPS Command Center** — koneksi SSH dimiliki main process (`electron/managers/vps/`), satu koneksi persisten per server dengan channel `exec` per operasi dan channel `shell` untuk PTY. Secret SSH disimpan terenkripsi `safeStorage` di `vps-credentials.json` (tidak pernah ke renderer/backup). Host key adalah gate handshake: key tak dikenal → status `verifying-host` + review fingerprint di UI. Tool agent untuk VPS disajikan **hanya** dari endpoint MCP ter-scope (`/mcp/<scopeId>`): server target diikat ke endpoint (bukan argumen tool), token unik per scope, dan `.omp/mcp.json` project-scoped ditulis di context dir sesi lalu dihapus setelah omp membacanya. Kebijakan agent per server (`agent-disabled`/`read-only`/`controlled`) ditegakkan sebelum approval. Lihat [VPS_AUDIT.md](VPS_AUDIT.md) untuk keterbatasan (kebocoran kapabilitas token scope) sebelum mengaktifkan eksekusi remote di rilis.
 - **MCP server agent-control (opt-in)** — HTTP server hand-rolled di `electron/mcp/` (`server.ts` bind `127.0.0.1` saja + token Bearer acak per-launch, rate limit 120 req/10 s, max payload 512 KB, 16 in-flight; `tools*.ts` registri **44 tool** dengan kategori `read`/`write`/`destructive`; `approval.ts` + `McpApprovalModal` — tool destruktif menunggu persetujuan user; config `agent.controlEnabled` + matriks izin `agent.permissions`; entry omp di `~/.omp/agent/mcp.json`). Detail: `docs/MCP_API.md` dan `docs/ROADMAP_AGENT_MCP.md`.
 
 ## Technical Debt Utama

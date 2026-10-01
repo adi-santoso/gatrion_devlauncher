@@ -8,6 +8,7 @@ import type { OmpConfig as OmpConfigType } from './managers/OmpConfig'
 import type { ProjectDetector as ProjectDetectorType } from './managers/ProjectDetector'
 import type { TrayManager as TrayManagerType } from './managers/TrayManager'
 import type { PreviewManager as PreviewManagerType } from './managers/PreviewManager'
+import type { VpsManager as VpsManagerType } from './managers/vps/VpsManager'
 
 const { app, BrowserWindow, session, globalShortcut, crashReporter, Menu } = require('electron') as typeof import('electron')
 const path = require('path')
@@ -22,6 +23,7 @@ import ProjectDetector from './managers/ProjectDetector'
 import TrayManager from './managers/TrayManager'
 import PreviewManager from './managers/PreviewManager'
 import CredentialManager from './managers/CredentialManager'
+import VpsManager from './managers/vps/VpsManager'
 import { CREDENTIAL_CONTENT_SCRIPT } from './previewCredentialContent'
 import { setupProcessHandlers } from './handlers/processHandlers'
 import { applyLastRun, toRendererProject } from './projectSchema'
@@ -35,6 +37,7 @@ import { setupDependencyHandlers } from './handlers/dependencyHandlers'
 import { setupSystemHandlers } from './handlers/systemHandlers'
 import { setupBackupHandlers } from './handlers/backupHandlers'
 import { setupAgentHandlers } from './handlers/agentHandlers'
+import { setupVpsHandlers } from './handlers/vpsHandlers'
 import { registerCoreIpcHandlers } from './ipcHandlers'
 import { setupProjectNotifications } from './notifications'
 import { setupAutoUpdater } from './utils/updater'
@@ -83,6 +86,7 @@ let projectDetector!: ProjectDetectorType
 let trayManager!: TrayManagerType
 let previewManager!: PreviewManagerType
 let credentialManager!: CredentialManager
+let vpsManager!: VpsManagerType
 let healthManager!: HealthManagerType
 let ompManager!: OmpManagerType
 let ompInstaller!: OmpInstallerType
@@ -401,6 +405,10 @@ async function initialize() {
     mainWindow?.webContents.send('preview-console-message', { projectId, level, message, source, line })
   })
 
+  // VPS Command Center — persistent SSH connections owned by the main process.
+  // Agent access is exposed only through per-session scoped MCP endpoints.
+  vpsManager = new VpsManager(app.getPath('userData'))
+
   // MCP server — lets the agent (omp) call DevLauncher tools. Started when the
   // user enables "Agent can control DevLauncher" in Settings (see update-config).
   mcpManager = setupMcpManager({
@@ -408,6 +416,7 @@ async function initialize() {
     processManager,
     healthManager,
     previewManager,
+    vpsManager,
     getWindow: () => mainWindow,
     // Destructive MCP tools (update/install, sensitive config) drive these.
     getUpdater: () => autoUpdaterHandle,
@@ -427,6 +436,7 @@ async function initialize() {
   setupSystemHandlers()
   setupBackupHandlers(storageManager, healthManager, mainWindow)
   setupAgentHandlers(ompManager, ompInstaller, ompConfig, () => mainWindow)
+  setupVpsHandlers(vpsManager, () => mainWindow, () => mcpManager?.getState().port ?? null)
   registerCoreIpcHandlers({
     processManager,
     storageManager,
@@ -519,6 +529,11 @@ app.on('before-quit', async (event) => {
   isQuitting = true
 
   killAllTerminals()
+
+  // Close SSH connections/PTYs and revoke per-session agent scopes.
+  if (vpsManager) {
+    vpsManager.shutdown()
+  }
 
   // Stop the MCP server and remove its omp config entry.
   if (mcpManager) {

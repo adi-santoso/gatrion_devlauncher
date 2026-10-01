@@ -132,6 +132,7 @@ npm run dev
 - [IPC contract](docs/IPC_API.md)
 - [Feature status](docs/FEATURE_STATUS.md)
 - [Roadmap & status](docs/ROADMAP.md)
+- [VPS + SSH agent roadmap](docs/ROADMAP_VPS.md)
 - [Keyboard shortcuts](docs/KEYBOARD_SHORTCUTS.md)
 - [Changelog](CHANGELOG.md)
 

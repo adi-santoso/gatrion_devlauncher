@@ -20,6 +20,11 @@ export interface McpApprovalRequest {
   label: string
   projectId?: string
   projectName?: string
+  /** VPS target shown in the modal (scoped endpoint only). */
+  serverId?: string
+  serverName?: string
+  environment?: string
+  cwd?: string
   summary: string
   /** args with secret-bearing values masked — safe to show in the UI */
   args: Record<string, unknown>
@@ -82,13 +87,40 @@ export async function requestApproval(tool: McpTool, deps: McpDeps, args: Record
   const projectId = typeof args.projectId === 'string' && args.projectId ? args.projectId : undefined
   const projectName = projectId ? await approvalProjectName(deps, projectId) : undefined
 
+  // VPS target: taken from the *scope*, never from tool arguments.
+  let serverId: string | undefined
+  let serverName: string | undefined
+  let environment: string | undefined
+  if (deps.vpsScope) {
+    serverId = deps.vpsScope.serverId
+    try {
+      const server = await deps.vpsManager?.store.getServer(serverId)
+      serverName = server?.name
+      environment = server?.environment
+    } catch { /* name is informational only */ }
+  }
+  const cwd = typeof args.cwd === 'string' && args.cwd ? args.cwd : undefined
+
+  // A tool may compute a concrete summary (target server, environment,
+  // command, cwd, impact). Never let that fail the approval request.
+  let summary = tool.description
+  if (tool.summary) {
+    try {
+      summary = await tool.summary(args, deps)
+    } catch { /* fall back to the description */ }
+  }
+
   const request: McpApprovalRequest = {
     id,
     tool: tool.name,
     label: tool.label || tool.name,
     projectId,
     projectName,
-    summary: tool.description,
+    serverId,
+    serverName,
+    environment,
+    cwd,
+    summary,
     args: maskSecrets(args),
     timestamp: new Date().toISOString(),
   }

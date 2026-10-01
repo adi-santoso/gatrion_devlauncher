@@ -68,6 +68,21 @@ export default function McpApprovalModal() {
                 <span className="text-ink font-semibold text-right">{active.projectName}</span>
               </div>
             )}
+            {active.serverName && (
+              <div className="flex items-start justify-between gap-3 text-xs">
+                <span className="text-ink-faint shrink-0">{t('mcp.approval.target')}</span>
+                <span className="text-ink font-semibold text-right">
+                  {active.serverName}
+                  {active.environment ? <span className="ml-1.5 font-mono text-[10px] uppercase text-danger">{active.environment}</span> : null}
+                </span>
+              </div>
+            )}
+            {active.cwd && (
+              <div className="flex items-start justify-between gap-3 text-xs">
+                <span className="text-ink-faint shrink-0">{t('vps.workingDir')}</span>
+                <code className="text-[11px] text-ink-soft text-right break-all">{active.cwd}</code>
+              </div>
+            )}
             {active.summary && (
               <div className="flex items-start justify-between gap-3 text-xs">
                 <span className="text-ink-faint shrink-0">{t('mcp.approval.details')}</span>

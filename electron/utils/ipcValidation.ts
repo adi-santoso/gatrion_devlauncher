@@ -436,6 +436,81 @@ const CHANNEL_RULES: Record<string, ArgRule[]> = {
     ['projectId', 'string', { minLength: 1 }],
     ['response', 'object'],
   ],
+
+  // --- VPS command center ---------------------------------------------
+  'vps-list-servers': [],
+  'vps-add-server': [
+    ['input', 'object', { optional: true }],
+    ['secret', 'object', { optional: true }],
+  ],
+  'vps-update-server': [
+    ['serverId', 'string', { minLength: 1, maxLength: 80 }],
+    ['patch', 'object', { optional: true }],
+  ],
+  'vps-delete-server': [['serverId', 'string', { minLength: 1, maxLength: 80 }]],
+  'vps-set-credential': [
+    ['serverId', 'string', { minLength: 1, maxLength: 80 }],
+    ['secret', 'object', { optional: true }],
+  ],
+  'vps-has-credential': [['serverId', 'string', { minLength: 1, maxLength: 80 }]],
+  'vps-test-connection': [
+    ['input', 'object', { optional: true }],
+    ['secret', 'object', { optional: true }],
+  ],
+  'vps-connect': [
+    ['serverId', 'string', { minLength: 1, maxLength: 80 }],
+    ['trustedFingerprint', 'string', { optional: true, maxLength: 200 }],
+  ],
+  'vps-disconnect': [['serverId', 'string', { minLength: 1, maxLength: 80 }]],
+  'vps-trust-host-key': [
+    ['serverId', 'string', { minLength: 1, maxLength: 80 }],
+    ['fingerprint', 'string', { minLength: 1, maxLength: 200 }],
+  ],
+  'vps-forget-host-key': [['serverId', 'string', { minLength: 1, maxLength: 80 }]],
+  'vps-get-status': [['serverId', 'string', { minLength: 1, maxLength: 80 }]],
+  'vps-overview': [['serverId', 'string', { minLength: 1, maxLength: 80 }]],
+  'vps-list-services': [['serverId', 'string', { minLength: 1, maxLength: 80 }]],
+  'vps-get-logs': [
+    ['serverId', 'string', { minLength: 1, maxLength: 80 }],
+    ['service', 'string', { minLength: 1, maxLength: 160 }],
+    ['lines', 'integer', { optional: true, min: 1, max: 2000 }],
+  ],
+  'vps-restart-service': [
+    ['serverId', 'string', { minLength: 1, maxLength: 80 }],
+    ['service', 'string', { minLength: 1, maxLength: 160 }],
+  ],
+  'vps-exec': [
+    ['serverId', 'string', { minLength: 1, maxLength: 80 }],
+    ['options', 'object', { optional: true }],
+  ],
+  'vps-list-jobs': [
+    ['serverId', 'string', { minLength: 1, maxLength: 80 }],
+    ['limit', 'integer', { optional: true, min: 1, max: 100 }],
+  ],
+  'vps-get-job': [
+    ['jobId', 'string', { minLength: 1, maxLength: 80 }],
+    ['serverId', 'string', { optional: true, maxLength: 80 }],
+  ],
+  'vps-cancel-job': [['jobId', 'string', { minLength: 1, maxLength: 80 }]],
+  'vps-terminal-open': [
+    ['serverId', 'string', { minLength: 1, maxLength: 80 }],
+    ['cols', 'integer', { optional: true, min: 1, max: 500 }],
+    ['rows', 'integer', { optional: true, min: 1, max: 500 }],
+  ],
+  'vps-terminal-input': [
+    ['serverId', 'string', { minLength: 1, maxLength: 80 }],
+    ['data', 'string', { maxLength: MAX_TERMINAL_INPUT }],
+  ],
+  'vps-terminal-resize': [
+    ['serverId', 'string', { minLength: 1, maxLength: 80 }],
+    ['cols', 'integer', { min: 1, max: 500 }],
+    ['rows', 'integer', { min: 1, max: 500 }],
+  ],
+  'vps-terminal-close': [['serverId', 'string', { minLength: 1, maxLength: 80 }]],
+  'vps-prepare-scope': [
+    ['serverId', 'string', { minLength: 1, maxLength: 80 }],
+    ['sessionId', 'string', { minLength: 1, maxLength: 200 }],
+  ],
 }
 
 interface ArgRuleOpts {

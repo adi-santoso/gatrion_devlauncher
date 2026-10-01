@@ -361,6 +361,11 @@ export interface McpApprovalRequest {
   label?: string
   projectId?: string
   projectName?: string
+  /** VPS target (present when the request came from a scoped VPS endpoint). */
+  serverId?: string
+  serverName?: string
+  environment?: string
+  cwd?: string
   summary?: string
   args?: Record<string, unknown>
   timestamp?: string

@@ -5,9 +5,11 @@
  */
 import type { McpDeps } from './tools'
 import { createTools } from './tools'
-import { createMcpServer, type McpServerState } from './server'
+import { createVpsTools } from './vpsTools'
+import { createMcpServer, type McpServerState, type McpScopeResolver } from './server'
 import { writeOmpMcpEntry, removeOmpMcpEntry } from './ompConfig'
 import { setApprovalSender, denyAllApprovals } from './approval'
+import { getScope, listScopes, revokeScope } from '../managers/vps/vpsScopes'
 
 export interface McpManager {
   start: () => Promise<{ ok: boolean; port?: number; error?: string }>
@@ -17,7 +19,22 @@ export interface McpManager {
 
 export function setupMcpManager(deps: McpDeps): McpManager {
   const tools = createTools()
-  const server = createMcpServer(tools, deps)
+  // VPS tools are served only from per-session scoped endpoints: the target
+  // server is bound to the endpoint, never chosen by tool arguments.
+  const vpsTools = createVpsTools()
+  const resolveScope: McpScopeResolver = (scopeId) => {
+    const scope = getScope(scopeId)
+    if (!scope) return null
+    return {
+      token: scope.token,
+      tools: vpsTools,
+      deps: {
+        ...deps,
+        vpsScope: { scopeId: scope.scopeId, serverId: scope.serverId, sessionId: scope.sessionId },
+      },
+    }
+  }
+  const server = createMcpServer(tools, deps, resolveScope)
   let started = false
 
   // Destructive tools push their approval request to the renderer; the modal
@@ -45,6 +62,7 @@ export function setupMcpManager(deps: McpDeps): McpManager {
     if (!started) return
     // Unstick any pending destructive calls before tearing the server down.
     denyAllApprovals()
+    for (const scope of listScopes()) revokeScope(scope.scopeId)
     removeOmpMcpEntry()
     await server.stop()
     started = false

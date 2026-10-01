@@ -10,8 +10,10 @@ import type { ProcessManager } from '../managers/ProcessManager'
 import type { HealthManager } from '../managers/HealthManager'
 import type { PreviewManager } from '../managers/PreviewManager'
 import type { Project, AppConfig } from '../../src/types/shared'
+import type { VpsManager } from '../managers/vps/VpsManager'
 import Logger from '../utils/logger'
 import { requestApproval } from './approval'
+import { redactOutput, redactUrlCredentials } from '../managers/vps/vpsRedact'
 
 export type Permission = 'read' | 'write' | 'destructive'
 
@@ -33,6 +35,19 @@ export interface McpDeps {
   getUpdater?: () => McpUpdaterHandle | null
   /** Apply OS-level settings (login item) after a destructive config change. */
   applyOSSettings?: (config: AppConfig) => Promise<void>
+  /** VPS Command Center manager (only set for scoped VPS endpoints). */
+  vpsManager?: VpsManager
+  /**
+   * Present only on a per-session VPS scope endpoint. The bound server is the
+   * *endpoint*, never an agent argument — this is the isolation primitive (F0).
+   */
+  vpsScope?: McpVpsScope
+}
+
+export interface McpVpsScope {
+  scopeId: string
+  serverId: string
+  sessionId: string
 }
 
 export interface McpTool {
@@ -45,6 +60,12 @@ export interface McpTool {
   permission: Permission
   /** Optional short sentence shown in the approval modal (defaults to description). */
   summary?: (args: Record<string, unknown>, deps: McpDeps) => string | Promise<string>
+  /**
+   * Backend policy/sanity check that must pass *before* the approval prompt.
+   * VPS tools use it so a read-only server never asks the user to approve an
+   * operation that policy forbids anyway.
+   */
+  guard?: (args: Record<string, unknown>, deps: McpDeps) => Promise<void> | void
   handler: (args: Record<string, unknown>, deps: McpDeps) => Promise<unknown> | unknown
 }
 
@@ -126,6 +147,7 @@ function redactArgs(args: Record<string, unknown>): Record<string, unknown> {
  * the user's approval decision (F4: full audit, D7).
  */
 export async function audit(deps: McpDeps, tool: McpTool, args: Record<string, unknown>, detail: string, durationMs: number): Promise<void> {
+  detail = redactUrlCredentials(redactOutput(detail))
   const entry: ActivityEntry = {
     type: 'agent',
     project: typeof args.projectId === 'string' ? args.projectId : '',
@@ -136,7 +158,7 @@ export async function audit(deps: McpDeps, tool: McpTool, args: Record<string, u
   try {
     await deps.storageManager.appendActivities([entry])
   } catch { /* audit must never fail the tool call */ }
-  Logger.info('MCP', `tool=${tool.name} permission=${tool.permission} durationMs=${durationMs} args=${JSON.stringify(redactArgs(args)).slice(0, 300)} detail=${detail.slice(0, 200)}`)
+  Logger.info('MCP', `tool=${tool.name} permission=${tool.permission} durationMs=${durationMs} args=${redactUrlCredentials(redactOutput(JSON.stringify(redactArgs(args)))).slice(0, 300)} detail=${detail.slice(0, 200)}`)
 }
 
 /** Per-category permission matrix from app config (all on by default). */
@@ -161,6 +183,7 @@ export async function loadPermissionMatrix(deps: McpDeps): Promise<PermissionMat
  * every non-read call. Never rejects — errors become { success:false, error }.
  */
 export async function dispatchTool(tools: McpTool[], deps: McpDeps, name: string, args: Record<string, unknown>): Promise<{ success: boolean; data?: unknown; error?: string }> {
+  args = JSON.parse(JSON.stringify(args)) as Record<string, unknown>
   const tool = tools.find((t) => t.name === name)
   if (!tool) return { success: false, error: `Unknown tool: ${name}` }
   const started = Date.now()
@@ -174,12 +197,25 @@ export async function dispatchTool(tools: McpTool[], deps: McpDeps, name: string
     if (!matrix[tool.permission]) {
       return finish({ success: false, error: `Permission denied: ${tool.permission} tools are disabled in Settings` }, 'permission denied')
     }
+    // Policy guard runs BEFORE the approval prompt: never ask the user to
+    // approve something the backend will reject anyway.
+    if (tool.guard) await tool.guard(args, deps)
     // Destructive tools wait for explicit user approval before running.
     if (tool.permission === 'destructive') {
+      const snapshot = async (): Promise<string> => {
+        if (!deps.vpsScope || !deps.vpsManager) return ''
+        const server = await deps.vpsManager.store.getServer(deps.vpsScope.serverId)
+        return JSON.stringify({ server, connection: deps.vpsManager.getStatus(deps.vpsScope.serverId).connectedAt })
+      }
+      const before = await snapshot()
       const decision = await requestApproval(tool, deps, args)
       if (!decision.approved) {
         return finish({ success: false, error: decision.reason }, `decision=${decision.reason.slice(0, 120)}`)
       }
+      if (before !== await snapshot()) throw new Error('VPS target changed while approval was pending — request approval again')
+      const currentMatrix = await loadPermissionMatrix(deps)
+      if (!currentMatrix[tool.permission]) throw new Error('Permission was revoked while approval was pending')
+      if (tool.guard) await tool.guard(args, deps)
     }
     const data = await tool.handler(args, deps)
     return finish({ success: true, data }, tool.permission === 'read' ? 'read' : `approved args=${JSON.stringify(args).slice(0, 200)}`)

@@ -343,6 +343,7 @@ function setupAgentHandlers(
   })
 
   secureHandle('omp-set-host-tools', async (_event, projectId, cwd, tools) => {
+    if (typeof projectId === 'string' && projectId.startsWith('vps:')) throw new Error('Host tool injection is disabled for VPS chats')
     assertSessionId(projectId)
     if (cwd) assertProjectPath(cwd)
     if (!Array.isArray(tools)) throw new Error('Tools must be an array')

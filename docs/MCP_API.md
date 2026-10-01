@@ -516,3 +516,46 @@ Setiap `tools/call` tercatat (D7), tanpa terkecuali:
 | `electron/mcp/approval.ts` | State machine approval (modal, timeout 120 s) |
 | `electron/mcp/ompConfig.ts` | Writer entry `~/.omp/agent/mcp.json` |
 | `electron/mcp/index.ts` | Lifecycle start/stop + wiring approval sender |
+| `electron/mcp/vpsTools.ts` | 7 tool VPS (endpoint ter-scope) |
+
+---
+
+## 11. Tool VPS (endpoint ter-scope per sesi)
+
+> Tambahan untuk VPS Command Center. Konteks: [VPS_AUDIT.md](VPS_AUDIT.md), [ROADMAP_VPS.md](ROADMAP_VPS.md).
+
+Sesi chat VPS **tidak** memakai endpoint `/mcp`. Setiap sesi mendapat endpoint sendiri di
+`/mcp/<scopeId>` dengan token unik, dan **server target diikat ke endpoint itu** — bukan ke
+argumen tool. Karena itu tool VPS di bawah **tidak punya argumen `serverId`, `host`, `username`,
+atau kredensial apa pun**: manipulasi argumen tidak dapat memindahkan eksekusi ke server lain
+(diuji di `electron/mcp/__tests__/vpsMcpScope.test.js`).
+
+Server target memakai `.omp/mcp.json` **project-scoped** relatif `cwd` omp (context dir lokal
+sesi di `userData/vps-context/<serverId>/<sessionId>`); file ini ditulis sebelum RPC dijalankan
+lalu dihapus setelah omp membacanya. Endpoint standar `/mcp` tidak pernah memuat tool VPS.
+
+### 11.1 Katalog
+
+| Tool | Kategori | Argumen | Fungsi |
+|---|---|---|---|
+| `vps_get_overview` | read | — | OS, kernel, hostname, uptime, CPU/RAM/disk, cwd |
+| `vps_list_services` | read | — | Daftar unit systemd + load/active/sub |
+| `vps_get_logs` | read | `service`, `lines?` | Tail journald satu unit (bounded) |
+| `vps_get_job` | read | `jobId` | Status job **milik sesi ini** (state, exit, ekor output) |
+| `vps_cancel_job` | write | `jobId` | Minta pembatalan; hasil membedakan `requested` vs `confirmed` |
+| `vps_exec` | destructive | `command`, `cwd?`, `timeoutMs?`, `mutating?` | Command shell di server (approval wajib) |
+| `vps_restart_service` | destructive | `service` | Restart satu unit systemd tervalidasi (approval wajib) |
+
+### 11.2 Aturan tambahan
+
+- **Policy per server** (`agent-disabled` / `read-only` / `controlled`) diperiksa backend lewat
+  hook `guard` **sebelum** approval: server read-only tidak pernah memunculkan modal untuk exec
+  atau perubahan; `agent-disabled` menolak bahkan tool read.
+- **Approval** `vps_exec` / `vps_restart_service` menampilkan server, environment, command, dan
+  cwd pada modal yang sama (`McpApprovalModal`); target diambil dari scope, bukan dari argumen.
+- **Output job** dibatasi 128 KB dan di-redaksi; hasil `tools/call` hanya mengembalikan ekor
+  terbatas (≤4000 char) + status akhir atau `jobId` untuk job panjang.
+- **Cancel tidak diklaim selesai.** Menutup channel SSH bukan bukti proses remote berhenti;
+  state menjadi `cancelled` (permintaan) atau `unknown`, dan command mutating tidak di-retry.
+- **Isolasi job per sesi.** `vps_get_job`/`vps_cancel_job` menolak job milik sesi lain
+  (`Job not found for this session`).

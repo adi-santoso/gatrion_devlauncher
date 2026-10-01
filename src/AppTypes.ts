@@ -2,7 +2,7 @@ import type { Preset, Project } from './types/shared'
 import type { ProjectRuntime } from './hooks/useProjects'
 
 /** Top-level navigation views rendered by MainLayout. */
-export type ViewName = 'dashboard' | 'projects' | 'project-detail' | 'settings' | 'terminals' | 'agent'
+export type ViewName = 'dashboard' | 'projects' | 'project-detail' | 'settings' | 'terminals' | 'agent' | 'vps'
 
 /** Modal dialogs opened via openModalHandler. */
 export type ModalName = 'project' | 'command' | 'shortcuts' | 'confirm'

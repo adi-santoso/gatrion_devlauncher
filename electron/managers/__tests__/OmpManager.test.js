@@ -4,6 +4,7 @@ import os from 'os'
 import path from 'path'
 
 import OmpManager, { hasConfiguredProvider } from '../OmpManager'
+import { registerScope, getScope, revokeScopesForServer } from '../vps/vpsScopes'
 
 const MOCK_SCRIPT = path.resolve(__dirname, '../../../tests/fixtures/mock-omp-rpc.js')
 const EXIT_SCRIPT = path.resolve(__dirname, '../../../tests/fixtures/mock-omp-exit.js')
@@ -78,6 +79,23 @@ describe('OmpManager (mock omp RPC)', () => {
     const sessions = manager.getSessions(PROJECT_ID)
     expect(sessions).toHaveLength(1)
     expect(sessions[0].id).toBe(b.id)
+  })
+
+  test('deleting a VPS session revokes its scope and stops only its active RPC', async () => {
+    await manager.init()
+    const project = 'vps:delete-test-server'
+    const a = await manager.createSession(project, 'A')
+    const b = await manager.createSession(project, 'B')
+    const first = registerScope('delete-test-server', a.id)
+    const second = registerScope('delete-test-server', b.id)
+    manager.rpc.rpcs.set(project, { vpsScopeId: first.scopeId })
+    try {
+      await manager.deleteSession(project, a.id)
+      expect(getScope(first.scopeId)).toBeNull()
+      expect(getScope(second.scopeId)).not.toBeNull()
+      expect(manager.rpc.rpcs.has(project)).toBe(false)
+      expect(manager.getSessions(project).map((session) => session.id)).toEqual([b.id])
+    } finally { revokeScopesForServer('delete-test-server') }
   })
 
   test('clearProject kills the RPC process and removes all sessions (persisted)', async () => {
