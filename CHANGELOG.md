@@ -8,6 +8,8 @@ Format mengikuti [Keep a Changelog](https://keepachangelog.com/id-ID/1.1.0/), da
 
 ### Added
 
+- **Mode agent VPS Auto dan Full access** — Auto memakai reviewer AI terpisah dengan model default omp untuk approve/deny perubahan, tanpa tool aktif atau token VPS; timeout/error/output invalid menolak eksekusi. Full access menjalankan semua tool pada server terikat tanpa approval dan melewati pembatasan kategori tool. Mode dapat dipilih di panel detail/fokus chat atau edit server dan tersimpan per VPS; scope server serta verifikasi host key tetap berlaku.
+
 - **Resize panel agent VPS** — geser pembatas antara detail dan chat untuk mengatur lebar; ukuran tersimpan. Double-click mengembalikan ukuran awal dan pembatas mendukung tombol panah keyboard.
 
 - **VPS Command Center (F0–F4, MVP sebagian)** — menu **VPS** baru di sidebar (antara Agent dan Settings) dengan daftar server, detail server (Overview / Services / Logs / Terminal) dan chat agent berdampingan, mengikuti mockup `docs/mockups/vps-command-center-v1.png`. Agent omp tetap berjalan lokal; akses server lewat **satu koneksi SSH persisten per server** di main process (library `ssh2`, pure JS tanpa modul native — aman untuk `npmRebuild: false`). Alur: tambah server → pilih auth (SSH key / password / ssh-agent) → **test connection** menampilkan fingerprint → **verifikasi host key** (key baru/berubah tidak pernah diterima diam-diam) → connect → overview (CPU/RAM/disk/uptime dari `/proc`), services (`systemctl`), logs (`journalctl`), terminal PTY remote, dan chat. **Secret** (private key/passphrase/password) disimpan terenkripsi `safeStorage` di store terpisah dan tidak pernah dikembalikan ke renderer, backup, atau diagnostics.
@@ -20,6 +22,8 @@ Format mengikuti [Keep a Changelog](https://keepachangelog.com/id-ID/1.1.0/), da
 - **Identitas visual baru untuk DevLauncher** — icon huruf “G” dan simbol play sederhana diganti dengan workspace grid: tiga tile project dan satu tile launch, konsisten di window, installer, tray, dan sidebar aplikasi.
 
 ### Fixed
+
+- **Terminal VPS persisten saat pindah tab** — kembali dari Overview, Services, atau Logs memakai shell SSH dan scrollback yang sama, termasuk output yang masuk saat terminal tersembunyi. Disconnect menutup shell; reconnect membuka shell baru.
 
 - **Riwayat chat VPS setelah reconnect** — metadata session (termasuk sessionPath) diperbarui setelah chat pertama sehingga riwayat bisa dimuat kembali. Tersedia hapus session dengan konfirmasi; scope session yang dihapus dicabut dan RPC terkait dihentikan.
 

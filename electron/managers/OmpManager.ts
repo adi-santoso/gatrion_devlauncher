@@ -5,6 +5,7 @@ const fs = require('fs').promises
 const { EventEmitter } = require('events')
 import { OmpRpcTransport, type RpcEntry } from './ompRpc'
 import { listScopes, revokeScope } from './vps/vpsScopes'
+import { reviewVpsOperation, type AiApprovalInput, type AiApprovalDecision } from './vps/vpsAiApproval'
 
 interface AgentSessionMeta {
   id: string
@@ -263,6 +264,16 @@ class OmpManager extends EventEmitter {
   /** @returns resolved binary path (used for spawning `omp setup`) */
   getBinaryPath(): string | null {
     return this.binaryPath
+  }
+
+  async reviewVpsAction(input: AiApprovalInput): Promise<AiApprovalDecision> {
+    const scope = listScopes().find((item) => item.scopeId === input.scopeId)
+    if (!scope) return { approved: false, reason: 'VPS scope is no longer available' }
+    const projectId = `vps:${scope.serverId}`
+    const entry = this.rpc.rpcs.get(projectId)
+    if (entry?.vpsScopeId !== scope.scopeId) return { approved: false, reason: 'Active VPS session does not match approval scope' }
+    const messages = await this.getMessages(projectId, scope.contextDir)
+    return reviewVpsOperation(this.binaryPath, this.rpcMockScript, input, messages.slice(-12))
   }
 
   /** @returns a live RPC entry for the project, spawning the process if needed. */

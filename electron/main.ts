@@ -417,6 +417,7 @@ async function initialize() {
     healthManager,
     previewManager,
     vpsManager,
+    reviewVpsAction: (input) => ompManager.reviewVpsAction(input),
     getWindow: () => mainWindow,
     // Destructive MCP tools (update/install, sensitive config) drive these.
     getUpdater: () => autoUpdaterHandle,

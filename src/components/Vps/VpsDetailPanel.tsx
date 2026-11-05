@@ -31,6 +31,14 @@ export default function VpsDetailPanel({ server, status, terminalFontSize }: Vps
 
   const state = status?.state || 'disconnected'
   const connected = state === 'connected'
+  const terminalKey = `${server.id}:${status?.connectedAt}`
+  const [openedTerminalKey, setOpenedTerminalKey] = useState<string | null>(null)
+
+  // Open lazily, then retain the shell and scrollback until this connection ends.
+  useEffect(() => {
+    if (!connected) setOpenedTerminalKey(null)
+    else if (tab === 'terminal') setOpenedTerminalKey(terminalKey)
+  }, [connected, tab, terminalKey])
 
   const refreshJobs = useCallback(async (): Promise<void> => {
     const result = await listVpsJobs(server.id, 15)
@@ -210,8 +218,10 @@ export default function VpsDetailPanel({ server, status, terminalFontSize }: Vps
           </div>
         )}
 
-        {tab === 'terminal' && connected && (
-          <VpsTerminal key={`${server.id}:${status?.connectedAt}`} serverId={server.id} fontSize={terminalFontSize} />
+        {connected && openedTerminalKey === terminalKey && (
+          <div className={tab === 'terminal' ? 'h-full' : 'hidden'}>
+            <VpsTerminal key={terminalKey} serverId={server.id} fontSize={terminalFontSize} />
+          </div>
         )}
       </div>
 

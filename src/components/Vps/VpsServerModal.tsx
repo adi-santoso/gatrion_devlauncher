@@ -146,8 +146,13 @@ export default function VpsServerModal({ open, initial, onClose, onSubmit, onTes
             <select className={field} value={form.policy} onChange={(e) => setForm({ ...form, policy: e.target.value as VpsPolicy })}>
               <option value="read-only">read-only</option>
               <option value="controlled">controlled</option>
+              <option value="auto">Auto — {t('vps.autoApproval')}</option>
+              <option value="full-access">Full access</option>
               <option value="agent-disabled">agent-disabled</option>
             </select>
+            {(form.policy === 'auto' || form.policy === 'full-access') && (
+              <p className="mt-1 text-[10px] text-ink-faint">{t(form.policy === 'auto' ? 'vps.autoModeHint' : 'vps.fullAccessHint')}</p>
+            )}
           </label>
           <label className="text-[11px] text-ink-soft">
             {t('vps.authKind')}

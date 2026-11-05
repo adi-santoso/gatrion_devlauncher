@@ -75,6 +75,7 @@ function createSshFixture(options = {}) {
   const authAttempts = []
   const shellInputs = []
   const shellWindows = []
+  const shells = []
 
   const server = new ssh2.Server({ hostKeys: [options.hostKey || serverKey.private] }, (client) => {
     client.on('authentication', (ctx) => {
@@ -90,6 +91,7 @@ function createSshFixture(options = {}) {
         session.on('window-change', (a, _reject, info) => { shellWindows.push(info); if (a) a() })
         session.on('shell', (accept) => {
           const stream = accept()
+          shells.push(stream)
           stream.write('fixture-shell$ ')
           stream.on('data', (chunk) => {
             shellInputs.push(chunk.toString('utf8'))
@@ -125,6 +127,7 @@ function createSshFixture(options = {}) {
         authAttempts,
         shellInputs,
         shellWindows,
+        shells,
         clientPrivateKey: userKey.private,
         otherPrivateKey: ssh2.utils.generateKeyPairSync('ed25519').private,
         commands,

@@ -33,6 +33,12 @@ test.describe('VPS command center', () => {
         return added.server.id;
       }, { port: fixture.port, key: fixture.clientPrivateKey });
       await window.getByRole('button', { name: 'VPS', exact: true }).click();
+      const modes = window.getByRole('combobox', { name: 'Agent policy', exact: true });
+      await modes.selectOption('auto');
+      await expect(modes).toHaveValue('auto');
+      await modes.selectOption('full-access');
+      await expect(modes).toHaveValue('full-access');
+      await expect.poll(async () => (await window.evaluate(() => window.electron.vpsListServers())).servers.find((server) => server.id === id).policy).toBe('full-access');
       await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setSize(1800, 1000));
       const divider = window.getByRole('separator', { name: 'Resize agent panel' });
       await expect(divider).toBeVisible();
@@ -150,6 +156,20 @@ test.describe('VPS command center', () => {
         await window.locator('.xterm-screen').click();
         await window.keyboard.type('TYPED_CHECK');
         await expect.poll(() => fixture.shellInputs.join('')).toContain('TYPED_CHECK');
+        const shellCount = fixture.shells.length;
+        for (const tab of ['Overview', 'Services', 'Logs']) {
+          await detailTabs.getByRole('button', { name: tab, exact: true }).click();
+          await expect(window.locator('.xterm-screen')).toBeHidden();
+          // Output arriving while hidden must also survive the tab switch.
+          fixture.shells[shellCount - 1].write(`\r\nBACKGROUND_${tab}\r\n`);
+          await detailTabs.getByRole('button', { name: 'Terminal', exact: true }).click();
+          await expect(window.getByText(`BACKGROUND_${tab}`, { exact: true })).toBeVisible();
+          expect(fixture.shells.length).toBe(shellCount);
+        }
+        await expect(window.getByText('BACKGROUND_Overview', { exact: true })).toBeVisible();
+        await window.locator('.xterm-screen').click();
+        await window.keyboard.type('SAME_SHELL_CHECK');
+        await expect.poll(() => fixture.shellInputs.join('')).toContain('SAME_SHELL_CHECK');
         await expect.poll(() => window.evaluate(() => navigator.clipboard.readText())).toBe('VPS_PASTE_CHECK');
         await window.keyboard.press('Control+v');
         await expect.poll(() => fixture.shellInputs.join('')).toContain('VPS_PASTE_CHECK');
@@ -168,6 +188,7 @@ test.describe('VPS command center', () => {
       await window.locator('.xterm-screen').click();
       await window.keyboard.type('RECONNECTED_CHECK');
       await expect.poll(() => fixture.shellInputs.join('')).toContain('RECONNECTED_CHECK');
+      expect(fixture.shells.length).toBe(2);
       await window.getByRole('button', { name: 'Disconnect', exact: true }).click();
 
       // The credential never left the main process.

@@ -63,6 +63,7 @@ export default function VpsTerminal({ serverId, fontSize = 13 }: VpsTerminalProp
     })
 
     const refit = (): void => {
+      if (!container.clientWidth || !container.clientHeight) return
       try { fitAddon.fit() } catch { /* container hidden */ }
     }
     refit()

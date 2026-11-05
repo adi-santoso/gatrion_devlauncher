@@ -19,7 +19,7 @@ export type VpsConnectionState =
   | 'error'
 
 /** Per-server agent policy. Manual (user-driven) actions bypass agent policy. */
-export type VpsPolicy = 'agent-disabled' | 'read-only' | 'controlled'
+export type VpsPolicy = 'agent-disabled' | 'read-only' | 'controlled' | 'auto' | 'full-access'
 
 export type VpsAuthKind = 'key' | 'password' | 'agent'
 

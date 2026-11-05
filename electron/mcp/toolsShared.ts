@@ -14,6 +14,7 @@ import type { VpsManager } from '../managers/vps/VpsManager'
 import Logger from '../utils/logger'
 import { requestApproval } from './approval'
 import { redactOutput, redactUrlCredentials } from '../managers/vps/vpsRedact'
+import type { AiApprovalInput, AiApprovalDecision } from '../managers/vps/vpsAiApproval'
 
 export type Permission = 'read' | 'write' | 'destructive'
 
@@ -37,6 +38,7 @@ export interface McpDeps {
   applyOSSettings?: (config: AppConfig) => Promise<void>
   /** VPS Command Center manager (only set for scoped VPS endpoints). */
   vpsManager?: VpsManager
+  reviewVpsAction?: (input: AiApprovalInput) => Promise<AiApprovalDecision>
   /**
    * Present only on a per-session VPS scope endpoint. The bound server is the
    * *endpoint*, never an agent argument — this is the isolation primitive (F0).
@@ -194,7 +196,10 @@ export async function dispatchTool(tools: McpTool[], deps: McpDeps, name: string
   try {
     // Permission matrix from Settings — each category can be disabled.
     const matrix = await loadPermissionMatrix(deps)
-    if (!matrix[tool.permission]) {
+    const boundServer = deps.vpsScope ? await deps.vpsManager?.store.getServer(deps.vpsScope.serverId) : null
+    const fullAccess = boundServer?.policy === 'full-access'
+    let decisionDetail = fullAccess ? 'mode=full-access' : 'mode=controlled'
+    if (!fullAccess && !matrix[tool.permission]) {
       return finish({ success: false, error: `Permission denied: ${tool.permission} tools are disabled in Settings` }, 'permission denied')
     }
     // Policy guard runs BEFORE the approval prompt: never ask the user to
@@ -208,17 +213,26 @@ export async function dispatchTool(tools: McpTool[], deps: McpDeps, name: string
         return JSON.stringify({ server, connection: deps.vpsManager.getStatus(deps.vpsScope.serverId).connectedAt })
       }
       const before = await snapshot()
-      const decision = await requestApproval(tool, deps, args)
+      const decision = fullAccess ? { approved: true, reason: 'full-access' }
+        : boundServer?.policy === 'auto'
+          ? deps.reviewVpsAction && deps.vpsScope
+            ? await deps.reviewVpsAction({ tool: name, args, server: {
+              name: boundServer.name, host: boundServer.host, port: boundServer.port, username: boundServer.username,
+              environment: boundServer.environment, cwd: boundServer.defaultCwd,
+            }, scopeId: deps.vpsScope.scopeId })
+            : { approved: false, reason: 'AI approval reviewer is unavailable' }
+          : await requestApproval(tool, deps, args)
+      decisionDetail = `mode=${boundServer?.policy || 'controlled'} decision=${decision.approved ? 'approved' : 'denied'} reason=${decision.reason}`
       if (!decision.approved) {
-        return finish({ success: false, error: decision.reason }, `decision=${decision.reason.slice(0, 120)}`)
+        return finish({ success: false, error: decision.reason }, decisionDetail)
       }
       if (before !== await snapshot()) throw new Error('VPS target changed while approval was pending — request approval again')
       const currentMatrix = await loadPermissionMatrix(deps)
-      if (!currentMatrix[tool.permission]) throw new Error('Permission was revoked while approval was pending')
+      if (!fullAccess && !currentMatrix[tool.permission]) throw new Error('Permission was revoked while approval was pending')
       if (tool.guard) await tool.guard(args, deps)
     }
     const data = await tool.handler(args, deps)
-    return finish({ success: true, data }, tool.permission === 'read' ? 'read' : `approved args=${JSON.stringify(args).slice(0, 200)}`)
+    return finish({ success: true, data }, tool.permission === 'read' ? 'read' : `${decisionDetail} args=${JSON.stringify(args).slice(0, 200)}`)
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
     return finish({ success: false, error: message }, `error=${message.slice(0, 200)}`)

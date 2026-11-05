@@ -143,7 +143,9 @@ terbatas dan status akhir atau job ID. Long-running command harus cocok dengan t
 ## 5. Izin, kredensial, dan lifecycle
 
 - Kebijakan per server: agent disabled, read-only, atau controlled operations. Default awal
-  read-only; production meminta approval untuk perubahan. Global agent-control toggle tetap berlaku.
+  read-only. Tambahan implementasi: Auto menyerahkan approve/deny perubahan kepada reviewer AI;
+  Full access melewati approval dan kategori permission global untuk server terikat.
+  Controlled meminta approval manusia. Global agent-control toggle tetap berlaku.
 - Modal/kartu approval mencantumkan server, environment, command/diff, cwd, dan dampak.
   Approval terikat pada payload immutable; mengubah target/command membatalkan approval lama.
 - Verifikasi fingerprint pada koneksi pertama. Host key berubah menghentikan koneksi sampai

@@ -126,7 +126,7 @@ export function createVpsTools(): McpTool[] {
     },
     {
       name: 'vps_exec',
-      description: 'Run a shell command on the bound VPS. Requires user approval. Each call is a fresh shell — pass `cwd` explicitly.',
+      description: 'Run a shell command on the bound VPS. Approval follows the server mode: manual, AI reviewer (auto), or full-access. Each call is a fresh shell — pass `cwd` explicitly.',
       label: 'Jalankan command di VPS',
       inputSchema: {
         type: 'object',
@@ -168,7 +168,7 @@ export function createVpsTools(): McpTool[] {
     },
     {
       name: 'vps_restart_service',
-      description: 'Restart one systemd service on the bound VPS (validated unit name). Requires user approval.',
+      description: 'Restart one systemd service on the bound VPS (validated unit name). Approval follows its configured server mode.',
       label: 'Restart service di VPS',
       inputSchema: { type: 'object', properties: { service: { type: 'string' } }, required: ['service'], additionalProperties: false },
       permission: 'destructive',

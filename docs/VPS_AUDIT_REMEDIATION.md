@@ -187,3 +187,47 @@ model production; akses SSH-nya tetap melalui fixture.
 Verifikasi akhir perubahan ini: 38 unit/regression test, 3 VPS E2E, packaged smoke
 15/15 lolos; typecheck lolos, lint 0 error/9 warning baseline. Installer dan portable
 Windows 0.2.9 dibangun ulang sesudah perubahan.
+
+### Mode Auto dan Full access
+
+Policy baru `auto` dan `full-access` tersimpan per VPS dan bisa dipilih dari panel
+detail/fokus chat atau form server. Read-only, agent-disabled dan controlled tetap
+tersedia; default server baru tetap read-only. Controlled meminta keputusan manusia.
+
+Auto meneruskan vps_exec/vps_restart_service ke proses reviewer omp terpisah dengan
+model default konfigurasi pengguna. Reviewer menerima action, target/cwd/environment
+dan 12 pesan percakapan terakhir. Ia tidak mendapat token VPS, tool aktif, ekstensi
+ambient, skills/rules atau LSP dan memakai no-session agar tidak membuat arsip chat
+review. Guard memblokir semua tool_call. Jawaban harus JSON
+boolean approved dengan reason; timeout 60 detik, error atau JSON invalid menolak
+command. Keputusan dan alasan masuk audit yang ter-redaksi. Target/policy/koneksi,
+scope serta izin global diperiksa ulang setelah review. Structured read dan cancel
+tetap memakai jalur permission semula tanpa review perubahan.
+
+Full access tidak meminta approval manusia maupun AI dan melewati pembatasan kategori
+tool global untuk server tersebut. Host trust, endpoint scope, validation, batas output,
+izin akun Linux dan global Agent control tetap berlaku; ini bukan pemberian sudo/root
+atau akses tool lokal. Endpoint non-VPS tidak mendapat bypass.
+
+Pengujian reviewer memakai proses mock untuk approve/deny/invalid/timeout serta omp
+asli dengan provider model loopback: dua keputusan, tidak ada active tool yang dikirim
+ke model. Tidak menggunakan provider production/kredensial pengguna untuk uji tersebut.
+Test MCP memastikan deny/error tidak sampai SSH, Full access tidak memanggil reviewer
+atau modal, dan perubahan policy selama review membatalkan approval.
+Verifikasi: 111 file/1059 unit test dan 38 E2E lolos. Reviewer ephemeral diuji ulang
+4/4 termasuk engine omp asli sesudah no-session ditambahkan. Typecheck lolos;
+lint 0 error/9 baseline warning. Installer + portable Windows 0.2.9 dibangun ulang;
+packaged smoke terakhir 15/15 lolos. Uji provider model fixture membuktikan engine/protokol,
+bukan kualitas keputusan model production pengguna.
+
+### Terminal VPS persisten saat berpindah tab (2026-10-01)
+
+Terminal dibuka saat tab Terminal pertama kali dipilih dan tetap mounted ketika
+Overview, Services, atau Logs aktif. Shell SSH, scrollback, serta output yang tiba
+saat tersembunyi tetap tersimpan. Fit dilewati ketika wadah tersembunyi. Disconnect
+menutup terminal; koneksi baru memakai terminal baru.
+
+Verifikasi: 3/3 E2E VPS lolos dengan fixture SSH nyata melalui TCP, termasuk jumlah
+shell tetap satu selama tiga perpindahan tab, output background tetap terlihat,
+input setelah kembali diterima, dan reconnect membuka shell kedua. Typecheck lolos;
+lint 0 error/9 baseline warning.

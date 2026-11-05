@@ -45,7 +45,7 @@ export function normalizeServerInput(input: Partial<VpsServerInput>): VpsServerI
   if (!username || /\s/.test(username)) throw new Error('A valid username is required')
   if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error('Port must be between 1 and 65535')
   if (!['production', 'staging', 'development'].includes(merged.environment)) throw new Error('Invalid environment')
-  if (!['agent-disabled', 'read-only', 'controlled'].includes(merged.policy)) throw new Error('Invalid policy')
+  if (!['agent-disabled', 'read-only', 'controlled', 'auto', 'full-access'].includes(merged.policy)) throw new Error('Invalid policy')
   if (!['key', 'password', 'agent'].includes(merged.authKind)) throw new Error('Invalid auth kind')
   const defaultCwd = String(merged.defaultCwd || '').trim()
   if (defaultCwd && !defaultCwd.startsWith('/')) throw new Error('Default working directory must be an absolute path')

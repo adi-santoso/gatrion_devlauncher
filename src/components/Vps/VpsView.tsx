@@ -156,6 +156,28 @@ export default function VpsView({ visible = true, onOpenSettings, terminalFontSi
     await refresh()
   }
 
+  const policySelect = selected && (
+    <select
+      aria-label={t('vps.policy')}
+      title={selected.policy === 'auto' ? t('vps.autoModeHint') : selected.policy === 'full-access' ? t('vps.fullAccessHint') : t('vps.policy')}
+      value={selected.policy}
+      className="text-[10px] rounded border border-border bg-surface px-2 py-0.5 text-ink-soft"
+      onChange={(event) => {
+        const policy = event.target.value as VpsServer['policy']
+        void updateVpsServer(selected.id, { policy }).then((result) => {
+          if (result.success) setServers((previous) => previous.map((server) => server.id === selected.id ? { ...server, policy } : server))
+          else setError(result.error || t('vps.sessionsFailed'))
+        }).catch(() => setError(t('vps.sessionsFailed')))
+      }}
+    >
+      <option value="agent-disabled">Agent disabled</option>
+      <option value="read-only">Read-only</option>
+      <option value="controlled">Manual approval</option>
+      <option value="auto">Auto — {t('vps.autoApproval')}</option>
+      <option value="full-access">Full access</option>
+    </select>
+  )
+
   return (
     <div ref={layoutRef} className={`h-full flex min-h-0 ${resizing ? 'select-none cursor-col-resize' : ''}`}>
       <VpsServerList
@@ -173,6 +195,7 @@ export default function VpsView({ visible = true, onOpenSettings, terminalFontSi
         <>
           <div className={`${focusChat ? 'hidden' : 'flex'} flex-1 min-w-0 flex-col min-h-0`}>
             <div className="flex items-center gap-2 px-3 py-1.5 border-b border-border bg-surface-2">
+              {policySelect}
               <button
                 type="button"
                 onClick={() => setFocusChat(true)}
@@ -224,6 +247,7 @@ export default function VpsView({ visible = true, onOpenSettings, terminalFontSi
             style={focusChat ? undefined : { width: chatWidth, maxWidth: 'calc(100% - 632px)' }}
           >
             <div className={`flex items-center gap-2 px-3 py-1.5 border-b border-border bg-surface-2 ${focusChat ? '' : '2xl:hidden'}`}>
+              {focusChat && policySelect}
               <button type="button" onClick={() => setFocusChat(false)} className="text-[10px] rounded border border-border px-2 py-0.5 hover:bg-surface-3">
                 {t('vps.showDetail')}
               </button>
